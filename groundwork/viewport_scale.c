@@ -3,6 +3,8 @@
 #include <time.h>
 #include <stdlib.h>
 
+#define SZ_CLASSNAME L"Main_WindowClass"
+
 typedef struct _tagTRECT {
     unsigned int left;
     unsigned int top;
@@ -29,29 +31,29 @@ IMAGE image_crop(IMAGE *img, TRECT rc)
     
     /* Проверка размера */
     
-    /*if (img_size->width < rc.left + rc.width &&
+    if (img_size->width < rc.left + rc.width &&
         img_size->height < rc.top + rc.height)
-    {*/
-    void *new_data;
-    new_data = calloc(rc.width * rc.height * 4, sizeof(char));
-    
-    void *tpr = img;
-    
-    
-    while (tpr < img)
     {
-        tpr += rc.left * 4;
-        memcpy(new_data, tpr, rc.width * 4);
-        tpr += rc.width * 4;
+        void *new_data;
+        new_data = calloc(rc.width * rc.height * 4, sizeof(char));
+        
+        void *tpr = img;
+        
+        
+        while (tpr < img)
+        {
+            tpr += rc.left * 4;
+            memcpy(new_data, tpr, rc.width * 4);
+            tpr += rc.width * 4;
+        }
+        
+        IMAGE new_img;
+        new_img.data = new_data;
+        new_img.size.width = rc.width;
+        new_img.size.height = rc.height;
+        
+        return new_img;
     }
-    
-    IMAGE new_img;
-    new_img.data = new_data;
-    new_img.size.width = rc.width;
-    new_img.size.height = rc.height;
-    
-    return new_img;
-    /*}*/
 }
 
 IMAGE img;

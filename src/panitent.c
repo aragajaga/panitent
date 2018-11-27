@@ -1,4 +1,4 @@
-#include "canvasctl.h"
+#include "viewport.h"
 #include "toolshelf.h"
 #include "file_open.h"
 

@@ -1,4 +1,9 @@
-#include "canvasctl.h"
+#include "viewport.h"
+
+void image_init(IMAGE *img)
+{
+    img->data = calloc(img->rc.width * img->rc.height * 4, sizeof(char));    
+}
 
 void RegisterCanvasCtl()
 {
