@@ -5,22 +5,29 @@ void image_init(IMAGE *img)
     img->data = calloc(img->rc.width * img->rc.height * 4, sizeof(char));    
 }
 
-void RegisterCanvasCtl()
+VIEWPORT vp;
+
+void RegisterViewportCtl()
 {
     WNDCLASS wc;
     ZeroMemory(&wc, sizeof(wc));
     
     wc.style = CS_GLOBALCLASS | CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = _canvas_msgproc;
+    wc.lpfnWndProc = _viewport_msgproc;
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.lpszClassName = CANVASCTL_WC;
+    wc.lpszClassName = VIEWPORTCTL_WC;
     
     RegisterClass(&wc);
+    
+    IMAGE *img = vp.cvs.img;
+    img->rc.x = 0;
+    img->rc.y = 0;
+    img->rc.width = 320;
+    img->rc.height = 240;
+    image_init(vp.cvs.img);
 }
 
-static HDC hdcMem;
-
-void CanvasCtl_OnPaint(HWND hwnd)
+void ViewportCtl_OnPaint(HWND hwnd)
 {
     PAINTSTRUCT ps;
     HDC hdc;
@@ -37,22 +44,40 @@ void CanvasCtl_OnPaint(HWND hwnd)
         h,
         w + 640,
         h + 480);
-    if (!hdcMem)
-        hdcMem = CreateCompatibleDC(hdc);
+    
+    IMAGE *ctx = vp.cvs.img;
+    size_t size = ctx->rc.width * ctx->rc.height * 4;
+    
+    HBITMAP hBitmap;
+    hBitmap = CreateBitmap(ctx->rc.width, ctx->rc.height, 1, 8*4, ctx->data);
+    
+    HDC bitmapDC = CreateCompatibleDC(hdc);
+    HBITMAP oldBitmap = SelectObject(bitmapDC, hBitmap);
+    DeleteObject(oldBitmap);
+    BitBlt(hdc, 0, 0, ctx->rc.width, ctx->rc.height, bitmapDC, 0, 0, SRCCOPY);
+    DeleteObject(hBitmap);
+    DeleteDC(bitmapDC);
+    
     EndPaint(hwnd, &ps);
 }
 
 static BOOL fDraw = FALSE;
 static POINT prev;
 
-void CanvasCtl_OnLButtonDown(MOUSEEVENT mEvt)
+void ViewportCtl_OnMouseWheel()
+{
+    /* Тут типа зум надо бы сделать, но хз */
+    
+}
+
+void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt)
 {
     fDraw = TRUE;
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
 }
 
-void CanvasCtl_OnLButtonUp(MOUSEEVENT mEvt)
+void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt)
 {
     if (fDraw)
     {
@@ -64,7 +89,7 @@ void CanvasCtl_OnLButtonUp(MOUSEEVENT mEvt)
     fDraw = FALSE;
 }
 
-void CanvasCtl_OnMouseMove(MOUSEEVENT mEvt)
+void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt)
 {
     if (fDraw)
     {
@@ -75,7 +100,7 @@ void CanvasCtl_OnMouseMove(MOUSEEVENT mEvt)
     }
 }
 
-LRESULT CALLBACK _canvas_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK _viewport_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     MOUSEEVENT mevt;
     mevt.hwnd = hwnd;
@@ -83,16 +108,19 @@ LRESULT CALLBACK _canvas_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     
     switch(msg) {
     case WM_PAINT:
-        CanvasCtl_OnPaint(hwnd);
+        ViewportCtl_OnPaint(hwnd);
+        return 0;
+    case WM_MOUSEWHEEL:
+        ViewportCtl_OnMouseWheel();
         return 0;
     case WM_LBUTTONDOWN:
-        CanvasCtl_OnLButtonDown(mevt);
+        ViewportCtl_OnLButtonDown(mevt);
         return 0;
     case WM_LBUTTONUP:
-        CanvasCtl_OnLButtonUp(mevt);
+        ViewportCtl_OnLButtonUp(mevt);
         return 0;
     case WM_MOUSEMOVE:
-        CanvasCtl_OnMouseMove(mevt);
+        ViewportCtl_OnMouseMove(mevt);
         return 0;
     }    
     return DefWindowProc(hwnd, msg, wParam, lParam);

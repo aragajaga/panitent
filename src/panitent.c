@@ -16,8 +16,14 @@
 #define IDM_HELP_ABOUT  1009
 
 static HINSTANCE hInstance;
-static HWND hwndCanvas;
+static HWND hwndViewport;
 static HWND hwndToolShelf;
+
+void UnregisterClasses()
+{
+    UnregisterClass(VIEWPORTCTL_WC, NULL);
+    UnregisterClass(TOOLSHELF_WC, NULL);
+}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -45,11 +51,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             WORD cx = LOWORD(lParam);
             WORD cy = HIWORD(lParam);
-            SetWindowPos(hwndCanvas, NULL, 64, 0, cx-64, cy, SWP_NOZORDER);
+            SetWindowPos(hwndViewport, NULL, 64, 0, cx-64, cy, SWP_NOZORDER);
         }
         return 0;
     case WM_CREATE:
-        hwndCanvas = CreateWindowEx(0, CANVASCTL_WC, NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, 0, 0, 0, 0, hWnd, (HMENU) CANVASCTL_ID, hInstance, NULL);
+        hwndViewport = CreateWindowEx(0, VIEWPORTCTL_WC, NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, 0, 0, 0, 0, hWnd, (HMENU) VIEWPORTCTL_ID, hInstance, NULL);
         hwndToolShelf = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools", WS_VISIBLE | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 64, 256, hWnd, NULL, hInstance, NULL);
         return 0;
     case WM_DESTROY:
@@ -63,7 +69,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
 {
     hInstance = hInst;
     
-    RegisterCanvasCtl();
+    RegisterViewportCtl();
     RegisterToolShelf();
     
     HMENU hMenu = CreateMenu();
@@ -72,24 +78,24 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (HMENU)hSubMenu, L"&File");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
     
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear Canvas");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (HMENU)hSubMenu, L"&Edit");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
     
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
     AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_PALETTE, L"&Palette");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (HMENU)hSubMenu, L"&Window");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
     CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
     
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (HMENU)hSubMenu, L"&Help");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
     
     /**************************************************************************/
     /************************** REGISTER WINDOW CLASS *************************/
@@ -136,6 +142,6 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
         TranslateMessage(&msg);
     }
     
-    UnregisterClass(CANVASCTL_WC, NULL);
+    UnregisterClasses();
     return (int) msg.wParam;
 }

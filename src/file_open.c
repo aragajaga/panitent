@@ -1,4 +1,3 @@
-#include "mingw_missing.h"
 #include "file_open.h"
 
 const COMDLG_FILTERSPEC c_rgSaveTypes[] =
@@ -117,7 +116,7 @@ HRESULT __stdcall DialogEventHandler_OnButtonClicked(IFileDialogCustomize *pfdc,
 HRESULT __stdcall DialogEventHandler_OnCheckButtonToggled(IFileDialogCustomize *pfdc, DWORD a, BOOL b) { return S_OK; };
 HRESULT __stdcall DialogEventHandler_OnControlActivating(IFileDialogCustomize *pfdc, DWORD a) { return S_OK; };
 
-static const DialogEventHandlerVtbl deh_vtbl = {
+static DialogEventHandlerVtbl deh_vtbl = {
     DialogEventHandler_QueryInterface,
     DialogEventHandler_AddRef,
     DialogEventHandler_Release,

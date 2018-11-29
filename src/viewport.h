@@ -3,8 +3,8 @@
 
 #include "stdafx.h"
 
-#define CANVASCTL_ID 100
-#define CANVASCTL_WC L"CanvasCtlClass"
+#define VIEWPORTCTL_ID 100
+#define VIEWPORTCTL_WC L"CanvasCtlClass"
 
 typedef struct _tagTRECT {
     unsigned int x;
@@ -18,11 +18,14 @@ typedef struct _tagIMAGE {
     TRECT rc;
 } IMAGE;
 
-void image_init(IMAGE *img);
-
-typedef struct _tagCANVASCTL {
+typedef struct _tagCANVAS {
     IMAGE *img;
-} CANVASCTL;
+} CANVAS;
+
+typedef struct _tagVIEWPORT {
+    CANVAS cvs; // Исходное изображение
+    IMAGE *img; // Увеличенное/кропленое
+} VIEWPORT;
 
 typedef struct _tagMOUSEEVENT MOUSEEVENT;
 struct _tagMOUSEEVENT
@@ -31,12 +34,13 @@ struct _tagMOUSEEVENT
     LPARAM lParam;
 };
 
-void CreateImg();
-void RegisterCanvasCtl();
-void CanvasCtl_OnPaint(HWND hWnd);
-void CanvasCtl_OnLButtonDown(MOUSEEVENT mEvt);
-void CanvasCtl_OnLButtonUp(MOUSEEVENT mEvt);
-void CanvasCtl_OnMouseMove(MOUSEEVENT mEvt);
-LRESULT CALLBACK _canvas_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+void image_init(IMAGE *img);
+/* void CreateImg(); */
+void RegisterViewportCtl();
+void ViewportCtl_OnPaint(HWND hWnd);
+void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt);
+void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt);
+void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt);
+LRESULT CALLBACK _viewport_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 #endif /* VIEWPORT_H */

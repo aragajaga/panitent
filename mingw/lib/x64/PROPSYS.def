@@ -2,7 +2,7 @@ LIBRARY PROPSYS.dll
 EXPORTS
 ClearPropVariantArray
 ClearVariantArray
-_GetProxyDllInfo
+GetProxyDllInfo	@3
 InitPropVariantFromBooleanVector
 InitPropVariantFromBuffer
 InitPropVariantFromCLSID

@@ -1,7 +1,7 @@
 #ifndef MINGW_MISSING_H
 #define MINGW_MISSING_H
 
-#include <windows.h>
+#include "stdafx.h"
 
 #ifndef OFFSETOFCLASS
 

@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8)
 
 project(panitent)
 
+SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
+
 if(MINGW)
     set(CMAKE_RC_COMPILER_INIT windres)
     ENABLE_LANGUAGE(RC)
@@ -18,7 +20,14 @@ set(SOURCE_EXE
 
 include_directories("${CMAKE_SOURCE_DIR}/mingw/include")
 include_directories("${CMAKE_SOURCE_DIR}/src")
-link_directories("${CMAKE_SOURCE_DIR}/mingw/lib")
+
+if (WIN32)
+    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
+        link_directories("${CMAKE_SOURCE_DIR}/mingw/lib/x64")
+    else()
+        link_directories("${CMAKE_SOURCE_DIR}/mingw/lib")
+    endif()
+endif()
 
 add_executable(${PROJECT_NAME} ${SOURCE_EXE})
 target_link_libraries(${PROJECT_NAME} propsys shlwapi)

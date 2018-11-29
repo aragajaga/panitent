@@ -1,15 +1,9 @@
 #ifndef FILE_OPEN_H
 #define FILE_OPEN_H
 
-#define _UNICODE
-#define UNICODEls
+#include "stdafx.h"
 
-#define NTDDI_VERSION NTDDI_VISTA
-#define _WINNT_WIN32 0600
-
-#include <windows.h>
 #include <initguid.h>
-#include <shobjidl.h>
 #include <shlwapi.h>
 #include <propsys.h>
 
