@@ -19,12 +19,12 @@ typedef struct _tagIMAGE {
 } IMAGE;
 
 typedef struct _tagCANVAS {
-    IMAGE *img;
+    IMAGE img;
 } CANVAS;
 
 typedef struct _tagVIEWPORT {
     CANVAS cvs; // Исходное изображение
-    IMAGE *img; // Увеличенное/кропленое
+    IMAGE img; // Увеличенное/кропленое
 } VIEWPORT;
 
 typedef struct _tagMOUSEEVENT MOUSEEVENT;
@@ -35,7 +35,7 @@ struct _tagMOUSEEVENT
 };
 
 void image_init(IMAGE *img);
-/* void CreateImg(); */
+void viewport_init(VIEWPORT* vp);
 void RegisterViewportCtl();
 void ViewportCtl_OnPaint(HWND hWnd);
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt);

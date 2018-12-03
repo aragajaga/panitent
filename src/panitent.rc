@@ -12,7 +12,7 @@ BEGIN
         BLOCK "000004B0"
         BEGIN
             VALUE "CompanyName",      "Philosoph228"
-            VALUE "FileDescription",  "panit.ent is utility for editing images"
+            VALUE "FileDescription",  "Panit.ent Graphics Editor"
             VALUE "FileVersion",      "1.0.0.0"
             VALUE "InternalName",     "panitent"
             VALUE "OriginalFilename", "panitent.exe"

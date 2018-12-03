@@ -2,7 +2,9 @@ cmake_minimum_required(VERSION 2.8)
 
 project(panitent)
 
-SET(CMAKE_CXX_FLAGS_RELEASE "-O2")
+SET(CMAKE_C_FLAGS_RELEASE "-O2")
+SET(CMAKE_C_FLAGS_DEBUG "-O0 -g")
+SET(CMAKE_C_FLAGS "-Wall")
 
 if(MINGW)
     set(CMAKE_RC_COMPILER_INIT windres)

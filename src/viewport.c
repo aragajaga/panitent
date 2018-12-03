@@ -1,11 +1,20 @@
 #include "viewport.h"
 
+VIEWPORT vp;
+
 void image_init(IMAGE *img)
 {
-    img->data = calloc(img->rc.width * img->rc.height * 4, sizeof(char));    
+    size_t length = img->rc.width * img->rc.height * 4;
+    img->data = calloc(length, sizeof(char));
+    memset(img->data, 245, length);
 }
 
-VIEWPORT vp;
+void viewport_init(VIEWPORT* vp)
+{
+    vp->img.rc.width = 255;
+    vp->img.rc.height = 255;
+    image_init(&vp->img);
+}
 
 void RegisterViewportCtl()
 {
@@ -18,13 +27,7 @@ void RegisterViewportCtl()
     wc.lpszClassName = VIEWPORTCTL_WC;
     
     RegisterClass(&wc);
-    
-    IMAGE *img = vp.cvs.img;
-    img->rc.x = 0;
-    img->rc.y = 0;
-    img->rc.width = 320;
-    img->rc.height = 240;
-    image_init(vp.cvs.img);
+    viewport_init(&vp);
 }
 
 void ViewportCtl_OnPaint(HWND hwnd)
@@ -45,7 +48,7 @@ void ViewportCtl_OnPaint(HWND hwnd)
         w + 640,
         h + 480);
     
-    IMAGE *ctx = vp.cvs.img;
+    IMAGE *ctx = &vp.img;
     size_t size = ctx->rc.width * ctx->rc.height * 4;
     
     HBITMAP hBitmap;
@@ -54,7 +57,7 @@ void ViewportCtl_OnPaint(HWND hwnd)
     HDC bitmapDC = CreateCompatibleDC(hdc);
     HBITMAP oldBitmap = SelectObject(bitmapDC, hBitmap);
     DeleteObject(oldBitmap);
-    BitBlt(hdc, 0, 0, ctx->rc.width, ctx->rc.height, bitmapDC, 0, 0, SRCCOPY);
+    HRESULT hr = BitBlt(hdc, 100, 100, ctx->rc.width, ctx->rc.height, bitmapDC, 0, 0, SRCCOPY);
     DeleteObject(hBitmap);
     DeleteDC(bitmapDC);
     
