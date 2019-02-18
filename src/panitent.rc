@@ -1,7 +1,8 @@
 #include "resource.h"
 
 IDI_ICON ICON "panitent.ico"
-1 VERSIONINFO
+1 RT_MANIFEST "panitent.exe.manifest"
+2 VERSIONINFO
 FILEVERSION     1,0,0,0
 PRODUCTVERSION  1,0,0,0
 FILEOS          0x4
@@ -11,7 +12,7 @@ BEGIN
     BEGIN
         BLOCK "000004B0"
         BEGIN
-            VALUE "CompanyName",      "Philosoph228"
+            VALUE "CompanyName",      "Aragajaga"
             VALUE "FileDescription",  "Panit.ent Graphics Editor"
             VALUE "FileVersion",      "1.0.0.0"
             VALUE "InternalName",     "panitent"

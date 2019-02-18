@@ -18,6 +18,8 @@ set(SOURCE_EXE
     src/file_open.c
     src/toolshelf.c
     src/viewport.c
+    src/settings.c
+    src/log.c
     src/panitent.rc)
 
 include_directories("${CMAKE_SOURCE_DIR}/mingw/include")

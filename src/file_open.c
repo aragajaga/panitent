@@ -23,12 +23,12 @@ HRESULT __stdcall DialogEventHandler_QueryInterface(DialogEventHandler* This,
 
 ULONG __stdcall DialogEventHandler_AddRef(DialogEventHandler* This)
 {
-    return InterlockedIncrement(&This->_cRef);
+    return InterlockedIncrement((volatile long int *)&This->_cRef);
 }
 
 ULONG __stdcall DialogEventHandler_Release(DialogEventHandler* This)
 {
-    long cRef = InterlockedDecrement(&This->_cRef);
+    long cRef = InterlockedDecrement((volatile long int *)&This->_cRef);
     if (!cRef)
         GlobalFree(This);
     return cRef;

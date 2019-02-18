@@ -62,7 +62,6 @@ void ToolShelf_OnMouseMove(HWND hwnd, LPARAM lParam)
 
     selected_tool = 14-((cols*26-mx) / 26);
     
-    InvalidateRect(hwnd, NULL, TRUE);
 }
 
 void ToolShelf_OnLButtonDown(HWND hwnd, LPARAM lParam)

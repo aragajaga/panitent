@@ -1,6 +1,8 @@
 #include "viewport.h"
 #include "toolshelf.h"
 #include "file_open.h"
+#include "settings.h"
+#include "winuser.h"
 
 #define IDM_FILE_OPEN   1001
 #define IDM_FILE_CLOSE  1002
@@ -12,8 +14,10 @@
 #define IDM_WINDOW_TOOLS    1006
 #define IDM_WINDOW_PALETTE  1007
 
-#define IDM_HELP_TOPICS 1008
-#define IDM_HELP_ABOUT  1009
+#define IDM_OPTIONS_SETTINGS    1008
+
+#define IDM_HELP_TOPICS 1009
+#define IDM_HELP_ABOUT  1010
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -43,6 +47,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case IDM_HELP_TOPICS:
             ShellExecute(hWnd, L"open", L"https://google.com", 0, 0, SW_SHOWNORMAL);
             break;
+        case IDM_OPTIONS_SETTINGS:
+            show_settings_window(hWnd);
         default:
             break;
         }
@@ -72,6 +78,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     RegisterViewportCtl();
     RegisterToolShelf();
     
+    
     HMENU hMenu = CreateMenu();
     HMENU hSubMenu;
     
@@ -91,6 +98,10 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_PALETTE, L"&Palette");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
     CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_OPTIONS_SETTINGS, L"&Settings");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Options");
     
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");

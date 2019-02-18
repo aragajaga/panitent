@@ -18,8 +18,7 @@ void viewport_init(VIEWPORT* vp)
 
 void RegisterViewportCtl()
 {
-    WNDCLASS wc;
-    ZeroMemory(&wc, sizeof(wc));
+    WNDCLASS wc = {0};
     
     wc.style = CS_GLOBALCLASS | CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = _viewport_msgproc;
@@ -67,10 +66,10 @@ void ViewportCtl_OnPaint(HWND hwnd)
 static BOOL fDraw = FALSE;
 static POINT prev;
 
-void ViewportCtl_OnMouseWheel()
+void ViewportCtl_OnMouseWheel(WPARAM wParam)
 {
     /* Тут типа зум надо бы сделать, но хз */
-    
+    int z_delta = GET_WHEEL_DELTA_WPARAM(wParam); 
 }
 
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt)
@@ -114,7 +113,7 @@ LRESULT CALLBACK _viewport_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
         ViewportCtl_OnPaint(hwnd);
         return 0;
     case WM_MOUSEWHEEL:
-        ViewportCtl_OnMouseWheel();
+        ViewportCtl_OnMouseWheel(wParam);
         return 0;
     case WM_LBUTTONDOWN:
         ViewportCtl_OnLButtonDown(mevt);
