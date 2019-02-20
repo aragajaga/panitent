@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "log.h"
 #include "settings.h"
+#include <windowsx.h>
 
 static ATOM settings_window_class;
 
@@ -49,12 +50,21 @@ int show_settings_window(HWND parent_hwnd)
     }
 }
 
+HWND hTabControl;
+HWND hButton;
+HWND hButtonCancel;
+
 LRESULT CALLBACK wndproc_settings_window(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
     case WM_CREATE:
         initialize_settings_window(hwnd, msg);
+        break;
+    case WM_SIZE:
+        SetWindowPos(hTabControl, HWND_TOP, 10, 10, GET_X_LPARAM(lParam)-20, GET_Y_LPARAM(lParam)-60, 0);
+        SetWindowPos(hButton, HWND_TOP, GET_X_LPARAM(lParam)-110, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
+        SetWindowPos(hButtonCancel, HWND_TOP, GET_X_LPARAM(lParam)-220, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -71,14 +81,62 @@ int initialize_settings_window(HWND hwnd)
     ncm.cbSize = sizeof(NONCLIENTMETRICS);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
     HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
-
+    
+    hTabControl = CreateWindowEx(
+            0,
+            WC_TABCONTROL,
+            NULL,
+            WS_CHILD | WS_VISIBLE,
+            10, 10,
+            620, 180,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        
+    
+    TCITEM tab_main = {0};
+    tab_main.mask       = TCIF_TEXT;
+    tab_main.pszText    = L"Main";
+    tab_main.iImage     = -1;
+    
+    TCITEM tab_secondary = {0};
+    tab_secondary.mask       = TCIF_TEXT;
+    tab_secondary.pszText    = L"Secondary";
+    tab_secondary.iImage     = -1;
+    
+    SendMessage(hTabControl, TCM_INSERTITEM, (WPARAM)0, (LPARAM)&tab_main);
+    SendMessage(hTabControl, TCM_INSERTITEM, (WPARAM)1, (LPARAM)&tab_secondary);
+    
+    SendMessage(hTabControl, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+    
+    RECT tab_view_rc    = {0};
+    tab_view_rc.left    = 10;
+    tab_view_rc.top     = 10;
+    tab_view_rc.right   = 640;
+    tab_view_rc.bottom  = 200;
+    
+    SendMessage(hTabControl, TCM_ADJUSTRECT, (WPARAM)FALSE, (LPARAM)&tab_view_rc);    
+    HWND hTabView = CreateWindow(
+            L"STATIC",
+            NULL,
+            WS_CHILD | WS_VISIBLE,
+            tab_view_rc.left,
+            tab_view_rc.top,
+            tab_view_rc.right - tab_view_rc.left,
+            tab_view_rc.bottom - tab_view_rc.top,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        
     settings_window_handles.canvas_border_checkbox = CreateWindow(
             L"BUTTON",
             L"Show border",
             WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
             10, 10,
             100, 20,
-            hwnd,
+            hTabView,
             NULL,
             GetModuleHandle(NULL),
             NULL);
@@ -87,11 +145,11 @@ int initialize_settings_window(HWND hwnd)
             settings_window_handles.canvas_border_checkbox,
             WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
     
-    HWND hButton = CreateWindow(
+    hButton = CreateWindow(
             L"BUTTON",
-            L"Button",
+            L"Apply",
             WS_CHILD | WS_VISIBLE,
-            10, 40,
+            10, 340,
             100, 30,
             hwnd,
             NULL,
@@ -99,4 +157,17 @@ int initialize_settings_window(HWND hwnd)
             NULL);
 
     SendMessage(hButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+    
+    hButtonCancel = CreateWindow(
+            L"BUTTON",
+            L"Cancel",
+            WS_CHILD | WS_VISIBLE,
+            120, 340,
+            100, 30,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+
+    SendMessage(hButtonCancel, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
 }

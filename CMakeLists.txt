@@ -34,4 +34,4 @@ if (WIN32)
 endif()
 
 add_executable(${PROJECT_NAME} ${SOURCE_EXE})
-target_link_libraries(${PROJECT_NAME} propsys shlwapi)
+target_link_libraries(${PROJECT_NAME} propsys shlwapi comctl32)

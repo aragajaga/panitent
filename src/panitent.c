@@ -75,9 +75,13 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
 {
     hInstance = hInst;
     
+    INITCOMMONCONTROLSEX icex;
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC  = ICC_TAB_CLASSES;
+    InitCommonControlsEx(&icex);
+    
     RegisterViewportCtl();
     RegisterToolShelf();
-    
     
     HMENU hMenu = CreateMenu();
     HMENU hSubMenu;

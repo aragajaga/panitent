@@ -15,5 +15,6 @@
 #include <windows.h>
 #include <mingw_missing.h>
 #include <shobjidl.h>
+#include <commctrl.h>
 
 #endif /* STDAFX_H */
