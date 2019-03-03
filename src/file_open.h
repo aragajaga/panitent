@@ -5,7 +5,6 @@
 
 #include <initguid.h>
 #include <shlwapi.h>
-#include <propsys.h>
 
 #define INDEX_PNG 1
 

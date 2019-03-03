@@ -17,10 +17,6 @@ if(MINGW)
     enable_language(RC)
     set(CMAKE_RC_COMPILE_OBJECT
         "<CMAKE_RC_COMPILER> <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>")
-    
-    # Include missed WinAPI features
-    include_directories("${CMAKE_SOURCE_DIR}/mingw/include")
-    include_directories("${CMAKE_SOURCE_DIR}/src")
 endif(MINGW)
 
 set(SOURCE_EXE
@@ -36,13 +32,5 @@ if(MSVC)
 set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 endif(MSVC)
 
-if (WIN32)
-    if (CMAKE_SIZEOF_VOID_P EQUAL 8)
-        link_directories("${CMAKE_SOURCE_DIR}/mingw/lib/x64")
-    else()
-        link_directories("${CMAKE_SOURCE_DIR}/mingw/lib")
-    endif()
-endif()
-
 add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
-target_link_libraries(${PROJECT_NAME} propsys shlwapi comctl32)
+target_link_libraries(${PROJECT_NAME} shlwapi comctl32)

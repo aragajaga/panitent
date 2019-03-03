@@ -16,11 +16,6 @@
 #endif
 
 #include <windows.h>
-
-#ifdef __MINGW32__
-#include <mingw_missing.h>
-#endif
-
 #include <shobjidl.h>
 #include <commctrl.h>
 #include <shlobj.h>
