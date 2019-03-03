@@ -28,6 +28,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
     
@@ -108,6 +109,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         switch (LOWORD(wParam)) {
         case IDM_FILE_OPEN:
             FileOpen();
+            break;
+        case IDM_FILE_SAVE:
+            FileSave();
             break;
         case IDM_FILE_CLOSE:
             PostQuitMessage(0);
