@@ -23,8 +23,10 @@ typedef struct _tagCANVAS {
 } CANVAS;
 
 typedef struct _tagVIEWPORT {
-    CANVAS cvs; // Исходное изображение
-    IMAGE img; // Увеличенное/кропленое
+    CANVAS  cvs; // Исходное изображение
+    IMAGE   img; // Увеличенное/кропленое
+    
+    HWND    hwnd;
 } VIEWPORT;
 
 typedef struct _tagMOUSEEVENT MOUSEEVENT;

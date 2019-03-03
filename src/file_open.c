@@ -13,22 +13,38 @@ HRESULT __stdcall DialogEventHandler_QueryInterface(DialogEventHandler* This,
         REFIID riid,
         void **ppvObject)
 {
-    static const QITAB qit[] = {
+    /* static const QITAB qit[] = {
         QITABENT(DialogEventHandler, IFileDialogEvents),
         QITABENT(DialogEventHandler, IFileDialogControlEvents),
         { 0 },
+    }; */
+
+    // For unknown reasons MSVC can't use C definition of QITABENT macro
+    // It expands it to "static_cast", what cause error with C compiling
+    static const QITAB qit[] =
+    {
+        {
+            (IID*) &IID_IFileDialogEvents,
+            ((DWORD)(DWORD_PTR)((IFileDialogEvents*)((DialogEventHandler*)8))-8)
+        },
+        {
+            (IID*) &IID_IFileDialogControlEvents,
+            ((DWORD)(DWORD_PTR)((IFileDialogControlEvents*)((DialogEventHandler*)8))-8)
+        },
+        { 0 }
     };
+    
     return QISearch(This, qit, riid, ppvObject);
 }
 
 ULONG __stdcall DialogEventHandler_AddRef(DialogEventHandler* This)
 {
-    return InterlockedIncrement((volatile long int *)&This->_cRef);
+    return InterlockedIncrement((LONG *)&This->_cRef);
 }
 
 ULONG __stdcall DialogEventHandler_Release(DialogEventHandler* This)
 {
-    long cRef = InterlockedDecrement((volatile long int *)&This->_cRef);
+    long cRef = InterlockedDecrement((LONG *)&This->_cRef);
     if (!cRef)
         GlobalFree(This);
     return cRef;

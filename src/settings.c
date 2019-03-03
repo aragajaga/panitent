@@ -2,12 +2,34 @@
 #include "log.h"
 #include "settings.h"
 #include <windowsx.h>
+#include <knownfolders.h>
 
 static ATOM settings_window_class;
 
 struct {
     HWND canvas_border_checkbox;
 } settings_window_handles;
+
+int access_settings_file()
+{
+    PWSTR appdata_path = NULL;
+    
+    HRESULT hr = SHGetKnownFolderPath(
+            &FOLDERID_RoamingAppData,
+            KF_FLAG_DEFAULT,
+            NULL,
+            &appdata_path);
+
+    if (S_OK == hr)
+    {
+        WCHAR app_dir[MAX_PATH];
+        
+        wsprintf(app_dir, L"%s\\%s", appdata_path, L"panitent");
+        CoTaskMemFree(appdata_path);
+        
+        CreateDirectory(app_dir, NULL);
+    }
+}
 
 int register_settings_window_class()
 {
@@ -61,14 +83,22 @@ LRESULT CALLBACK wndproc_settings_window(HWND hwnd, UINT msg, WPARAM wParam, LPA
     case WM_CREATE:
         initialize_settings_window(hwnd, msg);
         break;
+    case WM_GETMINMAXINFO:
+    {
+        RECT rc = {0};
+        rc.right    = 640;
+        rc.bottom   = 480;
+        AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+        
+        LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
+        lpMMI->ptMinTrackSize.x = rc.right - rc.left;
+        lpMMI->ptMinTrackSize.y = rc.bottom - rc.top;
+    }
+        break;
     case WM_SIZE:
         SetWindowPos(hTabControl, HWND_TOP, 10, 10, GET_X_LPARAM(lParam)-20, GET_Y_LPARAM(lParam)-60, 0);
         SetWindowPos(hButton, HWND_TOP, GET_X_LPARAM(lParam)-110, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
         SetWindowPos(hButtonCancel, HWND_TOP, GET_X_LPARAM(lParam)-220, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }

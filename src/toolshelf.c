@@ -50,15 +50,8 @@ void ToolShelf_OnMouseMove(HWND hwnd, LPARAM lParam)
     int bsize = 24;
     int cols = (rc.right - rc.left - 2)/(bsize+2);
     
-    int width;
-    width = rc.right - rc.left - 2;
-    
-    int mx, my;
-    int px;
+    int mx;
     mx = LOWORD(lParam);
-    my = HIWORD(lParam);
-    
-    px = (mx/26)+2;
 
     selected_tool = 14-((cols*26-mx) / 26);
     

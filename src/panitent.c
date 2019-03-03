@@ -3,77 +3,17 @@
 #include "file_open.h"
 #include "settings.h"
 #include "winuser.h"
-
-#define IDM_FILE_OPEN   1001
-#define IDM_FILE_CLOSE  1002
-
-#define IDM_EDIT_UNDO   1003
-#define IDM_EDIT_REDO   1004
-#define IDM_EDIT_CLRCANVAS  1005
-
-#define IDM_WINDOW_TOOLS    1006
-#define IDM_WINDOW_PALETTE  1007
-
-#define IDM_OPTIONS_SETTINGS    1008
-
-#define IDM_HELP_TOPICS 1009
-#define IDM_HELP_ABOUT  1010
+#include "panitent.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
 static HWND hwndToolShelf;
 
-void UnregisterClasses()
-{
-    UnregisterClass(VIEWPORTCTL_WC, NULL);
-    UnregisterClass(TOOLSHELF_WC, NULL);
-}
-
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
-{
-    switch (uMsg) {
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case IDM_FILE_OPEN:
-            FileOpen();
-            break;
-        case IDM_FILE_CLOSE:
-            PostQuitMessage(0);
-            break;
-        case IDM_WINDOW_TOOLS:
-            CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
-            ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
-            break;
-        case IDM_HELP_TOPICS:
-            ShellExecute(hWnd, L"open", L"https://google.com", 0, 0, SW_SHOWNORMAL);
-            break;
-        case IDM_OPTIONS_SETTINGS:
-            show_settings_window(hWnd);
-        default:
-            break;
-        }
-        return 0;
-    case WM_SIZE:
-        {
-            WORD cx = LOWORD(lParam);
-            WORD cy = HIWORD(lParam);
-            SetWindowPos(hwndViewport, NULL, 64, 0, cx-64, cy, SWP_NOZORDER);
-        }
-        return 0;
-    case WM_CREATE:
-        hwndViewport = CreateWindowEx(0, VIEWPORTCTL_WC, NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, 0, 0, 0, 0, hWnd, (HMENU) VIEWPORTCTL_ID, hInstance, NULL);
-        hwndToolShelf = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools", WS_VISIBLE | WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, 64, 256, hWnd, NULL, hInstance, NULL);
-        return 0;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;    
-    }
-    return DefWindowProc(hWnd, uMsg, wParam, lParam);
-}
-
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
     hInstance = hInst;
+    access_settings_file();
+    
     
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -159,4 +99,52 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     
     UnregisterClasses();
     return (int) msg.wParam;
+}
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    switch (uMsg) {
+    case WM_COMMAND:
+        switch (LOWORD(wParam)) {
+        case IDM_FILE_OPEN:
+            FileOpen();
+            break;
+        case IDM_FILE_CLOSE:
+            PostQuitMessage(0);
+            break;
+        case IDM_WINDOW_TOOLS:
+            CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
+            ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
+            break;
+        case IDM_HELP_TOPICS:
+            ShellExecute(hWnd, L"open", L"https://google.com", 0, 0, SW_SHOWNORMAL);
+            break;
+        case IDM_OPTIONS_SETTINGS:
+            show_settings_window(hWnd);
+        default:
+            break;
+        }
+        return 0;
+    case WM_SIZE:
+        {
+            WORD cx = LOWORD(lParam);
+            WORD cy = HIWORD(lParam);
+            SetWindowPos(hwndViewport, NULL, 64, 0, cx-64, cy, SWP_NOZORDER);
+        }
+        return 0;
+    case WM_CREATE:
+        hwndViewport = CreateWindowEx(0, VIEWPORTCTL_WC, NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, 0, 0, 0, 0, hWnd, (HMENU) VIEWPORTCTL_ID, hInstance, NULL);
+        hwndToolShelf = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools", WS_VISIBLE | WS_CHILD, CW_USEDEFAULT, CW_USEDEFAULT, 64, 256, hWnd, NULL, hInstance, NULL);
+        return 0;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;    
+    }
+    return DefWindowProc(hWnd, uMsg, wParam, lParam);
+}
+
+void UnregisterClasses()
+{
+    UnregisterClass(VIEWPORTCTL_WC, NULL);
+    UnregisterClass(TOOLSHELF_WC, NULL);
 }

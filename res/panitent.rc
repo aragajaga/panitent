@@ -1,0 +1,31 @@
+#include "../src/resource.h"
+
+IDI_ICON ICON "panitent.ico"
+#ifdef __MINGW32__
+1 RT_MANIFEST "panitent.exe.manifest"
+#endif
+2 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEOS          0x4
+FILETYPE        0x1
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "000004B0"
+        BEGIN
+            VALUE "CompanyName",      "Aragajaga"
+            VALUE "FileDescription",  "Panit.ent Graphics Editor"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "panitent"
+            VALUE "OriginalFilename", "panitent.exe"
+            VALUE "ProductName",      "panit.ent application"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x00, 1200
+    END
+END
