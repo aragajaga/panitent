@@ -5,9 +5,32 @@
 #include "winuser.h"
 #include "panitent.h"
 
+#define IDS_STATUS 1330
+
 static HINSTANCE hInstance;
 static HWND hwndViewport;
 static HWND hwndToolShelf;
+
+HWND CreateStatusBar(HWND hParent)
+{
+    HWND hStatusBar;
+    RECT rcClient;
+    
+    hStatusBar = CreateWindowEx(
+            0,
+            STATUSCLASSNAME,
+            NULL,
+            SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE,
+            0, 0, 0, 0,
+            hParent,
+            (HMENU)IDS_STATUS,
+            GetModuleHandle(NULL),
+            NULL);
+     
+    GetClientRect(hParent, &rcClient);
+
+    return hStatusBar;
+}
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
@@ -131,12 +154,33 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             WORD cx = LOWORD(lParam);
             WORD cy = HIWORD(lParam);
-            SetWindowPos(hwndViewport, NULL, 64, 0, cx-64, cy, SWP_NOZORDER);
+            SetWindowPos(hwndViewport, NULL, 48, 0, cx-48, cy, SWP_NOZORDER);
         }
         return 0;
     case WM_CREATE:
-        hwndViewport = CreateWindowEx(0, VIEWPORTCTL_WC, NULL, WS_CHILD | WS_VISIBLE | WS_BORDER, 0, 0, 0, 0, hWnd, (HMENU) VIEWPORTCTL_ID, hInstance, NULL);
-        hwndToolShelf = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools", WS_VISIBLE | WS_CHILD, CW_USEDEFAULT, CW_USEDEFAULT, 64, 256, hWnd, NULL, hInstance, NULL);
+        hwndViewport = CreateWindowEx(
+                0,
+                VIEWPORTCTL_WC,
+                NULL,
+                WS_CHILD | WS_VISIBLE | WS_BORDER,
+                0, 0, 0, 0,
+                hWnd,
+                (HMENU) VIEWPORTCTL_ID,
+                hInstance,
+                NULL);
+
+        hwndToolShelf = CreateWindowEx(
+                WS_EX_TOOLWINDOW,
+                TOOLSHELF_WC,
+                L"Tools",
+                WS_VISIBLE | WS_CHILD,
+                CW_USEDEFAULT, CW_USEDEFAULT,
+                48, 256,
+                hWnd,
+                NULL,
+                hInstance,
+                NULL);
+        
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);

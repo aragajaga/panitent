@@ -32,4 +32,4 @@ set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 endif(MSVC)
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
-target_link_libraries(${PROJECT_NAME} shlwapi comctl32)
+target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32)

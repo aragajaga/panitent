@@ -1,7 +1,57 @@
 #include "stdafx.h"
 #include "toolshelf.h"
 
-static int selected_tool = 1;
+typedef struct _tagPNTTOOL
+{
+    LPSTR szLabel;
+    UINT iBmpIndex;
+} PNTTOOL;
+
+typedef struct _tagTOOLSHELF
+{
+    PNTTOOL *pTools;
+    int nCount;
+} TOOLSHELF;
+
+TOOLSHELF tsh;
+
+PNTTOOL tool;
+
+void ToolShelf_AddTool(TOOLSHELF *tsh, PNTTOOL tool)
+{
+    tsh->pTools[tsh->nCount] = tool;
+    tsh->nCount++;
+}
+
+void ToolShelf_RemoveTool(TOOLSHELF *tsh)
+{
+    if (tsh->nCount)
+        tsh->nCount--;
+}
+
+HBITMAP hbmTool;
+
+void InitializeToolShelf(TOOLSHELF *tsh)
+{
+    hbmTool = (HBITMAP)LoadImage(GetModuleHandle(NULL),
+            L"tool.bmp",
+            IMAGE_BITMAP,
+            0, 0,
+            LR_LOADFROMFILE);
+    
+    tsh->pTools = calloc(sizeof(TOOLSHELF), 8);
+    tsh->nCount = 0;
+    
+    PNTTOOL tPointer;
+    tPointer.szLabel = L"Pointer";
+    tPointer.iBmpIndex = 0;
+    ToolShelf_AddTool(tsh, tPointer);
+    
+    PNTTOOL tPencil;
+    tPencil.szLabel = L"Pencil";
+    tPencil.iBmpIndex = 1;
+    ToolShelf_AddTool(tsh, tPencil);
+}
 
 void ToolShelf_OnPaint(HWND hwnd)
 {
@@ -10,83 +60,66 @@ void ToolShelf_OnPaint(HWND hwnd)
     RECT rc;
     
     GetClientRect(hwnd, &rc);
-    
     hdc = BeginPaint(hwnd, &ps);
-    int bsize = 24;
-    int cols = (rc.right - rc.left - 2)/(bsize+2);
     
-    int x, y;
+    RECT rcClient;
+    GetClientRect(hwnd, &rcClient);
     
-    for (int i = 0; i < 16; i++)
+    int btnSize = 24;
+    
+    
+    BITMAP bitmap;
+    HDC hdcMem;
+    HGDIOBJ oldBitmap;
+    
+    hdcMem = CreateCompatibleDC(hdc);
+    oldBitmap = SelectObject(hdcMem, hbmTool);
+    GetObject(hbmTool, sizeof(bitmap), &bitmap);
+    
+    for (int i = 0; i < tsh.nCount; i++)
     {
-        x = i%cols*(bsize+2)+2;
-        y = i/cols*(bsize+2)+2;
+        int x = (i % 2) * btnSize;
+        int y = (i / 2) * btnSize;
         
-        RECT rc = {x, y, x+bsize, y+bsize};
-        DrawFrameControl(hdc, &rc, DFC_BUTTON, DFCS_ADJUSTRECT | DFCS_HOT);
+        Rectangle(hdc, x, y, x+btnSize, y+btnSize);
         
-        if (i == selected_tool) {
-            HGDIOBJ original = NULL;
-            original = SelectObject(hdc,GetStockObject(DC_PEN));
-            SetDCPenColor(hdc, RGB(255, 0, 0));
-            
-            
-            //Rectangle(hdc, x, y, x+bsize, y+bsize);
-            
-            SelectObject(hdc, original);
-        } else {
-            //Rectangle(hdc, x, y, x+bsize, y+bsize);
-        }
+        int iBmp = tsh.pTools[i].iBmpIndex;
+        TransparentBlt(hdc,
+                x+4,        y+4,
+                16,         bitmap.bmHeight,
+                hdcMem,
+                16*iBmp,    0,
+                16,         bitmap.bmHeight,
+                (UINT)0x00FF00FF);
     }
+    
+    SelectObject(hdcMem, oldBitmap);
+    DeleteDC(hdcMem);
+    
     EndPaint(hwnd, &ps);
 }
 
-void ToolShelf_OnMouseMove(HWND hwnd, LPARAM lParam)
-{
-    RECT rc;
-    
-    GetClientRect(hwnd, &rc);
-    
-    int bsize = 24;
-    int cols = (rc.right - rc.left - 2)/(bsize+2);
-    
-    int mx;
-    mx = LOWORD(lParam);
-
-    selected_tool = 14-((cols*26-mx) / 26);
-    
-}
-
-void ToolShelf_OnLButtonDown(HWND hwnd, LPARAM lParam)
-{
-
-}
-
-LRESULT CALLBACK _toolshelf_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
+    case WM_CREATE:
+        InitializeToolShelf(&tsh);
+        break;
     case WM_PAINT:
         ToolShelf_OnPaint(hwnd);
-        return 0;
-    case WM_MOUSEMOVE:
-        ToolShelf_OnMouseMove(hwnd, lParam);
-        return 0;
-    case WM_LBUTTONDOWN:
-        ToolShelf_OnLButtonDown(hwnd, lParam);
-        return 0;
+        break;
+    default:
+        return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    return 0;
 }
 
 void RegisterToolShelf()
 {
-    WNDCLASS wc;
-    ZeroMemory(&wc, sizeof(wc));
-    
-    wc.style            = CS_GLOBALCLASS | CS_HREDRAW | CS_VREDRAW;
-    wc.style            |= CS_DROPSHADOW;
-    wc.lpfnWndProc      = _toolshelf_msgproc;
+    WNDCLASS wc = {0};   
+    wc.style            = CS_HREDRAW | CS_VREDRAW;
+    wc.lpfnWndProc      = ToolShelfWndProc;
     wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground    = (HBRUSH) (COLOR_BTNFACE + 1);
     wc.lpszClassName    = TOOLSHELF_WC;

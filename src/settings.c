@@ -75,7 +75,6 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                 case IDT_SETTINGS_PAGE_DEBUG:
                     ShowWindow(hTPMain, SW_HIDE);
                     ShowWindow(hTPDebug, SW_NORMAL);
-                    MessageBox(NULL, L"Debug settings", L"Warning", MB_OK);
                     break;
                 }
             }
@@ -194,7 +193,7 @@ int InitSettingsWindow(HWND hwnd)
     hTPDebug = CreateWindow(
             L"SettingsTabPageDebug",
             NULL,
-            WS_CHILD | WS_VISIBLE,
+            WS_CHILD,
             tab_view_rc.left,
             tab_view_rc.top,
             tab_view_rc.right - tab_view_rc.left,
@@ -276,7 +275,7 @@ LRESULT CALLBACK SettingsTabPageDebugProc(HWND hwnd, UINT msg, WPARAM wParam, LP
         HWND hCheckBox = CreateWindow(
             L"BUTTON",
             L"Log actions",
-            WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
             10, 10,
             100, 20,
             hwnd,
