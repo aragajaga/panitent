@@ -25,7 +25,6 @@ set(SOURCE_EXE
     src/toolshelf.c
     src/viewport.c
     src/settings.c
-    src/log.c
     res/panitent.rc)
     
 if(MSVC)

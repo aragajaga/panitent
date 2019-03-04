@@ -1,55 +1,28 @@
 #include "stdafx.h"
-#include "log.h"
 #include "settings.h"
 #include <windowsx.h>
 #include <knownfolders.h>
 
-static ATOM settings_window_class;
+#define LPSZ_SETTINGSWINDOW L"Win32Ctl_SettingsWindow"
 
-struct {
-    HWND canvas_border_checkbox;
-} settings_window_handles;
-
-int access_settings_file()
-{
-    PWSTR appdata_path = NULL;
-    
-    HRESULT hr = SHGetKnownFolderPath(
-            &FOLDERID_RoamingAppData,
-            KF_FLAG_DEFAULT,
-            NULL,
-            &appdata_path);
-
-    if (S_OK == hr)
-    {
-        WCHAR app_dir[MAX_PATH];
-        
-        wsprintf(app_dir, L"%s\\%s", appdata_path, L"panitent");
-        CoTaskMemFree(appdata_path);
-        
-        CreateDirectory(app_dir, NULL);
-    }
-}
-
-int register_settings_window_class()
+ATOM RegisterSettingsWindowClass()
 {
     WNDCLASS wc = {0};
-    wc.lpfnWndProc      = (WNDPROC)wndproc_settings_window;
+    wc.lpfnWndProc      = (WNDPROC)SettingsWndProc;
     wc.hInstance        = GetModuleHandle(NULL);
+    wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground    = (HBRUSH)(COLOR_BTNFACE + 1);
-    wc.lpszClassName    = L"Win32Ctl_SettingsWindow";
+    wc.lpszClassName    = LPSZ_SETTINGSWINDOW;
 
-    if (!RegisterClass(&wc))
-    {
-        logger("[SettingsWindow] Failed to register window class");
-        return 0;
-    }
+    return RegisterClass(&wc);
 }
 
-int show_settings_window(HWND parent_hwnd)
+ATOM settings_window_class;
+
+int ShowSettingsWindow(HWND parent_hwnd)
 {
     if (!settings_window_class)
-        settings_window_class = register_settings_window_class();
+        settings_window_class = RegisterSettingsWindowClass();
     
     if (settings_window_class)
     {
@@ -59,7 +32,7 @@ int show_settings_window(HWND parent_hwnd)
         AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
         
         CreateWindow(
-                settings_window_class,
+                LPSZ_SETTINGSWINDOW,
                 L"Settings",
                 WS_VISIBLE | WS_OVERLAPPEDWINDOW,
                 (GetSystemMetrics(SM_CXSCREEN) - rc.right - rc.left) / 2,
@@ -70,18 +43,46 @@ int show_settings_window(HWND parent_hwnd)
                 GetModuleHandle(NULL),
                 NULL);
     }
+    
+    return 0;
 }
 
 HWND hTabControl;
-HWND hButton;
 HWND hButtonCancel;
+HWND hButtonOk;
 
-LRESULT CALLBACK wndproc_settings_window(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+HWND hTPMain;
+HWND hTPDebug;
+
+LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
+    case WM_NOTIFY:
+        {
+            LPNMHDR pNm = (LPNMHDR)lParam;
+            
+            if (pNm->hwndFrom == hTabControl && pNm->code == TCN_SELCHANGE)
+            {
+                UINT tabId = TabCtrl_GetCurSel(hTabControl);
+                
+                switch (tabId)
+                {
+                case IDT_SETTINGS_PAGE_MAIN:
+                    ShowWindow(hTPMain, SW_NORMAL);
+                    ShowWindow(hTPDebug, SW_HIDE);
+                    break;
+                case IDT_SETTINGS_PAGE_DEBUG:
+                    ShowWindow(hTPMain, SW_HIDE);
+                    ShowWindow(hTPDebug, SW_NORMAL);
+                    MessageBox(NULL, L"Debug settings", L"Warning", MB_OK);
+                    break;
+                }
+            }
+        }
+        break;
     case WM_CREATE:
-        initialize_settings_window(hwnd, msg);
+        InitSettingsWindow(hwnd);
         break;
     case WM_GETMINMAXINFO:
     {
@@ -96,21 +97,54 @@ LRESULT CALLBACK wndproc_settings_window(HWND hwnd, UINT msg, WPARAM wParam, LPA
     }
         break;
     case WM_SIZE:
-        SetWindowPos(hTabControl, HWND_TOP, 10, 10, GET_X_LPARAM(lParam)-20, GET_Y_LPARAM(lParam)-60, 0);
-        SetWindowPos(hButton, HWND_TOP, GET_X_LPARAM(lParam)-110, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
-        SetWindowPos(hButtonCancel, HWND_TOP, GET_X_LPARAM(lParam)-220, GET_Y_LPARAM(lParam)-40, 100, 30, 0);
+        {
+        UINT width = GET_X_LPARAM(lParam);
+        UINT height = GET_Y_LPARAM(lParam);
+        
+        SetWindowPos(hTabControl, HWND_TOP, 10, 10, width-20, height-60, 0);
+        SetWindowPos(hButtonCancel, HWND_TOP, width-110, height-40, 100, 30, 0);
+        SetWindowPos(hButtonOk, HWND_TOP, width-220, height-40, 100, 30, 0);
+        
+        RECT vrc;
+        GetClientRect(hTabControl, &vrc);
+        vrc.left += 10;
+        vrc.top += 10;
+        vrc.right += 10;
+        vrc.bottom += 10;
+        TabCtrl_AdjustRect(hTabControl, FALSE, &vrc);
+        
+        SetWindowPos(hTPMain,
+                HWND_TOP,
+                vrc.left, vrc.top,
+                vrc.right-vrc.left, vrc.bottom-vrc.top,
+                0);
+                
+        SetWindowPos(hTPDebug,
+                HWND_TOP,
+                vrc.left, vrc.top,
+                vrc.right-vrc.left, vrc.bottom-vrc.top,
+                0);
+        }
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
     return 0;
 }
 
-int initialize_settings_window(HWND hwnd)
+void SetGuiFont(HWND hwnd)
 {
     NONCLIENTMETRICS ncm = {0};
     ncm.cbSize = sizeof(NONCLIENTMETRICS);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
     HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
+    
+    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+}
+
+int InitSettingsWindow(HWND hwnd)
+{
+    RegisterSettingsTabPageMain();
+    RegisterSettingsTabPageDebug();
     
     hTabControl = CreateWindowEx(
             0,
@@ -123,32 +157,29 @@ int initialize_settings_window(HWND hwnd)
             NULL,
             GetModuleHandle(NULL),
             NULL);
-        
+    SetGuiFont(hTabControl);
     
     TCITEM tab_main = {0};
     tab_main.mask       = TCIF_TEXT;
     tab_main.pszText    = L"Main";
     tab_main.iImage     = -1;
+    TabCtrl_InsertItem(hTabControl, IDT_SETTINGS_PAGE_MAIN, &tab_main);
     
-    TCITEM tab_secondary = {0};
-    tab_secondary.mask       = TCIF_TEXT;
-    tab_secondary.pszText    = L"Secondary";
-    tab_secondary.iImage     = -1;
-    
-    SendMessage(hTabControl, TCM_INSERTITEM, (WPARAM)0, (LPARAM)&tab_main);
-    SendMessage(hTabControl, TCM_INSERTITEM, (WPARAM)1, (LPARAM)&tab_secondary);
-    
-    SendMessage(hTabControl, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+    TCITEM tab_debug = {0};
+    tab_debug.mask       = TCIF_TEXT;
+    tab_debug.pszText    = L"Debug";
+    tab_debug.iImage     = -1;
+    TabCtrl_InsertItem(hTabControl, IDT_SETTINGS_PAGE_DEBUG, &tab_debug);
     
     RECT tab_view_rc    = {0};
     tab_view_rc.left    = 10;
     tab_view_rc.top     = 10;
     tab_view_rc.right   = 640;
-    tab_view_rc.bottom  = 200;
+    tab_view_rc.bottom  = 200;   
+    TabCtrl_AdjustRect(hTabControl, FALSE, &tab_view_rc);
     
-    SendMessage(hTabControl, TCM_ADJUSTRECT, (WPARAM)FALSE, (LPARAM)&tab_view_rc);    
-    HWND hTabView = CreateWindow(
-            L"STATIC",
+    hTPMain = CreateWindow(
+            L"SettingsTabPageMain",
             NULL,
             WS_CHILD | WS_VISIBLE,
             tab_view_rc.left,
@@ -159,45 +190,115 @@ int initialize_settings_window(HWND hwnd)
             NULL,
             GetModuleHandle(NULL),
             NULL);
-        
-    settings_window_handles.canvas_border_checkbox = CreateWindow(
-            L"BUTTON",
-            L"Show border",
-            WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
-            10, 10,
-            100, 20,
-            hTabView,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
 
-    SendMessage(
-            settings_window_handles.canvas_border_checkbox,
-            WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
-    
-    hButton = CreateWindow(
-            L"BUTTON",
-            L"Apply",
+    hTPDebug = CreateWindow(
+            L"SettingsTabPageDebug",
+            NULL,
             WS_CHILD | WS_VISIBLE,
-            10, 340,
-            100, 30,
+            tab_view_rc.left,
+            tab_view_rc.top,
+            tab_view_rc.right - tab_view_rc.left,
+            tab_view_rc.bottom - tab_view_rc.top,
             hwnd,
             NULL,
             GetModuleHandle(NULL),
             NULL);
-
-    SendMessage(hButton, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
     
     hButtonCancel = CreateWindow(
             L"BUTTON",
             L"Cancel",
             WS_CHILD | WS_VISIBLE,
-            120, 340,
+            420, 440,
             100, 30,
             hwnd,
             NULL,
             GetModuleHandle(NULL),
             NULL);
+    SetGuiFont(hButtonCancel);
+    
+    hButtonOk = CreateWindow(
+            L"BUTTON",
+            L"OK",
+            WS_CHILD | WS_VISIBLE,
+            530, 440,
+            100, 30,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+    SetGuiFont(hButtonOk);
+    
+    return 0;
+}
 
-    SendMessage(hButtonCancel, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+LRESULT CALLBACK SettingsTabPageMainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+        {
+        HWND hCheckBox = CreateWindow(
+            L"BUTTON",
+            L"Show border",
+            WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+            10, 10,
+            100, 20,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hCheckBox);
+        }
+        break;
+    default:
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    
+    return 0;
+}
+
+void RegisterSettingsTabPageMain() {
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc      = (WNDPROC)SettingsTabPageMainProc;
+    wc.hInstance        = GetModuleHandle(NULL);
+    wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
+    wc.lpszClassName    = L"SettingsTabPageMain";
+    
+    RegisterClass(&wc);
+}
+
+LRESULT CALLBACK SettingsTabPageDebugProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+    switch (msg)
+    {
+    case WM_CREATE:
+        {
+        HWND hCheckBox = CreateWindow(
+            L"BUTTON",
+            L"Log actions",
+            WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+            10, 10,
+            100, 20,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hCheckBox);
+        }
+        break;
+    default:
+        return DefWindowProc(hwnd, msg, wParam, lParam);
+    }
+    
+    return 0;
+}
+
+void RegisterSettingsTabPageDebug() {
+    WNDCLASS wc = {0};
+    wc.lpfnWndProc      = (WNDPROC)SettingsTabPageDebugProc;
+    wc.hInstance        = GetModuleHandle(NULL);
+    wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
+    wc.lpszClassName    = L"SettingsTabPageDebug";
+    
+    RegisterClass(&wc);
 }

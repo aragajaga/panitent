@@ -1,6 +1,6 @@
 #include "file_open.h"
 
-COMDLG_FILTERSPEC c_rgSaveTypes[1] = {L"Portable Network Graphics", L"*.png"};
+COMDLG_FILTERSPEC c_rgSaveTypes[1] = {{L"Portable Network Graphics", L"*.png"}};
 
 int FileOpen()
 {
@@ -41,6 +41,8 @@ int FileOpen()
             pfd->lpVtbl->Release(pfd);
         }
     }
+    
+    return 0;
 }
 
 int FileSave()
@@ -82,4 +84,6 @@ int FileSave()
             pfd->lpVtbl->Release(pfd);
         }
     }
+    
+    return 0;
 }

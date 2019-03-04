@@ -11,9 +11,7 @@ static HWND hwndToolShelf;
 
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-    hInstance = hInst;
-    access_settings_file();
-    
+    hInstance = hInst;    
     
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
@@ -121,10 +119,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
             break;
         case IDM_HELP_TOPICS:
-            ShellExecute(hWnd, L"open", L"https://google.com", 0, 0, SW_SHOWNORMAL);
+            ShellExecute(hWnd, L"open", L"https://github.com/Aragajaga/panitent/wiki", 0, 0, SW_SHOWNORMAL);
             break;
         case IDM_OPTIONS_SETTINGS:
-            show_settings_window(hWnd);
+            ShowSettingsWindow(hWnd);
         default:
             break;
         }
