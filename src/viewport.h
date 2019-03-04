@@ -39,10 +39,13 @@ struct _tagMOUSEEVENT
 void image_init(IMAGE *img);
 void viewport_init(VIEWPORT* vp);
 void RegisterViewportCtl();
+void CanvasFillTest(IMAGE *img);
+void CanvasFillSolid(IMAGE *img, COLORREF color);
+void CanvasWuLinesTest();
 void ViewportCtl_OnPaint(HWND hWnd);
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt);
 void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt);
 void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt);
-LRESULT CALLBACK _viewport_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
 #endif /* VIEWPORT_H */

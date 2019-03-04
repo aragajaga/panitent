@@ -13,6 +13,7 @@ static HWND hwndToolShelf;
 
 HWND CreateStatusBar(HWND hParent)
 {
+    //TODO: Do check CommonContorls initialized
     HWND hStatusBar;
     RECT rcClient;
     
@@ -56,7 +57,9 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear Canvas");
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_TESTFILL, L"&Test fill");
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_WU_LINES, L"&Wu lines");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
     
     hSubMenu = CreatePopupMenu();
@@ -123,6 +126,8 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     return (int) msg.wParam;
 }
 
+extern VIEWPORT vp;
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg) {
@@ -137,6 +142,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         case IDM_FILE_CLOSE:
             PostQuitMessage(0);
             break;
+        case IDM_EDIT_TESTFILL:
+            CanvasFillTest(&vp.img);
+            break;
+        case IDM_EDIT_CLRCANVAS:
+            CanvasFillSolid(&vp.img, 0x00ffffff);
+            break;
+        case IDM_EDIT_WU_LINES:
+            CanvasWuLinesTest(&vp.img);
         case IDM_WINDOW_TOOLS:
             CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
             ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);

@@ -3,7 +3,7 @@
 
 typedef struct _tagPNTTOOL
 {
-    LPSTR szLabel;
+    LPWSTR szLabel;
     UINT iBmpIndex;
 } PNTTOOL;
 
