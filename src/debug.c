@@ -30,7 +30,6 @@ ASSOC mbiTypeConst[3] = {
 
 void DebugVirtualMemoryInfo(void *memPtr)
 {
-
     MEMORY_BASIC_INFORMATION mbi = {0};
 
     if (VirtualQuery((LPCVOID)memPtr, &mbi, sizeof(mbi)))
@@ -57,4 +56,13 @@ void DebugVirtualMemoryInfo(void *memPtr)
     else {
         printf("[DebugVirtualMemoryInfo] VirtualQuery Error: %ld\n", GetLastError());
     }
+}
+
+void DebugPrintRect(RECT *rc)
+{
+    printf("\tright:\t%ld\n"
+           "\ttop:\t%ld\n"
+           "\tleft:\t%ld\n"
+           "\tbottom:\t%ld\n",
+           rc->right, rc->top, rc->left, rc->bottom);
 }

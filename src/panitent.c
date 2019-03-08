@@ -144,6 +144,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 (HMENU) VIEWPORTCTL_ID,
                 hInstance,
                 NULL);
+        vp.hwnd = hwndViewport;
 
         hwndToolShelf = CreateWindowEx(
                 WS_EX_TOOLWINDOW,

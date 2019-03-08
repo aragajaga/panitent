@@ -20,5 +20,6 @@ typedef struct _ASSOC
 } ASSOC;
 
 void DebugVirtualMemoryInfo(void *memPtr);
+void DebugPrintRect(RECT *rc);
 
 #endif /* DEBUG_H */

@@ -23,15 +23,24 @@ void CanvasSetPixel(IMAGE *img, int x, int y, COLORREF color)
 {
     if (x < img->rc.width && y < img->rc.height)
     {
-        ((unsigned int *)img->data)[y*img->rc.width+x] = color;
+        COLORREF cBack = ((unsigned int *)img->data)[y*img->rc.width+x];
+    
+        float af = (color>>24)/255.f;
+        unsigned char rR = GetRValue(color) * af + GetRValue(cBack) * (1.f - af);
+        unsigned char gR = GetGValue(color) * af + GetGValue(cBack) * (1.f - af);
+        unsigned char bR = GetBValue(color) * af + GetBValue(cBack) * (1.f - af);
+        
+        ((unsigned int *)img->data)[y*img->rc.width+x] = RGB(rR, gR, bR);
     }
 }
 
 void Plot(float x, float y, float alpha)
 { 
-    COLORREF a = 0xff-alpha*0xff;
+    /*COLORREF a = 0xff-alpha*0xff;
 
-    COLORREF color = 0xff<<16 | a<<8 | a;
+    COLORREF color = 0xff<<16 | a<<8 | a;*/
+    
+    COLORREF color = ((unsigned int)(alpha*0xff))<<24 | 0xff0000;
     CanvasSetPixel(&vp.img, round(x), round(y), color);
 }
 
@@ -95,7 +104,8 @@ void WuCircle(int offset_x, int offset_y, int r)
     }
 }
 
-void draw_line_antialias(unsigned int x1, unsigned int y1,
+void draw_line_antialias(
+        unsigned int x1, unsigned int y1,
         unsigned int x2, unsigned int y2)
 {
     double dx = (double)x2 - (double)x1;
@@ -166,6 +176,7 @@ void draw_line_antialias(unsigned int x1, unsigned int y1,
             interx += gradient;
         }
     }
+    ViewportUpdate();
 }
 #undef swap_
 #undef ipart_
@@ -321,12 +332,22 @@ void RegisterViewportCtl()
 void GetCanvasRect(RECT *rcCanvas)
 {
     RECT rcViewport = {0};
+    if (GetClientRect(vp.hwnd, &rcViewport))
+    {
+        printf("[ViewportRect] w: %ld h: %ld\n", rcViewport.right, rcViewport.bottom);
+    }
+    else {
+        printf("[GetCanvasRect] Failed to get viewport rect\n");
+    }
     GetClientRect(vp.hwnd, &rcViewport);
 
     rcCanvas->left      = (rcViewport.right  - vp.img.rc.width )/2;
     rcCanvas->top       = (rcViewport.bottom - vp.img.rc.height)/2;
     rcCanvas->right     = vp.img.rc.width;
     rcCanvas->bottom    = vp.img.rc.height;
+    
+    printf("[GetCanvasRect] right: %ld\n", rcCanvas->right);
+    printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
 }
 
 void ViewportCtl_OnCreate()
@@ -406,10 +427,26 @@ void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt)
 
     if (fDraw)
     {
-        HDC hdc = GetDC(mEvt.hwnd);
+        #ifdef PEN_OVERLAY
+        HDC hdc;
+        
+        hdc = GetDC(mEvt.hwnd);
         MoveToEx(hdc, prev.x, prev.y, NULL);
         LineTo(hdc, x, y);
+        #endif
+
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        draw_line_antialias(
+                prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top );
+
+        #ifdef PEN_OVERLAY
         ReleaseDC(mEvt.hwnd, hdc);
+        #endif
+
     }
     fDraw = FALSE;
 }
@@ -421,18 +458,40 @@ void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt)
     
     if (fDraw)
     {
+        #ifdef PEN_OVERLAY
+        HDC hdc;
+        hdc = GetDC(mEvt.hwnd);
+        
+        /* Draw overlay path */
+        MoveToEx(hdc, prev.x, prev.y, NULL);
+        LineTo(hdc, x, y);
+        #endif
+        
+        /* Draw on canvas */
         RECT rcCanvas;
         GetCanvasRect(&rcCanvas);
         
         if (x > rcCanvas.left && y > rcCanvas.top)
         {
-            HDC hdc = GetDC(mEvt.hwnd);
-            MoveToEx(hdc, prev.x, prev.y, NULL);
-            prev.x = x;
-            prev.y = y;
-            LineTo(hdc, x, y);
-            ReleaseDC(mEvt.hwnd, hdc);
+            draw_line_antialias(
+                prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top );
+            
+            printf("[CanvasRect]");
+            DebugPrintRect(&rcCanvas);
         }
+        else {
+            printf("[CanvasRect] Out of bounds\n");
+        }
+        
+        prev.x = x;
+        prev.y = y;
+        
+        #ifdef PEN_OVERLAY
+        ReleaseDC(mEvt.hwnd, hdc);
+        #endif
     }
 }
 
