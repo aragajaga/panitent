@@ -8,6 +8,7 @@
 
 #define INDEX_PNG 1
 
+void FileOpenPng(LPWSTR pszPath);
 int FileOpen();
 int FileSave();
 

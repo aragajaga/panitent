@@ -51,6 +51,11 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     tPencil.szLabel = L"Pencil";
     tPencil.iBmpIndex = 1;
     ToolShelf_AddTool(tsh, tPencil);
+    
+    PNTTOOL tText;
+    tText.szLabel = L"Text";
+    tText.iBmpIndex = 3;
+    ToolShelf_AddTool(tsh, tText);
 }
 
 void ToolShelf_OnPaint(HWND hwnd)
@@ -108,6 +113,7 @@ LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
     case WM_PAINT:
         ToolShelf_OnPaint(hwnd);
         break;
+    case WM_NCHITTEST:
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }

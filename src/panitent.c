@@ -5,36 +5,12 @@
 #include "winuser.h"
 #include "panitent.h"
 
-#define IDS_STATUS 1330
-
 static HINSTANCE hInstance;
 static HWND hwndViewport;
 static HWND hwndToolShelf;
 
-HWND CreateStatusBar(HWND hParent)
-{
-    //TODO: Do check CommonContorls initialized
-    HWND hStatusBar;
-    RECT rcClient;
-    
-    hStatusBar = CreateWindowEx(
-            0,
-            STATUSCLASSNAME,
-            NULL,
-            SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE,
-            0, 0, 0, 0,
-            hParent,
-            (HMENU)IDS_STATUS,
-            GetModuleHandle(NULL),
-            NULL);
-     
-    GetClientRect(hParent, &rcClient);
-
-    return hStatusBar;
-}
-
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
-{
+{   
     hInstance = hInst;    
     
     INITCOMMONCONTROLSEX icex;
@@ -45,42 +21,9 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     RegisterViewportCtl();
     RegisterToolShelf();
     
-    HMENU hMenu = CreateMenu();
-    HMENU hSubMenu;
+    HMENU hMenu = CreateMainMenu();
     
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
-    
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_TESTFILL, L"&Test fill");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_WU_LINES, L"&Wu lines");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
-    
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
-    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_PALETTE, L"&Palette");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
-    CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
-    
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_OPTIONS_SETTINGS, L"&Settings");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Options");
-    
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
-    
-    /**************************************************************************/
-    /************************** REGISTER WINDOW CLASS *************************/
-    /**************************************************************************/
-    
+    /* Регистрация класса главного окна приложения */
     WNDCLASSEX wcex;
     wcex.cbSize = sizeof(wcex);
     wcex.style = CS_HREDRAW | CS_VREDRAW;
@@ -96,8 +39,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     wcex.hIconSm = NULL;
     RegisterClassEx(&wcex);
     
-    /**************************************************************************/
-    
+    /* Создание главного окна приложения */
     HWND hwnd = CreateWindowEx(
         0,
         L"WindowClass",
@@ -127,6 +69,25 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
 }
 
 extern VIEWPORT vp;
+BOOL bConsoleAttached;
+
+#ifdef _MSC_VER
+/* Специально для MSVC /SUBSYSTEM:CONSOLE <3
+ *
+ * Ну а что, пока что простой способ получить поток вывода в терминал.
+ * При /SUBSYSTEM:WINDOWS поток идет в помойку, вместе со стандартной
+ * библиотекой вывода, нужно вручную биндить библиотеку к STD_OUTPUT_HANDLE.
+ *
+ * Сколько я не пробовал, даже после бинда не выводится вывод в терминал, из
+ * которого запущено приложение. Выводится только в созданный через
+ * AllocConsole. Алсо, в некоторых приложениях вроде Chromium консольный вывод
+ * сделан как-то нормально, но это надо смотреть.
+ */
+int main()
+{
+    return WinMain(GetModuleHandle(NULL), NULL, NULL, 0);
+}
+#endif
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -150,6 +111,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             break;
         case IDM_EDIT_WU_LINES:
             CanvasWuLinesTest(&vp.img);
+            break;
         case IDM_WINDOW_TOOLS:
             CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
             ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
@@ -159,15 +121,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             break;
         case IDM_OPTIONS_SETTINGS:
             ShowSettingsWindow(hWnd);
+            break;
         default:
             break;
         }
         return 0;
     case WM_SIZE:
         {
-            WORD cx = LOWORD(lParam);
-            WORD cy = HIWORD(lParam);
-            SetWindowPos(hwndViewport, NULL, 48, 0, cx-48, cy, SWP_NOZORDER);
+        WORD cx = LOWORD(lParam);
+        WORD cy = HIWORD(lParam);
+        SetWindowPos(hwndViewport, NULL, 48, 0, cx-48, cy, SWP_NOZORDER);
         }
         return 0;
     case WM_CREATE:
@@ -197,9 +160,73 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;    
+        break;
+    default:
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+        break;
     }
-    return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    
+    return 0;
+}
+
+#if 0
+HWND CreateStatusBar(HWND hParent)
+{
+    /* TODO: Do check CommonContorls initialized */
+    HWND hStatusBar;
+    RECT rcClient;
+    
+    hStatusBar = CreateWindowEx(
+            0,
+            STATUSCLASSNAME,
+            NULL,
+            SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE,
+            0, 0, 0, 0,
+            hParent,
+            (HMENU)IDS_STATUS,
+            GetModuleHandle(NULL),
+            NULL);
+     
+    GetClientRect(hParent, &rcClient);
+
+    return hStatusBar;
+}
+#endif
+
+HMENU CreateMainMenu()
+{
+    HMENU hMenu;
+    HMENU hSubMenu;
+    
+    hMenu = CreateMenu();
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_TESTFILL, L"&Test fill");
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
+    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_WU_LINES, L"&Wu lines");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
+    CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_OPTIONS_SETTINGS, L"&Settings");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Options");
+    
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
+    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
+    
+    return hMenu;
 }
 
 void UnregisterClasses()

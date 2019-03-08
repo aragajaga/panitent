@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 2.8)
 
 project(panitent)
+find_package(PNG REQUIRED)
+include_directories(${PNG_INCLUDE_DIR})
 
 if(MSVC)
     # MSVC
@@ -25,11 +27,12 @@ set(SOURCE_EXE
     src/toolshelf.c
     src/viewport.c
     src/settings.c
+    src/debug.c
     res/panitent.rc)
     
 if(MSVC)
 set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 endif(MSVC)
 
-add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
-target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32)
+add_executable(${PROJECT_NAME} ${SOURCE_EXE})
+target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 ${PNG_LIBRARY})

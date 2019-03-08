@@ -1,6 +1,8 @@
 #include "viewport.h"
 #include <assert.h>
 #include <math.h>
+#include <stdio.h>
+#include "debug.h"
 
 VIEWPORT vp;
 
@@ -14,6 +16,7 @@ void swapf(float *a, float *b)
 void ViewportUpdate()
 {
     InvalidateRect(vp.hwnd, NULL, TRUE);
+    printf("[Viewport] View updated\n");
 }
 
 void CanvasSetPixel(IMAGE *img, int x, int y, COLORREF color)
@@ -247,6 +250,8 @@ void WuLine(float x0, float y0, float x1, float y1)
 void ImageAlloc(IMAGE *img)
 {
     img->data = calloc(4, img->rc.width * img->rc.height);
+    printf("[ImageAlloc] Canvas memory page:\n");
+    DebugVirtualMemoryInfo(img->data);
 }
 
 void ImageFree(IMAGE *img)
@@ -280,6 +285,7 @@ void CanvasFillSolid(IMAGE *img, COLORREF color)
     {
         ((unsigned int *)img->data)[i] = color;
     }
+    DebugVirtualMemoryInfo(img->data);
     ViewportUpdate();
 }
 
@@ -303,7 +309,13 @@ void RegisterViewportCtl()
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
     wc.lpszClassName = VIEWPORTCTL_WC;
 
-    RegisterClass(&wc);
+    if (RegisterClass(&wc))
+    {
+        printf("[Viewport] Window class registered\n");
+    }
+    else {
+        printf("[Viewport] Failed to register window class\n");
+    }
 }
 
 void GetCanvasRect(RECT *rcCanvas)

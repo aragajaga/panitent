@@ -1,26 +1,30 @@
 #ifndef PANITENT_H
 #define PANITENT_H
 
-#define IDM_FILE_OPEN   1001
-#define IDM_FILE_SAVE   1002
-#define IDM_FILE_CLOSE  1003
+#define IDS_STATUS 1330
 
-#define IDM_EDIT_UNDO   1004
-#define IDM_EDIT_REDO   1005
-#define IDM_EDIT_TESTFILL   1007
-#define IDM_EDIT_CLRCANVAS  1008
-#define IDM_EDIT_WU_LINES   1009
+enum {
+    IDM_FILE_OPEN = 1001,
+    IDM_FILE_SAVE,
+    IDM_FILE_CLOSE,
 
-#define IDM_WINDOW_TOOLS    1010
-#define IDM_WINDOW_PALETTE  1011
+    IDM_EDIT_TESTFILL,
+    IDM_EDIT_CLRCANVAS,
+    IDM_EDIT_WU_LINES,
 
-#define IDM_OPTIONS_SETTINGS    1012
+    IDM_WINDOW_TOOLS,
 
-#define IDM_HELP_TOPICS 1013
-#define IDM_HELP_ABOUT  1014
+    IDM_OPTIONS_SETTINGS,
 
-int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-void UnregisterClasses();
+    IDM_HELP_TOPICS,
+    IDM_HELP_ABOUT
+};
+
+
+int     APIENTRY    WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
+LRESULT CALLBACK    WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+HMENU   CreateMainMenu();
+void    UnregisterClasses();
 
 #endif // PANITENT_H
