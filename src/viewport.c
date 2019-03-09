@@ -102,14 +102,13 @@ void WuCircle(int offset_x, int offset_y, int r)
         
         t = dist;
     }
+    ViewportUpdate();
 }
 
-void draw_line_antialias(
-        unsigned int x1, unsigned int y1,
-        unsigned int x2, unsigned int y2)
+void WuLine(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 {
-    double dx = (double)x2 - (double)x1;
-    double dy = (double)y2 - (double)y1;
+    float dx = (float)x2 - (float)x1;
+    float dy = (float)y2 - (float)y1;
 
     if ( fabs(dx) > fabs(dy) )
     {
@@ -119,15 +118,15 @@ void draw_line_antialias(
             swap_(y1, y2);
         }
 
-        double gradient = dy / dx;
-        double xend = round_(x1);
-        double yend = y1 + gradient*(xend - x1);
-        double xgap = rfpart_(x1 + 0.5);
+        float gradient = dy / dx;
+        float xend = round_(x1);
+        float yend = y1 + gradient*(xend - x1);
+        float xgap = rfpart_(x1 + 0.5);
         int xpxl1 = xend;
         int ypxl1 = ipart_(yend);
         Plot(xpxl1, ypxl1, rfpart_(yend)*xgap);
         Plot(xpxl1, ypxl1+1, fpart_(yend)*xgap);
-        double intery = yend + gradient;
+        float intery = yend + gradient;
 
         xend = round_(x2);
         yend = y2 + gradient*(xend - x2);
@@ -150,15 +149,15 @@ void draw_line_antialias(
             swap_(x1, x2);
             swap_(y1, y2);
         }
-        double gradient = dx / dy;
-        double yend = round_(y1);
-        double xend = x1 + gradient*(yend - y1);
-        double ygap = rfpart_(y1 + 0.5);
+        float gradient = dx / dy;
+        float yend = round_(y1);
+        float xend = x1 + gradient*(yend - y1);
+        float ygap = rfpart_(y1 + 0.5);
         int ypxl1 = yend;
         int xpxl1 = ipart_(xend);
         Plot(xpxl1, ypxl1, rfpart_(xend)*ygap);
         Plot(xpxl1 + 1, ypxl1, fpart_(xend)*ygap);
-        double interx = xend + gradient;
+        float interx = xend + gradient;
 
         yend = round_(y2);
         xend = x2 + gradient*(yend - y2);
@@ -184,78 +183,12 @@ void draw_line_antialias(
 #undef round_
 #undef rfpart_
 
-void WuLine(float x0, float y0, float x1, float y1)
+void PNTRectangle(int x1, int y1, int x2, int y2)
 {
-    BOOL steep = (abs(y1 - y0) > abs(x1 - y0))?TRUE:FALSE;
-
-    if (steep)
-    {
-        swapf(&x0, &y0);
-        swapf(&y1, &y1);
-    }
-
-    if (x0 > x1)
-    {
-        swapf(&x0, &y1);
-        swapf(&x0, &y1);
-    }
-
-    float dx = x1 - x0;
-    float dy = y1 - y0;
-    float gradient = dy / (float)dx;
-    if (dx == 0.f)
-        gradient = 1.f;
-
-    /* Handle first endpoint */
-    float xend = round(x0);
-    float yend = y0 + gradient * (xend - x0);
-    float xgap = 1.f - fmod(x0 + 0.5f, 1.f);
-    float xpxl1 = xend;
-    float ypxl1 = floor(yend);
-
-    if (steep)
-    {
-        Plot(ypxl1,     xpxl1,    1.f - fmod(yend, 1.f) * xgap);
-        Plot(ypxl1+1.f, xpxl1,          fmod(yend, 1.f) * xgap);
-    }
-    else {
-        Plot(xpxl1,     ypxl1,          fmod(yend, 1.f) * xgap);
-        Plot(xpxl1,     ypxl1+1.f,      fmod(yend, 1.f) * xgap);
-    }
-    float intery = yend + gradient;
-
-    /* Handle second endpoint */
-    xend = round(x1);
-    yend = y1 + gradient * (xend - x1);
-    xgap = fmod(x1 + 0.5f, 1.f);
-    float xpxl2 = xend;
-    float ypxl2 = floor(yend);
-
-    if (steep)
-    {
-        Plot(ypxl2,     xpxl2,    1.f - fmod(yend, 1.f) * xgap);
-        Plot(ypxl2+1.f, xpxl2,          fmod(yend, 1.f) * xgap);
-    }
-    else {
-        Plot(xpxl2,     ypxl2,    1.f - fmod(yend, 1.f) * xgap);
-        Plot(xpxl2,     ypxl2+1.f,      fmod(yend, 1.f) * xgap);
-    }
-
-    if (steep)
-    {
-        for (int x = xpxl1+1; x < xpxl2 - 1; x++)
-        {
-            Plot(floor(intery)    , x, 1.f - fmod(intery, 1.f));
-            Plot(floor(intery)+1.f, x,       fmod(intery, 1.f));
-        }
-    }
-    else {
-        for (int x = xpxl1+1; x < xpxl2 - 1; x++)
-        {
-            Plot(x, floor(intery)    , 1.f - fmod(intery, 1.f));
-            Plot(x, floor(intery)+1.f,       fmod(intery, 1.f));
-        }
-    }
+    WuLine(x1, y1, x2, y1);
+    WuLine(x1, y1, x1, y2);
+    WuLine(x2, y1, x2, y2);
+    WuLine(x1, y2, x2, y2);
 }
 
 void ImageAlloc(IMAGE *img)
@@ -302,9 +235,9 @@ void CanvasFillSolid(IMAGE *img, COLORREF color)
 
 void CanvasWuLinesTest()
 {
-    draw_line_antialias(10, 10, 180, 160);
-    draw_line_antialias(390, 149, 53, 234);
-    draw_line_antialias(52, 185, 301, 34);
+    WuLine(10, 10, 180, 160);
+    WuLine(390, 149, 53, 234);
+    WuLine(52, 185, 301, 34);
     WuCircle(240, 240, 120);
     WuCircle(142, 234, 33);
 
@@ -404,9 +337,6 @@ void ViewportCtl_OnPaint(HWND hwnd)
     EndPaint(hwnd, &ps);
 }
 
-static BOOL fDraw = FALSE;
-static POINT prev;
-
 void ViewportCtl_OnMouseWheel(WPARAM wParam)
 {
     /* Тут типа зум надо бы сделать, но хз
@@ -415,84 +345,17 @@ void ViewportCtl_OnMouseWheel(WPARAM wParam)
 
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt)
 {
-    fDraw = TRUE;
-    prev.x = LOWORD(mEvt.lParam);
-    prev.y = HIWORD(mEvt.lParam);
+    vp.tool.OnLButtonDown(mEvt);
 }
 
 void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
-
-    if (fDraw)
-    {
-        #ifdef PEN_OVERLAY
-        HDC hdc;
-        
-        hdc = GetDC(mEvt.hwnd);
-        MoveToEx(hdc, prev.x, prev.y, NULL);
-        LineTo(hdc, x, y);
-        #endif
-
-        RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
-        draw_line_antialias(
-                prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top );
-
-        #ifdef PEN_OVERLAY
-        ReleaseDC(mEvt.hwnd, hdc);
-        #endif
-
-    }
-    fDraw = FALSE;
+    vp.tool.OnLButtonUp(mEvt);
 }
 
 void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
-    
-    if (fDraw)
-    {
-        #ifdef PEN_OVERLAY
-        HDC hdc;
-        hdc = GetDC(mEvt.hwnd);
-        
-        /* Draw overlay path */
-        MoveToEx(hdc, prev.x, prev.y, NULL);
-        LineTo(hdc, x, y);
-        #endif
-        
-        /* Draw on canvas */
-        RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
-        
-        if (x > rcCanvas.left && y > rcCanvas.top)
-        {
-            draw_line_antialias(
-                prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top );
-            
-            printf("[CanvasRect]");
-            DebugPrintRect(&rcCanvas);
-        }
-        else {
-            printf("[CanvasRect] Out of bounds\n");
-        }
-        
-        prev.x = x;
-        prev.y = y;
-        
-        #ifdef PEN_OVERLAY
-        ReleaseDC(mEvt.hwnd, hdc);
-        #endif
-    }
+    vp.tool.OnMouseMove(mEvt);
 }
 
 LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)

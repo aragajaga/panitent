@@ -22,4 +22,10 @@
 #include <commctrl.h>
 #include <shlobj.h>
 
+typedef struct _tagMOUSEEVENT
+{
+    HWND hwnd;
+    LPARAM lParam;
+} MOUSEEVENT;
+
 #endif /* STDAFX_H */

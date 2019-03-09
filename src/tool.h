@@ -1,15 +1,12 @@
 #ifndef TOOL_H
 #define TOOL_H
 
-struct _tagEventCallbacks {
-    void* 
-}
+#include "stdafx.h"
 
-typedef struct _tagToolContext TOOL_CONTEXT
-
-struct _tagToolContext {
-    void* lpEventProc
-    size_t cbszToolMem
-}
+typedef struct _tagTOOL {
+    void (* OnLButtonUp)(MOUSEEVENT mEvt);
+    void (* OnLButtonDown)(MOUSEEVENT mEvt);
+    void (* OnMouseMove)(MOUSEEVENT mEvt);
+} TOOL;
 
 #endif /* TOOL_H */

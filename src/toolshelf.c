@@ -1,5 +1,10 @@
-#include "stdafx.h"
 #include "toolshelf.h"
+#include "tool.h"
+#include "viewport.h"
+#include "debug.h"
+#include <math.h>
+
+extern VIEWPORT vp;
 
 typedef struct _tagPNTTOOL
 {
@@ -16,6 +21,14 @@ typedef struct _tagTOOLSHELF
 TOOLSHELF tsh;
 
 PNTTOOL tool;
+TOOL pencil;
+TOOL pointer;
+TOOL circle;
+TOOL line;
+TOOL rectangle;
+
+static BOOL fDraw = FALSE;
+static POINT prev;
 
 void ToolShelf_AddTool(TOOLSHELF *tsh, PNTTOOL tool)
 {
@@ -33,6 +46,13 @@ HBITMAP hbmTool;
 
 void InitializeToolShelf(TOOLSHELF *tsh)
 {
+    Pointer_Init();
+    Pencil_Init();
+    Circle_Init();
+    Line_Init();
+    Rectangle_Init();
+    vp.tool = pointer;
+    
     hbmTool = (HBITMAP)LoadImage(GetModuleHandle(NULL),
             L"tool.bmp",
             IMAGE_BITMAP,
@@ -52,27 +72,25 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     tPencil.iBmpIndex = 1;
     ToolShelf_AddTool(tsh, tPencil);
     
-    PNTTOOL tText;
-    tText.szLabel = L"Text";
-    tText.iBmpIndex = 3;
-    ToolShelf_AddTool(tsh, tText);
+    PNTTOOL tCircle;
+    tCircle.szLabel = L"Circle";
+    tCircle.iBmpIndex = 2;
+    ToolShelf_AddTool(tsh, tCircle);
+    
+    PNTTOOL tLine;
+    tLine.szLabel = L"Line";
+    tLine.iBmpIndex = 3;
+    ToolShelf_AddTool(tsh, tLine);
+    
+    PNTTOOL tRectangle;
+    tRectangle.szLabel = L"Rectangle";
+    tRectangle.iBmpIndex = 4;
+    ToolShelf_AddTool(tsh, tRectangle);
 }
 
-void ToolShelf_OnPaint(HWND hwnd)
+int btnSize = 24;
+void ToolShelf_DrawButtons(HDC hdc)
 {
-    PAINTSTRUCT ps;
-    HDC hdc;
-    RECT rc;
-    
-    GetClientRect(hwnd, &rc);
-    hdc = BeginPaint(hwnd, &ps);
-    
-    RECT rcClient;
-    GetClientRect(hwnd, &rcClient);
-    
-    int btnSize = 24;
-    
-    
     BITMAP bitmap;
     HDC hdcMem;
     HGDIOBJ oldBitmap;
@@ -83,6 +101,8 @@ void ToolShelf_OnPaint(HWND hwnd)
     
     for (int i = 0; i < tsh.nCount; i++)
     {
+        
+        
         int x = (i % 2) * btnSize;
         int y = (i / 2) * btnSize;
         
@@ -100,12 +120,61 @@ void ToolShelf_OnPaint(HWND hwnd)
     
     SelectObject(hdcMem, oldBitmap);
     DeleteDC(hdcMem);
+}
+
+void ToolShelf_OnPaint(HWND hwnd)
+{
+    PAINTSTRUCT ps;
+    HDC hdc;
+    hdc = BeginPaint(hwnd, &ps);
+    
+    ToolShelf_DrawButtons(hdc); 
     
     EndPaint(hwnd, &ps);
 }
 
+void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (x < btnSize*2 && y < btnSize*tsh.nCount)
+    {
+        int bID = y / btnSize * 2 + x / btnSize;
+        
+        if (tsh.nCount > bID)
+        {
+            printf("[ToolButton] %d\n", bID);
+        
+            /* Может использовать массив указателей? */
+            switch (bID)
+            {
+            case 1:
+                vp.tool = pencil;
+                break;
+            case 2:
+                vp.tool = circle;
+                break;
+            case 3:
+                vp.tool = line;
+                break;
+            case 4:
+                vp.tool = rectangle;
+                break;
+            default:
+                vp.tool = pointer;
+                break;
+            }
+        }
+    }
+}
+
 LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
+    MOUSEEVENT mevt;
+    mevt.hwnd = hwnd;
+    mevt.lParam = lParam;
+    
     switch (msg) {
     case WM_CREATE:
         InitializeToolShelf(&tsh);
@@ -113,7 +182,9 @@ LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
     case WM_PAINT:
         ToolShelf_OnPaint(hwnd);
         break;
-    case WM_NCHITTEST:
+    case WM_LBUTTONUP:
+        ToolShelf_OnLButtonUp(mevt);
+        break;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -131,4 +202,240 @@ void RegisterToolShelf()
     wc.lpszClassName    = TOOLSHELF_WC;
     
     RegisterClass(&wc);
+}
+
+void Pointer_OnLButtonDown(MOUSEEVENT mEvt)
+{    
+}
+
+void Pointer_OnLButtonUp(MOUSEEVENT mEvt)
+{
+}
+
+void Pointer_OnMouseMove(MOUSEEVENT mEvt)
+{
+}
+
+void Pointer_Init()
+{
+    pointer.OnLButtonUp = Pointer_OnLButtonUp;
+    pointer.OnLButtonDown = Pointer_OnLButtonDown;
+    pointer.OnMouseMove = Pointer_OnMouseMove;
+}
+
+void Pencil_OnLButtonDown(MOUSEEVENT mEvt)
+{    
+    fDraw = TRUE;
+    prev.x = LOWORD(mEvt.lParam);
+    prev.y = HIWORD(mEvt.lParam);
+}
+
+void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (fDraw)
+    {
+        #ifdef PEN_OVERLAY
+        HDC hdc;
+        
+        hdc = GetDC(mEvt.hwnd);
+        MoveToEx(hdc, prev.x, prev.y, NULL);
+        LineTo(hdc, x, y);
+        #endif
+
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        WuLine(
+                prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top );
+
+        #ifdef PEN_OVERLAY
+        ReleaseDC(mEvt.hwnd, hdc);
+        #endif
+
+    }
+    fDraw = FALSE;
+}
+
+void Pencil_OnMouseMove(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (fDraw)
+    {
+        #ifdef PEN_OVERLAY
+        HDC hdc;
+        hdc = GetDC(mEvt.hwnd);
+        
+        /* Draw overlay path */
+        MoveToEx(hdc, prev.x, prev.y, NULL);
+        LineTo(hdc, x, y);
+        #endif
+        
+        /* Draw on canvas */
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        
+        if (x > rcCanvas.left && y > rcCanvas.top)
+        {
+            WuLine(
+                prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top );
+            
+            printf("[CanvasRect]");
+            DebugPrintRect(&rcCanvas);
+        }
+        else {
+            printf("[CanvasRect] Out of bounds\n");
+        }
+        
+        prev.x = x;
+        prev.y = y;
+        
+        #ifdef PEN_OVERLAY
+        ReleaseDC(mEvt.hwnd, hdc);
+        #endif
+    }
+}
+
+void Pencil_Init()
+{
+    pencil.OnLButtonUp = Pencil_OnLButtonUp;
+    pencil.OnLButtonDown = Pencil_OnLButtonDown;
+    pencil.OnMouseMove = Pencil_OnMouseMove;
+}
+
+POINT circCenter;
+
+void Circle_OnLButtonDown(MOUSEEVENT mEvt)
+{    
+    fDraw = TRUE;
+    circCenter.x = LOWORD(mEvt.lParam);
+    circCenter.y = HIWORD(mEvt.lParam);
+}
+
+void Circle_OnLButtonUp(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (fDraw)
+    {
+        #ifdef PEN_OVERLAY
+        HDC hdc;
+        
+        hdc = GetDC(mEvt.hwnd);
+        MoveToEx(hdc, prev.x, prev.y, NULL);
+        LineTo(hdc, x, y);
+        #endif
+
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        
+        int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
+        
+        
+        WuCircle(
+                circCenter.x - rcCanvas.left,
+                circCenter.y - rcCanvas.top,
+                radius );
+
+        #ifdef PEN_OVERLAY
+        ReleaseDC(mEvt.hwnd, hdc);
+        #endif
+
+    }
+    fDraw = FALSE;
+}
+
+void Circle_OnMouseMove(MOUSEEVENT mEvt)
+{
+}
+
+void Circle_Init()
+{
+    circle.OnLButtonUp = Circle_OnLButtonUp;
+    circle.OnLButtonDown = Circle_OnLButtonDown;
+    circle.OnMouseMove = Circle_OnMouseMove;
+}
+
+void Line_OnLButtonDown(MOUSEEVENT mEvt)
+{    
+    fDraw = TRUE;
+    prev.x = LOWORD(mEvt.lParam);
+    prev.y = HIWORD(mEvt.lParam);
+}
+
+void Line_OnLButtonUp(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (fDraw)
+    {
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        
+        WuLine( prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top);
+
+    }
+    fDraw = FALSE;
+}
+
+void Line_OnMouseMove(MOUSEEVENT mEvt)
+{
+}
+
+void Line_Init()
+{
+    line.OnLButtonUp = Line_OnLButtonUp;
+    line.OnLButtonDown = Line_OnLButtonDown;
+    line.OnMouseMove = Line_OnMouseMove;
+}
+
+void Rectangle_OnLButtonDown(MOUSEEVENT mEvt)
+{    
+    fDraw = TRUE;
+    prev.x = LOWORD(mEvt.lParam);
+    prev.y = HIWORD(mEvt.lParam);
+}
+
+void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
+{
+    int x = LOWORD(mEvt.lParam);
+    int y = HIWORD(mEvt.lParam);
+    
+    if (fDraw)
+    {
+        RECT rcCanvas;
+        GetCanvasRect(&rcCanvas);
+        
+        PNTRectangle( prev.x - rcCanvas.left,
+                prev.y - rcCanvas.top,
+                x - rcCanvas.left,
+                y - rcCanvas.top);
+
+    }
+    fDraw = FALSE;
+}
+
+void Rectangle_OnMouseMove(MOUSEEVENT mEvt)
+{
+}
+
+void Rectangle_Init()
+{
+    rectangle.OnLButtonUp = Rectangle_OnLButtonUp;
+    rectangle.OnLButtonDown = Rectangle_OnLButtonDown;
+    rectangle.OnMouseMove = Rectangle_OnMouseMove;
 }
