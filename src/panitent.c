@@ -4,6 +4,7 @@
 #include "settings.h"
 #include "winuser.h"
 #include "panitent.h"
+#include "new.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -24,19 +25,15 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     HMENU hMenu = CreateMainMenu();
     
     /* Регистрация класса главного окна приложения */
-    WNDCLASSEX wcex;
-    wcex.cbSize = sizeof(wcex);
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = (WNDPROC) WndProc;
-    wcex.cbClsExtra = 0;
-    wcex.cbWndExtra = 0;
-    wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    wcex.lpszMenuName = NULL;
-    wcex.lpszClassName = L"WindowClass";
-    wcex.hIconSm = NULL;
+    WNDCLASSEX wcex = {0};
+    wcex.cbSize         = sizeof(wcex);
+    wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc    = (WNDPROC) WndProc;
+    wcex.hInstance      = hInstance;
+    wcex.hIcon          = LoadIcon(NULL, IDI_APPLICATION);
+    wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground  = (HBRUSH)(COLOR_BTNFACE + 1);
+    wcex.lpszClassName  = L"WindowClass";
     RegisterClassEx(&wcex);
     
     /* Создание главного окна приложения */
@@ -94,6 +91,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     switch (uMsg) {
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
+        case IDM_FILE_NEW:
+            NewFileDialog(hWnd);
+            break;
         case IDM_FILE_OPEN:
             FileOpen();
             break;
@@ -125,14 +125,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         default:
             break;
         }
-        return 0;
+        break;
     case WM_SIZE:
         {
         WORD cx = LOWORD(lParam);
         WORD cy = HIWORD(lParam);
         SetWindowPos(hwndViewport, NULL, 48, 0, cx-48, cy, SWP_NOZORDER);
         }
-        return 0;
+        break;
     case WM_CREATE:
         hwndViewport = CreateWindowEx(
                 0,
@@ -158,7 +158,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 hInstance,
                 NULL);
         
-        return 0;
+        break;
     case WM_DESTROY:
         PostQuitMessage(0);
         break;
@@ -202,6 +202,7 @@ HMENU CreateMainMenu()
     hMenu = CreateMenu();
     
     hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");

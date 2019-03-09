@@ -8,6 +8,7 @@
 ATOM RegisterSettingsWindowClass()
 {
     WNDCLASS wc = {0};
+    wc.style            = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc      = (WNDPROC)SettingsWndProc;
     wc.hInstance        = GetModuleHandle(NULL);
     wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
@@ -60,31 +61,31 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     {
     case WM_NOTIFY:
         {
-            LPNMHDR pNm = (LPNMHDR)lParam;
+        LPNMHDR pNm = (LPNMHDR)lParam;
+        
+        if (pNm->hwndFrom == hTabControl && pNm->code == TCN_SELCHANGE)
+        {
+            UINT tabId = TabCtrl_GetCurSel(hTabControl);
             
-            if (pNm->hwndFrom == hTabControl && pNm->code == TCN_SELCHANGE)
+            switch (tabId)
             {
-                UINT tabId = TabCtrl_GetCurSel(hTabControl);
-                
-                switch (tabId)
-                {
-                case IDT_SETTINGS_PAGE_MAIN:
-                    ShowWindow(hTPMain, SW_NORMAL);
-                    ShowWindow(hTPDebug, SW_HIDE);
-                    break;
-                case IDT_SETTINGS_PAGE_DEBUG:
-                    ShowWindow(hTPMain, SW_HIDE);
-                    ShowWindow(hTPDebug, SW_NORMAL);
-                    break;
-                }
+            case IDT_SETTINGS_PAGE_MAIN:
+                ShowWindow(hTPMain, SW_NORMAL);
+                ShowWindow(hTPDebug, SW_HIDE);
+                break;
+            case IDT_SETTINGS_PAGE_DEBUG:
+                ShowWindow(hTPMain, SW_HIDE);
+                ShowWindow(hTPDebug, SW_NORMAL);
+                break;
             }
+        }
         }
         break;
     case WM_CREATE:
         InitSettingsWindow(hwnd);
         break;
     case WM_GETMINMAXINFO:
-    {
+        {
         RECT rc = {0};
         rc.right    = 640;
         rc.bottom   = 480;
@@ -93,7 +94,7 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         LPMINMAXINFO lpMMI = (LPMINMAXINFO)lParam;
         lpMMI->ptMinTrackSize.x = rc.right - rc.left;
         lpMMI->ptMinTrackSize.y = rc.bottom - rc.top;
-    }
+        }
         break;
     case WM_SIZE:
         {
@@ -124,6 +125,7 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
                 vrc.right-vrc.left, vrc.bottom-vrc.top,
                 0);
         }
+        break;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }

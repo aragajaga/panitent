@@ -191,6 +191,11 @@ void PNTRectangle(int x1, int y1, int x2, int y2)
     WuLine(x1, y2, x2, y2);
 }
 
+void ResizeCanvas()
+{
+    
+}
+
 void ImageAlloc(IMAGE *img)
 {
     img->data = calloc(4, img->rc.width * img->rc.height);

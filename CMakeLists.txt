@@ -28,6 +28,7 @@ set(SOURCE_EXE
     src/viewport.c
     src/settings.c
     src/debug.c
+    src/new.c
     res/panitent.rc)
     
 if(MSVC)
