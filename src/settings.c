@@ -265,15 +265,15 @@ LRESULT CALLBACK SettingsTabPageDebugProc(HWND hwnd, UINT msg, WPARAM wParam, LP
     case WM_CREATE:
         {
         HWND hCheckBox = CreateWindow(
-            L"BUTTON",
-            L"Log actions",
-            WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-            10, 10,
-            100, 20,
-            hwnd,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
+                L"BUTTON",
+                L"Log actions",
+                WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+                10, 10,
+                100, 20,
+                hwnd,
+                NULL,
+                GetModuleHandle(NULL),
+                NULL);
         SetGuiFont(hCheckBox);
         }
         break;

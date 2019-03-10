@@ -16,6 +16,8 @@ void RegisterNewFileDialog()
         printf("[NewFileDialog] Class registration failed\n");
 }
 
+extern VIEWPORT vp;
+
 HWND hEditWidth;
 HWND hEditHeight;
 HWND hButtonOk;
@@ -31,8 +33,8 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             int iWidth;
             int iHeight;
             
-            GetWindowText(hEditWidth, &szWidth, 40);
-            GetWindowText(hEditHeight, &szHeight, 40);
+            GetWindowText(hEditWidth, szWidth, 40);
+            GetWindowText(hEditHeight, szHeight, 40);
             
             iWidth = StrToInt(szWidth);
             iHeight = StrToInt(szHeight);
@@ -40,7 +42,7 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
             
             DestroyWindow(hwnd);
-            CreateCanvas(iWidth, iHeight);
+            CreateCanvas(&vp.img, iWidth, iHeight);
             }
             break;
         default:
@@ -146,7 +148,7 @@ void NewFileDialog(HWND hwnd)
     rc.bottom   = 120;
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
     
-    HWND hNewDlg = CreateWindow(
+    CreateWindow(
             L"NewFileDialogClass",
             L"New",
             WS_VISIBLE | WS_OVERLAPPEDWINDOW,

@@ -246,8 +246,8 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
         #endif
 
         RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
-        WuLine(
+        GetCanvasRect(&vp.img, &rcCanvas);
+        WuLine( &vp.img,
                 prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,
@@ -279,11 +279,11 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
         
         /* Draw on canvas */
         RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
+        GetCanvasRect(&vp.img, &rcCanvas);
         
         if (x > rcCanvas.left && y > rcCanvas.top)
         {
-            WuLine(
+            WuLine( &vp.img,
                 prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,
@@ -337,12 +337,12 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
         #endif
 
         RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
+        GetCanvasRect(&vp.img, &rcCanvas);
         
         int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
         
         
-        WuCircle(
+        WuCircle( &vp.img,
                 circCenter.x - rcCanvas.left,
                 circCenter.y - rcCanvas.top,
                 radius );
@@ -381,9 +381,10 @@ void Line_OnLButtonUp(MOUSEEVENT mEvt)
     if (fDraw)
     {
         RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
+        GetCanvasRect(&vp.img, &rcCanvas);
         
-        WuLine( prev.x - rcCanvas.left,
+        WuLine( &vp.img,
+                prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,
                 y - rcCanvas.top);
@@ -418,9 +419,9 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
     if (fDraw)
     {
         RECT rcCanvas;
-        GetCanvasRect(&rcCanvas);
+        GetCanvasRect(&vp.img, &rcCanvas);
         
-        PNTRectangle( prev.x - rcCanvas.left,
+        PNTRectangle(&vp.img, prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,
                 y - rcCanvas.top);

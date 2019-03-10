@@ -24,28 +24,31 @@ typedef struct _tagCANVAS {
 } CANVAS;
 
 typedef struct _tagVIEWPORT {
-    CANVAS  cvs; // Исходное изображение
-    IMAGE   img; // Увеличенное/кропленое
+    IMAGE   img;
+    int     seqi;
+    IMAGE   seq[8];
     TOOL    tool;
     
     HWND    hwnd;
 } VIEWPORT;
 
-void CreateCanvas(UINT uWidth, UINT uHeight);
-void image_init(IMAGE *img);
-void viewport_init(VIEWPORT* vp);
-void RegisterViewportCtl();
-void CanvasFillTest(IMAGE *img);
+LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void CanvasFillSolid(IMAGE *img, COLORREF color);
+void CanvasFillTest(IMAGE *img);
 void CanvasWuLinesTest();
-void GetCanvasRect(RECT *rcCanvas);
-void ViewportCtl_OnPaint(HWND hWnd);
+void CreateCanvas(IMAGE *img, UINT uWidth, UINT uHeight);
+void GetCanvasRect(IMAGE *img, RECT *rcCanvas);
+void ImageAlloc(IMAGE *img);
+void ImageFree(IMAGE *img);
+void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2);
+void RegisterViewportCtl();
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt);
 void ViewportCtl_OnLButtonUp(MOUSEEVENT mEvt);
 void ViewportCtl_OnMouseMove(MOUSEEVENT mEvt);
-void WuLine(unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2);
-void WuCircle(int offset_x, int offset_y, int r);
-void PNTRectangle(int x1, int y1, int x2, int y2);
-LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+void ViewportCtl_OnPaint(HWND hWnd);
+void WuCircle(IMAGE *img, int offset_x, int offset_y, int r);
+void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2);
+void image_init(IMAGE *img);
+void viewport_init(VIEWPORT* vp);
 
 #endif /* VIEWPORT_H */

@@ -213,9 +213,9 @@ HMENU CreateMainMenu()
     hMenu = CreateMenu();
     
     hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New\tCtrl+N");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open\tCtrl+O");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save\tCtrl+S");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
     
