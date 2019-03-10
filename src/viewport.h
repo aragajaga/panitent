@@ -31,6 +31,7 @@ typedef struct _tagVIEWPORT {
     HWND    hwnd;
 } VIEWPORT;
 
+void CreateCanvas(UINT uWidth, UINT uHeight);
 void image_init(IMAGE *img);
 void viewport_init(VIEWPORT* vp);
 void RegisterViewportCtl();

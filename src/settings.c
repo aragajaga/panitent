@@ -132,16 +132,6 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     return 0;
 }
 
-void SetGuiFont(HWND hwnd)
-{
-    NONCLIENTMETRICS ncm = {0};
-    ncm.cbSize = sizeof(NONCLIENTMETRICS);
-    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
-    HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
-    
-    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
-}
-
 int InitSettingsWindow(HWND hwnd)
 {
     RegisterSettingsTabPageMain();

@@ -1,5 +1,7 @@
 #include "new.h"
 #include "debug.h"
+#include "viewport.h"
+#include <shlwapi.h>
 
 void RegisterNewFileDialog()
 {
@@ -11,9 +13,11 @@ void RegisterNewFileDialog()
     wc.hbrBackground    = (HBRUSH)(COLOR_BTNFACE + 1);
     wc.lpszClassName    = L"NewFileDialogClass";
     if (!RegisterClass(&wc))
-        printf("[NewFileDialog] Class registration failed");
+        printf("[NewFileDialog] Class registration failed\n");
 }
 
+HWND hEditWidth;
+HWND hEditHeight;
 HWND hButtonOk;
 LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -21,7 +25,23 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case IDB_OK:
+            {            
+            WCHAR szWidth[40];
+            WCHAR szHeight[40];
+            int iWidth;
+            int iHeight;
+            
+            GetWindowText(hEditWidth, &szWidth, 40);
+            GetWindowText(hEditHeight, &szHeight, 40);
+            
+            iWidth = StrToInt(szWidth);
+            iHeight = StrToInt(szHeight);
+            
+            printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
+            
             DestroyWindow(hwnd);
+            CreateCanvas(iWidth, iHeight);
+            }
             break;
         default:
             break;
@@ -35,6 +55,65 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
         }
         break;
     case WM_CREATE:
+        {
+        HWND hStaticWidth = CreateWindow(
+            L"STATIC",
+            L"Width:",
+            WS_CHILD | WS_VISIBLE,
+            10,
+            15,
+            70,
+            23,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hStaticWidth);
+    
+        hEditWidth = CreateWindowEx(
+            WS_EX_CLIENTEDGE,
+            L"EDIT",
+            L"640",
+            WS_CHILD | WS_VISIBLE | ES_NUMBER,
+            100,
+            10,
+            100,
+            23,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hEditWidth);
+            
+        HWND hStaticHeight = CreateWindow(
+            L"STATIC",
+            L"Height:",
+            WS_CHILD | WS_VISIBLE,
+            10,
+            42,
+            70,
+            23,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hStaticHeight);
+            
+        hEditHeight = CreateWindowEx(
+            WS_EX_CLIENTEDGE,
+            L"EDIT",
+            L"480",
+            WS_CHILD | WS_VISIBLE | ES_NUMBER,
+            100,
+            38,
+            100,
+            23,
+            hwnd,
+            NULL,
+            GetModuleHandle(NULL),
+            NULL);
+        SetGuiFont(hEditHeight);
+    
         hButtonOk = CreateWindow(
             L"BUTTON",
             L"OK",
@@ -47,6 +126,8 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             (HMENU)IDB_OK,
             GetModuleHandle(NULL),
             NULL);
+        SetGuiFont(hButtonOk);
+        }
         break;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
@@ -61,8 +142,8 @@ void NewFileDialog(HWND hwnd)
     RegisterNewFileDialog();
     
     RECT rc = {0};
-    rc.right    = 600;
-    rc.bottom   = 400;
+    rc.right    = 210;
+    rc.bottom   = 120;
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
     
     HWND hNewDlg = CreateWindow(

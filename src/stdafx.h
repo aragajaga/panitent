@@ -28,4 +28,6 @@ typedef struct _tagMOUSEEVENT
     LPARAM lParam;
 } MOUSEEVENT;
 
+void SetGuiFont(HWND hwnd);
+
 #endif /* STDAFX_H */

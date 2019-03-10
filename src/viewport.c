@@ -3,6 +3,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "debug.h"
+#include "file_open.h"
 
 VIEWPORT vp;
 
@@ -206,6 +207,7 @@ void ImageAlloc(IMAGE *img)
 void ImageFree(IMAGE *img)
 {
     free(img->data);
+    img->data = NULL;
 }
 
 #define PI 3.1415
@@ -288,11 +290,49 @@ void GetCanvasRect(RECT *rcCanvas)
     printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
 }
 
+BOOL CanvasClose()
+{
+    int iConfirmation;
+    /* Note: Change this to TaskDialog */
+    iConfirmation = MessageBox(NULL, L"Do you want to save changes?",
+            L"panit.ent", MB_YESNOCANCEL | MB_ICONWARNING);
+    
+    switch (iConfirmation)
+    {
+    case IDYES:
+        FileSave();
+        break;
+    case IDNO:
+        vp.img.rc.width = 0;
+        vp.img.rc.height = 0;
+        
+        ImageFree(&vp.img);
+        break;
+    default:
+        return FALSE;
+        break;
+    }
+    return TRUE;
+}
+
+void CreateCanvas(UINT uWidth, UINT uHeight)
+{
+    if (vp.img.data != NULL)
+        if (!CanvasClose())
+            return;
+    
+    vp.img.rc.width = uWidth;
+    vp.img.rc.height = uHeight;
+    
+    ImageAlloc(&vp.img);
+    ViewportUpdate();
+}
+
 void ViewportCtl_OnCreate()
 {
-    vp.img.rc.width = 512;
+    /* vp.img.rc.width = 512;
     vp.img.rc.height = 420;
-    ImageAlloc(&vp.img);
+    ImageAlloc(&vp.img); */
 }
 
 void ViewportCtl_OnDestroy()
@@ -372,7 +412,12 @@ LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     switch(msg) {
     case WM_CREATE:         ViewportCtl_OnCreate();                     break;
     case WM_DESTROY:        ViewportCtl_OnDestroy();                    break;
-    case WM_PAINT:          ViewportCtl_OnPaint(hwnd);                  break;
+    case WM_PAINT:
+        if (vp.img.data)
+            ViewportCtl_OnPaint(hwnd);
+        else
+            DefWindowProc(hwnd, msg, wParam, lParam);
+        break;
     case WM_MOUSEWHEEL:     ViewportCtl_OnMouseWheel(wParam);           break;
     case WM_LBUTTONDOWN:    ViewportCtl_OnLButtonDown(mevt);            break;
     case WM_LBUTTONUP:      ViewportCtl_OnLButtonUp(mevt);              break;

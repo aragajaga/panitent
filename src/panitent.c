@@ -5,6 +5,7 @@
 #include "winuser.h"
 #include "panitent.h"
 #include "new.h"
+#include "resource.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -30,7 +31,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     wcex.style          = CS_HREDRAW | CS_VREDRAW;
     wcex.lpfnWndProc    = (WNDPROC) WndProc;
     wcex.hInstance      = hInstance;
-    wcex.hIcon          = LoadIcon(NULL, IDI_APPLICATION);
+    wcex.hIcon          = LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON));
     wcex.hCursor        = LoadCursor(NULL, IDC_ARROW);
     wcex.hbrBackground  = (HBRUSH)(COLOR_BTNFACE + 1);
     wcex.lpszClassName  = L"WindowClass";
@@ -193,6 +194,16 @@ HWND CreateStatusBar(HWND hParent)
     return hStatusBar;
 }
 #endif
+
+void SetGuiFont(HWND hwnd)
+{
+    NONCLIENTMETRICS ncm = {0};
+    ncm.cbSize = sizeof(NONCLIENTMETRICS);
+    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
+    HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
+    
+    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+}
 
 HMENU CreateMainMenu()
 {
