@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "debug.h"
 #include "file_open.h"
+#include <stddef.h>
 
 VIEWPORT vp;
 
@@ -52,7 +53,7 @@ void CanvasSetPixel(IMAGE *img, int x, int y, COLORREF color)
 {
     if (x < img->rc.width && y < img->rc.height)
     {
-        COLORREF cBack = ((unsigned int *)img->data)[y*img->rc.width+x];
+        COLORREF cBack = ((unsigned int *)img->data)[(ptrdiff_t)y*(ptrdiff_t)img->rc.width+(ptrdiff_t)x];
     
         float af = (color>>24)/255.f;
         unsigned char rR = GetRValue(color) * af + GetRValue(cBack) * (1.f - af);
@@ -233,13 +234,11 @@ void ImageFree(IMAGE *img)
     img->data = NULL;
 }
 
-#define PI 3.1415
-
 void CanvasCircleTest(IMAGE *img)
 {
     for (int i = 0; i < 360; i++)
     {
-        CanvasSetPixel(img, 80 + floor(sin(i * PI/180.f) * 40), 80 + floor(cos(i * PI/180.f) * 40), 0x00ffffff);
+        CanvasSetPixel(img, 80 + floor(sin(i * M_PI/180.f) * 40), 80 + floor(cos(i * M_PI/180.f) * 40), 0x00ffffff);
     }
 }
 
@@ -379,7 +378,7 @@ void ViewportCtl_OnDestroy()
 BOOL PutCanvasOnDC(HDC hdc, UINT x, UINT y, IMAGE *img)
 {
     HBITMAP hBitmap;
-    hBitmap = CreateBitmap(img->rc.width, img->rc.height, 1, 8*4, img->data);
+    hBitmap = CreateBitmap(img->rc.width, img->rc.height, 1, sizeof(unsigned int)*8, img->data);
     
     HDC bitmapDC;
     HBITMAP oldBitmap;

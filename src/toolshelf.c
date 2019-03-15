@@ -108,9 +108,10 @@ void ToolShelf_DrawButtons(HDC hdc)
         
         Rectangle(hdc, x, y, x+btnSize, y+btnSize);
         
-        int iBmp = tsh.pTools[i].iBmpIndex;
+        int iBmp = tsh.pTools[(ptrdiff_t)i].iBmpIndex;
+        const int offset = 4;
         TransparentBlt(hdc,
-                x+4,        y+4,
+                x+offset,   y+offset,
                 16,         bitmap.bmHeight,
                 hdcMem,
                 16*iBmp,    0,

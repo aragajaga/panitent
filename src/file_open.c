@@ -2,9 +2,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
-#include <png.h>
+// #include <png.h>
 
-void user_error_fn(png_structp png_ptr, png_const_charp message) {
+/*void user_error_fn(png_structp png_ptr, png_const_charp message) {
 	printf("[libpng] We encountered a fatal error.\n");
 	if (png_ptr) fprintf(stderr, "[libpng] libpng error: %s\n", message);
 	exit(1);
@@ -13,10 +13,11 @@ void user_error_fn(png_structp png_ptr, png_const_charp message) {
 void user_warning_fn(png_structp png_ptr, png_const_charp message) {
 	printf("[libpng internal] We encountered a warning.\n");
 	if (png_ptr) fprintf(stderr, "[libpng internal] libpng warning: %s\n", message);
-}
+} */
 
 void FileOpenPng(LPWSTR pszPath)
 {
+    /*
     FILE *fp = _wfopen(pszPath, L"rb");
     if (!fp)
         exit(1);
@@ -67,6 +68,7 @@ void FileOpenPng(LPWSTR pszPath)
     else {
         printf("[libpng] Info struct created\n");
     }
+    */
 }
 
 COMDLG_FILTERSPEC c_rgSaveTypes[1] = {{L"Portable Network Graphics", L"*.png"}};
