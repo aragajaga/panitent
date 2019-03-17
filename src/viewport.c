@@ -53,14 +53,14 @@ void CanvasSetPixel(IMAGE *img, int x, int y, COLORREF color)
 {
     if (x < img->rc.width && y < img->rc.height)
     {
-        COLORREF cBack = ((unsigned int *)img->data)[(ptrdiff_t)y*(ptrdiff_t)img->rc.width+(ptrdiff_t)x];
+        COLORREF cBack = ((LPCOLORREF)img->data)[(size_t)y*(size_t)img->rc.width+(size_t)x];
     
         float af = (color>>24)/255.f;
         unsigned char rR = GetRValue(color) * af + GetRValue(cBack) * (1.f - af);
         unsigned char gR = GetGValue(color) * af + GetGValue(cBack) * (1.f - af);
         unsigned char bR = GetBValue(color) * af + GetBValue(cBack) * (1.f - af);
         
-        ((unsigned int *)img->data)[y*img->rc.width+x] = RGB(rR, gR, bR);
+        ((LPCOLORREF)img->data)[y*img->rc.width+x] = RGB(rR, gR, bR);
     }
 }
 
@@ -223,7 +223,7 @@ void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2)
 
 void ImageAlloc(IMAGE *img)
 {
-    img->data = calloc(4, img->rc.width * img->rc.height);
+    img->data = calloc(4, (size_t)img->rc.width * (size_t)img->rc.height);
     printf("[ImageAlloc] Canvas memory page:\n");
     DebugVirtualMemoryInfo(img->data);
 }
@@ -244,19 +244,19 @@ void CanvasCircleTest(IMAGE *img)
 
 void CanvasFillTest(IMAGE *img)
 {
-    for(int i = 0; i < img->rc.width*img->rc.height; i+=2)
+    for(size_t i = 0; i < img->rc.width*img->rc.height; i+=2)
     {
-        ((unsigned int *)img->data)[i]   = 0xffffffff-(i*16)%0xffffff;
-        ((unsigned int *)img->data)[i+1] = i%0xffffff;
+        ((LPCOLORREF)img->data)[i]   = 0xffffffff-((size_t)i*16)%0x00ffffff;
+        ((LPCOLORREF)img->data)[i+(size_t)1] = i%0xffffff;
     }
     ViewportUpdate();
 }
 
 void CanvasFillSolid(IMAGE *img, COLORREF color)
 {
-    for(int i = 0; i < img->rc.width*img->rc.height; i++)
+    for(size_t i = 0; i < img->rc.width*img->rc.height; i++)
     {
-        ((unsigned int *)img->data)[i] = color;
+        ((LPCOLORREF)img->data)[i] = color;
     }
     DebugVirtualMemoryInfo(img->data);
     ViewportUpdate();

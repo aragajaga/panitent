@@ -9,7 +9,7 @@
             if (dMask & dic[i].dwConst)         \
             {                                   \
                 if (!bFirst--) printf(" | ");   \
-                printf(dic[i].szName);          \
+                printf("%s", dic[i].szName);          \
             }                                   \
         printf(")\n");   
 

@@ -38,23 +38,23 @@ void DebugVirtualMemoryInfo(void *memPtr)
 
         printf("Memory Basic Information\n");
 
-        printf("BaseAddress:\t\t0x%08lX\n",         PtrToUlong(mbi.BaseAddress));
+        printf("BaseAddress:\t\t0x%08X\n",         (size_t)mbi.BaseAddress);
 
-        printf("AllocationBase:\t\t0x%08lX\n",      PtrToUlong(mbi.AllocationBase));
+        printf("AllocationBase:\t\t0x%08X\n",      (size_t)mbi.AllocationBase);
 
-        printf("AllocationProtect:\t0x%08lX\t(",    PtrToUlong(mbi.AllocationProtect));
+        printf("AllocationProtect:\t0x%08lX\t(",    mbi.AllocationProtect);
         EXPLAINMASK(mbi.AllocationProtect, memProtectConst);
 
-        printf("RegionSize:\t\t%10u\n",            mbi.RegionSize);
+        printf("RegionSize:\t\t%10lu\n",            mbi.RegionSize);
 
-        printf("State:\t\t\t%10u\t(",              mbi.State);
+        printf("State:\t\t\t%10lu\t(",              mbi.State);
         EXPLAINMASK(mbi.State, mbiStateConst);
 
-        printf("Type:\t\t\t%10u\t(",               mbi.Type);
+        printf("Type:\t\t\t%10lu\t(",               mbi.Type);
         EXPLAINMASK(mbi.Type, mbiTypeConst);
     }
     else {
-        printf("[DebugVirtualMemoryInfo] VirtualQuery Error: %u\n", GetLastError());
+        printf("[DebugVirtualMemoryInfo] VirtualQuery Error: %lu\n", GetLastError());
     }
 }
 

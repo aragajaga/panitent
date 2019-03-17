@@ -25,7 +25,7 @@ typedef struct _tagCANVAS {
 
 typedef struct _tagVIEWPORT {
     IMAGE   img;
-    int     seqi;
+    size_t  seqi;
     IMAGE   seq[8];
     TOOL    tool;
     

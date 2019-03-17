@@ -15,7 +15,7 @@ typedef struct _tagPNTTOOL
 typedef struct _tagTOOLSHELF
 {
     PNTTOOL *pTools;
-    int nCount;
+    unsigned int nCount;
 } TOOLSHELF;
 
 TOOLSHELF tsh;
@@ -32,7 +32,7 @@ static POINT prev;
 
 void ToolShelf_AddTool(TOOLSHELF *tsh, PNTTOOL tool)
 {
-    tsh->pTools[tsh->nCount] = tool;
+    tsh->pTools[(size_t)tsh->nCount] = tool;
     tsh->nCount++;
 }
 
@@ -84,7 +84,7 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     
     PNTTOOL tRectangle;
     tRectangle.szLabel = L"Rectangle";
-    tRectangle.iBmpIndex = 4;
+    tRectangle.iBmpIndex = 4; //-V112
     ToolShelf_AddTool(tsh, tRectangle);
 }
 
