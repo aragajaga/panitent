@@ -20,7 +20,8 @@ extern VIEWPORT vp;
 
 HWND hEditWidth;
 HWND hEditHeight;
-HWND hButtonOk;
+extern HWND hButtonOk;
+
 LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg) {
