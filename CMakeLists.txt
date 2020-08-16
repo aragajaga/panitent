@@ -19,6 +19,7 @@ set(SOURCE_EXE
     src/document.c
     src/canvas.c
     src/primitives_context.c
+    src/color_context.c
     src/wu_primitives.c
     src/file_open.c
     src/toolshelf.c

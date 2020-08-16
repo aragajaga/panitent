@@ -7,6 +7,7 @@
 #include "new.h"
 #include "resource.h"
 #include "palette.h"
+#include "wu_primitives.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -24,6 +25,9 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     RegisterViewportCtl();
     RegisterToolShelf();
     register_palette_dialog(hInstance);
+
+    wu_init();
+    g_primitives_context = g_wu_primitives;
     
     HMENU hMenu = CreateMainMenu();
     

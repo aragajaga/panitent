@@ -1,5 +1,7 @@
 #include "wu_primitives.h"
 
+primitives_context_t g_wu_primitives;
+
 void wu_init()
 {
   g_wu_primitives.circle = wu_draw_circle;

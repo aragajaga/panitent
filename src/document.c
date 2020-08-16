@@ -1,6 +1,8 @@
 #include "precomp.h"
-#include "canvas.h"
+
 #include "document.h"
+#include "viewport.h"
+#include "canvas.h"
 
 void document_save(document_t* doc)
 {
@@ -35,7 +37,25 @@ BOOL document_close(document_t* doc)
 
 document_t* document_new(int width, int height)
 {
-  document_t* doc =  calloc(1, sizeof(document_t));
+  viewport_register_class();
+
+  if (!g_viewport.win_handle)
+  {
+    HWND hviewport = CreateWindowEx(0, MAKEINTATOM(g_viewport.win_class),
+        NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 50, 50, 800, 600, NULL,
+        NULL, GetModuleHandle(NULL), NULL);
+
+    if (!hviewport)
+    {
+      MessageBox(NULL, L"Failed to create viewport window!", NULL,
+          MB_OK | MB_ICONERROR); 
+      return;
+    }
+
+    g_viewport.win_handle = hviewport;
+  }
+  
+  document_t* doc = calloc(1, sizeof(document_t));
 
   canvas_t* canvas = calloc(1, sizeof(canvas_t));
   canvas->width = width;

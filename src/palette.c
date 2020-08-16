@@ -1,12 +1,10 @@
-#include "palette.h"
-#include <stdint.h>
+#include "precomp.h"
+
 #include <windowsx.h>
+#include <stdint.h>
 
-struct color_context {
-  
-};
-
-uint32_t selected_color;
+#include "color_context.h"
+#include "palette.h"
 
 uint32_t abgr_to_argb(uint32_t abgr)
 {
@@ -32,16 +30,19 @@ void palette_window_onpaint(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
   hdc = BeginPaint(hwnd, &ps);
 
-  uint32_t color = 0x00ff0000;
-  draw_swatch(hdc, 10, 10, (COLORREF)selected_color);
+  draw_swatch(hdc, 10, 10,
+      (COLORREF)abgr_to_argb(g_color_context.fg_color));
 
+  draw_swatch(hdc, 40, 10,
+      (COLORREF)abgr_to_argb(g_color_context.bg_color));
+
+  uint32_t color = 0x00ff0000;
   for (size_t i = 0; color; i++)
   {
     draw_swatch(hdc, 10 + (i % 8) * 26, 40 + (i / 8) * 26,
         (COLORREF)(color));
 
     color >>= 1;
-        
   }
 
   EndPaint(hwnd, &ps);
@@ -71,10 +72,26 @@ void palette_window_onbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
   if (((x - 10) < (26 * 8)) && ((y - 40) < (26 * 3)))
   {
     int index = transform_pos_to_index(x, y); 
-    selected_color = get_color(index);
+    g_color_context.fg_color = abgr_to_argb(get_color(index));
 
     HDC hdc = GetDC(hwnd);
     RECT rc = {10, 10, 34, 34};
+    InvalidateRect(hwnd, &rc, FALSE);
+  }
+}
+
+void palette_window_onrbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+  int x = GET_X_LPARAM(lParam);
+  int y = GET_Y_LPARAM(lParam);
+
+  if (((x - 10) < (26 * 8)) && ((y - 40) < (26 * 3)))
+  {
+    int index = transform_pos_to_index(x, y); 
+    g_color_context.bg_color = abgr_to_argb(get_color(index));
+
+    HDC hdc = GetDC(hwnd);
+    RECT rc = {40, 10, 64, 34};
     InvalidateRect(hwnd, &rc, FALSE);
   }
 }
@@ -91,6 +108,9 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPA
       break;
     case WM_LBUTTONUP:
       palette_window_onbuttonup(hwnd, wparam, lparam);
+      break;
+    case WM_RBUTTONUP:
+      palette_window_onrbuttonup(hwnd, wparam, lparam);
       break;
     default:
       return DefWindowProc(hwnd, message, wparam, lparam);

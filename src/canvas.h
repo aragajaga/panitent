@@ -34,5 +34,6 @@ uint32_t color_opacity(uint32_t color, float opacity);
 uint32_t mix(uint32_t color1, uint32_t color2);
 void* canvas_buffer_alloc(canvas_t* canvas);
 void canvas_delete(canvas_t* canvas);
+void canvas_clear(canvas_t* canvas);
 
 #endif  /* PANITENT_CANVAS_H_ */

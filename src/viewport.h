@@ -12,9 +12,13 @@
 
 typedef struct _viewport {
   document_t* document;
+  ATOM win_class;
+  HWND win_handle;
 } viewport_t;
 
 extern viewport_t g_viewport;
+
+void viewport_register_class();
 
 typedef struct _tagTRECT {
     unsigned int x;

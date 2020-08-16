@@ -186,6 +186,31 @@ void ImageFree(IMAGE *img)
     img->data = NULL;
 }
 
+void viewport_register_class()
+{
+  /* Break if already registered */
+  if (g_viewport.win_class)
+    return;
+
+  WNDCLASSEX wcex = {};
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = (WNDPROC)ViewportWndProc;
+  wcex.hInstance = GetModuleHandle(NULL);
+  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+  wcex.lpszClassName = VIEWPORTCTL_WC;
+
+  ATOM class_atom = RegisterClassEx(&wcex);
+  if (!class_atom) {
+    MessageBox(NULL, L"Failed to register class!", NULL,
+        MB_OK | MB_ICONERROR);
+    return;
+  }
+
+  g_viewport.win_class = class_atom;
+}
+
+
 void RegisterViewportCtl()
 {
     WNDCLASS wc = {0};
@@ -258,19 +283,6 @@ BOOL CanvasClose(IMAGE *img)
     return TRUE;
 }
 
-void CreateCanvas(IMAGE *img, UINT uWidth, UINT uHeight)
-{
-    if (img->data != NULL)
-        if (!CanvasClose(img))
-            return;
-    
-    img->rc.width = uWidth;
-    img->rc.height = uHeight;
-    
-    ImageAlloc(img);
-    ViewportUpdate();
-}
-
 void ViewportCtl_OnCreate()
 {
     cvsx = 0;
@@ -306,30 +318,6 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
   return TRUE;
 }
 
-BOOL PutCanvasOnDC(HDC hdc, UINT x, UINT y, IMAGE *img)
-{
-    HBITMAP hBitmap;
-    hBitmap = CreateBitmap(img->rc.width, img->rc.height, 1, sizeof(unsigned int)*8, img->data);
-    
-    HDC bitmapDC;
-    HBITMAP oldBitmap;
-    
-    bitmapDC = CreateCompatibleDC(hdc);
-    oldBitmap = SelectObject(bitmapDC, hBitmap);
-    DeleteObject(oldBitmap);
-    
-    BitBlt(hdc,
-            x, y,
-            img->rc.width, img->rc.height,
-            bitmapDC,
-            0, 0,
-            SRCCOPY);
-    
-    DeleteObject(hBitmap);
-    DeleteDC(bitmapDC);
-    return TRUE;
-}
-
 void ViewportCtl_OnPaint(HWND hwnd)
 {
   if (g_viewport.document != NULL)
@@ -341,7 +329,7 @@ void ViewportCtl_OnPaint(HWND hwnd)
     GetClientRect(hwnd, &client_rect);
     hdc = BeginPaint(hwnd, &ps);
 
-    gdi_blit_canvas(hdc, 0, 0, g_viewport.document->canvas);
+    gdi_blit_canvas(hdc, 10, 10, g_viewport.document->canvas);
 
     EndPaint(hwnd, &ps);
   }
