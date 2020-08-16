@@ -3,6 +3,7 @@
 #include "document.h"
 #include "viewport.h"
 #include "canvas.h"
+#include "panitent.h"
 
 void document_save(document_t* doc)
 {
@@ -42,8 +43,8 @@ document_t* document_new(int width, int height)
   if (!g_viewport.win_handle)
   {
     HWND hviewport = CreateWindowEx(0, MAKEINTATOM(g_viewport.win_class),
-        NULL, WS_OVERLAPPEDWINDOW | WS_VISIBLE, 50, 50, 800, 600, NULL,
-        NULL, GetModuleHandle(NULL), NULL);
+        NULL, WS_BORDER | WS_CHILD | WS_VISIBLE, 64, 0, 800, 600,
+        g_panitent.hwnd_main, NULL, GetModuleHandle(NULL), NULL);
 
     if (!hviewport)
     {

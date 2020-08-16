@@ -20,6 +20,11 @@ void swapf(float *a, float *b)
     *a = c;
 }
 
+void viewport_invalidate()
+{
+  InvalidateRect(g_viewport.win_handle, NULL, TRUE);
+}
+
 void ViewportUpdate()
 {
     InvalidateRect(vp.hwnd, NULL, TRUE);
@@ -198,6 +203,7 @@ void viewport_register_class()
   wcex.lpfnWndProc = (WNDPROC)ViewportWndProc;
   wcex.hInstance = GetModuleHandle(NULL);
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = VIEWPORTCTL_WC;
 
   ATOM class_atom = RegisterClassEx(&wcex);
@@ -301,16 +307,18 @@ void ViewportCtl_OnDestroy()
 BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
 {
   HBITMAP hbitmap = CreateBitmap(canvas->width, canvas->height, 1,
-      sizeof(unsigned int) * 8, canvas->buffer);
+      sizeof(uint32_t) * 8, canvas->buffer);
 
   HDC bitmapdc;
 
   bitmapdc = CreateCompatibleDC(hdc);
-  HBITMAP old_bitmap = SelectObject(bitmapdc, hbitmap);
-  DeleteObject(old_bitmap);
+  SelectObject(bitmapdc, hbitmap);
 
-  BitBlt(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0,
+  BOOL status = BitBlt(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0,
       SRCCOPY);
+
+  if (!status)
+    MessageBox(NULL, L"BitBlt failed", NULL, MB_OK | MB_ICONERROR);
   
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
@@ -320,19 +328,15 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
 
 void ViewportCtl_OnPaint(HWND hwnd)
 {
-  if (g_viewport.document != NULL)
-  {
-    PAINTSTRUCT ps;
-    HDC hdc;
-    RECT client_rect;
+  if (g_viewport.document == NULL)
+    return;
 
-    GetClientRect(hwnd, &client_rect);
-    hdc = BeginPaint(hwnd, &ps);
+  PAINTSTRUCT ps;
+  HDC hdc;
 
-    gdi_blit_canvas(hdc, 10, 10, g_viewport.document->canvas);
-
-    EndPaint(hwnd, &ps);
-  }
+  hdc = BeginPaint(hwnd, &ps);
+  gdi_blit_canvas(hdc, 0, 0, g_viewport.document->canvas);
+  EndPaint(hwnd, &ps);
 }
 
 BOOL bViewDragKey;
@@ -387,12 +391,7 @@ LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
     switch(msg) {
     case WM_CREATE:         ViewportCtl_OnCreate();                     break;
     case WM_DESTROY:        ViewportCtl_OnDestroy();                    break;
-    case WM_PAINT:
-        if (vp.img.data)
-            ViewportCtl_OnPaint(hwnd);
-        else
-            DefWindowProc(hwnd, msg, wParam, lParam);
-        break;
+    case WM_PAINT:          ViewportCtl_OnPaint(hwnd);                  break;
     case WM_KEYDOWN:        ViewportCtl_OnKeyDown(hwnd, wParam,
                                                   lParam);              break;
     case WM_MOUSEWHEEL:     ViewportCtl_OnMouseWheel(wParam);           break;

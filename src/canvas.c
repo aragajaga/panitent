@@ -29,6 +29,7 @@ void* canvas_buffer_alloc(canvas_t* canvas)
   size_t buffer_size = canvas->width * canvas->height
       * canvas->color_depth;
 
+  canvas->buffer_size = buffer_size;
   canvas->buffer = calloc(buffer_size, sizeof(uint8_t));
 
   return canvas->buffer;
@@ -98,8 +99,8 @@ uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
     return 0;
   }
 
-  // Is this common lisp?
-  return ((uint32_t*)(canvas->buffer))[x * y];
+  size_t pos = y * canvas->width + x;
+  return ((uint32_t*)(canvas->buffer))[pos];
 }
 
 void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
@@ -108,7 +109,8 @@ void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
     return;
   }
 
-  ((uint32_t*)(canvas->buffer))[x * y] = color;
+  size_t pos = y * canvas->width + x;
+  ((uint32_t*)(canvas->buffer))[pos] = color;
 }
 
 void canvas_clear(canvas_t* canvas)
@@ -122,4 +124,6 @@ void canvas_fill_solid(canvas_t* canvas, uint32_t color)
   {
     ((uint32_t*)(canvas->buffer))[i] = color;
   }
+
+  viewport_invalidate();
 }

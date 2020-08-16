@@ -19,6 +19,7 @@ typedef struct _viewport {
 extern viewport_t g_viewport;
 
 void viewport_register_class();
+void viewport_invalidate();
 
 typedef struct _tagTRECT {
     unsigned int x;

@@ -1,4 +1,5 @@
 #include "primitives_context.h"
+#include "viewport.h"
 
 primitives_context_t g_primitives_context;
 
@@ -18,9 +19,11 @@ void draw_rectangle(canvas_t* canvas, RECT rc)
 void draw_circle(canvas_t* canvas, int cx, int cy, int radius)
 {
   g_primitives_context.circle(canvas, cx, cy, radius); 
+  viewport_invalidate();
 }
 
 void draw_line(canvas_t* canvas, RECT rc)
 {
   g_primitives_context.line(canvas, rc); 
+  viewport_invalidate();
 }

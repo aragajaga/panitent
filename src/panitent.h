@@ -21,6 +21,12 @@ enum {
     IDM_HELP_ABOUT
 };
 
+typedef struct _panitent {
+  HWND hwnd_main;
+} panitent_t;
+
+extern panitent_t g_panitent;
+
 
 int     APIENTRY    WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
 LRESULT CALLBACK    WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

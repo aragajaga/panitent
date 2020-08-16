@@ -13,6 +13,8 @@ static HINSTANCE hInstance;
 static HWND hwndViewport;
 static HWND hwndToolShelf;
 
+panitent_t g_panitent;
+
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {   
     hInstance = hInst;    
@@ -22,7 +24,6 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     icex.dwICC  = ICC_TAB_CLASSES;
     InitCommonControlsEx(&icex);
     
-    RegisterViewportCtl();
     RegisterToolShelf();
     register_palette_dialog(hInstance);
 
@@ -58,6 +59,8 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
         hInstance,
         NULL
     );
+    g_panitent.hwnd_main = hwnd;
+
     ShowWindow(hwnd, nCmdShow);
     SetMenu(hwnd, hMenu);
     
@@ -113,10 +116,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             PostQuitMessage(0);
             break;
         case IDM_EDIT_TESTFILL:
-            MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
+            canvas_fill_solid(g_viewport.document->canvas, 0xFFFFFFFF);
             break;
         case IDM_EDIT_CLRCANVAS:
-            canvas_fill_solid(g_viewport.document->canvas, 0x00ffffff);
+            canvas_clear(g_viewport.document->canvas);
             break;
         case IDM_EDIT_WU_LINES:
             MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
@@ -139,29 +142,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
         WORD cx = LOWORD(lParam);
         WORD cy = HIWORD(lParam);
-        SetWindowPos(hwndViewport, NULL, 48, 0, cx-48, cy, SWP_NOZORDER);
         }
         break;
     case WM_CREATE:
-        hwndViewport = CreateWindowEx(
-                0,
-                VIEWPORTCTL_WC,
-                NULL,
-                WS_CHILD | WS_VISIBLE | WS_BORDER,
-                0, 0, 0, 0,
-                hWnd,
-                (HMENU) VIEWPORTCTL_ID,
-                hInstance,
-                NULL);
-        vp.hwnd = hwndViewport;
-
         hwndToolShelf = CreateWindowEx(
                 WS_EX_TOOLWINDOW,
                 TOOLSHELF_WC,
                 L"Tools",
                 WS_VISIBLE | WS_CHILD,
                 CW_USEDEFAULT, CW_USEDEFAULT,
-                48, 256,
+                64, 256,
                 hWnd,
                 NULL,
                 hInstance,
