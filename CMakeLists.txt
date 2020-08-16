@@ -18,6 +18,7 @@ set(SOURCE_EXE
     src/panitent.c
     src/file_open.c
     src/toolshelf.c
+    src/palette.c
     src/viewport.c
     src/settings.c
     src/debug.c
@@ -29,4 +30,4 @@ if(MSVC)
 endif(MSVC)
 
 add_executable(${PROJECT_NAME} ${SOURCE_EXE})
-target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32)
+target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme)

@@ -3,6 +3,9 @@
 #include "viewport.h"
 #include "debug.h"
 #include <math.h>
+#include <uxtheme.h>
+#include <vsstyle.h>
+#include <vssym32.h>
 
 extern VIEWPORT vp;
 
@@ -52,62 +55,77 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     Line_Init();
     Rectangle_Init();
     vp.tool = pointer;
-    
+
     hbmTool = (HBITMAP)LoadImage(GetModuleHandle(NULL),
             L"tool.bmp",
             IMAGE_BITMAP,
             0, 0,
             LR_LOADFROMFILE);
-    
+
     tsh->pTools = calloc(sizeof(TOOLSHELF), 8);
     tsh->nCount = 0;
-    
+
     PNTTOOL tPointer;
     tPointer.szLabel = L"Pointer";
     tPointer.iBmpIndex = 0;
     ToolShelf_AddTool(tsh, tPointer);
-    
+
     PNTTOOL tPencil;
     tPencil.szLabel = L"Pencil";
     tPencil.iBmpIndex = 1;
     ToolShelf_AddTool(tsh, tPencil);
-    
+
     PNTTOOL tCircle;
     tCircle.szLabel = L"Circle";
     tCircle.iBmpIndex = 2;
     ToolShelf_AddTool(tsh, tCircle);
-    
+
     PNTTOOL tLine;
     tLine.szLabel = L"Line";
     tLine.iBmpIndex = 3;
     ToolShelf_AddTool(tsh, tLine);
-    
+
     PNTTOOL tRectangle;
     tRectangle.szLabel = L"Rectangle";
     tRectangle.iBmpIndex = 4; //-V112
     ToolShelf_AddTool(tsh, tRectangle);
 }
 
+HWND hwndToolShelf;
+HTHEME hTheme = NULL;
 int btnSize = 24;
+
+void draw_button(HDC hdc, int x, int y)
+{
+    if (!hTheme)
+    {
+        HWND hButton = CreateWindowEx(0, L"BUTTON", L"", 0, 0, 0, 0, 0, NULL, NULL, GetModuleHandle(NULL), NULL);
+        hTheme = OpenThemeData(hButton, L"BUTTON");
+    }
+
+    RECT rc = {x, y, x + btnSize, y + btnSize};
+    DrawThemeBackgroundEx(hTheme, hdc, BP_PUSHBUTTON, PBS_NORMAL, &rc, NULL);
+}
+
 void ToolShelf_DrawButtons(HDC hdc)
 {
     BITMAP bitmap;
     HDC hdcMem;
     HGDIOBJ oldBitmap;
-    
+
     hdcMem = CreateCompatibleDC(hdc);
     oldBitmap = SelectObject(hdcMem, hbmTool);
     GetObject(hbmTool, sizeof(bitmap), &bitmap);
-    
+
     for (int i = 0; i < tsh.nCount; i++)
     {
-        
-        
-        int x = (i % 2) * btnSize;
-        int y = (i / 2) * btnSize;
-        
-        Rectangle(hdc, x, y, x+btnSize, y+btnSize);
-        
+
+        int x = 4 + (i % 2) * (4 + btnSize);
+        int y = 4 + (i / 2) * (4 + btnSize);
+
+        // Rectangle(hdc, x, y, x+btnSize, y+btnSize);
+        draw_button(hdc, x, y);
+
         int iBmp = tsh.pTools[(ptrdiff_t)i].iBmpIndex;
         const int offset = 4;
         TransparentBlt(hdc,
@@ -118,7 +136,7 @@ void ToolShelf_DrawButtons(HDC hdc)
                 16,         bitmap.bmHeight,
                 (UINT)0x00FF00FF);
     }
-    
+
     SelectObject(hdcMem, oldBitmap);
     DeleteDC(hdcMem);
 }
@@ -128,9 +146,9 @@ void ToolShelf_OnPaint(HWND hwnd)
     PAINTSTRUCT ps;
     HDC hdc;
     hdc = BeginPaint(hwnd, &ps);
-    
-    ToolShelf_DrawButtons(hdc); 
-    
+
+    ToolShelf_DrawButtons(hdc);
+
     EndPaint(hwnd, &ps);
 }
 
@@ -138,15 +156,17 @@ void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
-    if (x < btnSize*2 && y < btnSize*tsh.nCount)
+
+    if (x > 4
+        && x < btnSize*2
+        && y < btnSize*tsh.nCount)
     {
         int bID = y / btnSize * 2 + x / btnSize;
-        
+
         if (tsh.nCount > bID)
         {
             printf("[ToolButton] %d\n", bID);
-        
+
             /* Может использовать массив указателей? */
             switch (bID)
             {
@@ -170,14 +190,16 @@ void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
     }
 }
 
+
 LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     MOUSEEVENT mevt;
     mevt.hwnd = hwnd;
     mevt.lParam = lParam;
-    
+
     switch (msg) {
     case WM_CREATE:
+        hwndToolShelf = hwnd;
         InitializeToolShelf(&tsh);
         break;
     case WM_PAINT:
@@ -189,24 +211,24 @@ LRESULT CALLBACK ToolShelfWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-    
+
     return 0;
 }
 
 void RegisterToolShelf()
 {
-    WNDCLASS wc = {0};   
+    WNDCLASS wc = {0};
     wc.style            = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc      = ToolShelfWndProc;
     wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
     wc.hbrBackground    = (HBRUSH) (COLOR_BTNFACE + 1);
     wc.lpszClassName    = TOOLSHELF_WC;
-    
+
     RegisterClass(&wc);
 }
 
 void Pointer_OnLButtonDown(MOUSEEVENT mEvt)
-{    
+{
 }
 
 void Pointer_OnLButtonUp(MOUSEEVENT mEvt)
@@ -225,7 +247,7 @@ void Pointer_Init()
 }
 
 void Pencil_OnLButtonDown(MOUSEEVENT mEvt)
-{    
+{
     fDraw = TRUE;
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
@@ -235,12 +257,12 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
+
     if (fDraw)
     {
         #ifdef PEN_OVERLAY
         HDC hdc;
-        
+
         hdc = GetDC(mEvt.hwnd);
         MoveToEx(hdc, prev.x, prev.y, NULL);
         LineTo(hdc, x, y);
@@ -266,22 +288,22 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
+
     if (fDraw)
     {
         #ifdef PEN_OVERLAY
         HDC hdc;
         hdc = GetDC(mEvt.hwnd);
-        
+
         /* Draw overlay path */
         MoveToEx(hdc, prev.x, prev.y, NULL);
         LineTo(hdc, x, y);
         #endif
-        
+
         /* Draw on canvas */
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
-        
+
         if (x > rcCanvas.left && y > rcCanvas.top)
         {
             WuLine( &vp.img,
@@ -289,17 +311,17 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,
                 y - rcCanvas.top );
-            
+
             printf("[CanvasRect]");
             DebugPrintRect(&rcCanvas);
         }
         else {
             printf("[CanvasRect] Out of bounds\n");
         }
-        
+
         prev.x = x;
         prev.y = y;
-        
+
         #ifdef PEN_OVERLAY
         ReleaseDC(mEvt.hwnd, hdc);
         #endif
@@ -316,7 +338,7 @@ void Pencil_Init()
 POINT circCenter;
 
 void Circle_OnLButtonDown(MOUSEEVENT mEvt)
-{    
+{
     fDraw = TRUE;
     circCenter.x = LOWORD(mEvt.lParam);
     circCenter.y = HIWORD(mEvt.lParam);
@@ -326,12 +348,12 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
+
     if (fDraw)
     {
         #ifdef PEN_OVERLAY
         HDC hdc;
-        
+
         hdc = GetDC(mEvt.hwnd);
         MoveToEx(hdc, prev.x, prev.y, NULL);
         LineTo(hdc, x, y);
@@ -339,10 +361,10 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
 
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
-        
+
         int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
-        
-        
+
+
         WuCircle( &vp.img,
                 circCenter.x - rcCanvas.left,
                 circCenter.y - rcCanvas.top,
@@ -368,7 +390,7 @@ void Circle_Init()
 }
 
 void Line_OnLButtonDown(MOUSEEVENT mEvt)
-{    
+{
     fDraw = TRUE;
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
@@ -378,12 +400,12 @@ void Line_OnLButtonUp(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
+
     if (fDraw)
     {
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
-        
+
         WuLine( &vp.img,
                 prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
@@ -406,7 +428,7 @@ void Line_Init()
 }
 
 void Rectangle_OnLButtonDown(MOUSEEVENT mEvt)
-{    
+{
     fDraw = TRUE;
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
@@ -416,12 +438,12 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
 {
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
-    
+
     if (fDraw)
     {
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
-        
+
         PNTRectangle(&vp.img, prev.x - rcCanvas.left,
                 prev.y - rcCanvas.top,
                 x - rcCanvas.left,

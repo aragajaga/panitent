@@ -6,6 +6,7 @@
 #include "panitent.h"
 #include "new.h"
 #include "resource.h"
+#include "palette.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -22,6 +23,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     
     RegisterViewportCtl();
     RegisterToolShelf();
+    register_palette_dialog(hInstance);
     
     HMENU hMenu = CreateMainMenu();
     
@@ -86,6 +88,8 @@ int main()
     return WinMain(GetModuleHandle(NULL), NULL, NULL, 0);
 }
 #endif
+
+HWND hPaletteToolbox;
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -158,6 +162,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 NULL,
                 hInstance,
                 NULL);
+
+        init_palette_window(hWnd);
         
         break;
     case WM_DESTROY:

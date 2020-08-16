@@ -5,6 +5,7 @@
 #include "debug.h"
 #include "file_open.h"
 #include <stddef.h>
+#include "palette.h"
 
 VIEWPORT vp;
 
@@ -70,7 +71,7 @@ void Plot(IMAGE *img, float x, float y, float alpha)
 
     COLORREF color = 0xff<<16 | a<<8 | a;*/
     
-    COLORREF color = ((unsigned int)(alpha*0xff))<<24 | 0xff0000;
+    COLORREF color = ((unsigned int)(alpha*0xff))<<24 | abgr_to_argb(selected_color);
     CanvasSetPixel(img, round(x), round(y), color);
 }
 
