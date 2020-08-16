@@ -1,13 +1,17 @@
-#include "viewport.h"
 #include <assert.h>
-#include <math.h>
-#include <stdio.h>
-#include "debug.h"
-#include "file_open.h"
 #include <stddef.h>
+#include <stdio.h>
+#include <math.h>
+
+#include "file_open.h"
+#include "document.h"
+#include "viewport.h"
 #include "palette.h"
+#include "canvas.h"
+#include "debug.h"
 
 VIEWPORT vp;
+viewport_t g_viewport;
 
 void swapf(float *a, float *b)
 {
@@ -22,57 +26,9 @@ void ViewportUpdate()
     printf("[Viewport] View updated\n");
 }
 
-BOOL ViewportSequence_CreateCanvas(VIEWPORT *vp)
+void viewport_set_document(document_t* document)
 {
-    printf("[ViewportSequence] Creating canvas.\n");
-    if (vp->seqi < ARRAYSIZE(vp->seq))
-    {
-        IMAGE img;
-        img.rc.width = 100;
-        img.rc.height = 100;
-        
-        ImageAlloc(&img);
-        vp->seq[vp->seqi++] = img;
-        return TRUE;
-    }
-    printf("[ViewportSequence] An error encountered while creating canvas in sequence.\n");
-    return FALSE;
-}
-
-BOOL ViewportSequence_PopCanvas(VIEWPORT *vp)
-{
-    if (vp->seqi)
-    {
-        ImageFree(&vp->seq[vp->seqi]);
-        vp->seq[vp->seqi--] = (IMAGE){0};
-        return TRUE;
-    }
-    return FALSE;
-}
-
-void CanvasSetPixel(IMAGE *img, int x, int y, COLORREF color)
-{
-    if (x < img->rc.width && y < img->rc.height)
-    {
-        COLORREF cBack = ((LPCOLORREF)img->data)[(size_t)y*(size_t)img->rc.width+(size_t)x];
-    
-        float af = (color>>24)/255.f;
-        unsigned char rR = GetRValue(color) * af + GetRValue(cBack) * (1.f - af);
-        unsigned char gR = GetGValue(color) * af + GetGValue(cBack) * (1.f - af);
-        unsigned char bR = GetBValue(color) * af + GetBValue(cBack) * (1.f - af);
-        
-        ((LPCOLORREF)img->data)[y*img->rc.width+x] = RGB(rR, gR, bR);
-    }
-}
-
-void Plot(IMAGE *img, float x, float y, float alpha)
-{ 
-    /*COLORREF a = 0xff-alpha*0xff;
-
-    COLORREF color = 0xff<<16 | a<<8 | a;*/
-    
-    COLORREF color = ((unsigned int)(alpha*0xff))<<24 | abgr_to_argb(selected_color);
-    CanvasSetPixel(img, round(x), round(y), color);
+  g_viewport.document = document;
 }
 
 #define ipart_(X) ((int)(X))
@@ -82,6 +38,7 @@ void Plot(IMAGE *img, float x, float y, float alpha)
 
 #define swap_(a, b) do{ __typeof__(a) tmp;  tmp = a; a = b; b = tmp; }while(0)
 
+/*
 void WuCircle(IMAGE *img, int offset_x, int offset_y, int r)
 {
     int x = r;
@@ -136,24 +93,6 @@ void WuCircle(IMAGE *img, int offset_x, int offset_y, int r)
     ViewportUpdate();
 }
 
-typedef struct _primitives_context {
-  void (*line)(canvas_t* canvas, RECT rc);
-} primitives_context_t;
-
-primitives_context_t g_primitives_context;
-
-void draw_line(canvas_t* canvas, RECT rc)
-{
-  g_primitives_context->line(canvas, rc); 
-}
-
-primitives_context g_wu_primitives;
-
-void primitives_wu_init()
-{
-  g_wu_primitives.line = wu_draw_line;
-  g_wu_primitives.circle = wu_draw_circle;
-}
 
 void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 {
@@ -232,27 +171,7 @@ void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsig
 #undef fpart_
 #undef round_
 #undef rfpart_
-
-void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2)
-{
-    WuLine(img, x1, y1, x2, y1);
-    WuLine(img, x1, y1, x1, y2);
-    WuLine(img, x2, y1, x2, y2);
-    WuLine(img, x1, y2, x2, y2);
-}
-
-void draw_rectangle(canvas_t* canvas, RECT rc)
-{
-  RECT l1 = {rect.left,  rect.top, rect.right, rect.top},
-       l2 = {rect.left,  rect.top, rect.left,  rect.bottom},
-       l3 = {rect.right, rect.top, rect.right, rect.bottom},
-       l4 = {rect.left,  rect.top, rect.right, rect.bottom};
-
-  draw_line(canvas, l1);
-  draw_line(canvas, l2);
-  draw_line(canvas, l3);
-  draw_line(canvas, l4);
-}
+*/
 
 void ImageAlloc(IMAGE *img)
 {
@@ -265,53 +184,6 @@ void ImageFree(IMAGE *img)
 {
     free(img->data);
     img->data = NULL;
-}
-
-void CanvasCircleTest(IMAGE *img)
-{
-    for (int i = 0; i < 360; i++)
-    {
-        CanvasSetPixel(img, 80 + floor(sin(i * M_PI/180.f) * 40), 80 + floor(cos(i * M_PI/180.f) * 40), 0x00ffffff);
-    }
-}
-
-void CanvasFillTest(IMAGE *img)
-{
-    for(size_t i = 0; i < img->rc.width*img->rc.height; i+=2)
-    {
-        ((LPCOLORREF)img->data)[i]   = 0xffffffff-((size_t)i*16)%0x00ffffff;
-        ((LPCOLORREF)img->data)[i+(size_t)1] = i%0xffffff;
-    }
-    ViewportUpdate();
-}
-
-void canvas_fill_solid(canvas_t* canvas, uint32_t color)
-{
-  for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++)
-  {
-    (uint32_t)(canvas->buffer[i]) = color; 
-  }
-}
-
-void CanvasFillSolid(IMAGE *img, COLORREF color)
-{
-    for(size_t i = 0; i < img->rc.width*img->rc.height; i++)
-    {
-        ((LPCOLORREF)img->data)[i] = color;
-    }
-    DebugVirtualMemoryInfo(img->data);
-    ViewportUpdate();
-}
-
-void CanvasWuLinesTest()
-{
-    /* WuLine(10, 10, 180, 160);
-    WuLine(390, 149, 53, 234);
-    WuLine(52, 185, 301, 34);
-    WuCircle(240, 240, 120);
-    WuCircle(142, 234, 33);
-
-    ViewportUpdate();*/
 }
 
 void RegisterViewportCtl()
@@ -361,42 +233,6 @@ void GetCanvasRect(IMAGE *img, RECT *rcCanvas)
     printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
 }
 
-typedef struct _document {
-  char* location;
-  canvas_t canvas;
-} document_t;
-
-void document_save(document_t* doc)
-{
-  // TODO
-}
-
-void document_purge(document_t* doc)
-{
-  canvas_delete(doc->canvas);
-}
-
-BOOL document_close(document_t* doc)
-{
-  int answer = MessageBox(NULL, L"Do you want to save changes?",
-      L"panit.ent", MB_YESNOCANCEL | MB_ICONWARNING);
-
-  switch (answer)
-  {
-    case IDYES:
-      document_save(doc);
-      break;
-    case ID_NO;
-      document_purge(doc);
-      break;
-    default:
-      return FALSE;
-      break;
-    }
-
-    return TRUE;
-}
-
 BOOL CanvasClose(IMAGE *img)
 {
     int iConfirmation;
@@ -424,8 +260,6 @@ BOOL CanvasClose(IMAGE *img)
 
 void CreateCanvas(IMAGE *img, UINT uWidth, UINT uHeight)
 {
-    ViewportSequence_CreateCanvas(&vp);
-    
     if (img->data != NULL)
         if (!CanvasClose(img))
             return;
@@ -450,6 +284,26 @@ void ViewportCtl_OnDestroy()
 {
     /* [vp.seq] Memory leak */
     ImageFree(&vp.img);
+}
+
+BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
+{
+  HBITMAP hbitmap = CreateBitmap(canvas->width, canvas->height, 1,
+      sizeof(unsigned int) * 8, canvas->buffer);
+
+  HDC bitmapdc;
+
+  bitmapdc = CreateCompatibleDC(hdc);
+  HBITMAP old_bitmap = SelectObject(bitmapdc, hbitmap);
+  DeleteObject(old_bitmap);
+
+  BitBlt(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0,
+      SRCCOPY);
+  
+  DeleteObject(hbitmap);
+  DeleteDC(bitmapdc);
+
+  return TRUE;
 }
 
 BOOL PutCanvasOnDC(HDC hdc, UINT x, UINT y, IMAGE *img)
@@ -478,24 +332,19 @@ BOOL PutCanvasOnDC(HDC hdc, UINT x, UINT y, IMAGE *img)
 
 void ViewportCtl_OnPaint(HWND hwnd)
 {
+  if (g_viewport.document != NULL)
+  {
     PAINTSTRUCT ps;
     HDC hdc;
-    RECT rcClient;
+    RECT client_rect;
 
-    GetClientRect(hwnd, &rcClient);
-
+    GetClientRect(hwnd, &client_rect);
     hdc = BeginPaint(hwnd, &ps);
 
-    IMAGE *ctx = &vp.img;
-    for (size_t i = 0; i < vp.seqi; i++)
-        PutCanvasOnDC(hdc, 10, 10, &vp.seq[i]);
-
-    /*int x = (rcClient.right  - ctx->rc.width )/2;
-    int y = (rcClient.bottom - ctx->rc.height)/2; */
-    
-    PutCanvasOnDC(hdc, cvsx, cvsy, ctx);
+    gdi_blit_canvas(hdc, 0, 0, g_viewport.document->canvas);
 
     EndPaint(hwnd, &ps);
+  }
 }
 
 BOOL bViewDragKey;

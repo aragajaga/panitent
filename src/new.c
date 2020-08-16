@@ -1,7 +1,11 @@
+#include "precomp.h"
+
+#include <shlwapi.h>
+
 #include "new.h"
 #include "debug.h"
+#include "document.h"
 #include "viewport.h"
-#include <shlwapi.h>
 
 void RegisterNewFileDialog()
 {
@@ -16,7 +20,7 @@ void RegisterNewFileDialog()
         printf("[NewFileDialog] Class registration failed\n");
 }
 
-extern VIEWPORT vp;
+extern viewport_t g_viewport;
 
 HWND hEditWidth;
 HWND hEditHeight;
@@ -43,7 +47,7 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM
             printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
             
             DestroyWindow(hwnd);
-            CreateCanvas(&vp.img, iWidth, iHeight);
+            document_new(iWidth, iHeight);
             }
             break;
         default:

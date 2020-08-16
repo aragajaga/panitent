@@ -1,11 +1,35 @@
 #include "canvas.h"
+#include "color_context.h"
+
+uint32_t color_opacity(uint32_t color, float opacity)
+{
+  return (((uint8_t)(round(opacity * 255.f))) << 24) | (color & 0x00FFFFFF);
+}
+
+uint32_t mix(uint32_t color1, uint32_t color2)
+{
+  float opacity = (color2 >> 24) / 255.f;
+
+  uint8_t r = CHANNEL_R_32(color1) * opacity
+      + CHANNEL_R_32(color2) * (1.f - opacity);
+
+  uint8_t g = CHANNEL_G_32(color1) * opacity
+      + CHANNEL_G_32(color2) * (1.f - opacity);
+
+  uint8_t b = CHANNEL_B_32(color1) * opacity
+      + CHANNEL_B_32(color2) * (1.f - opacity);
+
+  /* TODO: Alpha mixing */
+
+  return ARGB(0, r, g, b);
+}
 
 void* canvas_buffer_alloc(canvas_t* canvas)
 {
   size_t buffer_size = canvas->width * canvas->height
       * canvas->color_depth;
 
-  canvas->buffer = calloc(buffer_size);
+  canvas->buffer = calloc(buffer_size, sizeof(uint8_t));
 
   return canvas->buffer;
 }
@@ -29,22 +53,18 @@ BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
   return FALSE;
 }
 
-uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
-{
-  if (!canvas_check_boundaries(canvas, x, y)) {
-    return 0;
-  }
-
-  return ((uint32_t)(canvas->buffer[x * y * canvas->color_depth]));
-}
-
-void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
+void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
 {
   if (!canvas_check_boundaries(canvas, x, y)) {
     return;
   }
 
-  ((uint32_t)(canvas->buffer[x * y * canvas->color_depth])) = color;
+  unsigned int x_ = (unsigned int)x;
+  unsigned int y_ = (unsigned int)y;
+
+  uint32_t fg_color = g_color_context.fg_color;
+
+  canvas_draw_pixel(canvas, x_, y_, color_opacity(fg_color, opacity));
 }
 
 void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
@@ -53,72 +73,48 @@ void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
     return;
   }
 
-  unsigned int x = (unsigned int)x;
-  unsigned int y = (unsigned int)y;
+  unsigned int x_ = (unsigned int)x;
+  unsigned int y_ = (unsigned int)y;
 
-  uint32_t alpha = ((unsigned int)(opacity * 255));
+  uint8_t alpha = CHANNEL_A_32(color);
 
   /* TODO: Непродуманно. А если fg_color имеет альфу? */
   if (alpha == 255) {
-    canvas_set_pixel(canvas, x, y, fg_color);
+    canvas_set_pixel(canvas, x_, y_, color);
   }
   else if (alpha == 0) {
-    return; 
+    return;
   }
   else {
     uint32_t underlying = canvas_get_pixel(canvas, x, y);
-    uint32_t result_color = mix(underlying, fg_color);
-    canvas_set_pixel(canvas, x, y, result_color); 
+    uint32_t result_color = mix(underlying, color);
+    canvas_set_pixel(canvas, x, y, result_color);
   }
 }
 
-#define CHANNEL_A_32(color) ((uint8_t)((color>>24) & 0xFF))
-#define CHANNEL_R_32(color) ((uint8_t)((color>>16) & 0xFF))
-#define CHANNEL_G_32(color) ((uint8_t)((color>>8) & 0xFF))
-#define CHANNEL_B_32(color) ((uint8_t)(color & 0xFF))
-
-#define DROP_ALPHA_32(color) ((uint32_t)(color & 0x00FFFFFF));
-
-#define ARGB(a, r, g, b) ((uint32_t)(((a & 0xFF) << 24) | \
-                          ((r & 0xFF) << 16) | \
-                          ((g & 0xFF) << 8 ) | \
-                          (b & 0xff)))
-
-uint32_t mix(uint32_t color1, uint32_t color2)
+uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
 {
-  float opacity = (color2 >> 24) / 255.f;
+  if (!canvas_check_boundaries(canvas, x, y)) {
+    return 0;
+  }
 
-  uint8_t r = CHANNEL_R_32(color1) * opacity
-      + CHANNEL_R_32(color2) * (1.f - opacity);
-
-  uint8_t g = CHANNEL_G_32(color1) * opacity
-      + CHANNEL_G_32(color2) * (1.f - opacity);
-
-  uint8_t b = CHANNEL_B_32(color1) * opacity
-      + CHANNEL_B_32(color2) * (1.f - opacity);
-
-  /* TODO: Alpha mixing */ 
-
-  return = ARGB(0, r, g, b);
+  // Is this common lisp?
+  return ((uint32_t*)(canvas->buffer))[x * y];
 }
 
-uint32_t color_opacity(uint32_t color, float opacity)
-{
-  return (((uint8_t)(round(opacity * 255.f))) << 24) | (color & 0x00FFFFFF);
-}
-
-void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
+void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
 {
   if (!canvas_check_boundaries(canvas, x, y)) {
     return;
   }
 
-  unsigned int x = (unsigned int)x;
-  unsigned int y = (unsigned int)y;
-
-  uint32_t fg_color = g_color_context.fg_color;
-
-  canvas_draw_pixel(canvas, x, y, color_opacity(fg_color, opacity));
+  ((uint32_t*)(canvas->buffer))[x * y] = color;
 }
 
-#endif  /* PANITENT_CANVAS_H_ */
+void canvas_fill_solid(canvas_t* canvas, uint32_t color)
+{
+  for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++)
+  {
+    ((uint32_t*)(canvas->buffer))[i] = color;
+  }
+}

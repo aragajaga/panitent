@@ -16,6 +16,10 @@ endif()
 
 set(SOURCE_EXE
     src/panitent.c
+    src/document.c
+    src/canvas.c
+    src/primitives_context.c
+    src/wu_primitives.c
     src/file_open.c
     src/toolshelf.c
     src/palette.c

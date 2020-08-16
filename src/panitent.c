@@ -109,13 +109,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
             PostQuitMessage(0);
             break;
         case IDM_EDIT_TESTFILL:
-            CanvasFillTest(&vp.img);
+            MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
             break;
         case IDM_EDIT_CLRCANVAS:
-            CanvasFillSolid(&vp.img, 0x00ffffff);
+            canvas_fill_solid(g_viewport.document->canvas, 0x00ffffff);
             break;
         case IDM_EDIT_WU_LINES:
-            CanvasWuLinesTest(&vp.img);
+            MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
             break;
         case IDM_WINDOW_TOOLS:
             CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);

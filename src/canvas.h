@@ -24,14 +24,15 @@ typedef struct _canvas {
   void *buffer;
 } canvas_t;
 
-void* canvas_buffer_alloc(canvas_t* canvas);
-void canvas_delete(canvas_t* canvas);
+void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color);
+void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color);
+void canvas_plot(canvas_t* canvas, float x, float y, float opacity);
 BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y);
 uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y);
-void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color);
-void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color);
-uint32_t mix(uint32_t color1, uint32_t color2);
+void canvas_fill_solid(canvas_t* canvas, uint32_t color);
 uint32_t color_opacity(uint32_t color, float opacity);
-void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
+uint32_t mix(uint32_t color1, uint32_t color2);
+void* canvas_buffer_alloc(canvas_t* canvas);
+void canvas_delete(canvas_t* canvas);
 
-#endif  // PANITENT_CANVAS_H_
+#endif  /* PANITENT_CANVAS_H_ */

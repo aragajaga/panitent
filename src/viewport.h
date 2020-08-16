@@ -2,11 +2,19 @@
 #define VIEWPORT_H
 
 #include "stdafx.h"
+
+#include "document.h"
 #include "tool.h"
 #include "canvas.h"
 
 #define VIEWPORTCTL_ID 100
 #define VIEWPORTCTL_WC L"CanvasCtlClass"
+
+typedef struct _viewport {
+  document_t* document;
+} viewport_t;
+
+extern viewport_t g_viewport;
 
 typedef struct _tagTRECT {
     unsigned int x;

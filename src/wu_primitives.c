@@ -2,20 +2,20 @@
 
 void wu_init()
 {
-  g_wu_primitives.circle = wu_draw_cicle;
+  g_wu_primitives.circle = wu_draw_circle;
   g_wu_primitives.line = wu_draw_line;
 }
 
 void wu_draw_circle(canvas_t* canvas, int cx, int cy, int radius) {
 
-  int x = r;
+  int x = radius;
   int y = -1;
   float t = 0;
   while (x - 1 > y)
   {
     y++;
 
-    float rp = sqrt(r*r - y*y);
+    float rp = sqrt(radius*radius - y*y);
     float dist = ceil(rp) - rp;
     if (dist < t)
       x--;

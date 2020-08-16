@@ -1,11 +1,15 @@
-#include "toolshelf.h"
-#include "tool.h"
-#include "viewport.h"
-#include "debug.h"
-#include <math.h>
+#include "precomp.h"
+
 #include <uxtheme.h>
 #include <vsstyle.h>
 #include <vssym32.h>
+#include <math.h>
+
+#include "primitives_context.h"
+#include "toolshelf.h"
+#include "viewport.h"
+#include "debug.h"
+#include "tool.h"
 
 extern VIEWPORT vp;
 
@@ -270,11 +274,16 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
 
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
-        WuLine( &vp.img,
-                prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top );
+
+        canvas_t *canvas = g_viewport.document->canvas;
+
+        RECT line_rect = {};
+        line_rect.left = prev.x;
+        line_rect.top  = prev.y;
+        line_rect.right  = x;
+        line_rect.bottom = y;
+
+        draw_line(canvas, line_rect);
 
         #ifdef PEN_OVERLAY
         ReleaseDC(mEvt.hwnd, hdc);
@@ -306,11 +315,16 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
 
         if (x > rcCanvas.left && y > rcCanvas.top)
         {
-            WuLine( &vp.img,
-                prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top );
+
+            canvas_t *canvas = g_viewport.document->canvas;
+
+            RECT line_rect = {};
+            line_rect.left = prev.x;
+            line_rect.top  = prev.y;
+            line_rect.right  = x;
+            line_rect.bottom = y;
+
+            draw_line(canvas, line_rect);
 
             printf("[CanvasRect]");
             DebugPrintRect(&rcCanvas);
@@ -364,11 +378,8 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
 
         int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
 
-
-        WuCircle( &vp.img,
-                circCenter.x - rcCanvas.left,
-                circCenter.y - rcCanvas.top,
-                radius );
+        canvas_t *canvas = g_viewport.document->canvas;
+        draw_circle(canvas, circCenter.x, circCenter.y, radius);
 
         #ifdef PEN_OVERLAY
         ReleaseDC(mEvt.hwnd, hdc);
@@ -406,12 +417,15 @@ void Line_OnLButtonUp(MOUSEEVENT mEvt)
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
 
-        WuLine( &vp.img,
-                prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top);
+        canvas_t* canvas = g_viewport.document->canvas;
 
+        RECT line_rect = {};
+        line_rect.left = prev.x;
+        line_rect.top  = prev.y;
+        line_rect.right  = x;
+        line_rect.bottom = y;
+
+        draw_line(canvas, line_rect);
     }
     fDraw = FALSE;
 }
@@ -444,10 +458,14 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
         RECT rcCanvas;
         GetCanvasRect(&vp.img, &rcCanvas);
 
-        PNTRectangle(&vp.img, prev.x - rcCanvas.left,
-                prev.y - rcCanvas.top,
-                x - rcCanvas.left,
-                y - rcCanvas.top);
+        canvas_t *canvas = g_viewport.document->canvas;
+
+        RECT rc = {};
+        rc.left = prev.x;
+        rc.top  = prev.y;
+        rc.right  = x;
+        rc.bottom = y;
+        draw_rectangle(canvas, rc);
 
     }
     fDraw = FALSE;
