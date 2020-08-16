@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "tool.h"
+#include "canvas.h"
 
 #define VIEWPORTCTL_ID 100
 #define VIEWPORTCTL_WC L"CanvasCtlClass"

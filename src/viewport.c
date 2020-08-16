@@ -136,6 +136,25 @@ void WuCircle(IMAGE *img, int offset_x, int offset_y, int r)
     ViewportUpdate();
 }
 
+typedef struct _primitives_context {
+  void (*line)(canvas_t* canvas, RECT rc);
+} primitives_context_t;
+
+primitives_context_t g_primitives_context;
+
+void draw_line(canvas_t* canvas, RECT rc)
+{
+  g_primitives_context->line(canvas, rc); 
+}
+
+primitives_context g_wu_primitives;
+
+void primitives_wu_init()
+{
+  g_wu_primitives.line = wu_draw_line;
+  g_wu_primitives.circle = wu_draw_circle;
+}
+
 void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2)
 {
     float dx = (float)x2 - (float)x1;
@@ -222,6 +241,19 @@ void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2)
     WuLine(img, x1, y2, x2, y2);
 }
 
+void draw_rectangle(canvas_t* canvas, RECT rc)
+{
+  RECT l1 = {rect.left,  rect.top, rect.right, rect.top},
+       l2 = {rect.left,  rect.top, rect.left,  rect.bottom},
+       l3 = {rect.right, rect.top, rect.right, rect.bottom},
+       l4 = {rect.left,  rect.top, rect.right, rect.bottom};
+
+  draw_line(canvas, l1);
+  draw_line(canvas, l2);
+  draw_line(canvas, l3);
+  draw_line(canvas, l4);
+}
+
 void ImageAlloc(IMAGE *img)
 {
     img->data = calloc(4, (size_t)img->rc.width * (size_t)img->rc.height);
@@ -251,6 +283,14 @@ void CanvasFillTest(IMAGE *img)
         ((LPCOLORREF)img->data)[i+(size_t)1] = i%0xffffff;
     }
     ViewportUpdate();
+}
+
+void canvas_fill_solid(canvas_t* canvas, uint32_t color)
+{
+  for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++)
+  {
+    (uint32_t)(canvas->buffer[i]) = color; 
+  }
 }
 
 void CanvasFillSolid(IMAGE *img, COLORREF color)
@@ -319,6 +359,42 @@ void GetCanvasRect(IMAGE *img, RECT *rcCanvas)
     
     printf("[GetCanvasRect] right: %ld\n", rcCanvas->right);
     printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
+}
+
+typedef struct _document {
+  char* location;
+  canvas_t canvas;
+} document_t;
+
+void document_save(document_t* doc)
+{
+  // TODO
+}
+
+void document_purge(document_t* doc)
+{
+  canvas_delete(doc->canvas);
+}
+
+BOOL document_close(document_t* doc)
+{
+  int answer = MessageBox(NULL, L"Do you want to save changes?",
+      L"panit.ent", MB_YESNOCANCEL | MB_ICONWARNING);
+
+  switch (answer)
+  {
+    case IDYES:
+      document_save(doc);
+      break;
+    case ID_NO;
+      document_purge(doc);
+      break;
+    default:
+      return FALSE;
+      break;
+    }
+
+    return TRUE;
 }
 
 BOOL CanvasClose(IMAGE *img)

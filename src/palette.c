@@ -3,7 +3,7 @@
 #include <windowsx.h>
 
 struct color_context {
-
+  
 };
 
 uint32_t selected_color;
