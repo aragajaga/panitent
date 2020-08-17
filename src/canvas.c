@@ -47,7 +47,7 @@ void canvas_delete(canvas_t* canvas)
 
 BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
 {
-  if (x < canvas->width && y < canvas->height) {
+  if (x >= 0 && y >= 0 && x < canvas->width && y < canvas->height) {
     return TRUE;
   }
 

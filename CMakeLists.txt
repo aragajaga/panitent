@@ -20,8 +20,10 @@ set(SOURCE_EXE
     src/canvas.c
     src/primitives_context.c
     src/color_context.c
+    src/bresenham.c
     src/wu_primitives.c
     src/file_open.c
+    src/option_bar.c
     src/toolshelf.c
     src/palette.c
     src/viewport.c

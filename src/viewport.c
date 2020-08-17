@@ -203,7 +203,7 @@ void viewport_register_class()
   wcex.lpfnWndProc = (WNDPROC)ViewportWndProc;
   wcex.hInstance = GetModuleHandle(NULL);
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+  // wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = VIEWPORTCTL_WC;
 
   ATOM class_atom = RegisterClassEx(&wcex);

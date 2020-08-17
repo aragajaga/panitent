@@ -5,10 +5,10 @@ primitives_context_t g_primitives_context;
 
 void draw_rectangle(canvas_t* canvas, RECT rc)
 {
-  RECT l1 = {rc.left,  rc.top, rc.right, rc.top},
-       l2 = {rc.left,  rc.top, rc.left,  rc.bottom},
-       l3 = {rc.right, rc.top, rc.right, rc.bottom},
-       l4 = {rc.left,  rc.top, rc.right, rc.bottom};
+  RECT l1 = {rc.left,  rc.top,    rc.right, rc.top},
+       l2 = {rc.left,  rc.top,    rc.left,  rc.bottom},
+       l3 = {rc.right, rc.top,    rc.right, rc.bottom},
+       l4 = {rc.left,  rc.bottom, rc.right, rc.bottom};
 
   draw_line(canvas, l1);
   draw_line(canvas, l2);

@@ -161,11 +161,14 @@ void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
     int x = LOWORD(mEvt.lParam);
     int y = HIWORD(mEvt.lParam);
 
-    if (x > 4
-        && x < btnSize*2
-        && y < btnSize*tsh.nCount)
+    int btnHot = btnSize + 5;
+
+    if (x >= 0
+        && y >= 0
+        && x < btnHot*2
+        && y < btnHot*tsh.nCount)
     {
-        int bID = y / btnSize * 2 + x / btnSize;
+        int bID = y / btnHot * 2 + x / btnHot;
 
         if (tsh.nCount > bID)
         {

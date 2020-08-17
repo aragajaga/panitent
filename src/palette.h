@@ -1,18 +1,15 @@
 #ifndef PANITENT_PALETTE_H_
 #define PANITENT_PALETTE_H_
 
-#ifndef UNICODE
-#define UNICODE
-#endif  // UNICODE
+#include "precomp.h"
 
-#ifndef _UNICODE
-#define _UNICODE
-#endif  // _UNICODE
-
-#include <windows.h>
 #include <stdint.h>
 
-extern uint32_t selected_color;
+typedef struct _palette_dialog {
+  HWND win_handle;
+} palette_dialog_t;
+
+extern palette_dialog_t g_palette_dialog;
 
 uint32_t abgr_to_argb(uint32_t abgr);
 

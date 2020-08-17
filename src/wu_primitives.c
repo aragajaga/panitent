@@ -85,8 +85,8 @@ void wu_draw_line(canvas_t* canvas, RECT rc) {
     float xgap = rfpart_(x1 + 0.5);
     int xpxl1 = xend;
     int ypxl1 = ipart_(yend);
-    canvas_plot(canvas, xpxl1, ypxl1, rfpart_(yend)*xgap);
-    canvas_plot(canvas, xpxl1, ypxl1+1, fpart_(yend)*xgap);
+    canvas_plot(canvas, xpxl1, ypxl1, 1.0 - rfpart_(yend)*xgap);
+    canvas_plot(canvas, xpxl1, ypxl1+1, 1.0 - fpart_(yend)*xgap);
     float intery = yend + gradient;
 
     xend = round_(x2);
@@ -94,14 +94,14 @@ void wu_draw_line(canvas_t* canvas, RECT rc) {
     xgap = fpart_(x2+0.5);
     int xpxl2 = xend;
     int ypxl2 = ipart_(yend);
-    canvas_plot(canvas, xpxl2, ypxl2, rfpart_(yend) * xgap);
-    canvas_plot(canvas, xpxl2, ypxl2 + 1, fpart_(yend) * xgap);
+    canvas_plot(canvas, xpxl2, ypxl2, 1.f - rfpart_(yend) * xgap);
+    canvas_plot(canvas, xpxl2, ypxl2 + 1, 1.f - fpart_(yend) * xgap);
 
     int x;
     for(x=xpxl1+1; x < xpxl2; x++)
     {
-      canvas_plot(canvas, x, ipart_(intery), rfpart_(intery));
-      canvas_plot(canvas, x, ipart_(intery) + 1, fpart_(intery));
+      canvas_plot(canvas, x, ipart_(intery), 1.f - rfpart_(intery));
+      canvas_plot(canvas, x, ipart_(intery) + 1, 1.f - fpart_(intery));
       intery += gradient;
     }
   } else {
@@ -116,8 +116,8 @@ void wu_draw_line(canvas_t* canvas, RECT rc) {
     float ygap = rfpart_(y1 + 0.5);
     int ypxl1 = yend;
     int xpxl1 = ipart_(xend);
-    canvas_plot(canvas, xpxl1, ypxl1, rfpart_(xend)*ygap);
-    canvas_plot(canvas, xpxl1 + 1, ypxl1, fpart_(xend)*ygap);
+    canvas_plot(canvas, xpxl1, ypxl1, 1.f - rfpart_(xend)*ygap);
+    canvas_plot(canvas, xpxl1 + 1, ypxl1, 1.f - fpart_(xend)*ygap);
     float interx = xend + gradient;
 
     yend = round_(y2);
@@ -125,14 +125,14 @@ void wu_draw_line(canvas_t* canvas, RECT rc) {
     ygap = fpart_(y2+0.5);
     int ypxl2 = yend;
     int xpxl2 = ipart_(xend);
-    canvas_plot(canvas, xpxl2, ypxl2, rfpart_(xend) * ygap);
-    canvas_plot(canvas, xpxl2 + 1, ypxl2, fpart_(xend) * ygap);
+    canvas_plot(canvas, xpxl2, ypxl2, 1.f - rfpart_(xend) * ygap);
+    canvas_plot(canvas, xpxl2 + 1, ypxl2, 1.f - fpart_(xend) * ygap);
 
     int y;
     for(y=ypxl1+1; y < ypxl2; y++)
     {
-      canvas_plot(canvas, ipart_(interx), y, rfpart_(interx));
-      canvas_plot(canvas, ipart_(interx) + 1, y, fpart_(interx));
+      canvas_plot(canvas, ipart_(interx), y, 1.f - rfpart_(interx));
+      canvas_plot(canvas, ipart_(interx) + 1, y, 1.f - fpart_(interx));
       interx += gradient;
     }
   }

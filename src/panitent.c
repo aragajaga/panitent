@@ -7,7 +7,9 @@
 #include "new.h"
 #include "resource.h"
 #include "palette.h"
+#include "bresenham.h"
 #include "wu_primitives.h"
+#include "option_bar.h"
 
 static HINSTANCE hInstance;
 static HWND hwndViewport;
@@ -26,7 +28,10 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     
     RegisterToolShelf();
     register_palette_dialog(hInstance);
+    option_bar_register_class(hInstance);
 
+
+    bresenham_init();
     wu_init();
     g_primitives_context = g_wu_primitives;
     
@@ -142,6 +147,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
         WORD cx = LOWORD(lParam);
         WORD cy = HIWORD(lParam);
+        if (g_viewport.win_handle)
+        {
+          SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
+              SWP_NOACTIVATE | SWP_NOZORDER);
+          SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
+              SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
+        }
         }
         break;
     case WM_CREATE:
@@ -150,7 +162,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 TOOLSHELF_WC,
                 L"Tools",
                 WS_VISIBLE | WS_CHILD,
-                CW_USEDEFAULT, CW_USEDEFAULT,
+                0, 32,
                 64, 256,
                 hWnd,
                 NULL,
@@ -158,6 +170,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
                 NULL);
 
         init_palette_window(hWnd);
+        option_bar_create(hWnd);
         
         break;
     case WM_DESTROY:
