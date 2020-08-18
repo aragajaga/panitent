@@ -47,12 +47,12 @@ int sign(int x)
     return 0;
 }
 
-void bresenham_line(canvas_t* canvas, RECT rc)
+void bresenham_line(canvas_t* canvas, rect_t rc)
 {
-  int x1 = rc.left;
-  int x2 = rc.right;
-  int y1 = rc.top;
-  int y2 = rc.bottom;
+  int x1 = rc.x0;
+  int x2 = rc.x1;
+  int y1 = rc.y0;
+  int y2 = rc.y1;
 
   int x,y,dx,dy,swap,temp,s1,s2,p,i;
 

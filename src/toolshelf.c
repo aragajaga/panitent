@@ -6,8 +6,10 @@
 #include <math.h>
 
 #include "primitives_context.h"
+#include "option_bar.h"
 #include "toolshelf.h"
 #include "viewport.h"
+#include "canvas.h"
 #include "debug.h"
 #include "tool.h"
 
@@ -33,6 +35,7 @@ TOOL pointer;
 TOOL circle;
 TOOL line;
 TOOL rectangle;
+TOOL text;
 
 static BOOL fDraw = FALSE;
 static POINT prev;
@@ -58,6 +61,7 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     Circle_Init();
     Line_Init();
     Rectangle_Init();
+    Text_Init();
     vp.tool = pointer;
 
     hbmTool = (HBITMAP)LoadImage(GetModuleHandle(NULL),
@@ -93,6 +97,11 @@ void InitializeToolShelf(TOOLSHELF *tsh)
     tRectangle.szLabel = L"Rectangle";
     tRectangle.iBmpIndex = 4; //-V112
     ToolShelf_AddTool(tsh, tRectangle);
+    
+    PNTTOOL tText;
+    tText.szLabel = L"Text";
+    tText.iBmpIndex = 6;
+    ToolShelf_AddTool(tsh, tText);
 }
 
 HWND hwndToolShelf;
@@ -189,6 +198,9 @@ void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
             case 4:
                 vp.tool = rectangle;
                 break;
+            case 5: 
+                vp.tool = text;
+                break;
             default:
                 vp.tool = pointer;
                 break;
@@ -253,17 +265,59 @@ void Pointer_Init()
     pointer.OnMouseMove = Pointer_OnMouseMove;
 }
 
+void Text_OnLButtonDown(MOUSEEVENT mEvt)
+{
+}
+
+void Text_OnMouseMove(MOUSEEVENT mEvt)
+{
+}
+
+void Text_OnLButtonUp(MOUSEEVENT mEvt)
+{
+  HDC viewportdc = GetDC(g_viewport.win_handle);
+  HDC bitmapdc = CreateCompatibleDC(viewportdc);
+
+  wchar_t textbuf[1024];
+  GetWindowText(g_option_bar.textstring_handle, textbuf,
+      sizeof(textbuf) / sizeof(wchar_t));
+    
+  SIZE size = {};
+  GetTextExtentPoint32(bitmapdc, textbuf, -1, &size);
+  RECT textrc = {0, 0, size.cx, size.cy};
+
+  uint8_t* bmbuf = calloc(size.cx * size.cy, sizeof(uint32_t));
+
+  HBITMAP hbitmap = CreateBitmap(size.cx, size.cy, 1,
+      sizeof(uint32_t) * 8, bmbuf);
+  SelectObject(bitmapdc, hbitmap);
+  DrawTextEx(bitmapdc, textbuf, -1, &textrc, 0, NULL);
+
+  GetDIBits(bitmapdc, hbitmap, 0, 0, NULL, NULL, DIB_RGB_COLORS);
+
+  DeleteObject(hbitmap);
+  DeleteDC(bitmapdc);
+}
+
+void Text_Init()
+{
+    text.OnLButtonUp = Text_OnLButtonUp;
+    text.OnLButtonDown = Text_OnLButtonDown;
+    text.OnMouseMove = Text_OnMouseMove;
+}
+
 void Pencil_OnLButtonDown(MOUSEEVENT mEvt)
 {
     fDraw = TRUE;
+    SetCapture(mEvt.hwnd);
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
 }
 
 void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
+    signed short x = LOWORD(mEvt.lParam);
+    signed short y = HIWORD(mEvt.lParam);
 
     if (fDraw)
     {
@@ -275,16 +329,13 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
         LineTo(hdc, x, y);
         #endif
 
-        RECT rcCanvas;
-        GetCanvasRect(&vp.img, &rcCanvas);
-
         canvas_t *canvas = g_viewport.document->canvas;
 
-        RECT line_rect = {};
-        line_rect.left = prev.x;
-        line_rect.top  = prev.y;
-        line_rect.right  = x;
-        line_rect.bottom = y;
+        rect_t line_rect = {};
+        line_rect.x0 = prev.x;
+        line_rect.y0 = prev.y;
+        line_rect.x1 = x;
+        line_rect.y1 = y;
 
         draw_line(canvas, line_rect);
 
@@ -294,12 +345,13 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
 
     }
     fDraw = FALSE;
+    ReleaseCapture();
 }
 
 void Pencil_OnMouseMove(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
+    signed short x = LOWORD(mEvt.lParam);
+    signed short y = HIWORD(mEvt.lParam);
 
     if (fDraw)
     {
@@ -313,28 +365,15 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
         #endif
 
         /* Draw on canvas */
-        RECT rcCanvas;
-        GetCanvasRect(&vp.img, &rcCanvas);
+        canvas_t *canvas = g_viewport.document->canvas;
 
-        if (x > rcCanvas.left && y > rcCanvas.top)
-        {
+        rect_t line_rect = {};
+        line_rect.x0 = prev.x;
+        line_rect.y0 = prev.y;
+        line_rect.x1 = x;
+        line_rect.y1 = y;
 
-            canvas_t *canvas = g_viewport.document->canvas;
-
-            RECT line_rect = {};
-            line_rect.left = prev.x;
-            line_rect.top  = prev.y;
-            line_rect.right  = x;
-            line_rect.bottom = y;
-
-            draw_line(canvas, line_rect);
-
-            printf("[CanvasRect]");
-            DebugPrintRect(&rcCanvas);
-        }
-        else {
-            printf("[CanvasRect] Out of bounds\n");
-        }
+        draw_line(canvas, line_rect);
 
         prev.x = x;
         prev.y = y;
@@ -357,14 +396,15 @@ POINT circCenter;
 void Circle_OnLButtonDown(MOUSEEVENT mEvt)
 {
     fDraw = TRUE;
+    SetCapture(mEvt.hwnd);
     circCenter.x = LOWORD(mEvt.lParam);
     circCenter.y = HIWORD(mEvt.lParam);
 }
 
 void Circle_OnLButtonUp(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
+    signed short x = LOWORD(mEvt.lParam);
+    signed short y = HIWORD(mEvt.lParam);
 
     if (fDraw)
     {
@@ -375,9 +415,6 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
         MoveToEx(hdc, prev.x, prev.y, NULL);
         LineTo(hdc, x, y);
         #endif
-
-        RECT rcCanvas;
-        GetCanvasRect(&vp.img, &rcCanvas);
 
         int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
 
@@ -390,6 +427,7 @@ void Circle_OnLButtonUp(MOUSEEVENT mEvt)
 
     }
     fDraw = FALSE;
+    ReleaseCapture();
 }
 
 void Circle_OnMouseMove(MOUSEEVENT mEvt)
@@ -406,31 +444,30 @@ void Circle_Init()
 void Line_OnLButtonDown(MOUSEEVENT mEvt)
 {
     fDraw = TRUE;
+    SetCapture(mEvt.hwnd);
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
 }
 
 void Line_OnLButtonUp(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
+    signed short x = LOWORD(mEvt.lParam);
+    signed short y = HIWORD(mEvt.lParam);
 
     if (fDraw)
     {
-        RECT rcCanvas;
-        GetCanvasRect(&vp.img, &rcCanvas);
-
         canvas_t* canvas = g_viewport.document->canvas;
 
-        RECT line_rect = {};
-        line_rect.left = prev.x;
-        line_rect.top  = prev.y;
-        line_rect.right  = x;
-        line_rect.bottom = y;
+        rect_t line_rect = {};
+        line_rect.x0 = prev.x;
+        line_rect.y0 = prev.y;
+        line_rect.x1 = x;
+        line_rect.y1 = y;
 
         draw_line(canvas, line_rect);
     }
     fDraw = FALSE;
+    ReleaseCapture();
 }
 
 void Line_OnMouseMove(MOUSEEVENT mEvt)
@@ -447,20 +484,18 @@ void Line_Init()
 void Rectangle_OnLButtonDown(MOUSEEVENT mEvt)
 {
     fDraw = TRUE;
+    SetCapture(mEvt.hwnd);
     prev.x = LOWORD(mEvt.lParam);
     prev.y = HIWORD(mEvt.lParam);
 }
 
 void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
 {
-    int x = LOWORD(mEvt.lParam);
-    int y = HIWORD(mEvt.lParam);
+    signed short x = LOWORD(mEvt.lParam);
+    signed short y = HIWORD(mEvt.lParam);
 
     if (fDraw)
     {
-        RECT rcCanvas;
-        GetCanvasRect(&vp.img, &rcCanvas);
-
         canvas_t *canvas = g_viewport.document->canvas;
 
         RECT rc = {};
@@ -472,6 +507,7 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
 
     }
     fDraw = FALSE;
+    ReleaseCapture();
 }
 
 void Rectangle_OnMouseMove(MOUSEEVENT mEvt)

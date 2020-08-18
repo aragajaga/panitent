@@ -61,12 +61,12 @@ void wu_draw_circle(canvas_t* canvas, int cx, int cy, int radius) {
   }
 }
 
-void wu_draw_line(canvas_t* canvas, RECT rc) {
+void wu_draw_line(canvas_t* canvas, rect_t rc) {
 
-  unsigned int x1 = rc.left;
-  unsigned int y1 = rc.top;
-  unsigned int x2 = rc.right;
-  unsigned int y2 = rc.bottom;
+  int x1 = rc.x0;
+  int y1 = rc.y0;
+  int x2 = rc.x1;
+  int y2 = rc.y1;
 
   float dx = (float)x2 - (float)x1;
   float dy = (float)y2 - (float)y1;

@@ -24,6 +24,13 @@ typedef struct _canvas {
   void *buffer;
 } canvas_t;
 
+typedef struct _rect {
+  int x0;
+  int y0;
+  int x1;
+  int y1;
+} rect_t;
+
 void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color);
 void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color);
 void canvas_plot(canvas_t* canvas, float x, float y, float opacity);

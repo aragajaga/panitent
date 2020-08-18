@@ -43,12 +43,18 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd, UINT message, WPARAM wparam,
 
         HWND hcombo = CreateWindowEx(0, WC_COMBOBOX, L"",
             CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED
-            | WS_VISIBLE, 64, 3, 100, 20, hwnd, (HMENU)IDCB_STENCIL_ALGORITHM,
-            GetModuleHandle(NULL), NULL);
+            | WS_VISIBLE, 64, 3, 100, 20, hwnd,
+            (HMENU)IDCB_STENCIL_ALGORITHM, GetModuleHandle(NULL), NULL);
         SetGuiFont(hcombo);
 
         ComboBox_AddString(hcombo, L"Bresenham");
         ComboBox_AddString(hcombo, L"Wu");
+
+        HWND hedit = CreateWindowEx(0, WC_EDIT, L"Sample Text",
+            WS_BORDER | WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL, 180, 3, 140, 20, hwnd, NULL,
+            GetModuleHandle(NULL), NULL);
+        SetGuiFont(hedit);
+        g_option_bar.textstring_handle = hedit;
       }
       break;
     case WM_COMMAND:
