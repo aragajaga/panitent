@@ -1,0 +1,31 @@
+#include "../src/resource.h"
+
+IDI_ICON ICON "checker.ico"
+#ifdef __MINGW32__
+1 RT_MANIFEST "checker.exe.manifest"
+#endif
+2 VERSIONINFO
+FILEVERSION     1,0,0,0
+PRODUCTVERSION  1,0,0,0
+FILEOS          0x4
+FILETYPE        0x1
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "000004B0"
+        BEGIN
+            VALUE "CompanyName",      "Aragajaga"
+            VALUE "FileDescription",  "Checker Test"
+            VALUE "FileVersion",      "1.0.0.0"
+            VALUE "InternalName",     "checker.exe"
+            VALUE "OriginalFilename", "checker.exe"
+            VALUE "ProductName",      "checker.exe"
+            VALUE "ProductVersion",   "1.0.0.0"
+        END
+    END
+
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x00, 1200
+    END
+END

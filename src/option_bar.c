@@ -5,6 +5,7 @@
 #include "primitives_context.h"
 #include "wu_primitives.h"
 #include "bresenham.h"
+#include "swatch.h"
 
 option_bar_t g_option_bar;
 
@@ -36,10 +37,8 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd, UINT message, WPARAM wparam,
   {
     case WM_CREATE:
       {
-        HWND hbutton = CreateWindowEx(0, L"BUTTON", L"Test",
-            WS_CHILD | WS_VISIBLE, 4, 2, 50, 26, hwnd, NULL,
-            GetModuleHandle(NULL), NULL);
-        SetGuiFont(hbutton);
+        HWND hSampleSwatch = SwatchControl_Create(0x00FFFFFF, 4, 4, 16, 16,
+            hwnd);
 
         HWND hcombo = CreateWindowEx(0, WC_COMBOBOX, L"",
             CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED

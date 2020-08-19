@@ -3,6 +3,8 @@
 #include <commctrl.h>
 #include <windowsx.h>
 #include "precomp.h"
+#include "swatch.h"
+#include "resource.h"
 
 typedef struct _main_window {
   ATOM wndclass;
@@ -14,6 +16,8 @@ main_window_t g_main_window;
 typedef struct _checker {
   int size;
   BOOL invalidate;
+  HBRUSH hSolid1;
+  HBRUSH hSolid2;
   HBRUSH hbrush;
 } checker_t;
 
@@ -26,15 +30,20 @@ void set_checker_size(int size)
   g_checker.invalidate = TRUE;
 }
 
-#define IDCB_SIZE_SELECTOR 1001
+void checker_invalidate()
+{
+  InvalidateRect(g_main_window.hwnd, NULL, FALSE);
+  g_checker.invalidate = TRUE;
+}
 
+#define IDCB_SIZE_SELECTOR 1001
+#define IDS_SWATCH_1 1002
+#define IDS_SWATCH_2 1003
 
 HBRUSH get_checker_brush(HDC hdc)
 {
   if (g_checker.invalidate)
   {
-    HBRUSH hChecker1 = CreateSolidBrush(RGB(0xCC, 0xCC, 0xCC));
-    HBRUSH hChecker2 = CreateSolidBrush(RGB(255, 255, 255));
 
     HBITMAP hPatBmp = CreateCompatibleBitmap(hdc, g_checker.size,
         g_checker.size);
@@ -42,14 +51,14 @@ HBRUSH get_checker_brush(HDC hdc)
     SelectObject(hPatDC, hPatBmp);
 
     RECT rcBack = {0, 0, g_checker.size, g_checker.size}; 
-    FillRect(hPatDC, &rcBack, hChecker2);
+    FillRect(hPatDC, &rcBack, g_checker.hSolid2);
 
     RECT rcLump1 = {0, 0, g_checker.size/2, g_checker.size/2};
-    FillRect(hPatDC, &rcLump1, hChecker1);
+    FillRect(hPatDC, &rcLump1, g_checker.hSolid1);
 
     RECT rcLump2 = {g_checker.size/2, g_checker.size/2, g_checker.size,
         g_checker.size};
-    FillRect(hPatDC, &rcLump2, hChecker1);
+    FillRect(hPatDC, &rcLump2, g_checker.hSolid1);
 
     HBRUSH hCheckerBrush = CreatePatternBrush(hPatBmp);   
     assert(hCheckerBrush);
@@ -71,7 +80,6 @@ void main_window_onpaint(HWND hwnd, WPARAM wparam, LPARAM lparam)
 
   HBRUSH hCheckerBrush = get_checker_brush(hdc);
 
-
   RECT rcCanvas;
   GetClientRect(hwnd, &rcCanvas);
   rcCanvas.top = 64;
@@ -86,11 +94,18 @@ LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPA
   {
     case WM_CREATE:
     {
+      g_checker.hSolid1 = CreateSolidBrush(RGB(0xCC, 0xCC, 0xCC));
+      g_checker.hSolid2 = CreateSolidBrush(RGB(0xFF, 0xFF, 0xFF));
       set_checker_size(32);
+
+      HWND hSwatch1 = SwatchControl_Create(0x00CCCCCC, 10, 10, 24, 24,
+          hwnd, (HMENU)IDS_SWATCH_1);
+      HWND hSwatch2 = SwatchControl_Create(0x00FFFFFF, 40, 10, 24, 24,
+          hwnd, (HMENU)IDS_SWATCH_2);
 
       hSizeSelector = CreateWindowEx(0, WC_COMBOBOX, NULL,
           CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED
-          | WS_VISIBLE, 10, 10, 100, 26, hwnd, (HMENU)IDCB_SIZE_SELECTOR,
+          | WS_VISIBLE, 10, 40, 100, 26, hwnd, (HMENU)IDCB_SIZE_SELECTOR,
           GetModuleHandle(NULL), NULL);
 
       ComboBox_AddString(hSizeSelector, L"16");
@@ -101,8 +116,25 @@ LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPA
     }
       break;
     case WM_COMMAND:
-      if (LOWORD(wparam) == IDCB_SIZE_SELECTOR &&
-          HIWORD(wparam) == CBN_SELCHANGE)
+      if (HIWORD(wparam) == SCN_COLORCHANGE)
+      {
+        uint32_t color = SendMessage((HWND)lparam, SCM_GETCOLOR,
+            0, 0);
+
+        switch (LOWORD(wparam))
+        {
+          case IDS_SWATCH_1:
+            g_checker.hSolid1 = CreateSolidBrush(color);
+            break;
+          case IDS_SWATCH_2:
+            g_checker.hSolid2 = CreateSolidBrush(color);
+            break;
+        }
+
+        checker_invalidate();
+      }
+      else if (LOWORD(wparam) == IDCB_SIZE_SELECTOR &&
+               HIWORD(wparam) == CBN_SELCHANGE)
       {
         switch (ComboBox_GetCurSel((HWND)lparam))
         {
@@ -150,7 +182,7 @@ void main_window_register_class(HINSTANCE hInstance)
   wcex.cbClsExtra = 0;
   wcex.cbWndExtra = 0;
   wcex.hInstance = hInstance;
-  wcex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+  wcex.hIcon = LoadIcon(hInstance, IDI_ICON);
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = L"Win32Class_MainWindow";

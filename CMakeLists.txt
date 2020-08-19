@@ -28,6 +28,7 @@ set(SOURCE_EXE
     src/palette.c
     src/viewport.c
     src/settings.c
+    src/swatch.c
     src/debug.c
     src/new.c
     res/panitent.rc)
