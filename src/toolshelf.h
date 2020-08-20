@@ -1,12 +1,15 @@
-#ifndef TOOLSHELF_H
-#define TOOLSHELF_H
+#ifndef PANITENT_TOOLSHELF_H
+#define PANITENT_TOOLSHELF_H
 
-#include "stdafx.h"
+#include "precomp.h"
+#include "panitent.h"
 
 #define TOOLSHELF_WC L"ToolShelfClass"
+
 void ToolShelf_OnPaint(HWND hwnd);
 void ToolShelf_OnMouseMove(HWND hwnd, LPARAM lParam);
-LRESULT CALLBACK _toolshelf_msgproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK _toolshelf_msgproc(HWND hwnd, UINT msg, WPARAM wParam,
+    LPARAM lParam);
 void RegisterToolShelf();
 
 void Pencil_OnLButtonUp(MOUSEEVENT mEvt);
@@ -34,4 +37,9 @@ void Rectangle_OnLButtonDown(MOUSEEVENT mEvt);
 void Rectangle_OnMouseMove(MOUSEEVENT mEvt);
 void Rectangle_Init();
 
-#endif /* TOOLSHELF_H */
+void Text_OnLButtonUp(MOUSEEVENT mEvt);
+void Text_OnLButtonDown(MOUSEEVENT mEvt);
+void Text_OnMouseMove(MOUSEEVENT mEvt);
+void Text_Init();
+
+#endif  /* PANITENT_TOOLSHELF_H */

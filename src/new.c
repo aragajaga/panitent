@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include <shlwapi.h>
+#include <stdio.h>
 
 #include "new.h"
 #include "debug.h"

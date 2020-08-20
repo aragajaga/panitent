@@ -1,7 +1,11 @@
-#include "stdafx.h"
-#include "settings.h"
+#include "precomp.h"
+
+#include <commctrl.h>
 #include <windowsx.h>
 #include <knownfolders.h>
+
+#include "panitent.h"
+#include "settings.h"
 
 #define LPSZ_SETTINGSWINDOW L"Win32Ctl_SettingsWindow"
 
@@ -129,9 +133,11 @@ LRESULT CALLBACK SettingsWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
         }
         break;
     case WM_COMMAND:
-        if (LOWORD(wParam) == IDOK && HIWORD(wParam) == BN_CLICKED);
+        if (LOWORD(wParam) == IDOK && HIWORD(wParam) == BN_CLICKED)
+        {
             DestroyWindow(hSettingsWindow);
-            break;
+        }
+        break;
     default:
         return DefWindowProc(hwnd, msg, wParam, lParam);
     }
@@ -231,7 +237,7 @@ int InitSettingsWindow(HWND hwnd)
 int new_control_id()
 {
     // TODO: Reuse freed ids
-    static i = 1201;
+    static int i = 1201;
     return i++;
 }
 
@@ -253,7 +259,7 @@ void shima(WPARAM wParam, LPARAM lParam)
 HWND CreateCheckbox(HWND parent, const wchar_t* label, unsigned int posX,
     unsigned int posY)
 {
-    int id = new_control_id();
+    size_t id = new_control_id();
     register_event_handler(id, &shima);
 
     HWND hWnd = CreateWindow(
@@ -263,7 +269,7 @@ HWND CreateCheckbox(HWND parent, const wchar_t* label, unsigned int posX,
             posX, posY,
             250, 20,
             parent,
-            id,
+            (HMENU)id,
             GetModuleHandle(NULL),
             NULL);
 

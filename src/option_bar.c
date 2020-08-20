@@ -37,9 +37,6 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd, UINT message, WPARAM wparam,
   {
     case WM_CREATE:
       {
-        HWND hSampleSwatch = SwatchControl_Create(0x00FFFFFF, 4, 4, 16, 16,
-            hwnd);
-
         HWND hcombo = CreateWindowEx(0, WC_COMBOBOX, L"",
             CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED
             | WS_VISIBLE, 64, 3, 100, 20, hwnd,

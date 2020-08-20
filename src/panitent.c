@@ -1,3 +1,9 @@
+#include "precomp.h"
+
+#include <commctrl.h>
+
+#include "panitent.h"
+
 #include "viewport.h"
 #include "toolshelf.h"
 #include "file_open.h"
@@ -12,7 +18,6 @@
 #include "option_bar.h"
 
 static HINSTANCE hInstance;
-static HWND hwndViewport;
 static HWND hwndToolShelf;
 
 panitent_t g_panitent;

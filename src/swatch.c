@@ -1,6 +1,9 @@
-#include "swatch.h"
+#include "precomp.h"
+
 #include <commctrl.h>
 #include <assert.h>
+
+#include "swatch.h"
 
 LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
     WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass,

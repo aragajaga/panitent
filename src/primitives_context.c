@@ -1,3 +1,7 @@
+#include "precomp.h"
+
+#include <stdio.h>
+
 #include "primitives_context.h"
 #include "viewport.h"
 

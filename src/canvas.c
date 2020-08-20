@@ -1,4 +1,9 @@
+#include "precomp.h"
+
+#include <math.h>
+
 #include "canvas.h"
+#include "viewport.h"
 #include "color_context.h"
 
 uint32_t color_opacity(uint32_t color, float opacity)

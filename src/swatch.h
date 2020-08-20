@@ -1,8 +1,9 @@
 #ifndef CHECKER_SWATCH_H_
 #define CHECKER_SWATCH_H_
 
-#include <stdint.h>
 #include "precomp.h"
+
+#include <stdint.h>
 
 LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
     WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass,

@@ -4,6 +4,7 @@
 #include <vsstyle.h>
 #include <vssym32.h>
 #include <math.h>
+#include <stdio.h>
 
 #include "primitives_context.h"
 #include "option_bar.h"
@@ -498,11 +499,11 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
     {
         canvas_t *canvas = g_viewport.document->canvas;
 
-        RECT rc = {};
-        rc.left = prev.x;
-        rc.top  = prev.y;
-        rc.right  = x;
-        rc.bottom = y;
+        rect_t rc = {};
+        rc.x0 = prev.x;
+        rc.y0 = prev.y;
+        rc.x1 = x;
+        rc.y1 = y;
         draw_rectangle(canvas, rc);
 
     }

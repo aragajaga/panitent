@@ -1,7 +1,9 @@
 #ifndef VIEWPORT_H
 #define VIEWPORT_H
 
-#include "stdafx.h"
+#include "precomp.h"
+
+#include "panitent.h"
 
 #include "document.h"
 #include "tool.h"
@@ -64,5 +66,6 @@ void WuCircle(IMAGE *img, int offset_x, int offset_y, int r);
 void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2);
 void image_init(IMAGE *img);
 void viewport_init(VIEWPORT* vp);
+void viewport_set_document(document_t*);
 
 #endif /* VIEWPORT_H */

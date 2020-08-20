@@ -1,7 +1,8 @@
 #ifndef PANITENT_CANVAS_H_
 #define PANITENT_CANVAS_H_
 
-#include <windows.h>
+#include "precomp.h"
+
 #include <stdint.h>
 
 #define CHANNEL_A_32(color) ((uint8_t)((color>>24) & 0xFF))

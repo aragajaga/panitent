@@ -1,7 +1,14 @@
-#include "file_open.h"
+#include "precomp.h"
+
+#include <shobjidl.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
+
+#include "file_open.h"
+
+
 // #include <png.h>
 
 /*void user_error_fn(png_structp png_ptr, png_const_charp message) {

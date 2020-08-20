@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(panitent)
+project(panitent C)
 
 if(MINGW)
     # Optimization flags
@@ -15,22 +15,22 @@ if(MINGW)
 endif()
 
 set(SOURCE_EXE
-    src/panitent.c
-    src/document.c
-    src/canvas.c
-    src/primitives_context.c
-    src/color_context.c
     src/bresenham.c
-    src/wu_primitives.c
+    src/canvas.c
+    src/color_context.c
+    src/debug.c
+    src/document.c
     src/file_open.c
+    src/new.c
     src/option_bar.c
-    src/toolshelf.c
     src/palette.c
-    src/viewport.c
+    src/panitent.c
+    src/primitives_context.c
     src/settings.c
     src/swatch.c
-    src/debug.c
-    src/new.c
+    src/toolshelf.c
+    src/viewport.c
+    src/wu_primitives.c
     res/panitent.rc)
     
 if(MSVC)

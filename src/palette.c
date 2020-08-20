@@ -2,6 +2,7 @@
 
 #include <windowsx.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #include "color_context.h"
 #include "palette.h"
@@ -130,7 +131,6 @@ void palette_window_onbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
     g_color_context.fg_color = abgr_to_argb(get_color(index));
 
-    HDC hdc = GetDC(hwnd);
     RECT rc = {10, 10, 34, 34};
     InvalidateRect(hwnd, &rc, FALSE);
   }
@@ -155,7 +155,6 @@ void palette_window_onrbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
     g_color_context.bg_color = abgr_to_argb(get_color(index));
 
-    HDC hdc = GetDC(hwnd);
     RECT rc = {40, 10, 64, 34};
     InvalidateRect(hwnd, &rc, FALSE);
   }

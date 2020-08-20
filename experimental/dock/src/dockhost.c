@@ -16,7 +16,6 @@ BOOL fSuggestTop;
 int iCaptionHeight = 16;
 int iBorderWidth = 2;
 
-
 typedef enum {
   DOCK_RIGHT = 1,
   DOCK_TOP,
@@ -82,6 +81,28 @@ void unsuggest()
 }
 
 binary_tree_t* root;
+
+void Dock_DestroyInner(binary_tree_t* node)
+{
+  if (!node)
+    return;
+
+  if (node->node1)
+  {
+    DestroyWindow(node->node1->hwnd);
+    Dock_DestroyInner(node->node1);
+    free(node->node1);
+    node->node1 = NULL;
+  }
+
+  if (node->node2)
+  {
+    DestroyWindow(node->node2->hwnd);
+    Dock_DestroyInner(node->node2);
+    free(node->node2);
+    node->node2 = NULL;
+  }
+}
 
 BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
 {
@@ -331,7 +352,7 @@ binary_tree_t* Dock_FindParent(binary_tree_t* root, binary_tree_t* node)
 
   if (!found && root->node2)
   {
-    if (root->node1 == node)
+    if (root->node2 == node)
     {
       return root;
     }
@@ -343,6 +364,53 @@ binary_tree_t* Dock_FindParent(binary_tree_t* root, binary_tree_t* node)
   return found;
 }
 
+void Dock_DestroyInclusive(binary_tree_t* root, binary_tree_t* node)
+{
+  Dock_DestroyInner(node); 
+
+  DestroyWindow(node->hwnd);
+  binary_tree_t* parent = Dock_FindParent(root, node);
+
+  binary_tree_t* detached = NULL;
+  if (parent)
+  {
+    if (node == parent->node1)
+    {
+      free(parent->node1);
+      parent->node1 = NULL;
+      detached = parent->node2;
+    }
+    else if (node == parent->node2) {
+      free(parent->node2);
+      parent->node2 = NULL;
+      detached = parent->node1;
+    }
+
+    binary_tree_t* grandparent = Dock_FindParent(root, parent);
+    if (grandparent)
+    {
+      if (parent == grandparent->node1)
+      {
+        grandparent->node1 = detached;
+        free(parent);
+        parent = NULL;
+      }
+      else if (parent == grandparent->node2)
+      {
+        grandparent->node2 = detached;
+        free(parent);
+        parent = NULL;
+      }
+    }
+
+  }
+  else {
+    free(node);
+  }
+
+  DockNode_arrange(root);
+}
+
 void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
 {
   binary_tree_t* parent = Dock_FindParent(root, node);  
@@ -352,28 +420,30 @@ void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
     return;
 
   binary_tree_t* detached = NULL;
-  if (parent->node1 == node)
+  if (node == parent->node1)
   {
     detached = parent->node1;
     parent->node1 = NULL;
   }
-
-  if (parent->node2 == node)
+  else if (node == parent->node2)
   {
     detached = parent->node2;
     parent->node2 = NULL;
   }
 
   binary_tree_t* grandparent = Dock_FindParent(root, parent);
-  if (grandparent->node1 == parent)
+  if (grandparent)
   {
-    grandparent->node1 = detached;
+    if (grandparent->node1 == parent) {
+      grandparent->node1 = detached;
+      free(parent);
+    }
+    else if (grandparent->node2 == parent)
+    {
+      grandparent->node2 = detached;
+      free(parent);
+    } 
   }
-  else if (grandparent->node2 == parent)
-  {
-    grandparent->node2 = detached;
-  } 
-
 
   DockNode_arrange(root);
 }
@@ -550,14 +620,16 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
         if (t)
         {
-          wchar_t message[64];
+          /*wchar_t message[64];
           binary_tree_t* parent = Dock_FindParent(root, t);
 
           StringCchPrintfW(message, 64, L"Target: %s\nParent: %s",
               t->lpszCaption ? t->lpszCaption : L"< NULL >",
               parent ? (parent->lpszCaption ? parent->lpszCaption : L"< NULL CAPTION >") : L"< NULL PARENT >");
           MessageBox(NULL, message, L"HitTest", MB_OK);
-          Dock_Undock(root, t);
+          */
+          Dock_DestroyInclusive(root, t);
+          //Dock_Undock(root, t);
           InvalidateRect(hWnd, NULL, TRUE);
         }
 

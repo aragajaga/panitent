@@ -1,3 +1,6 @@
+#include "precomp.h"
+
+#include <math.h>
 #include "wu_primitives.h"
 
 primitives_context_t g_wu_primitives;

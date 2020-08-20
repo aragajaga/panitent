@@ -1,7 +1,7 @@
-#ifndef FILE_OPEN_H
-#define FILE_OPEN_H
+#ifndef PANITENT_FILE_OPEN_H
+#define PANITENT_FILE_OPEN_H
 
-#include "stdafx.h"
+#include "precomp.h"
 
 #include <initguid.h>
 #include <shlwapi.h>
@@ -12,4 +12,4 @@ void FileOpenPng(LPWSTR pszPath);
 int FileOpen();
 int FileSave();
 
-#endif /* FILE_OPEN_H */
+#endif /* PANITENT_FILE_OPEN_H */

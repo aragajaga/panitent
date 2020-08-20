@@ -1,5 +1,5 @@
-#ifndef PANITENT_H
-#define PANITENT_H
+#ifndef PANITENT_PANITENT_H
+#define PANITENT_PANITENT_H
 
 #define IDS_STATUS 1330
 
@@ -27,12 +27,19 @@ typedef struct _panitent {
 
 extern panitent_t g_panitent;
 
+typedef struct _mouseevent {
+  HWND hwnd;
+  LPARAM lParam;
+} MOUSEEVENT;
 
-int     APIENTRY    WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow);
-LRESULT CALLBACK    WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
+    LPSTR lpCmdLine, int nCmdShow);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
+    LPARAM lParam);
 
 void    NewFile();
 HMENU   CreateMainMenu();
 void    UnregisterClasses();
+void SetGuiFont(HWND hwnd);
 
-#endif // PANITENT_H
+#endif /* PANITENT_PANITENT_H */

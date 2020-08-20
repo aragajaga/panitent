@@ -1,7 +1,8 @@
-#ifndef TOOL_H
-#define TOOL_H
+#ifndef PANITENT_TOOL_H
+#define PANITENT_TOOL_H
 
-#include "stdafx.h"
+#include "precomp.h"
+#include "panitent.h"
 
 typedef struct _tagTOOL {
     void (* OnLButtonUp)(MOUSEEVENT mEvt);
@@ -9,4 +10,4 @@ typedef struct _tagTOOL {
     void (* OnMouseMove)(MOUSEEVENT mEvt);
 } TOOL;
 
-#endif /* TOOL_H */
+#endif /* PANITENT_TOOL_H */

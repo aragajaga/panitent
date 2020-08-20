@@ -50,7 +50,7 @@ document_t* document_new(int width, int height)
     {
       MessageBox(NULL, L"Failed to create viewport window!", NULL,
           MB_OK | MB_ICONERROR); 
-      return;
+      return NULL;
     }
 
     g_viewport.win_handle = hviewport;
@@ -67,4 +67,6 @@ document_t* document_new(int width, int height)
   doc->canvas = canvas;
 
   viewport_set_document(doc);
+
+  return doc;
 }

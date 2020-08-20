@@ -1,7 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H
 
-#include "stdafx.h"
+#include "precomp.h"
 
 #define EXPLAINMASK(dMask, dic)                 \
         bFirst = 1;                             \
