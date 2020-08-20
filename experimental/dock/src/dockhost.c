@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <windowsx.h>
 #include <strsafe.h>
+#include <commctrl.h>
 #include "dockhost.h"
 
 dockhost_t g_dockhost;
@@ -11,6 +12,10 @@ BOOL fDrag;
 HBRUSH hCaptionBrush;
 
 BOOL fSuggestTop;
+
+int iCaptionHeight = 16;
+int iBorderWidth = 2;
+
 
 typedef enum {
   DOCK_RIGHT = 1,
@@ -30,6 +35,11 @@ typedef enum {
   GRIP_POS_ABSOLUTE,
   GRIP_POS_RELATIVE
 } grip_pos_type_e;
+
+typedef enum {
+  SPLIT_DIRECTION_HORIZONTAL,
+  SPLIT_DIRECTION_VERTICAL
+} split_direction_e;
 
 dock_side_e g_dock_side;
 dock_side_e eSuggest;
@@ -55,6 +65,8 @@ struct _binary_tree {
   float fGrip;
   grip_align_e gripAlign;
   int posFixedGrip;
+  BOOL bShowCaption;
+  HWND hwnd;
 };
 
 typedef struct _binary_tree binary_tree_t;
@@ -71,28 +83,103 @@ void unsuggest()
 
 binary_tree_t* root;
 
-binary_tree_t* DockNode_Create(binary_tree_t* parent)
+BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
 {
+  if (!root)
+    return FALSE;
+
+  RECT rcClient = root->rc;
+  rcClient.left   += iBorderWidth;
+  rcClient.top    += iBorderWidth;
+  rcClient.right  -= iBorderWidth;
+  rcClient.bottom -= iBorderWidth;
+
+  if (root->bShowCaption)
+    rcClient.top  += iCaptionHeight + 1;
+
+  /* TODO: memcpy? */
+  *rc = rcClient;
+
+  return TRUE;
+}
+
+binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
+{
+  HWND hButton = CreateWindowEx(0, WC_BUTTON, L"Button",
+      WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL,
+      GetModuleHandle(NULL), NULL);
+
   parent->posFixedGrip = 128;
   parent->gripAlign = GRIP_ALIGN_END;
   // TODO Use significant bit
   parent->gripPosType = GRIP_POS_ABSOLUTE;
+  parent->bShowCaption = FALSE;
 
   binary_tree_t* node1 = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* node2 = calloc(1, sizeof(binary_tree_t));
+  node2->bShowCaption = TRUE;
+  node2->lpszCaption = L"Palette";
 
   node1->posFixedGrip = 64;
   node1->gripAlign = GRIP_ALIGN_START;
   // TODO Use significant bit
   node1->gripPosType = GRIP_POS_ABSOLUTE;
+  node1->lpszCaption = L"Working Area";
 
   binary_tree_t* subnode1 = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* subnode2 = calloc(1, sizeof(binary_tree_t));
+  subnode1->bShowCaption = TRUE;
+  subnode1->lpszCaption = L"Tools";
+  subnode1->hwnd = hButton;
+  subnode2->bShowCaption = TRUE;
+  subnode2->lpszCaption = L"Untitled-1";
   node1->node1 = subnode1;
   node1->node2 = subnode2;
 
   parent->node1 = node1;
   parent->node2 = node2;
+}
+
+BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
+{
+  if (!node->bShowCaption)
+    return FALSE;
+
+  RECT rcCaption = node->rc;
+  rcCaption.top += iBorderWidth;
+  rcCaption.left += iBorderWidth;
+  rcCaption.right -= iBorderWidth;
+  rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
+
+  *rc = rcCaption;
+}
+
+binary_tree_t* Dock_CaptionHitTest(binary_tree_t* root, int x, int y)
+{
+  if (!root)
+    return NULL;
+
+  RECT rcCaption = {};
+  Dock_GetCaptionRect(root, &rcCaption);
+
+  if (x >= rcCaption.left  && y >= rcCaption.top &&
+      x <  rcCaption.right && y <  rcCaption.bottom)
+  {
+    return root;  
+  }
+
+  binary_tree_t* found = NULL; 
+  if (root->node1)
+  {
+    found = Dock_CaptionHitTest(root->node1, x, y);
+  }
+
+  if (!found && root->node2)
+  {
+    found = Dock_CaptionHitTest(root->node2, x, y);
+  }
+
+  return found;
 }
 
 binary_tree_t* BT_HitTest(binary_tree_t* root, int x, int y)
@@ -118,22 +205,25 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
   RECT* rc = &parent->rc;
   Rectangle(hDC, rc->left, rc->top, rc->right, rc->bottom);
 
-  // Fill caption
-  RECT rcCapt = {
-      rc->left + 2,
-      rc->top  + 2,
-      rc->right - 2,
-      rc->top  + 2 + 24};
-  FillRect(hDC, &rcCapt, hCaptionBrush); 
+  if (parent->bShowCaption)
+  {
+    // Fill caption
+    RECT rcCapt = {
+        rc->left  + iBorderWidth,
+        rc->top   + iBorderWidth,
+        rc->right - iBorderWidth,
+        rc->top   + iBorderWidth + iCaptionHeight};
+    FillRect(hDC, &rcCapt, hCaptionBrush); 
 
-  // Print caption text
-  SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
-  SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
+    // Print caption text
+    SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
+    SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
 
-  size_t chCount = 0;
-  StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
-  TextOut(hDC, rc->left + 6, rc->top + 6,
-      parent->lpszCaption, chCount);
+    size_t chCount = 0;
+    StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
+    TextOut(hDC, rc->left + iBorderWidth + 4, rc->top + iBorderWidth,
+        parent->lpszCaption, chCount);
+  }
 
   if (parent->node1)
   {
@@ -156,38 +246,36 @@ void DockNode_arrange(binary_tree_t* parent)
 
   if (node1 && node2)
   {
-    RECT rcNode1 = parent->rc;
-    rcNode1.top    += 2 + 24 + 1;
-    rcNode1.left   += 2;
-    rcNode1.bottom -= 2;
+    RECT rcClient = {};
+    Dock_GetClientRect(parent, &rcClient);
+
+    RECT rcNode1 = rcClient;
     if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
       if (parent->gripAlign == GRIP_ALIGN_START)
       {
-        rcNode1.right = rcNode1.left + parent->posFixedGrip - 2;
+        rcNode1.right = rcNode1.left + parent->posFixedGrip - iBorderWidth/2;
       }
       else {
-        rcNode1.right = rcNode1.right - parent->posFixedGrip - 2;
+        rcNode1.right = rcNode1.right - parent->posFixedGrip - iBorderWidth/2;
       }
 
     } else {
-      rcNode1.right  -= (rcNode1.right - rcNode1.left) / 2 + 2;
+      rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth/2;
     }
     node1->rc = rcNode1; 
 
-    RECT rcNode2 = parent->rc;
-    rcNode2.right  -= 2;
-    rcNode2.top    += 2 + 24 + 1;
-    rcNode2.bottom -= 2;
+    // Second part
+    RECT rcNode2 = rcClient;
     if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
       if (parent->gripAlign == GRIP_ALIGN_START)
       {
-        rcNode2.left = parent->posFixedGrip + 2;
+        rcNode2.left = rcNode2.left + parent->posFixedGrip + iBorderWidth/2;
       }
       else {
-        rcNode2.left = rcNode2.right - parent->posFixedGrip + 2;
+        rcNode2.left = rcNode2.right - parent->posFixedGrip + iBorderWidth/2;
       }
     } else {
-      rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + 2;
+      rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth/2;
     }
     node2->rc = rcNode2; 
   }
@@ -195,12 +283,19 @@ void DockNode_arrange(binary_tree_t* parent)
   {
     binary_tree_t* child = node1 ? node1 : node2; 
 
-    RECT rcNode = parent->rc;
-    rcNode.right  -= 2;
-    rcNode.top    += 2 + 24 + 1;
-    rcNode.bottom -= 2;
-    rcNode.left   += 2;
-    child->rc = rcNode; 
+    RECT rcClient = {};
+    Dock_GetClientRect(parent, &rcClient);
+
+    child->rc = rcClient; 
+  }
+
+  if (parent->hwnd)
+  {
+    RECT rc = {};
+    Dock_GetClientRect(parent, &rc);
+
+    SetWindowPos(parent->hwnd, NULL, rc.left, rc.top,
+        rc.right - rc.left, rc.bottom - rc.top, 0);
   }
 
   if (parent->node1)
@@ -216,6 +311,73 @@ void DockNode_arrange(binary_tree_t* parent)
 
 WCHAR szSampleText[] = L"SampleText";
 
+binary_tree_t* Dock_FindParent(binary_tree_t* root, binary_tree_t* node)
+{
+  if (!(root && node))
+    return NULL;
+
+  binary_tree_t* found = NULL;
+
+  if (root->node1)
+  {
+    if (root->node1 == node)
+    {
+      return root;
+    }
+    else {
+      found = Dock_FindParent(root->node1, node);
+    }
+  }
+
+  if (!found && root->node2)
+  {
+    if (root->node1 == node)
+    {
+      return root;
+    }
+    else {
+      found = Dock_FindParent(root->node2, node);
+    }
+  }
+
+  return found;
+}
+
+void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
+{
+  binary_tree_t* parent = Dock_FindParent(root, node);  
+  DestroyWindow(node->hwnd);
+
+  if (!parent)
+    return;
+
+  binary_tree_t* detached = NULL;
+  if (parent->node1 == node)
+  {
+    detached = parent->node1;
+    parent->node1 = NULL;
+  }
+
+  if (parent->node2 == node)
+  {
+    detached = parent->node2;
+    parent->node2 = NULL;
+  }
+
+  binary_tree_t* grandparent = Dock_FindParent(root, parent);
+  if (grandparent->node1 == parent)
+  {
+    grandparent->node1 = detached;
+  }
+  else if (grandparent->node2 == parent)
+  {
+    grandparent->node2 = detached;
+  } 
+
+
+  DockNode_arrange(root);
+}
+
 LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
     LPARAM lParam)
 {
@@ -230,7 +392,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         root->rc = rcRoot;
 
         binary_tree_t* node;
-        node = DockNode_Create(root); 
+        node = DockNode_Create(hWnd, root); 
 
 
         RECT rc = {10, 10, 200, 200};
@@ -384,6 +546,20 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
       {
         signed short x = GET_X_LPARAM(lParam);
         signed short y = GET_Y_LPARAM(lParam);
+
+        binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
+        if (t)
+        {
+          wchar_t message[64];
+          binary_tree_t* parent = Dock_FindParent(root, t);
+
+          StringCchPrintfW(message, 64, L"Target: %s\nParent: %s",
+              t->lpszCaption ? t->lpszCaption : L"< NULL >",
+              parent ? (parent->lpszCaption ? parent->lpszCaption : L"< NULL CAPTION >") : L"< NULL PARENT >");
+          MessageBox(NULL, message, L"HitTest", MB_OK);
+          Dock_Undock(root, t);
+          InvalidateRect(hWnd, NULL, TRUE);
+        }
 
         if (fDrag && eSuggest)
         {
