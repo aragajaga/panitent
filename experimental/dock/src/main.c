@@ -15,27 +15,39 @@ main_window_t g_main_window;
 
 void main_window_onpaint(HWND hwnd, WPARAM wparam, LPARAM lparam)
 {
-  PAINTSTRUCT ps;
-  HDC hdc;
+  PAINTSTRUCT ps = {};
+  HDC hdc = NULL;
   hdc = BeginPaint(hwnd, &ps);
 
   EndPaint(hwnd, &ps);
 }
 
 HWND hDockHost;
+HWND hStatusBar;
 
-LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPARAM lparam)
+LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message,
+    WPARAM wparam, LPARAM lparam)
 {
   switch (message)
   {
     case WM_CREATE:
+      hStatusBar = CreateWindowEx(0, STATUSCLASSNAME,
+          L"Status bar.",
+          SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0,
+          hwnd, NULL, GetModuleHandle(NULL), NULL);
       hDockHost = DockHost_Create(hwnd);
       break;
     case WM_DESTROY:
       PostQuitMessage(0);
       break;
     case WM_SIZE:
-      SetWindowPos(hDockHost, NULL, 0, 0, LOWORD(lparam), HIWORD(lparam), SWP_NOMOVE);
+    {
+      RECT rc = {};
+      GetClientRect(hStatusBar, &rc);
+      SetWindowPos(hDockHost, NULL, 0, 0, LOWORD(lparam),
+          HIWORD(lparam) - rc.bottom, SWP_NOMOVE);
+      SendMessage(hStatusBar, WM_SIZE, wparam, lparam);
+    }
       break;
     case WM_PAINT:
       main_window_onpaint(hwnd, wparam, lparam);
@@ -71,9 +83,10 @@ void main_window_register_class(HINSTANCE hInstance)
 
 void main_window_create()
 {
-  HWND handle = CreateWindowEx(0, MAKEINTATOM(g_main_window.wndclass), L"DockHost",
-      WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-      CW_USEDEFAULT, NULL, NULL, GetModuleHandle(NULL), NULL); 
+  HWND handle = CreateWindowEx(0, MAKEINTATOM(g_main_window.wndclass),
+      L"DockHost", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
+      CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL, GetModuleHandle(NULL),
+      NULL); 
 
   assert(handle);
 
