@@ -180,19 +180,6 @@ void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsig
 #undef rfpart_
 */
 
-void ImageAlloc(IMAGE *img)
-{
-    img->data = calloc(4, (size_t)img->rc.width * (size_t)img->rc.height);
-    printf("[ImageAlloc] Canvas memory page:\n");
-    DebugVirtualMemoryInfo(img->data);
-}
-
-void ImageFree(IMAGE *img)
-{
-    free(img->data);
-    img->data = NULL;
-}
-
 void viewport_register_class()
 {
   /* Break if already registered */
@@ -217,7 +204,6 @@ void viewport_register_class()
 
   g_viewport.win_class = class_atom;
 }
-
 
 void RegisterViewportCtl()
 {
@@ -266,31 +252,6 @@ void GetCanvasRect(IMAGE *img, RECT *rcCanvas)
     printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
 }
 
-BOOL CanvasClose(IMAGE *img)
-{
-    int iConfirmation;
-    /* Note: Change this to TaskDialog */
-    iConfirmation = MessageBox(NULL, L"Do you want to save changes?",
-            L"panit.ent", MB_YESNOCANCEL | MB_ICONWARNING);
-    
-    switch (iConfirmation)
-    {
-    case IDYES:
-        FileSave();
-        break;
-    case IDNO:
-        img->rc.width = 0;
-        img->rc.height = 0;
-        
-        ImageFree(img);
-        break;
-    default:
-        return FALSE;
-        break;
-    }
-    return TRUE;
-}
-
 void ViewportCtl_OnCreate()
 {
     cvsx = 0;
@@ -298,12 +259,6 @@ void ViewportCtl_OnCreate()
     
     /* [vp.seq] Memory leak cause if window will be re-created */
     vp.seqi = 0;
-}
-
-void ViewportCtl_OnDestroy()
-{
-    /* [vp.seq] Memory leak */
-    ImageFree(&vp.img);
 }
 
 BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
@@ -392,7 +347,6 @@ LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPar
 
     switch(msg) {
     case WM_CREATE:         ViewportCtl_OnCreate();                     break;
-    case WM_DESTROY:        ViewportCtl_OnDestroy();                    break;
     case WM_PAINT:          ViewportCtl_OnPaint(hwnd);                  break;
     case WM_KEYDOWN:        ViewportCtl_OnKeyDown(hwnd, wParam,
                                                   lParam);              break;

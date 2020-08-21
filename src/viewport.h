@@ -54,8 +54,6 @@ void CanvasFillTest(IMAGE *img);
 void CanvasWuLinesTest();
 void CreateCanvas(IMAGE *img, UINT uWidth, UINT uHeight);
 void GetCanvasRect(IMAGE *img, RECT *rcCanvas);
-void ImageAlloc(IMAGE *img);
-void ImageFree(IMAGE *img);
 void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2);
 void RegisterViewportCtl();
 void ViewportCtl_OnLButtonDown(MOUSEEVENT mEvt);

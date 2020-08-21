@@ -19,7 +19,7 @@ typedef struct _ASSOC
     LPSTR szName;
 } ASSOC;
 
-void DebugVirtualMemoryInfo(void *memPtr);
+/* void DebugVirtualMemoryInfo(void *memPtr); */
 void DebugPrintRect(RECT *rc);
 
 #endif /* DEBUG_H */
