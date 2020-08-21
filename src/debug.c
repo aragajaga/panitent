@@ -42,14 +42,14 @@ void DebugVirtualMemoryInfo(void *memPtr)
 
         printf("Memory Basic Information\n");
 
-        printf("BaseAddress:\t\t0x%08lluX\n",         (size_t)mbi.BaseAddress);
+        printf("BaseAddress:\t\t0x%08zuX\n",         (size_t)mbi.BaseAddress);
 
-        printf("AllocationBase:\t\t0x%08lluX\n",      (size_t)mbi.AllocationBase);
+        printf("AllocationBase:\t\t0x%08zuX\n",      (size_t)mbi.AllocationBase);
 
         printf("AllocationProtect:\t0x%08lX\t(",    mbi.AllocationProtect);
         EXPLAINMASK(mbi.AllocationProtect, memProtectConst);
 
-        printf("RegionSize:\t\t%10llu\n",            mbi.RegionSize);
+        printf("RegionSize:\t\t%10zu\n",            mbi.RegionSize);
 
         printf("State:\t\t\t%10lu\t(",              mbi.State);
         EXPLAINMASK(mbi.State, mbiStateConst);

@@ -108,6 +108,7 @@ void InitializeToolShelf(TOOLSHELF *tsh)
 HWND hwndToolShelf;
 HTHEME hTheme = NULL;
 int btnSize = 24;
+int btnOffset = 4;
 
 void draw_button(HDC hdc, int x, int y)
 {
@@ -121,7 +122,7 @@ void draw_button(HDC hdc, int x, int y)
     DrawThemeBackgroundEx(hTheme, hdc, BP_PUSHBUTTON, PBS_NORMAL, &rc, NULL);
 }
 
-void ToolShelf_DrawButtons(HDC hdc)
+void ToolShelf_DrawButtons(HWND hwnd, HDC hdc)
 {
     BITMAP bitmap;
     HDC hdcMem;
@@ -131,11 +132,22 @@ void ToolShelf_DrawButtons(HDC hdc)
     oldBitmap = SelectObject(hdcMem, hbmTool);
     GetObject(hbmTool, sizeof(bitmap), &bitmap);
 
-    for (int i = 0; i < tsh.nCount; i++)
+    RECT rcClient = {0};
+    GetClientRect(hwnd, &rcClient);
+
+    size_t extSize = btnSize + btnOffset;
+    size_t rowCount = rcClient.right / btnSize;
+
+    if (rowCount < 1)
+    {
+      rowCount = 1;
+    }
+
+    for (size_t i = 0; i < tsh.nCount; i++)
     {
 
-        int x = 4 + (i % 2) * (4 + btnSize);
-        int y = 4 + (i / 2) * (4 + btnSize);
+        int x = btnOffset + (i % rowCount) * extSize;
+        int y = btnOffset + (i / rowCount) * extSize;
 
         // Rectangle(hdc, x, y, x+btnSize, y+btnSize);
         draw_button(hdc, x, y);
@@ -161,7 +173,7 @@ void ToolShelf_OnPaint(HWND hwnd)
     HDC hdc;
     hdc = BeginPaint(hwnd, &ps);
 
-    ToolShelf_DrawButtons(hdc);
+    ToolShelf_DrawButtons(hwnd, hdc);
 
     EndPaint(hwnd, &ps);
 }
@@ -176,9 +188,21 @@ void ToolShelf_OnLButtonUp(MOUSEEVENT mEvt)
     if (x >= 0
         && y >= 0
         && x < btnHot*2
-        && y < btnHot*tsh.nCount)
+        && y < (int)tsh.nCount*btnHot)
     {
-        int bID = y / btnHot * 2 + x / btnHot;
+        size_t extSize = btnSize + btnOffset; 
+
+        RECT rcClient = {0};
+        GetClientRect(mEvt.hwnd, &rcClient);
+
+        size_t rowCount = rcClient.right / extSize;
+        if (rowCount < 1)
+        {
+          rowCount = 1;
+        }
+
+        unsigned int bID = (y-btnOffset) / extSize *
+            rowCount + (x-btnOffset) / extSize;
 
         if (tsh.nCount > bID)
         {
@@ -283,7 +307,7 @@ void Text_OnLButtonUp(MOUSEEVENT mEvt)
   GetWindowText(g_option_bar.textstring_handle, textbuf,
       sizeof(textbuf) / sizeof(wchar_t));
     
-  SIZE size = {};
+  SIZE size = {0};
   GetTextExtentPoint32(bitmapdc, textbuf, -1, &size);
   RECT textrc = {0, 0, size.cx, size.cy};
 
@@ -332,7 +356,7 @@ void Pencil_OnLButtonUp(MOUSEEVENT mEvt)
 
         canvas_t *canvas = g_viewport.document->canvas;
 
-        rect_t line_rect = {};
+        rect_t line_rect = {0};
         line_rect.x0 = prev.x;
         line_rect.y0 = prev.y;
         line_rect.x1 = x;
@@ -368,7 +392,7 @@ void Pencil_OnMouseMove(MOUSEEVENT mEvt)
         /* Draw on canvas */
         canvas_t *canvas = g_viewport.document->canvas;
 
-        rect_t line_rect = {};
+        rect_t line_rect = {0};
         line_rect.x0 = prev.x;
         line_rect.y0 = prev.y;
         line_rect.x1 = x;
@@ -459,7 +483,7 @@ void Line_OnLButtonUp(MOUSEEVENT mEvt)
     {
         canvas_t* canvas = g_viewport.document->canvas;
 
-        rect_t line_rect = {};
+        rect_t line_rect = {0};
         line_rect.x0 = prev.x;
         line_rect.y0 = prev.y;
         line_rect.x1 = x;
@@ -499,7 +523,7 @@ void Rectangle_OnLButtonUp(MOUSEEVENT mEvt)
     {
         canvas_t *canvas = g_viewport.document->canvas;
 
-        rect_t rc = {};
+        rect_t rc = {0};
         rc.x0 = prev.x;
         rc.y0 = prev.y;
         rc.x1 = x;

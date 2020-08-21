@@ -241,13 +241,14 @@ int new_control_id()
     return i++;
 }
 
-void shima(WPARAM wParam, LPARAM lParam)
+void shima(__attribute__((unused)) WPARAM wParam, LPARAM lParam)
 {
     DWORD bCheck = Button_GetCheck((HWND)lParam);
 
     if (bCheck == BST_UNCHECKED)
     {
-        int result = MessageBox(hSettingsWindow, L"Are you sure?", L"Warning", MB_YESNO | MB_ICONEXCLAMATION);
+        int result = MessageBox(hSettingsWindow, L"Are you sure?",
+            L"Warning", MB_YESNO | MB_ICONEXCLAMATION);
         if (result == IDNO) {
             return;
         }
@@ -369,7 +370,7 @@ void rlist_destroy(struct rlist* list)
     list->capacity = list->size = 0;
 }
 
-struct rlist r = {};
+struct rlist r = {0};
 
 LRESULT CALLBACK SettingsTabPageMainProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {

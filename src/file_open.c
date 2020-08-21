@@ -24,6 +24,7 @@ void user_warning_fn(png_structp png_ptr, png_const_charp message) {
 
 void FileOpenPng(LPWSTR pszPath)
 {
+  (void)pszPath;
     /*
     FILE *fp = _wfopen(pszPath, L"rb");
     if (!fp)

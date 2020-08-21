@@ -1,7 +1,10 @@
-#include <assert.h>
+#include "precomp.h"
+
 #include <windowsx.h>
-#include <strsafe.h>
 #include <commctrl.h>
+#include <strsafe.h>
+#include <assert.h>
+
 #include "dockhost.h"
 
 dockhost_t g_dockhost;
@@ -16,60 +19,9 @@ BOOL fSuggestTop;
 int iCaptionHeight = 16;
 int iBorderWidth = 2;
 
-typedef enum {
-  DOCK_RIGHT = 1,
-  DOCK_TOP,
-  DOCK_LEFT,
-  DOCK_BOTTOM
-} dock_side_e;
-
-// TODO Use significant bit
-typedef enum {
-  GRIP_ALIGN_START,
-  GRIP_ALIGN_END
-} grip_align_e;
-
-typedef enum {
-  GRIP_POS_UNIFORM,
-  GRIP_POS_ABSOLUTE,
-  GRIP_POS_RELATIVE
-} grip_pos_type_e;
-
-typedef enum {
-  SPLIT_DIRECTION_HORIZONTAL,
-  SPLIT_DIRECTION_VERTICAL
-} split_direction_e;
-
-dock_side_e g_dock_side;
-dock_side_e eSuggest;
-
-typedef struct _dock_window {
-  RECT rc;
-  RECT pins;
-  RECT undockedRc;
-  HWND hwnd;
-  LPWSTR caption;
-  BOOL fDock;
-} dock_window_t;
-
 dock_window_t g_dock_window;
 
-struct _binary_tree {
-  struct _binary_tree* node1;
-  struct _binary_tree* node2;
-  int delimPos;
-  RECT rc;
-  LPWSTR lpszCaption;
-  grip_pos_type_e gripPosType;
-  float fGrip;
-  grip_align_e gripAlign;
-  int posFixedGrip;
-  BOOL bShowCaption;
-  HWND hwnd;
-};
-
-typedef struct _binary_tree binary_tree_t;
-
+/*
 void suggest(dock_side_e side)
 {
   eSuggest = side; 
@@ -79,7 +31,10 @@ void unsuggest()
 {
   eSuggest = 0; 
 }
+*/
 
+dock_side_e g_dock_side;
+dock_side_e eSuggest;
 binary_tree_t* root;
 
 void Dock_DestroyInner(binary_tree_t* node)
@@ -159,6 +114,8 @@ binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
 
   parent->node1 = node1;
   parent->node2 = node2;
+
+  return NULL;
 }
 
 BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
@@ -173,6 +130,8 @@ BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
   rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
 
   *rc = rcCaption;
+
+  return TRUE;
 }
 
 binary_tree_t* Dock_CaptionHitTest(binary_tree_t* root, int x, int y)
@@ -455,29 +414,26 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
   {
     case WM_CREATE:
       {
-        RECT rcRoot = {0};
-        GetClientRect(hWnd, &rcRoot);
-        root = calloc(1, sizeof(binary_tree_t));
-        root->lpszCaption = szSampleText;
-        root->rc = rcRoot;
-
-        binary_tree_t* node;
-        node = DockNode_Create(hWnd, root); 
-
-
-        RECT rc = {10, 10, 200, 200};
         hCaptionBrush = CreateSolidBrush(RGB(0xFF, 0x00, 0x00));
+
+/*
+        RECT rc = {10, 10, 200, 200};
         g_dock_window.rc = rc;
+        */
       }
       break;
     case WM_SIZE:
       {
         int width = LOWORD(lParam);
         int height = HIWORD(lParam);
-        RECT rcRoot = {0, 0, width, height};
-        root->rc = rcRoot;
-        
-        DockNode_arrange(root);
+
+        if (root)
+        {
+          RECT rcRoot = {0, 0, width, height};
+          root->rc = rcRoot;
+          
+          DockNode_arrange(root);
+        }
 
         if (g_dock_window.fDock)
         {
@@ -513,7 +469,6 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
         TextOut(hDC, rc.left + 6, rc.top + 6,
             L"Main window", 11);
-            */
 
         if (eSuggest)
         {
@@ -544,6 +499,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
           // TextOut(hDC, (sugRc.right-resSize.cx)/2, 4, L"Dock top", 8);
         }
+            */
 
         EndPaint(hWnd, &ps);
       }
@@ -575,6 +531,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
     case WM_MOUSEMOVE:
       {
+       /*
         if (fDrag)
         {
           signed short x = GET_X_LPARAM(lParam);
@@ -610,6 +567,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
           InvalidateRect(hWnd, NULL, TRUE);
         }
+        */
       }
       break;
     case WM_LBUTTONUP:
@@ -617,21 +575,26 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         signed short x = GET_X_LPARAM(lParam);
         signed short y = GET_Y_LPARAM(lParam);
 
-        binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
-        if (t)
-        {
-          /*wchar_t message[64];
-          binary_tree_t* parent = Dock_FindParent(root, t);
 
-          StringCchPrintfW(message, 64, L"Target: %s\nParent: %s",
-              t->lpszCaption ? t->lpszCaption : L"< NULL >",
-              parent ? (parent->lpszCaption ? parent->lpszCaption : L"< NULL CAPTION >") : L"< NULL PARENT >");
-          MessageBox(NULL, message, L"HitTest", MB_OK);
-          */
-          Dock_DestroyInclusive(root, t);
-          //Dock_Undock(root, t);
-          InvalidateRect(hWnd, NULL, TRUE);
+        if (root)
+        {
+          binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
+          if (t)
+          {
+            /*wchar_t message[64];
+            binary_tree_t* parent = Dock_FindParent(root, t);
+
+            StringCchPrintfW(message, 64, L"Target: %s\nParent: %s",
+                t->lpszCaption ? t->lpszCaption : L"< NULL >",
+                parent ? (parent->lpszCaption ? parent->lpszCaption : L"< NULL CAPTION >") : L"< NULL PARENT >");
+            MessageBox(NULL, message, L"HitTest", MB_OK);
+            */
+            Dock_DestroyInclusive(root, t);
+            //Dock_Undock(root, t);
+            InvalidateRect(hWnd, NULL, TRUE);
+          }
         }
+        /*
 
         if (fDrag && eSuggest)
         {
@@ -665,6 +628,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
           unsuggest();
           InvalidateRect(hWnd, NULL, TRUE);
         }
+        */
 
         fDrag = FALSE;
         ReleaseCapture();

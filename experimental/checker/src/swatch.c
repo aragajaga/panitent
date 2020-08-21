@@ -31,7 +31,7 @@ void window_data_register(HWND hWnd, void* data)
     gwdv->capacity = new_cap;
   }
 
-  window_data_t wd = {};
+  window_data_t wd = {0};
   wd.hwnd = hWnd;
   wd.data = data;
   gwdv->vault[gwdv->size++] = wd;
@@ -87,7 +87,7 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
             GWLP_USERDATA);
         assert(sd);
 
-        CHOOSECOLOR cc = {};
+        CHOOSECOLOR cc = {0};
         cc.lStructSize = sizeof(CHOOSECOLOR);
         cc.hwndOwner = hWnd;
         cc.lpCustColors = (LPDWORD)&custom_colors;
@@ -118,10 +118,10 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
         assert(sd);
         HBRUSH hSolidBrush = CreateSolidBrush(sd->color);
 
-        RECT wndRc = {};
+        RECT wndRc = {0};
         GetWindowRect(hWnd, &wndRc);
 
-        PAINTSTRUCT ps = {};
+        PAINTSTRUCT ps = {0};
         HDC hDC = BeginPaint(hWnd, &ps);
         RECT rc = {1, 1, wndRc.right-wndRc.left-3, wndRc.bottom-wndRc.top-3};
         FillRect(hDC, &rc, hSolidBrush); 

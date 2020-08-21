@@ -58,18 +58,17 @@ void draw_swatch(HDC hdc, int x, int y, COLORREF color)
   SelectObject(hdc, original);
 }
 
-void palette_window_onpaint(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void palette_window_onpaint(HWND hwnd)
 {
   PAINTSTRUCT ps;
   HDC hdc;
 
-  RECT rc = {};
+  RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
 
   if (width_indices < 1)
     width_indices = 1;
-
 
   hdc = BeginPaint(hwnd, &ps);
 
@@ -93,7 +92,7 @@ void palette_window_onpaint(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 int transform_pos_to_index(int x, int y)
 {
-  RECT rc = {};
+  RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
   int swatch_outer = swatch_size + swatch_margin;
@@ -112,9 +111,9 @@ uint32_t get_color(int index)
   return palette_colors[index];
 }
 
-void palette_window_onbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void palette_window_onbuttonup(HWND hwnd, LPARAM lParam)
 {
-  RECT rc = {};
+  RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
   int swatch_count = sizeof(palette_colors) / sizeof(uint32_t);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
@@ -136,9 +135,9 @@ void palette_window_onbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
   }
 }
 
-void palette_window_onrbuttonup(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void palette_window_onrbuttonup(HWND hwnd, LPARAM lParam)
 {
-  RECT rc = {};
+  RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
   int swatch_count = sizeof(palette_colors) / sizeof(uint32_t);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
@@ -168,13 +167,13 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPA
       g_palette_dialog.win_handle = hwnd;  
       break;
     case WM_PAINT:
-      palette_window_onpaint(hwnd, wparam, lparam);
+      palette_window_onpaint(hwnd);
       break;
     case WM_LBUTTONUP:
-      palette_window_onbuttonup(hwnd, wparam, lparam);
+      palette_window_onbuttonup(hwnd, lparam);
       break;
     case WM_RBUTTONUP:
-      palette_window_onrbuttonup(hwnd, wparam, lparam);
+      palette_window_onrbuttonup(hwnd, lparam);
       break;
     default:
       return DefWindowProc(hwnd, message, wparam, lparam);
@@ -186,7 +185,7 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd, UINT message, WPARAM wparam, LPA
 
 void register_palette_dialog(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex = {};
+  WNDCLASSEX wcex = {0};
   wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.style = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = (WNDPROC)palette_window_proc;
@@ -206,7 +205,7 @@ void register_palette_dialog(HINSTANCE hInstance)
 
 void palette_dialog_onpaint(HWND hwnd)
 {
-  PAINTSTRUCT ps = {};
+  PAINTSTRUCT ps = {0};
   HDC hdc;
 
   hdc = BeginPaint(hwnd, &ps);
@@ -217,8 +216,8 @@ void init_palette_window(HWND parent)
 {
   HWND hPalette = CreateWindowEx(WS_EX_PALETTEWINDOW,
       L"Win32Class_PaletteWindow", L"Palette",
-      WS_CAPTION | WS_THICKFRAME | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 300, 200, NULL, NULL,
-      GetModuleHandle(NULL), NULL);
+      WS_CAPTION | WS_THICKFRAME | WS_VISIBLE, CW_USEDEFAULT,
+      CW_USEDEFAULT, 300, 200, parent, NULL, GetModuleHandle(NULL), NULL);
 
   if (!hPalette)
     printf("Failed to create window");

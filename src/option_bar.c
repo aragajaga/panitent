@@ -11,7 +11,7 @@ option_bar_t g_option_bar;
 
 #define IDCB_STENCIL_ALGORITHM 1553
 
-void option_bar_oncommand(HWND hwnd, WPARAM wparam, LPARAM lparam)
+void option_bar_oncommand(WPARAM wparam, LPARAM lparam)
 {
   if (LOWORD(wparam) == IDCB_STENCIL_ALGORITHM &&
       HIWORD(wparam) == LBN_SELCHANGE)  
@@ -54,7 +54,7 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd, UINT message, WPARAM wparam,
       }
       break;
     case WM_COMMAND:
-      option_bar_oncommand(hwnd, wparam, lparam);
+      option_bar_oncommand(wparam, lparam);
       break;
     default:
       return DefWindowProc(hwnd, message, wparam, lparam);
@@ -66,7 +66,7 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd, UINT message, WPARAM wparam,
 
 void option_bar_register_class(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex = {};
+  WNDCLASSEX wcex = {0};
   wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.lpfnWndProc = (WNDPROC)option_bar_wndproc;
   wcex.hInstance = hInstance;

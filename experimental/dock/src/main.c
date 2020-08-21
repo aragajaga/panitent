@@ -15,7 +15,7 @@ main_window_t g_main_window;
 
 void main_window_onpaint(HWND hwnd, WPARAM wparam, LPARAM lparam)
 {
-  PAINTSTRUCT ps = {};
+  PAINTSTRUCT ps = {0};
   HDC hdc = NULL;
   hdc = BeginPaint(hwnd, &ps);
 
@@ -42,7 +42,7 @@ LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message,
       break;
     case WM_SIZE:
     {
-      RECT rc = {};
+      RECT rc = {0};
       GetClientRect(hStatusBar, &rc);
       SetWindowPos(hDockHost, NULL, 0, 0, LOWORD(lparam),
           HIWORD(lparam) - rc.bottom, SWP_NOMOVE);
@@ -62,7 +62,7 @@ LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message,
 
 void main_window_register_class(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex = {};
+  WNDCLASSEX wcex = {0};
   wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.style = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = (WNDPROC)main_window_wndproc;
@@ -100,7 +100,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   main_window_create();
   ShowWindow(g_main_window.hwnd, nCmdShow);
 
-  MSG msg = {};
+  MSG msg = {0};
   while (GetMessage(&msg, NULL, 0, 0))
   {
     TranslateMessage(&msg);

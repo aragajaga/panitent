@@ -5,7 +5,7 @@ if(MINGW)
     # Optimization flags
     set(CMAKE_C_FLAGS_RELEASE "-O2")
     set(CMAKE_C_FLAGS_DEBUG "-g -O0")
-    set(CMAKE_C_FLAGS "-Wall")
+    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unused)
 
     # Set windres as resource compiler
     set(CMAKE_RC_COMPILER_INIT windres)
@@ -19,6 +19,7 @@ set(SOURCE_EXE
     src/canvas.c
     src/color_context.c
     src/debug.c
+    src/dockhost.c
     src/document.c
     src/file_open.c
     src/new.c

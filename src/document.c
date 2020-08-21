@@ -4,10 +4,12 @@
 #include "viewport.h"
 #include "canvas.h"
 #include "panitent.h"
+#include "dockhost.h"
 
 void document_save(document_t* doc)
 {
-  // TODO
+  (void)doc;
+  /* TODO */
 }
 
 void document_purge(document_t* doc)
@@ -36,6 +38,8 @@ BOOL document_close(document_t* doc)
     return TRUE;
 }
 
+extern binary_tree_t* viewportNode;
+
 document_t* document_new(int width, int height)
 {
   viewport_register_class();
@@ -53,6 +57,7 @@ document_t* document_new(int width, int height)
       return NULL;
     }
 
+    viewportNode->hwnd = hviewport;
     g_viewport.win_handle = hviewport;
   }
   

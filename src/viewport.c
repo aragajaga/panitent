@@ -199,7 +199,7 @@ void viewport_register_class()
   if (g_viewport.win_class)
     return;
 
-  WNDCLASSEX wcex = {};
+  WNDCLASSEX wcex = {0};
   wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.style = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = (WNDPROC)ViewportWndProc;

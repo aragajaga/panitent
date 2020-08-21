@@ -9,9 +9,9 @@ typedef struct _document {
   canvas_t* canvas;
 } document_t;
 
+void document_save(document_t* doc);
 BOOL document_close(document_t* doc);
 void document_purge(document_t* doc);
-void document_save(document_t* doc);
 document_t* document_new(int width, int height);
 
 #endif  /* PANITENT_DOCUMENT_H_ */

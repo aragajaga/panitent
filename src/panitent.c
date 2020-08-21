@@ -4,33 +4,64 @@
 
 #include "panitent.h"
 
-#include "viewport.h"
-#include "toolshelf.h"
-#include "file_open.h"
-#include "settings.h"
-#include "winuser.h"
-#include "panitent.h"
-#include "new.h"
-#include "resource.h"
-#include "palette.h"
-#include "bresenham.h"
 #include "wu_primitives.h"
 #include "option_bar.h"
+#include "file_open.h"
+#include "bresenham.h"
+#include "toolshelf.h"
+#include "dockhost.h"
+#include "panitent.h"
+#include "resource.h"
+#include "settings.h"
+#include "viewport.h"
+#include "palette.h"
+#include "winuser.h"
+#include "new.h"
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
 
 panitent_t g_panitent;
 
+HFONT hFontSys;
+
+void FetchSystemFont()
+{
+  NONCLIENTMETRICS ncm = {0};
+  ncm.cbSize = sizeof(NONCLIENTMETRICS);
+
+  BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
+      sizeof(NONCLIENTMETRICS), &ncm, 0);
+  if (!bResult)
+  {
+    return;
+  }
+
+  HFONT hFontNew = CreateFontIndirect(&ncm.lfMessageFont);
+  if (!hFontNew)
+  {
+    return;
+  }
+
+  DeleteObject(hFontSys);
+  hFontSys = hFontNew;
+}
+
 int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {   
+    UNREFERENCED_PARAMETER(hPrevInstance)
+    UNREFERENCED_PARAMETER(lpCmdLine)
+
     hInstance = hInst;    
-    
+
     INITCOMMONCONTROLSEX icex;
     icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
     icex.dwICC  = ICC_TAB_CLASSES;
     InitCommonControlsEx(&icex);
+
+    FetchSystemFont();
     
+    DockHost_Register(hInstance);
     RegisterToolShelf();
     register_palette_dialog(hInstance);
     option_bar_register_class(hInstance);
@@ -89,17 +120,6 @@ extern VIEWPORT vp;
 BOOL bConsoleAttached;
 
 #ifdef _MSC_VER
-/* Специально для MSVC /SUBSYSTEM:CONSOLE <3
- *
- * Ну а что, пока что простой способ получить поток вывода в терминал.
- * При /SUBSYSTEM:WINDOWS поток идет в помойку, вместе со стандартной
- * библиотекой вывода, нужно вручную биндить библиотеку к STD_OUTPUT_HANDLE.
- *
- * Сколько я не пробовал, даже после бинда не выводится вывод в терминал, из
- * которого запущено приложение. Выводится только в созданный через
- * AllocConsole. Алсо, в некоторых приложениях вроде Chromium консольный вывод
- * сделан как-то нормально, но это надо смотреть.
- */
 int main()
 {
     return WinMain(GetModuleHandle(NULL), NULL, NULL, 0);
@@ -107,6 +127,62 @@ int main()
 #endif
 
 HWND hPaletteToolbox;
+HWND hwndDockHost;
+
+HWND hwndToolbox;
+HWND hwndPalette;
+
+binary_tree_t* viewportNode;
+
+void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
+{
+  parent->posFixedGrip = 128;
+  parent->gripAlign = GRIP_ALIGN_END;
+  parent->gripPosType = GRIP_POS_ABSOLUTE;
+  parent->bShowCaption = TRUE;
+
+
+  /* Working Area */
+  binary_tree_t* nodeA = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeB = calloc(1, sizeof(binary_tree_t));
+
+  nodeA->posFixedGrip = 64;
+  nodeA->gripAlign = GRIP_ALIGN_START;
+  nodeA->gripPosType = GRIP_POS_ABSOLUTE;
+
+  hwndPalette = CreateWindowEx(0, L"Win32Class_PaletteWindow", L"Palette",
+      WS_CHILD | WS_VISIBLE, 0, 0, 128, 128, hWnd, NULL,
+      GetModuleHandle(NULL), NULL);
+
+  nodeB->lpszCaption = L"Palette";
+  nodeB->bShowCaption = TRUE;
+  nodeB->hwnd = hwndPalette;
+
+
+  /* Toolbox and viewport split */
+  binary_tree_t* nodeAA = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeAB = calloc(1, sizeof(binary_tree_t));
+  
+  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools",
+      WS_VISIBLE | WS_CHILD, 0, 32, 64, 256, hWnd, NULL,
+      GetModuleHandle(NULL), NULL);
+
+  nodeAA->lpszCaption = L"Tool";
+  nodeAA->bShowCaption = TRUE;
+  nodeAA->hwnd = hwndToolbox;
+
+  nodeAB->lpszCaption = L"Viewport";
+  nodeAB->bShowCaption = TRUE;
+  viewportNode = nodeAB;
+
+
+  /* Set graph */
+  nodeA->node1 = nodeAA;
+  nodeA->node2 = nodeAB;
+
+  parent->node1 = nodeA;
+  parent->node2 = nodeB;
+}
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -152,6 +228,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
         WORD cx = LOWORD(lParam);
         WORD cy = HIWORD(lParam);
+
+        SetWindowPos(hwndDockHost, NULL, 0, 0, cx, cy, SWP_NOACTIVATE |
+            SWP_NOZORDER);
+
+        /*
         if (g_viewport.win_handle)
         {
           SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
@@ -159,24 +240,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
           SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
               SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
         }
+        */
         }
         break;
     case WM_CREATE:
-        hwndToolShelf = CreateWindowEx(
-                WS_EX_TOOLWINDOW,
-                TOOLSHELF_WC,
-                L"Tools",
-                WS_VISIBLE | WS_CHILD,
-                0, 32,
-                64, 256,
-                hWnd,
-                NULL,
-                hInstance,
-                NULL);
+        hwndDockHost = DockHost_Create(hWnd);
 
-        init_palette_window(hWnd);
-        option_bar_create(hWnd);
+        RECT rcDockHost = {0};
+        GetClientRect(hwndDockHost, &rcDockHost);
+        root = calloc(1, sizeof(binary_tree_t));
+        root->lpszCaption = L"Root";
+        root->rc = rcDockHost;
+
+        Panitent_DockHostInit(hwndDockHost, root);
+
+        // option_bar_create(hWnd);
         
+        break;
+    case WM_THEMECHANGED:
+        FetchSystemFont();
         break;
     case WM_DESTROY:
         PostQuitMessage(0);
@@ -215,12 +297,7 @@ HWND CreateStatusBar(HWND hParent)
 
 void SetGuiFont(HWND hwnd)
 {
-    NONCLIENTMETRICS ncm = {0};
-    ncm.cbSize = sizeof(NONCLIENTMETRICS);
-    SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
-    HFONT hFont = CreateFontIndirect(&ncm.lfMessageFont);
-    
-    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(FALSE, 0));
+    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFontSys, MAKELPARAM(FALSE, 0));
 }
 
 HMENU CreateMainMenu()

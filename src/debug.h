@@ -5,7 +5,7 @@
 
 #define EXPLAINMASK(dMask, dic)                 \
         bFirst = 1;                             \
-        for (int i = 0; i < ARRAYSIZE(dic); i++)\
+        for (size_t i = 0; i < ARRAYSIZE(dic); i++)\
             if (dMask & dic[i].dwConst)         \
             {                                   \
                 if (!bFirst--) printf(" | ");   \

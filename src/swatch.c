@@ -9,6 +9,9 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
     WPARAM wParam, LPARAM lParam, UINT_PTR uIdSubclass,
     DWORD_PTR dwRefData)
 {
+  UNREFERENCED_PARAMETER(uIdSubclass);
+  UNREFERENCED_PARAMETER(dwRefData);
+
   switch (uMsg)
   {
     case WM_NCHITTEST:
@@ -19,7 +22,7 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
         MessageBox(NULL, L"Created!", L"Info", MB_OK);
         uint8_t* custColors = calloc(16, sizeof(uint32_t));
 
-        CHOOSECOLOR cc = {};
+        CHOOSECOLOR cc = {0};
         cc.lStructSize = sizeof(CHOOSECOLOR);
         cc.hwndOwner = hWnd;
         cc.lpCustColors = (LPDWORD)custColors;
@@ -32,7 +35,7 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
       break;
     case WM_PAINT:
       {
-        PAINTSTRUCT ps = {};
+        PAINTSTRUCT ps = {0};
         HDC hDC = BeginPaint(hWnd, &ps);
         Rectangle(hDC, 0, 0, 16, 16); 
         EndPaint(hWnd, &ps);
@@ -47,6 +50,7 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd, UINT uMsg,
 HWND SwatchControl_Create(uint32_t color, int x, int y, int width,
     int height, HWND hParent)
 {
+  (void)color;
   HWND hWnd = CreateWindowEx(0, WC_STATIC, NULL,
       SS_SIMPLE | WS_VISIBLE | WS_CHILD, x, y, width, height, hParent, NULL,
       GetModuleHandle(NULL), NULL);

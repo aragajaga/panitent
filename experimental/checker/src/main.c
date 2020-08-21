@@ -175,7 +175,7 @@ LRESULT CALLBACK main_window_wndproc(HWND hwnd, UINT message, WPARAM wparam, LPA
 
 void main_window_register_class(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex = {};
+  WNDCLASSEX wcex = {0};
   wcex.cbSize = sizeof(WNDCLASSEX);
   wcex.style = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = (WNDPROC)main_window_wndproc;
@@ -211,7 +211,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLi
   main_window_create();
   ShowWindow(g_main_window.hwnd, nCmdShow);
 
-  MSG msg = {};
+  MSG msg = {0};
   while (GetMessage(&msg, NULL, 0, 0))
   {
     TranslateMessage(&msg);
