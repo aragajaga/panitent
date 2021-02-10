@@ -67,5 +67,6 @@ extern binary_tree_t* root;
 
 ATOM DockHost_Register(HINSTANCE hInstance);
 HWND DockHost_Create(HWND hParent);
+void DockNode_arrange(binary_tree_t* );
 
 #endif  /* DOCK_DOCKHOST_H_ */

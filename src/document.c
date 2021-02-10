@@ -38,7 +38,8 @@ BOOL document_close(document_t* doc)
     return TRUE;
 }
 
-extern binary_tree_t* viewportNode;
+extern binary_tree_t *viewportNode;
+extern binary_tree_t *root;
 
 document_t* document_new(int width, int height)
 {
@@ -46,7 +47,7 @@ document_t* document_new(int width, int height)
 
   if (!g_viewport.hwnd)
   {
-    HWND hviewport = CreateWindowEx(0, MAKEINTATOM(g_viewport.win_class),
+    HWND hviewport = CreateWindowEx(0, MAKEINTATOM(g_viewport.wndclass),
         NULL, WS_BORDER | WS_CHILD | WS_VISIBLE, 64, 0, 800, 600,
         g_panitent.hwnd_main, NULL, GetModuleHandle(NULL), NULL);
 
@@ -59,6 +60,8 @@ document_t* document_new(int width, int height)
 
     viewportNode->hwnd = hviewport;
     g_viewport.hwnd = hviewport;
+
+    DockNode_arrange(root);
   }
   
   document_t* doc = calloc(1, sizeof(document_t));

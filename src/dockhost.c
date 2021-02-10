@@ -21,18 +21,6 @@ int iBorderWidth = 2;
 
 dock_window_t g_dock_window;
 
-/*
-void suggest(dock_side_e side)
-{
-  eSuggest = side; 
-}
-
-void unsuggest()
-{
-  eSuggest = 0; 
-}
-*/
-
 dock_side_e g_dock_side;
 dock_side_e eSuggest;
 binary_tree_t* root;
