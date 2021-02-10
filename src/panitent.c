@@ -8,7 +8,7 @@
 #include "option_bar.h"
 #include "file_open.h"
 #include "bresenham.h"
-#include "toolshelf.h"
+#include "toolbox.h"
 #include "dockhost.h"
 #include "panitent.h"
 #include "resource.h"
@@ -62,7 +62,7 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     FetchSystemFont();
     
     DockHost_Register(hInstance);
-    RegisterToolShelf();
+    toolbox_register_class();
     register_palette_dialog(hInstance);
     option_bar_register_class(hInstance);
 
@@ -116,7 +116,6 @@ int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance, LPSTR lpCmdLine, 
     return (int) msg.wParam;
 }
 
-extern VIEWPORT vp;
 BOOL bConsoleAttached;
 
 #ifdef _MSC_VER
@@ -133,6 +132,8 @@ HWND hwndToolbox;
 HWND hwndPalette;
 
 binary_tree_t* viewportNode;
+
+toolbox_t g_toolbox;
 
 void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 {
@@ -163,9 +164,9 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   binary_tree_t* nodeAA = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* nodeAB = calloc(1, sizeof(binary_tree_t));
   
-  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLSHELF_WC, L"Tools",
+  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLBOX_WC, L"Tools",
       WS_VISIBLE | WS_CHILD, 0, 32, 64, 256, hWnd, NULL,
-      GetModuleHandle(NULL), NULL);
+      GetModuleHandle(NULL), (LPVOID)&g_toolbox);
 
   nodeAA->lpszCaption = L"Tool";
   nodeAA->bShowCaption = TRUE;
@@ -186,89 +187,89 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    switch (uMsg) {
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case IDM_FILE_NEW:
-            NewFileDialog(hWnd);
-            break;
-        case IDM_FILE_OPEN:
-            FileOpen();
-            break;
-        case IDM_FILE_SAVE:
-            FileSave();
-            break;
-        case IDM_FILE_CLOSE:
-            PostQuitMessage(0);
-            break;
-        case IDM_EDIT_TESTFILL:
-            canvas_fill_solid(g_viewport.document->canvas, 0xFFFFFFFF);
-            break;
-        case IDM_EDIT_CLRCANVAS:
-            canvas_clear(g_viewport.document->canvas);
-            break;
-        case IDM_EDIT_WU_LINES:
-            MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
-            break;
-        case IDM_WINDOW_TOOLS:
-            CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
-            ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
-            break;
-        case IDM_HELP_TOPICS:
-            ShellExecute(hWnd, L"open", L"https://github.com/Aragajaga/panitent/wiki", 0, 0, SW_SHOWNORMAL);
-            break;
-        case IDM_OPTIONS_SETTINGS:
-            ShowSettingsWindow(hWnd);
-            break;
-        default:
-            break;
-        }
-        break;
-    case WM_SIZE:
-        {
-        WORD cx = LOWORD(lParam);
-        WORD cy = HIWORD(lParam);
-
-        SetWindowPos(hwndDockHost, NULL, 0, 0, cx, cy, SWP_NOACTIVATE |
-            SWP_NOZORDER);
-
-        /*
-        if (g_viewport.win_handle)
-        {
-          SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
-              SWP_NOACTIVATE | SWP_NOZORDER);
-          SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
-              SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
-        }
-        */
-        }
-        break;
-    case WM_CREATE:
-        hwndDockHost = DockHost_Create(hWnd);
-
-        RECT rcDockHost = {0};
-        GetClientRect(hwndDockHost, &rcDockHost);
-        root = calloc(1, sizeof(binary_tree_t));
-        root->lpszCaption = L"Root";
-        root->rc = rcDockHost;
-
-        Panitent_DockHostInit(hwndDockHost, root);
-
-        // option_bar_create(hWnd);
-        
-        break;
-    case WM_THEMECHANGED:
-        FetchSystemFont();
-        break;
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        break;
+  switch (uMsg) {
+  case WM_COMMAND:
+    switch (LOWORD(wParam)) {
+    case IDM_FILE_NEW:
+      NewFileDialog(hWnd);
+      break;
+    case IDM_FILE_OPEN:
+      FileOpen();
+      break;
+    case IDM_FILE_SAVE:
+      FileSave();
+      break;
+    case IDM_FILE_CLOSE:
+      PostQuitMessage(0);
+      break;
+    case IDM_EDIT_TESTFILL:
+      canvas_fill_solid(g_viewport.document->canvas, 0xFFFFFFFF);
+      break;
+    case IDM_EDIT_CLRCANVAS:
+      canvas_clear(g_viewport.document->canvas);
+      break;
+    case IDM_EDIT_WU_LINES:
+      MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
+      break;
+    case IDM_WINDOW_TOOLS:
+      CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS, IsWindowVisible(hwndToolShelf)?MF_UNCHECKED:MF_CHECKED);
+      ShowWindow(hwndToolShelf, IsWindowVisible(hwndToolShelf)?SW_HIDE:SW_SHOW);
+      break;
+    case IDM_HELP_TOPICS:
+      ShellExecute(hWnd, L"open", L"https://github.com/Aragajaga/panitent/wiki", 0, 0, SW_SHOWNORMAL);
+      break;
+    case IDM_OPTIONS_SETTINGS:
+      ShowSettingsWindow(hWnd);
+      break;
     default:
-        return DefWindowProc(hWnd, uMsg, wParam, lParam);
-        break;
+      break;
+  }
+    break;
+  case WM_SIZE:
+  {
+    WORD cx = LOWORD(lParam);
+    WORD cy = HIWORD(lParam);
+
+    SetWindowPos(hwndDockHost, NULL, 0, 0, cx, cy, SWP_NOACTIVATE |
+        SWP_NOZORDER);
+
+    /*
+    if (g_viewport.win_handle)
+    {
+      SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
+          SWP_NOACTIVATE | SWP_NOZORDER);
+      SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
+          SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
     }
-    
-    return 0;
+    */
+  }
+    break;
+  case WM_CREATE:
+      hwndDockHost = DockHost_Create(hWnd);
+
+      RECT rcDockHost = {0};
+      GetClientRect(hwndDockHost, &rcDockHost);
+      root = calloc(1, sizeof(binary_tree_t));
+      root->lpszCaption = L"Root";
+      root->rc = rcDockHost;
+
+      Panitent_DockHostInit(hwndDockHost, root);
+
+      // option_bar_create(hWnd);
+      
+      break;
+  case WM_THEMECHANGED:
+      FetchSystemFont();
+      break;
+  case WM_DESTROY:
+      PostQuitMessage(0);
+      break;
+  default:
+      return DefWindowProc(hWnd, uMsg, wParam, lParam);
+      break;
+  }
+  
+  return 0;
 }
 
 #if 0
@@ -340,5 +341,5 @@ HMENU CreateMainMenu()
 void UnregisterClasses()
 {
     UnregisterClass(VIEWPORTCTL_WC, NULL);
-    UnregisterClass(TOOLSHELF_WC, NULL);
+    toolbox_unregister_class();
 }

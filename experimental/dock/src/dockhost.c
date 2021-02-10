@@ -4,449 +4,445 @@
 #include <commctrl.h>
 #include "dockhost.h"
 
-dockhost_t g_dockhost;
-
-POINT captionPos;
-POINT dragPos;
-BOOL fDrag;
 HBRUSH hCaptionBrush;
 
-BOOL fSuggestTop;
+typedef struct _dock_frame {
+  BOOL fShow;
+  BOOL fCaption;
+  HWND hWnd;
+  WCHAR* lpszCaption;
+} dock_frame_t;
 
-int iCaptionHeight = 16;
-int iBorderWidth = 2;
-
-typedef enum {
-  DOCK_RIGHT = 1,
-  DOCK_TOP,
-  DOCK_LEFT,
-  DOCK_BOTTOM
-} dock_side_e;
-
-// TODO Use significant bit
-typedef enum {
-  GRIP_ALIGN_START,
-  GRIP_ALIGN_END
-} grip_align_e;
-
-typedef enum {
-  GRIP_POS_UNIFORM,
-  GRIP_POS_ABSOLUTE,
-  GRIP_POS_RELATIVE
-} grip_pos_type_e;
-
-typedef enum {
-  SPLIT_DIRECTION_HORIZONTAL,
-  SPLIT_DIRECTION_VERTICAL
-} split_direction_e;
-
-dock_side_e g_dock_side;
-dock_side_e eSuggest;
-
-typedef struct _dock_window {
-  RECT rc;
-  RECT pins;
-  RECT undockedRc;
-  HWND hwnd;
-  LPWSTR caption;
-  BOOL fDock;
-} dock_window_t;
-
-dock_window_t g_dock_window;
-
-struct _binary_tree {
-  struct _binary_tree* node1;
-  struct _binary_tree* node2;
-  int delimPos;
-  RECT rc;
-  LPWSTR lpszCaption;
-  grip_pos_type_e gripPosType;
-  float fGrip;
-  grip_align_e gripAlign;
-  int posFixedGrip;
-  BOOL bShowCaption;
-  HWND hwnd;
+struct _linked_tree_node {
+  struct _linked_tree_node* parent;
+  struct _linked_tree_node* nodeA;
+  struct _linked_tree_node* nodeB;
+  unsigned int weight;
+  dock_frame_t dockFrame;
 };
 
-typedef struct _binary_tree binary_tree_t;
+typedef struct _linked_tree_node linked_tree_node_t;
 
-void suggest(dock_side_e side)
+typedef struct _linked_tree {
+  linked_tree_node_t* root;
+  void (*node_destroy_callback)(linked_tree_node_t*);
+} linked_tree_t;
+
+typedef struct _dock_host {
+  unsigned int captionHeight;
+  unsigned int borderWidth;
+  linked_tree_t* tree;
+} dock_host_t;
+
+typedef struct _lifo {
+  size_t capacity;
+  size_t size;  
+  void **data;
+} lifo_t;
+
+typedef enum _rbtree_color {
+  RBTREE_COLOR_BLACK,
+  RBTREE_COLOR_RED
+} rbtree_color_t;
+
+typedef struct _rbtree_node {
+  struct _rbtree_node *parent;
+  struct _rbtree_node *nodeA;
+  struct _rbtree_node *nodeB;
+  rbtree_color_t color;
+  int weight;
+} rbtree_node_t;
+
+typedef struct _dictonary {
+  size_t size;
+  size_t capacity;
+} dict_t;
+
+rbtree_node_t* rbtree_get_parent(rbtree_node_t* node)
 {
-  eSuggest = side; 
+  return !node ? NULL : node->parent;
 }
 
-void unsuggest()
+void rbtree_push(rbtree_node_t* root, rbtree_node_t* inserting)
 {
-  eSuggest = 0; 
+  rbtree_node_t* next_node;
+  rbtree_node_t* this_node;
+
+  this_node = root;
+
+  do {
+    next_node = NULL;
+
+    next_node = (this_node->weight <= inserting->weight)
+      ? this_node->nodeA
+      : this_node->nodeB;
+
+    if (this_node->weight <= inserting->weight)
+    {
+      rbtree_node_t* temp;
+      
+      temp = this_node->nodeA;
+      this_node->nodeA = inserting;
+    }
+
+  } while (this_node->nodeA);
 }
 
-binary_tree_t* root;
+#define CAPACITY_ALIGN 16
+#define CHOP(a, b) ((a) / b * b)
 
-void Dock_DestroyInner(binary_tree_t* node)
+void lifo_init(lifo_t* lifo)
+{
+  assert(!lifo->data);
+  lifo->data = calloc(CAPACITY_ALIGN, sizeof(void*));
+  lifo->capacity = CAPACITY_ALIGN;
+}
+
+void lifo_push(lifo_t* lifo, void *data)
+{
+  if (lifo->capacity <= lifo->size)
+  {
+    size_t newcap = CHOP(lifo->capacity + 1, CAPACITY_ALIGN);
+    lifo->data = realloc(lifo->data, newcap);
+    lifo->capacity = newcap;
+  }
+
+  lifo->data[lifo->size++] = data;
+}
+
+void *lifo_pop(lifo_t* lifo)
+{
+  /*
+   *  Do not decide on substraction because it may cause unsigned underflow:
+   *  if (lifo->size <= lifo->capacity - CAPACITY_ALIGN)
+   *  if (lifo->capacity - lifo->size >= CAPACITY_ALIGN)
+   */
+  if (lifo->size + CAPACITY_ALIGN <= lifo->capacity)
+  {
+    /* Same for (lifo->size - 1)... */
+    size_t newcap = CHOP(lifo->size + CAPACITY_ALIGN - 1, CAPACITY_ALIGN) - 1;
+    lifo->data = realloc(lifo->data, newcap);
+    lifo->capacity = newcap;
+  }
+
+  return lifo->data[--lifo->size];   
+}
+
+void ltn_set_nodeA(linked_tree_node_t* parent, linked_tree_node_t* child)
+{
+  parent->nodeA = child;
+  child->parent = parent;
+}
+
+void ltn_set_nodeB(linked_tree_node_t* parent, linked_tree_node_t* child)
+{
+  parent->nodeB = child;
+  child->parent = parent;
+}
+
+void demo_init_layout(HWND hWnd, linked_tree_node_t* root)
+{
+  linked_tree_node_t* nodeA = calloc(1, sizeof(linked_tree_node_t));
+  linked_tree_node_t* nodeB = calloc(1, sizeof(linked_tree_node_t));
+
+  linked_tree_node_t* nodeAA = calloc(1, sizeof(linked_tree_node_t));
+  linked_tree_node_t* nodeAB = calloc(1, sizeof(linked_tree_node_t)); 
+
+
+  /* Set toolbox mock */
+  HWND hWndToolboxMock = CreateWindowEx(0, WC_STATIC, L"Toolbox",
+      WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL),
+      NULL);
+  nodeAA->dockFrame.hWnd = hWndToolboxMock;
+  nodeAA->dockFrame.fShow = TRUE;
+  nodeAA->dockFrame.fCaption = TRUE;
+
+
+  /* Set viewport mock */
+  HWND hWndViewportMock = CreateWindowEx(0, WC_STATIC, L"Viewport",
+      WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL),
+      NULL);
+  nodeAB->dockFrame.hWnd = hWndViewportMock;
+  nodeAB->dockFrame.fShow = TRUE;
+  nodeAB->dockFrame.fCaption = TRUE;
+
+
+  /* Set subnodes for nodeA */
+  ltn_set_nodeA(nodeA, nodeAA);
+  ltn_set_nodeB(nodeA, nodeAB);
+
+
+  /* Set palette mock */
+  HWND hWndPaletteMock = CreateWindowEx(0, WC_STATIC, L"Palette",
+      WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL),
+      NULL);
+  nodeB->dockFrame.hWnd = hWndPaletteMock;
+  nodeB->dockFrame.fShow = TRUE;
+  nodeB->dockFrame.fCaption = TRUE;
+
+
+  /* Set subnodes for root */
+  ltn_set_nodeA(root, nodeA);
+  ltn_set_nodeB(root, nodeB);
+}
+
+void dockframe_destroy(dock_frame_t* frame)
+{
+  if (frame->hWnd)
+    DestroyWindow(frame->hWnd);
+}
+
+void docknode_destroy(linked_tree_node_t* node)
+{
+  dockframe_destroy(&node->dockFrame);
+
+  free(node);
+}
+
+void dock_draw(linked_tree_node_t* node)
+{
+  (void)node;
+}
+
+void dockhost_paint(dock_host_t* host)
+{
+  assert(host);
+
+  linked_tree_node_t* node = host->tree->root;
+  linked_tree_node_t* prev = NULL;
+
+  lifo_t lifo = {0};
+  lifo_init(&lifo);
+
+  do {
+    if (node->nodeA && node->nodeA != prev)
+    {
+      dock_draw(node->nodeA);
+      lifo_push(&lifo, (void *) node->nodeA);
+      prev = node->nodeA;
+      continue;
+    }
+
+    if (node->nodeB && node->nodeB != prev)
+    {
+      dock_draw(node->nodeB);
+      lifo_push(&lifo, (void *) node->nodeB);
+      prev = node->nodeB;
+      continue;
+    }
+
+  } while (node = (linked_tree_node_t *) lifo_pop(&lifo));
+}
+
+void dockhost_init_tree(linked_tree_t* tree)
+{
+  tree->root = calloc(1, sizeof(linked_tree_node_t)); 
+  tree->node_destroy_callback = docknode_destroy;
+}
+
+void dockhost_init(dock_host_t* host)
+{
+  host->tree->root = calloc(1, sizeof(linked_tree_node_t));
+  host->captionHeight = 24;
+  host->borderWidth = 2;
+  dockhost_init_tree(host->tree);
+}
+
+void ltn_detach_from_parent(linked_tree_node_t* node)
+{
+  linked_tree_node_t* parent = node->parent;
+
+  if (parent)
+  {
+    if (parent->nodeA == node)
+    {
+      parent->nodeA = NULL;
+    }
+    else if (parent->nodeB == node)
+    {
+      parent->nodeB = NULL;
+    }
+
+    node->parent = NULL;
+  }
+}
+
+void ltn_destroy(linked_tree_t* tree, linked_tree_node_t* node)
+{
+  assert(node);
+
+  lifo_t node_stack = {0};
+  lifo_init(&node_stack);
+
+  do {
+    if (node->nodeA)
+    {
+      lifo_push(&node_stack, node->nodeB);
+      continue;
+    }
+
+    if (node->nodeB)
+    {
+      lifo_push(&node_stack, node->nodeB);
+      continue;
+    }
+
+    ltn_detach_from_parent(node);
+    tree->node_destroy_callback(node);
+
+  } while (node = (linked_tree_node_t*) lifo_pop(&node_stack));
+}
+
+void Dock_DestroyInner(linked_tree_node_t* node)
 {
   if (!node)
     return;
 
-  if (node->node1)
+  if (node->nodeA)
   {
-    DestroyWindow(node->node1->hwnd);
-    Dock_DestroyInner(node->node1);
-    free(node->node1);
-    node->node1 = NULL;
+    DestroyWindow(node->nodeA->dockFrame.hWnd);
+    Dock_DestroyInner(node->nodeA);
+    free(node->nodeA);
+    node->nodeA = NULL;
   }
 
-  if (node->node2)
+  if (node->nodeB)
   {
-    DestroyWindow(node->node2->hwnd);
-    Dock_DestroyInner(node->node2);
-    free(node->node2);
-    node->node2 = NULL;
+    DestroyWindow(node->nodeB->dockFrame.hWnd);
+    Dock_DestroyInner(node->nodeB);
+    free(node->nodeB);
+    node->nodeB = NULL;
   }
 }
 
-BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
+void DockFrame_Paint(dock_frame_t* frame, HDC hdc)
 {
-  if (!root)
+  TextOut(hdc, 10, 10, frame->lpszCaption, 80);
+}
+
+/**
+ * Paint dock containers using in-order traversion
+
+ * @param host Pointer to instance of DockHost
+ * @param hdc Handle to valid Win32 screen device context
+ */
+void DockHost_Paint(dock_host_t* host, HDC hdc)
+{
+  linked_tree_node_t* current = host->tree->root;
+  lifo_t stack = {0};
+  lifo_init(&stack);
+  BOOL done = FALSE;
+
+  while (!done)
+  {
+    /* Reach the left most node of the current */
+    if (current != NULL)
+    {
+      /* place pointer to a tree node on the stack before traversing the node's
+         left subtree */
+      lifo_push(&stack, current);
+      current = current->nodeA;
+    }
+
+    /* Backtrack from the empty subtree and visit the node at the top of the
+       stack; however, if the stack is empty, you are done */
+    else {
+      if (!stack.size)
+      {
+        current = lifo_pop(&stack);
+        DockFrame_Paint(&current->dockFrame, hdc);
+
+        current = current->nodeB;
+      }
+      else {
+        done = TRUE;
+      }
+    }
+  }
+
+}
+
+BOOL Dock_GetClientRect(HWND hWnd, dock_host_t* host, linked_tree_node_t* node,
+    RECT* rcResult)
+{
+  if (!host || !node)
     return FALSE;
 
-  RECT rcClient = root->rc;
-  rcClient.left   += iBorderWidth;
-  rcClient.top    += iBorderWidth;
-  rcClient.right  -= iBorderWidth;
-  rcClient.bottom -= iBorderWidth;
+  host->borderWidth;
 
-  if (root->bShowCaption)
-    rcClient.top  += iCaptionHeight + 1;
+  RECT rect = {0};
+  GetClientRect(hWnd, &rect);
 
-  /* TODO: memcpy? */
-  *rc = rcClient;
-
-  return TRUE;
-}
-
-binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
-{
-  HWND hButton = CreateWindowEx(0, WC_BUTTON, L"Button",
-      WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hWnd, NULL,
-      GetModuleHandle(NULL), NULL);
-
-  parent->posFixedGrip = 128;
-  parent->gripAlign = GRIP_ALIGN_END;
-  // TODO Use significant bit
-  parent->gripPosType = GRIP_POS_ABSOLUTE;
-  parent->bShowCaption = FALSE;
-
-  binary_tree_t* node1 = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* node2 = calloc(1, sizeof(binary_tree_t));
-  node2->bShowCaption = TRUE;
-  node2->lpszCaption = L"Palette";
-
-  node1->posFixedGrip = 64;
-  node1->gripAlign = GRIP_ALIGN_START;
-  // TODO Use significant bit
-  node1->gripPosType = GRIP_POS_ABSOLUTE;
-  node1->lpszCaption = L"Working Area";
-
-  binary_tree_t* subnode1 = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* subnode2 = calloc(1, sizeof(binary_tree_t));
-  subnode1->bShowCaption = TRUE;
-  subnode1->lpszCaption = L"Tools";
-  subnode1->hwnd = hButton;
-  subnode2->bShowCaption = TRUE;
-  subnode2->lpszCaption = L"Untitled-1";
-  node1->node1 = subnode1;
-  node1->node2 = subnode2;
-
-  parent->node1 = node1;
-  parent->node2 = node2;
-}
-
-BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
-{
-  if (!node->bShowCaption)
-    return FALSE;
-
-  RECT rcCaption = node->rc;
-  rcCaption.top += iBorderWidth;
-  rcCaption.left += iBorderWidth;
-  rcCaption.right -= iBorderWidth;
-  rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
-
-  *rc = rcCaption;
-}
-
-binary_tree_t* Dock_CaptionHitTest(binary_tree_t* root, int x, int y)
-{
-  if (!root)
-    return NULL;
-
-  RECT rcCaption = {0};
-  Dock_GetCaptionRect(root, &rcCaption);
-
-  if (x >= rcCaption.left  && y >= rcCaption.top &&
-      x <  rcCaption.right && y <  rcCaption.bottom)
+  linked_tree_node_t* prev = host->tree->root;
+  for (;;)
   {
-    return root;  
+    if (node->nodeA)
+    {
+      prev = node->nodeA;
+    }
+
+    if (node->nodeB)
+    {
+      prev = node->nodeB;
+    }
+    
+    if (prev == node)
+    {
+      memcpy(rcResult, &rect, sizeof(RECT));
+      return TRUE;
+    }
   }
 
-  binary_tree_t* found = NULL; 
-  if (root->node1)
-  {
-    found = Dock_CaptionHitTest(root->node1, x, y);
-  }
-
-  if (!found && root->node2)
-  {
-    found = Dock_CaptionHitTest(root->node2, x, y);
-  }
-
-  return found;
+  rcResult = NULL;
+  return FALSE;
 }
 
-binary_tree_t* BT_HitTest(binary_tree_t* root, int x, int y)
+void DockNode_paint_$recursive(HWND hWnd, dock_host_t* host,
+    linked_tree_node_t* node, HDC hDC)
 {
-  if (root->node1)
-  {
-    return BT_HitTest(root->node1, x, y);
-  }
-
-  if (root->node2)
-  {
-    return BT_HitTest(root->node2, x, y);
-  }
-
-  return NULL;
-}
-
-void DockNode_paint(binary_tree_t* parent, HDC hDC)
-{
-  if (!parent)
+  if (!(host && node))
     return;
 
-  RECT* rc = &parent->rc;
-  Rectangle(hDC, rc->left, rc->top, rc->right, rc->bottom);
+  int borderWidth = host->borderWidth;
 
-  if (parent->bShowCaption)
+  RECT rc = {0};
+  GetClientRect(hWnd, &rc); 
+
+  if (node->dockFrame.fCaption)
   {
-    // Fill caption
-    RECT rcCapt = {
-        rc->left  + iBorderWidth,
-        rc->top   + iBorderWidth,
-        rc->right - iBorderWidth,
-        rc->top   + iBorderWidth + iCaptionHeight};
-    FillRect(hDC, &rcCapt, hCaptionBrush); 
+    /* Draw caption background */
+    RECT rcCaption = {
+      rc.left  + borderWidth,
+      rc.top   + borderWidth,
+      rc.right - borderWidth, 
+      rc.top   + borderWidth + host->captionHeight
+    };
 
-    // Print caption text
-    SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
+    FillRect(hDC, &rcCaption, hCaptionBrush); 
+
+    /* Draw caption text */
+    size_t len = 0;
+    StringCchLength(node->dockFrame.lpszCaption, STRSAFE_MAX_CCH, &len);
+
+    SetBkColor(hDC, RGB(0xFF, 0x00, 0x00)); /* TODO: unhardcode */
     SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
 
-    size_t chCount = 0;
-    StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
-    TextOut(hDC, rc->left + iBorderWidth + 4, rc->top + iBorderWidth,
-        parent->lpszCaption, chCount);
+    TextOut(hDC, rcCaption.left + 4, rcCaption.top + borderWidth,
+        node->dockFrame.lpszCaption, len);
   }
 
-  if (parent->node1)
+  if (node->nodeA)
   {
-    DockNode_paint(parent->node1, hDC);
+    DockNode_paint_$recursive(hWnd, host, node->nodeA, hDC);
   }
 
-  if (parent->node2)
+  if (node->nodeB)
   {
-    DockNode_paint(parent->node2, hDC);
-  }
-}
-
-void DockNode_arrange(binary_tree_t* parent)
-{
-  if (!parent)
-    return;
-
-  binary_tree_t* node1 = parent->node1;
-  binary_tree_t* node2 = parent->node2;
-
-  if (node1 && node2)
-  {
-    RECT rcClient = {0};
-    Dock_GetClientRect(parent, &rcClient);
-
-    RECT rcNode1 = rcClient;
-    if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
-      if (parent->gripAlign == GRIP_ALIGN_START)
-      {
-        rcNode1.right = rcNode1.left + parent->posFixedGrip - iBorderWidth/2;
-      }
-      else {
-        rcNode1.right = rcNode1.right - parent->posFixedGrip - iBorderWidth/2;
-      }
-
-    } else {
-      rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth/2;
-    }
-    node1->rc = rcNode1; 
-
-    // Second part
-    RECT rcNode2 = rcClient;
-    if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
-      if (parent->gripAlign == GRIP_ALIGN_START)
-      {
-        rcNode2.left = rcNode2.left + parent->posFixedGrip + iBorderWidth/2;
-      }
-      else {
-        rcNode2.left = rcNode2.right - parent->posFixedGrip + iBorderWidth/2;
-      }
-    } else {
-      rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth/2;
-    }
-    node2->rc = rcNode2; 
-  }
-  else if (node1 || node2)
-  {
-    binary_tree_t* child = node1 ? node1 : node2; 
-
-    RECT rcClient = {0};
-    Dock_GetClientRect(parent, &rcClient);
-
-    child->rc = rcClient; 
-  }
-
-  if (parent->hwnd)
-  {
-    RECT rc = {0};
-    Dock_GetClientRect(parent, &rc);
-
-    SetWindowPos(parent->hwnd, NULL, rc.left, rc.top,
-        rc.right - rc.left, rc.bottom - rc.top, 0);
-  }
-
-  if (parent->node1)
-  {
-    DockNode_arrange(parent->node1);
-  }
-
-  if (parent->node2)
-  {
-    DockNode_arrange(parent->node2);
+    DockNode_paint_$recursive(hWnd, host, node->nodeB, hDC);
   }
 }
 
 WCHAR szSampleText[] = L"SampleText";
-
-binary_tree_t* Dock_FindParent(binary_tree_t* root, binary_tree_t* node)
-{
-  if (!(root && node))
-    return NULL;
-
-  binary_tree_t* found = NULL;
-
-  if (root->node1)
-  {
-    if (root->node1 == node)
-    {
-      return root;
-    }
-    else {
-      found = Dock_FindParent(root->node1, node);
-    }
-  }
-
-  if (!found && root->node2)
-  {
-    if (root->node2 == node)
-    {
-      return root;
-    }
-    else {
-      found = Dock_FindParent(root->node2, node);
-    }
-  }
-
-  return found;
-}
-
-void Dock_DestroyInclusive(binary_tree_t* root, binary_tree_t* node)
-{
-  Dock_DestroyInner(node); 
-
-  DestroyWindow(node->hwnd);
-  binary_tree_t* parent = Dock_FindParent(root, node);
-
-  binary_tree_t* detached = NULL;
-  if (parent)
-  {
-    if (node == parent->node1)
-    {
-      free(parent->node1);
-      parent->node1 = NULL;
-      detached = parent->node2;
-    }
-    else if (node == parent->node2) {
-      free(parent->node2);
-      parent->node2 = NULL;
-      detached = parent->node1;
-    }
-
-    binary_tree_t* grandparent = Dock_FindParent(root, parent);
-    if (grandparent)
-    {
-      if (parent == grandparent->node1)
-      {
-        grandparent->node1 = detached;
-        free(parent);
-        parent = NULL;
-      }
-      else if (parent == grandparent->node2)
-      {
-        grandparent->node2 = detached;
-        free(parent);
-        parent = NULL;
-      }
-    }
-
-  }
-  else {
-    free(node);
-  }
-
-  DockNode_arrange(root);
-}
-
-void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
-{
-  binary_tree_t* parent = Dock_FindParent(root, node);  
-  DestroyWindow(node->hwnd);
-
-  if (!parent)
-    return;
-
-  binary_tree_t* detached = NULL;
-  if (node == parent->node1)
-  {
-    detached = parent->node1;
-    parent->node1 = NULL;
-  }
-  else if (node == parent->node2)
-  {
-    detached = parent->node2;
-    parent->node2 = NULL;
-  }
-
-  binary_tree_t* grandparent = Dock_FindParent(root, parent);
-  if (grandparent)
-  {
-    if (grandparent->node1 == parent) {
-      grandparent->node1 = detached;
-      free(parent);
-    }
-    else if (grandparent->node2 == parent)
-    {
-      grandparent->node2 = detached;
-      free(parent);
-    } 
-  }
-
-  DockNode_arrange(root);
-}
 
 LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
     LPARAM lParam)
@@ -455,34 +451,16 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
   {
     case WM_CREATE:
       {
-        RECT rcRoot = {0};
-        GetClientRect(hWnd, &rcRoot);
-        root = calloc(1, sizeof(binary_tree_t));
-        root->lpszCaption = szSampleText;
-        root->rc = rcRoot;
-
-        binary_tree_t* node;
-        node = DockNode_Create(hWnd, root); 
-
-
-        RECT rc = {10, 10, 200, 200};
         hCaptionBrush = CreateSolidBrush(RGB(0xFF, 0x00, 0x00));
-        g_dock_window.rc = rc;
+
+        linked_tree_node_t node;
+        demo_init_layout(hWnd, &node);
       }
       break;
     case WM_SIZE:
       {
         int width = LOWORD(lParam);
         int height = HIWORD(lParam);
-        RECT rcRoot = {0, 0, width, height};
-        root->rc = rcRoot;
-        
-        DockNode_arrange(root);
-
-        if (g_dock_window.fDock)
-        {
-          g_dock_window.rc.right = width;
-        }
       }
       break;
     case WM_PAINT:
@@ -490,60 +468,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         PAINTSTRUCT ps = {0};
         HDC hDC = BeginPaint(hWnd, &ps);
 
-        RECT rc = g_dock_window.rc;
-
-        if (root)
-        {
-          DockNode_paint(root, hDC);
-        }
-
-
-        /*
-        // Fill window border
-        Rectangle(hDC, rc.left, rc.top, rc.left + rc.right,
-            rc.top + rc.bottom);
-
-        // Fill caption
-        RECT rcCapt = {rc.left + 2, rc.top + 2,
-            rc.left+rc.right-2, rc.top + 2 + 24};
-        FillRect(hDC, &rcCapt, hCaptionBrush); 
-
-        // Print caption text
-        SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
-        SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
-        TextOut(hDC, rc.left + 6, rc.top + 6,
-            L"Main window", 11);
-            */
-
-        if (eSuggest)
-        {
-          RECT rc;
-          GetClientRect(hWnd, &rc);
-
-          switch (eSuggest)
-          {
-            case DOCK_RIGHT:
-              rc.left = rc.right - 24;
-              FillRect(hDC, &rc, hCaptionBrush); 
-              break;
-            case DOCK_TOP:
-              rc.bottom = 24;
-              FillRect(hDC, &rc, hCaptionBrush); 
-              break;
-            case DOCK_LEFT:
-              rc.right = 24;
-              FillRect(hDC, &rc, hCaptionBrush); 
-              break;
-            case DOCK_BOTTOM:
-              rc.top = rc.bottom - 24;
-              FillRect(hDC, &rc, hCaptionBrush); 
-              break;
-          }
-          // SIZE resSize;
-          // GetTextExtentPoint32(hDC, L"Dock top", 8, &resSize);
-
-          // TextOut(hDC, (sugRc.right-resSize.cx)/2, 4, L"Dock top", 8);
-        }
+        DockHost_Paint();
 
         EndPaint(hWnd, &ps);
       }
@@ -553,123 +478,21 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
       break;
     case WM_LBUTTONDOWN:
       {
-        signed short x = GET_X_LPARAM(lParam);
-        signed short y = GET_Y_LPARAM(lParam);
-
-        RECT rc = g_dock_window.rc;
-
-        // If cursor in caption
-        if (x >= rc.left + 2 && y >= rc.top + 2 &&
-            x < rc.left + rc.right - 2 &&
-            y < rc.top + 2 + 24)
-        {
-
-          SetCapture(hWnd);
-          // Save click position
-          dragPos.x = x - (rc.left + 2);
-          dragPos.y = y - (rc.top + 2);
-          fDrag = TRUE;
-        }
       }
       break;
 
     case WM_MOUSEMOVE:
       {
-        if (fDrag)
-        {
-          signed short x = GET_X_LPARAM(lParam);
-          signed short y = GET_Y_LPARAM(lParam);
-
-          if (g_dock_window.fDock)
-          {
-            g_dock_window.rc = g_dock_window.undockedRc;
-            g_dock_window.fDock = FALSE;
-          }
-
-          g_dock_window.rc.left = x - dragPos.x;
-          g_dock_window.rc.top  = y - dragPos.y;
-          
-          RECT hostRc = {0};
-          GetClientRect(hWnd, &hostRc);
-
-          if (y < 10) {
-            suggest(DOCK_TOP);
-          }
-          else if (x >= hostRc.right - 10) {
-            suggest(DOCK_RIGHT);
-          }
-          else if (y >= hostRc.bottom - 10) {
-            suggest(DOCK_BOTTOM);
-          }
-          else if (x < 10) {
-            suggest(DOCK_LEFT);
-          }
-          else {
-            unsuggest();
-          }
-
-          InvalidateRect(hWnd, NULL, TRUE);
-        }
       }
       break;
+
     case WM_LBUTTONUP:
       {
         signed short x = GET_X_LPARAM(lParam);
         signed short y = GET_Y_LPARAM(lParam);
-
-        binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
-        if (t)
-        {
-          /*wchar_t message[64];
-          binary_tree_t* parent = Dock_FindParent(root, t);
-
-          StringCchPrintfW(message, 64, L"Target: %s\nParent: %s",
-              t->lpszCaption ? t->lpszCaption : L"< NULL >",
-              parent ? (parent->lpszCaption ? parent->lpszCaption : L"< NULL CAPTION >") : L"< NULL PARENT >");
-          MessageBox(NULL, message, L"HitTest", MB_OK);
-          */
-          Dock_DestroyInclusive(root, t);
-          //Dock_Undock(root, t);
-          InvalidateRect(hWnd, NULL, TRUE);
-        }
-
-        if (fDrag && eSuggest)
-        {
-          g_dock_window.undockedRc = g_dock_window.rc;
-
-          RECT rc = {0};
-          GetClientRect(hWnd, &rc);
-
-          switch (eSuggest)
-          {
-            case DOCK_RIGHT:
-              rc.left = rc.right - g_dock_window.rc.right;
-              g_dock_side = DOCK_RIGHT;
-              break;
-            case DOCK_TOP:
-              rc.bottom = g_dock_window.rc.bottom;
-              g_dock_side = DOCK_TOP;
-              break;
-            case DOCK_LEFT:
-              rc.right = g_dock_window.rc.right;
-              g_dock_side = DOCK_LEFT;
-              break;
-            case DOCK_BOTTOM:
-              rc.top = rc.bottom - g_dock_window.rc.bottom;
-              g_dock_side = DOCK_BOTTOM;
-              break;
-          }
-          g_dock_window.rc = rc;
-          g_dock_window.fDock = TRUE;
-
-          unsuggest();
-          InvalidateRect(hWnd, NULL, TRUE);
-        }
-
-        fDrag = FALSE;
-        ReleaseCapture();
       }
       break;
+
     default:
       return DefWindowProc(hWnd, message, wParam, lParam);
       break;
@@ -677,6 +500,8 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
   return 0;
 }
+
+const WCHAR szDockHostClassName[] = L"Win32Class_DockHost";
 
 ATOM DockHost_Register(HINSTANCE hInstance)
 {
@@ -690,20 +515,21 @@ ATOM DockHost_Register(HINSTANCE hInstance)
   wcex.hIcon = NULL;
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wcex.lpszClassName = L"Win32Class_DockHost";
+  wcex.lpszClassName = szDockHostClassName;
   wcex.lpszMenuName = NULL;
   wcex.hIconSm = NULL;
   ATOM atom = RegisterClassEx(&wcex);
   assert(atom);
-  g_dockhost.wndClass = atom;
   return atom;
 }
 
 HWND DockHost_Create(HWND hParent)
 {
-  HWND hWnd = CreateWindowEx(0, MAKEINTATOM(g_dockhost.wndClass),
-      L"DockHost", WS_CHILD | WS_VISIBLE, 0, 0, 320, 240, hParent,
-      (HMENU)NULL, GetModuleHandle(NULL), NULL);
+  dock_host_t* host = calloc(1, sizeof(dock_host_t));
+
+  HWND hWnd = CreateWindowEx(0, szDockHostClassName, L"DockHost",
+      WS_CHILD | WS_VISIBLE, 0, 0, 320, 240, hParent, (HMENU)NULL,
+      GetModuleHandle(NULL), (LPVOID)host);
   assert(hWnd);
 
   return hWnd;

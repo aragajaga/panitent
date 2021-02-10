@@ -29,7 +29,7 @@ set(SOURCE_EXE
     src/primitives_context.c
     src/settings.c
     src/swatch.c
-    src/toolshelf.c
+    src/toolbox.c
     src/viewport.c
     src/wu_primitives.c
     res/panitent.rc)

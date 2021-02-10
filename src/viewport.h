@@ -15,7 +15,8 @@
 typedef struct _viewport {
   document_t* document;
   ATOM win_class;
-  HWND win_handle;
+  HWND hwnd;
+  int seqi;
 } viewport_t;
 
 extern viewport_t g_viewport;
@@ -39,15 +40,6 @@ typedef struct _tagCANVAS {
     IMAGE img;
 } CANVAS;
 
-typedef struct _tagVIEWPORT {
-    IMAGE   img;
-    size_t  seqi;
-    IMAGE   seq[8];
-    TOOL    tool;
-    
-    HWND    hwnd;
-} VIEWPORT;
-
 LRESULT CALLBACK ViewportWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 void CanvasFillSolid(IMAGE *img, COLORREF color);
 void CanvasFillTest(IMAGE *img);
@@ -63,7 +55,7 @@ void ViewportCtl_OnPaint(HWND hWnd);
 void WuCircle(IMAGE *img, int offset_x, int offset_y, int r);
 void WuLine(IMAGE *img, unsigned int x1, unsigned int y1, unsigned int x2, unsigned int y2);
 void image_init(IMAGE *img);
-void viewport_init(VIEWPORT* vp);
+void viewport_init(viewport_t* vp);
 void viewport_set_document(document_t*);
 
 #endif /* VIEWPORT_H */

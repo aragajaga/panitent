@@ -44,7 +44,7 @@ document_t* document_new(int width, int height)
 {
   viewport_register_class();
 
-  if (!g_viewport.win_handle)
+  if (!g_viewport.hwnd)
   {
     HWND hviewport = CreateWindowEx(0, MAKEINTATOM(g_viewport.win_class),
         NULL, WS_BORDER | WS_CHILD | WS_VISIBLE, 64, 0, 800, 600,
@@ -58,7 +58,7 @@ document_t* document_new(int width, int height)
     }
 
     viewportNode->hwnd = hviewport;
-    g_viewport.win_handle = hviewport;
+    g_viewport.hwnd = hviewport;
   }
   
   document_t* doc = calloc(1, sizeof(document_t));

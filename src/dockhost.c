@@ -196,7 +196,7 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
     FillRect(hDC, &rcCapt, hCaptionBrush); 
 
     // Print caption text
-    SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
+    SetBkColor(hDC, RGB(0xFF, 0xCC, 0x00));
     SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
 
     size_t chCount = 0;
@@ -414,7 +414,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam,
   {
     case WM_CREATE:
       {
-        hCaptionBrush = CreateSolidBrush(RGB(0xFF, 0x00, 0x00));
+        hCaptionBrush = CreateSolidBrush(RGB(0xFF, 0xCC, 0x00));
 
 /*
         RECT rc = {10, 10, 200, 200};

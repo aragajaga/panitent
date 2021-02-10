@@ -4,10 +4,12 @@
 #include "precomp.h"
 #include "panitent.h"
 
-typedef struct _tagTOOL {
-    void (* OnLButtonUp)(MOUSEEVENT mEvt);
-    void (* OnLButtonDown)(MOUSEEVENT mEvt);
-    void (* OnMouseMove)(MOUSEEVENT mEvt);
-} TOOL;
+typedef struct _tool_t {
+  wchar_t* label;
+  int img; 
+  void (* onlbuttonup)(MOUSEEVENT mEvt);
+  void (* onlbuttondown)(MOUSEEVENT mEvt);
+  void (* onmousemove)(MOUSEEVENT mEvt);
+} tool_t;
 
 #endif /* PANITENT_TOOL_H */
