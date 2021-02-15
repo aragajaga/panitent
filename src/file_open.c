@@ -76,7 +76,7 @@ void FileOpenPng(LPWSTR pszPath)
 
 COMDLG_FILTERSPEC c_rgSaveTypes[1] = {{L"Portable Network Graphics", L"*.png"}};
 
-int FileOpen()
+int init_open_file_dialog()
 {
   HRESULT hr = CoInitialize(NULL);
   if (SUCCEEDED(hr)) {
@@ -119,7 +119,7 @@ int FileOpen()
   return 0;
 }
 
-int FileSave()
+int init_save_file_dialog()
 {
   HRESULT hr = CoInitialize(NULL);
   if (SUCCEEDED(hr)) {

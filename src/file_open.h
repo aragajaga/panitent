@@ -9,7 +9,7 @@
 #define INDEX_PNG 1
 
 void FileOpenPng(LPWSTR pszPath);
-int FileOpen();
-int FileSave();
+int init_open_file_dialog();
+int init_save_file_dialog();
 
 #endif /* PANITENT_FILE_OPEN_H */

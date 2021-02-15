@@ -208,10 +208,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       NewFileDialog(hWnd);
       break;
     case IDM_FILE_OPEN:
-      FileOpen();
+      init_open_file_dialog();
       break;
     case IDM_FILE_SAVE:
-      FileSave();
+      init_save_file_dialog();
       break;
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);
