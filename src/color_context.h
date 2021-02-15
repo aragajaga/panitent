@@ -10,4 +10,4 @@ typedef struct _color_context {
 
 extern color_context_t g_color_context;
 
-#endif  /* PANITENT_COLOR_CONTEXT_H_ */
+#endif /* PANITENT_COLOR_CONTEXT_H_ */

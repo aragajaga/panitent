@@ -5,7 +5,7 @@
 
 void plot(int x, int y)
 {
-  uint32_t fg_color = get_fg_color(); 
+  uint32_t fg_color = get_fg_color();
   uint32_t bg_color = get_bg_color();
 
   canvas_t* canvas = get_active_canvas();
@@ -18,4 +18,4 @@ void plot(int x, int y)
   canvas->data[:];
 }
 
-#endif  // PANITENT_BRUSH_H_
+#endif  /* PANITENT_BRUSH_H_ */

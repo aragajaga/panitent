@@ -27,34 +27,37 @@ void viewport_register_class();
 void viewport_invalidate();
 
 typedef struct _tagTRECT {
-    unsigned int x;
-    unsigned int y;
-    unsigned int width;
-    unsigned int height;
+  unsigned int x;
+  unsigned int y;
+  unsigned int width;
+  unsigned int height;
 } TRECT;
 
 typedef struct _tagIMAGE {
-    void *data;
-    TRECT rc;
+  void* data;
+  TRECT rc;
 } IMAGE;
 
 typedef struct _tagCANVAS {
-    IMAGE img;
+  IMAGE img;
 } CANVAS;
 
-LRESULT CALLBACK viewport_wndproc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
-void CanvasFillSolid(IMAGE *img, COLORREF color);
-void CanvasFillTest(IMAGE *img);
+LRESULT CALLBACK viewport_wndproc(HWND hwnd,
+                                  UINT msg,
+                                  WPARAM wParam,
+                                  LPARAM lParam);
+void CanvasFillSolid(IMAGE* img, COLORREF color);
+void CanvasFillTest(IMAGE* img);
 void CanvasWuLinesTest();
-void CreateCanvas(IMAGE *img, UINT uWidth, UINT uHeight);
-void GetCanvasRect(IMAGE *img, RECT *rcCanvas);
-void PNTRectangle(IMAGE *img, int x1, int y1, int x2, int y2);
+void CreateCanvas(IMAGE* img, UINT uWidth, UINT uHeight);
+void GetCanvasRect(IMAGE* img, RECT* rcCanvas);
+void PNTRectangle(IMAGE* img, int x1, int y1, int x2, int y2);
 void viewport_register_class();
 void viewport_onlbuttondown(MOUSEEVENT mEvt);
 void viewport_onlbuttonup(MOUSEEVENT mEvt);
 void viewport_onmousemove(MOUSEEVENT mEvt);
 void viewport_onpaint(HWND hWnd);
-void image_init(IMAGE *img);
+void image_init(IMAGE* img);
 void viewport_init(viewport_t* vp);
 void viewport_set_document(document_t*);
 

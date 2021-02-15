@@ -15,14 +15,14 @@ uint32_t mix(uint32_t color1, uint32_t color2)
 {
   float opacity = (color2 >> 24) / 255.f;
 
-  uint8_t r = CHANNEL_R_32(color1) * opacity
-      + CHANNEL_R_32(color2) * (1.f - opacity);
+  uint8_t r =
+      CHANNEL_R_32(color1) * opacity + CHANNEL_R_32(color2) * (1.f - opacity);
 
-  uint8_t g = CHANNEL_G_32(color1) * opacity
-      + CHANNEL_G_32(color2) * (1.f - opacity);
+  uint8_t g =
+      CHANNEL_G_32(color1) * opacity + CHANNEL_G_32(color2) * (1.f - opacity);
 
-  uint8_t b = CHANNEL_B_32(color1) * opacity
-      + CHANNEL_B_32(color2) * (1.f - opacity);
+  uint8_t b =
+      CHANNEL_B_32(color1) * opacity + CHANNEL_B_32(color2) * (1.f - opacity);
 
   /* TODO: Alpha mixing */
 
@@ -31,19 +31,18 @@ uint32_t mix(uint32_t color1, uint32_t color2)
 
 void* canvas_buffer_alloc(canvas_t* canvas)
 {
-  size_t buffer_size = canvas->width * canvas->height
-      * canvas->color_depth;
+  size_t buffer_size = canvas->width * canvas->height * canvas->color_depth;
 
   canvas->buffer_size = buffer_size;
-  canvas->buffer = calloc(buffer_size, sizeof(uint8_t));
+  canvas->buffer      = calloc(buffer_size, sizeof(uint8_t));
 
   return canvas->buffer;
 }
 
 void canvas_delete(canvas_t* canvas)
 {
-  canvas->width = 0;
-  canvas->height = 0;
+  canvas->width       = 0;
+  canvas->height      = 0;
   canvas->color_depth = 0;
 
   canvas->buffer_size = 0;
@@ -87,12 +86,10 @@ void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
   /* TODO: Непродуманно. А если fg_color имеет альфу? */
   if (alpha == 255) {
     canvas_set_pixel(canvas, x_, y_, color);
-  }
-  else if (alpha == 0) {
+  } else if (alpha == 0) {
     return;
-  }
-  else {
-    uint32_t underlying = canvas_get_pixel(canvas, x, y);
+  } else {
+    uint32_t underlying   = canvas_get_pixel(canvas, x, y);
     uint32_t result_color = mix(underlying, color);
     canvas_set_pixel(canvas, x, y, result_color);
   }
@@ -114,7 +111,7 @@ void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
     return;
   }
 
-  size_t pos = y * canvas->width + x;
+  size_t pos                         = y * canvas->width + x;
   ((uint32_t*)(canvas->buffer))[pos] = color;
 }
 
@@ -125,8 +122,7 @@ void canvas_clear(canvas_t* canvas)
 
 void canvas_fill_solid(canvas_t* canvas, uint32_t color)
 {
-  for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++)
-  {
+  for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++) {
     ((uint32_t*)(canvas->buffer))[i] = color;
   }
 

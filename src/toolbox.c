@@ -36,8 +36,7 @@ void toolbox_add_tool(toolbox_t* tbox, tool_t tool)
 
 void toolbox_remove_tool(toolbox_t* tbox)
 {
-  if (tbox->tool_count)
-  {
+  if (tbox->tool_count) {
     tbox->tool_count--;
   }
 }
@@ -55,12 +54,14 @@ void toolbox_init(toolbox_t* tbox)
 
   g_tool = g_tool_pointer;
 
-  img_layout = (HBITMAP)LoadImage(GetModuleHandle(NULL), L"tool.bmp",
-      IMAGE_BITMAP,
-      0, 0,
-      LR_LOADFROMFILE);
+  img_layout = (HBITMAP)LoadImage(GetModuleHandle(NULL),
+                                  L"tool.bmp",
+                                  IMAGE_BITMAP,
+                                  0,
+                                  0,
+                                  LR_LOADFROMFILE);
 
-  tbox->tools = calloc(sizeof(tool_t), 8);
+  tbox->tools      = calloc(sizeof(tool_t), 8);
   tbox->tool_count = 0;
 
   toolbox_add_tool(tbox, g_tool_pointer);
@@ -72,16 +73,25 @@ void toolbox_init(toolbox_t* tbox)
 }
 
 HTHEME hTheme = NULL;
-int btnSize = 24;
+int btnSize   = 24;
 int btnOffset = 4;
 
 void toolbox_button_draw(HDC hdc, int x, int y)
 {
-  if (!hTheme)
-  {
-    HWND hButton = CreateWindowEx(0, L"BUTTON", L"", 0, 0, 0, 0, 0, NULL,
-        NULL, GetModuleHandle(NULL), NULL);
-    hTheme = OpenThemeData(hButton, L"BUTTON");
+  if (!hTheme) {
+    HWND hButton = CreateWindowEx(0,
+                                  L"BUTTON",
+                                  L"",
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  0,
+                                  NULL,
+                                  NULL,
+                                  GetModuleHandle(NULL),
+                                  NULL);
+    hTheme       = OpenThemeData(hButton, L"BUTTON");
   }
 
   RECT rc = {x, y, x + btnSize, y + btnSize};
@@ -94,38 +104,40 @@ void toolbox_draw_buttons(toolbox_t* tbox, HDC hdc)
   HDC hdcMem;
   HGDIOBJ oldBitmap;
 
-  hdcMem = CreateCompatibleDC(hdc);
+  hdcMem    = CreateCompatibleDC(hdc);
   oldBitmap = SelectObject(hdcMem, img_layout);
   GetObject(img_layout, sizeof(bitmap), &bitmap);
 
   RECT rcClient = {0};
   GetClientRect(tbox->hwnd, &rcClient);
 
-  size_t extSize = btnSize + btnOffset;
+  size_t extSize  = btnSize + btnOffset;
   size_t rowCount = rcClient.right / btnSize;
 
-  if (rowCount < 1)
-  {
+  if (rowCount < 1) {
     rowCount = 1;
   }
 
-  for (size_t i = 0; i < tbox->tool_count; i++)
-  {
+  for (size_t i = 0; i < tbox->tool_count; i++) {
     int x = btnOffset + (i % rowCount) * extSize;
     int y = btnOffset + (i / rowCount) * extSize;
 
-    // Rectangle(hdc, x, y, x+btnSize, y+btnSize);
+    /* Rectangle(hdc, x, y, x+btnSize, y+btnSize); */
     toolbox_button_draw(hdc, x, y);
 
-    int iBmp = tbox->tools[(ptrdiff_t)i].img;
+    int iBmp         = tbox->tools[(ptrdiff_t)i].img;
     const int offset = 4;
     TransparentBlt(hdc,
-        x+offset,   y+offset,
-        16,         bitmap.bmHeight,
-        hdcMem,
-        16*iBmp,    0,
-        16,         bitmap.bmHeight,
-        (UINT)0x00FF00FF);
+                   x + offset,
+                   y + offset,
+                   16,
+                   bitmap.bmHeight,
+                   hdcMem,
+                   16 * iBmp,
+                   0,
+                   16,
+                   bitmap.bmHeight,
+                   (UINT)0x00FF00FF);
   }
 
   SelectObject(hdcMem, oldBitmap);
@@ -150,29 +162,23 @@ void toolbox_onlbuttonup(toolbox_t* tbox, MOUSEEVENT mEvt)
 
   int btnHot = btnSize + 5;
 
-  if (x >= 0
-      && y >= 0
-      && x < btnHot*2
-      && y < (int)tbox->tool_count*btnHot)
-  {
-    size_t extSize = btnSize + btnOffset; 
+  if (x >= 0 && y >= 0 && x < btnHot * 2 &&
+      y < (int)tbox->tool_count * btnHot) {
+    size_t extSize = btnSize + btnOffset;
 
     RECT rcClient = {0};
     GetClientRect(mEvt.hwnd, &rcClient);
 
     size_t rowCount = rcClient.right / extSize;
-    if (rowCount < 1)
-    {
+    if (rowCount < 1) {
       rowCount = 1;
     }
 
-    unsigned int pressed = (y-btnOffset) / extSize *
-        rowCount + (x-btnOffset) / extSize;
+    unsigned int pressed =
+        (y - btnOffset) / extSize * rowCount + (x - btnOffset) / extSize;
 
-    if (tbox->tool_count > pressed)
-    {
-      switch (pressed)
-      {
+    if (tbox->tool_count > pressed) {
+      switch (pressed) {
       case 1:
         g_tool = g_tool_pencil;
         break;
@@ -185,7 +191,7 @@ void toolbox_onlbuttonup(toolbox_t* tbox, MOUSEEVENT mEvt)
       case 4:
         g_tool = g_tool_rectangle;
         break;
-      case 5: 
+      case 5:
         g_tool = g_tool_text;
         break;
       default:
@@ -196,43 +202,39 @@ void toolbox_onlbuttonup(toolbox_t* tbox, MOUSEEVENT mEvt)
   }
 }
 
-
-LRESULT CALLBACK toolbox_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
-    LPARAM lParam)
+LRESULT CALLBACK toolbox_wndproc(HWND hwnd,
+                                 UINT msg,
+                                 WPARAM wParam,
+                                 LPARAM lParam)
 {
   MOUSEEVENT mevt;
-  mevt.hwnd = hwnd;
+  mevt.hwnd   = hwnd;
   mevt.lParam = lParam;
 
   switch (msg) {
   case WM_CREATE:
   {
     LPCREATESTRUCT cs = (LPCREATESTRUCT)lParam;
-    toolbox_t* tbox = (toolbox_t *)cs->lpCreateParams;
-    tbox->hwnd = hwnd;
+    toolbox_t* tbox   = (toolbox_t*)cs->lpCreateParams;
+    tbox->hwnd        = hwnd;
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)tbox);
 
     toolbox_init(tbox);
-  }
-    break;
+  } break;
   case WM_PAINT:
   {
-    toolbox_t* tbox = (toolbox_t *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    if (tbox)
-    {
+    toolbox_t* tbox = (toolbox_t*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (tbox) {
       toolbox_onpaint(tbox);
     }
-  }
-    break;
+  } break;
   case WM_LBUTTONUP:
   {
-    toolbox_t* tbox = (toolbox_t *)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    if (tbox)
-    {
+    toolbox_t* tbox = (toolbox_t*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+    if (tbox) {
       toolbox_onlbuttonup(tbox, mevt);
     }
-  }
-    break;
+  } break;
   default:
     return DefWindowProc(hwnd, msg, wParam, lParam);
   }
@@ -242,14 +244,14 @@ LRESULT CALLBACK toolbox_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
 
 void toolbox_register_class()
 {
-    WNDCLASS wc = {0};
-    wc.style            = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc      = toolbox_wndproc;
-    wc.hCursor          = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground    = (HBRUSH) (COLOR_BTNFACE + 1);
-    wc.lpszClassName    = TOOLBOX_WC;
+  WNDCLASS wc      = {0};
+  wc.style         = CS_HREDRAW | CS_VREDRAW;
+  wc.lpfnWndProc   = toolbox_wndproc;
+  wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
+  wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+  wc.lpszClassName = TOOLBOX_WC;
 
-    RegisterClass(&wc);
+  RegisterClass(&wc);
 }
 
 void toolbox_unregister_class()
@@ -260,26 +262,27 @@ void toolbox_unregister_class()
 void tool_pointer_init()
 {
   g_tool_pointer.label = L"Pointer";
-  g_tool_pointer.img = 0;
+  g_tool_pointer.img   = 0;
 }
 
 void tool_text_onlbuttonup(MOUSEEVENT mEvt)
 {
   HDC viewportdc = GetDC(g_viewport.hwnd);
-  HDC bitmapdc = CreateCompatibleDC(viewportdc);
+  HDC bitmapdc   = CreateCompatibleDC(viewportdc);
 
   wchar_t textbuf[1024];
-  GetWindowText(g_option_bar.textstring_handle, textbuf,
-      sizeof(textbuf) / sizeof(wchar_t));
-    
+  GetWindowText(g_option_bar.textstring_handle,
+                textbuf,
+                sizeof(textbuf) / sizeof(wchar_t));
+
   SIZE size = {0};
   GetTextExtentPoint32(bitmapdc, textbuf, -1, &size);
   RECT textrc = {0, 0, size.cx, size.cy};
 
   uint8_t* bmbuf = calloc(size.cx * size.cy, sizeof(uint32_t));
 
-  HBITMAP hbitmap = CreateBitmap(size.cx, size.cy, 1,
-      sizeof(uint32_t) * 8, bmbuf);
+  HBITMAP hbitmap =
+      CreateBitmap(size.cx, size.cy, 1, sizeof(uint32_t) * 8, bmbuf);
   SelectObject(bitmapdc, hbitmap);
   DrawTextEx(bitmapdc, textbuf, -1, &textrc, 0, NULL);
 
@@ -291,8 +294,8 @@ void tool_text_onlbuttonup(MOUSEEVENT mEvt)
 
 void tool_text_init()
 {
-  g_tool_text.label = L"Text";
-  g_tool_text.img = 6;  
+  g_tool_text.label       = L"Text";
+  g_tool_text.img         = 6;
   g_tool_text.onlbuttonup = tool_text_onlbuttonup;
 }
 
@@ -309,30 +312,28 @@ void tool_pencil_onlbuttonup(MOUSEEVENT mEvt)
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
 
-  if (fDraw)
-  {
-    #ifdef PEN_OVERLAY
+  if (fDraw) {
+#ifdef PEN_OVERLAY
     HDC hdc;
 
     hdc = GetDC(mEvt.hwnd);
     MoveToEx(hdc, prev.x, prev.y, NULL);
     LineTo(hdc, x, y);
-    #endif
+#endif
 
-    canvas_t *canvas = g_viewport.document->canvas;
+    canvas_t* canvas = g_viewport.document->canvas;
 
     rect_t line_rect = {0};
-    line_rect.x0 = prev.x;
-    line_rect.y0 = prev.y;
-    line_rect.x1 = x;
-    line_rect.y1 = y;
+    line_rect.x0     = prev.x;
+    line_rect.y0     = prev.y;
+    line_rect.x1     = x;
+    line_rect.y1     = y;
 
     draw_line(canvas, line_rect);
 
-    #ifdef PEN_OVERLAY
+#ifdef PEN_OVERLAY
     ReleaseDC(mEvt.hwnd, hdc);
-    #endif
-
+#endif
   }
   fDraw = FALSE;
   ReleaseCapture();
@@ -340,47 +341,46 @@ void tool_pencil_onlbuttonup(MOUSEEVENT mEvt)
 
 void tool_pencil_onmousemove(MOUSEEVENT mEvt)
 {
-    signed short x = LOWORD(mEvt.lParam);
-    signed short y = HIWORD(mEvt.lParam);
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
 
-    if (fDraw)
-    {
-        #ifdef PEN_OVERLAY
-        HDC hdc;
-        hdc = GetDC(mEvt.hwnd);
+  if (fDraw) {
+#ifdef PEN_OVERLAY
+    HDC hdc;
+    hdc = GetDC(mEvt.hwnd);
 
-        /* Draw overlay path */
-        MoveToEx(hdc, prev.x, prev.y, NULL);
-        LineTo(hdc, x, y);
-        #endif
+    /* Draw overlay path */
+    MoveToEx(hdc, prev.x, prev.y, NULL);
+    LineTo(hdc, x, y);
+#endif
 
-        /* Draw on canvas */
-        canvas_t *canvas = g_viewport.document->canvas;
+    /* Draw on canvas */
+    canvas_t* canvas = g_viewport.document->canvas;
 
-        rect_t line_rect = {0};
-        line_rect.x0 = prev.x;
-        line_rect.y0 = prev.y;
-        line_rect.x1 = x;
-        line_rect.y1 = y;
+    rect_t line_rect = {0};
+    line_rect.x0     = prev.x;
+    line_rect.y0     = prev.y;
+    line_rect.x1     = x;
+    line_rect.y1     = y;
 
-        draw_line(canvas, line_rect);
+    draw_line(canvas, line_rect);
 
-        prev.x = x;
-        prev.y = y;
+    prev.x = x;
+    prev.y = y;
 
-        #ifdef PEN_OVERLAY
-        ReleaseDC(mEvt.hwnd, hdc);
-        #endif
-    }
+#ifdef PEN_OVERLAY
+    ReleaseDC(mEvt.hwnd, hdc);
+#endif
+  }
 }
 
 void tool_pencil_init()
 {
-  g_tool_pencil.label = L"Pencil";
-  g_tool_pencil.img = 1;
-  g_tool_pencil.onlbuttonup = tool_pencil_onlbuttonup;
+  g_tool_pencil.label         = L"Pencil";
+  g_tool_pencil.img           = 1;
+  g_tool_pencil.onlbuttonup   = tool_pencil_onlbuttonup;
   g_tool_pencil.onlbuttondown = tool_pencil_onlbuttondown;
-  g_tool_pencil.onmousemove = tool_pencil_onmousemove;
+  g_tool_pencil.onmousemove   = tool_pencil_onmousemove;
 }
 
 POINT circCenter;
@@ -395,38 +395,36 @@ void tool_circle_onlbuttondown(MOUSEEVENT mEvt)
 
 void tool_circle_onlbuttonup(MOUSEEVENT mEvt)
 {
-    signed short x = LOWORD(mEvt.lParam);
-    signed short y = HIWORD(mEvt.lParam);
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
 
-    if (fDraw)
-    {
-        #ifdef PEN_OVERLAY
-        HDC hdc;
+  if (fDraw) {
+#ifdef PEN_OVERLAY
+    HDC hdc;
 
-        hdc = GetDC(mEvt.hwnd);
-        MoveToEx(hdc, prev.x, prev.y, NULL);
-        LineTo(hdc, x, y);
-        #endif
+    hdc = GetDC(mEvt.hwnd);
+    MoveToEx(hdc, prev.x, prev.y, NULL);
+    LineTo(hdc, x, y);
+#endif
 
-        int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
+    int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
 
-        canvas_t *canvas = g_viewport.document->canvas;
-        draw_circle(canvas, circCenter.x, circCenter.y, radius);
+    canvas_t* canvas = g_viewport.document->canvas;
+    draw_circle(canvas, circCenter.x, circCenter.y, radius);
 
-        #ifdef PEN_OVERLAY
-        ReleaseDC(mEvt.hwnd, hdc);
-        #endif
-
-    }
-    fDraw = FALSE;
-    ReleaseCapture();
+#ifdef PEN_OVERLAY
+    ReleaseDC(mEvt.hwnd, hdc);
+#endif
+  }
+  fDraw = FALSE;
+  ReleaseCapture();
 }
 
 void tool_circle_init()
 {
-  g_tool_circle.label = L"Circle";
-  g_tool_circle.img = 2;
-  g_tool_circle.onlbuttonup = tool_circle_onlbuttonup;
+  g_tool_circle.label         = L"Circle";
+  g_tool_circle.img           = 2;
+  g_tool_circle.onlbuttonup   = tool_circle_onlbuttonup;
   g_tool_circle.onlbuttondown = tool_circle_onlbuttondown;
 }
 
@@ -443,17 +441,16 @@ void tool_line_onlbuttonup(MOUSEEVENT mEvt)
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
 
-  if (fDraw)
-  {
-      canvas_t* canvas = g_viewport.document->canvas;
+  if (fDraw) {
+    canvas_t* canvas = g_viewport.document->canvas;
 
-      rect_t line_rect = {0};
-      line_rect.x0 = prev.x;
-      line_rect.y0 = prev.y;
-      line_rect.x1 = x;
-      line_rect.y1 = y;
+    rect_t line_rect = {0};
+    line_rect.x0     = prev.x;
+    line_rect.y0     = prev.y;
+    line_rect.x1     = x;
+    line_rect.y1     = y;
 
-      draw_line(canvas, line_rect);
+    draw_line(canvas, line_rect);
   }
   fDraw = FALSE;
   ReleaseCapture();
@@ -461,9 +458,9 @@ void tool_line_onlbuttonup(MOUSEEVENT mEvt)
 
 void tool_line_init()
 {
-  g_tool_line.label = L"Line";
-  g_tool_line.img = 3;
-  g_tool_line.onlbuttonup = tool_line_onlbuttonup;
+  g_tool_line.label         = L"Line";
+  g_tool_line.img           = 3;
+  g_tool_line.onlbuttonup   = tool_line_onlbuttonup;
   g_tool_line.onlbuttondown = tool_line_onlbuttondown;
 }
 
@@ -480,17 +477,15 @@ void tool_rectangle_onlbuttondown(MOUSEEVENT mEvt)
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
 
-  if (fDraw)
-  {
-    canvas_t *canvas = g_viewport.document->canvas;
+  if (fDraw) {
+    canvas_t* canvas = g_viewport.document->canvas;
 
     rect_t rc = {0};
-    rc.x0 = prev.x;
-    rc.y0 = prev.y;
-    rc.x1 = x;
-    rc.y1 = y;
+    rc.x0     = prev.x;
+    rc.y0     = prev.y;
+    rc.x1     = x;
+    rc.y1     = y;
     draw_rectangle(canvas, rc);
-
   }
   fDraw = FALSE;
   ReleaseCapture();
@@ -498,8 +493,8 @@ void tool_rectangle_onlbuttondown(MOUSEEVENT mEvt)
 
 void tool_rectangle_init()
 {
-  g_tool_rectangle.label = L"Rectangle";
-  g_tool_rectangle.img = 4;
-  g_tool_rectangle.onlbuttonup= tool_rectangle_onlbuttonup;
+  g_tool_rectangle.label         = L"Rectangle";
+  g_tool_rectangle.img           = 4;
+  g_tool_rectangle.onlbuttonup   = tool_rectangle_onlbuttonup;
   g_tool_rectangle.onlbuttondown = tool_rectangle_onlbuttondown;
 }

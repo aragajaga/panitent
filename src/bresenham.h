@@ -11,4 +11,4 @@ void bresenham_circle(canvas_t* canvas, int cx, int cy, int radius);
 void bresenham_line(canvas_t* canvas, rect_t rc);
 void bresenham_init();
 
-#endif  /* PANITENT_BRESENHAM_H_ */
+#endif /* PANITENT_BRESENHAM_H_ */

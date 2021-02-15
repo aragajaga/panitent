@@ -14,4 +14,4 @@ BOOL document_close(document_t* doc);
 void document_purge(document_t* doc);
 document_t* document_new(int width, int height);
 
-#endif  /* PANITENT_DOCUMENT_H_ */
+#endif /* PANITENT_DOCUMENT_H_ */

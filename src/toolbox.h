@@ -7,17 +7,18 @@
 
 #define TOOLBOX_WC L"ToolBoxClass"
 
-typedef struct _toolbox_t 
-{
-  tool_t *tools;
+typedef struct _toolbox_t {
+  tool_t* tools;
   unsigned int tool_count;
   HWND hwnd;
 } toolbox_t;
 
-void toolbox_onpaint(toolbox_t *);
+void toolbox_onpaint(toolbox_t*);
 void toolbox_onmousemove(HWND hwnd, LPARAM lParam);
-LRESULT CALLBACK toolbox_wndproc(HWND hwnd, UINT msg, WPARAM wParam,
-    LPARAM lParam);
+LRESULT CALLBACK toolbox_wndproc(HWND hwnd,
+                                 UINT msg,
+                                 WPARAM wParam,
+                                 LPARAM lParam);
 void toolbox_register_class();
 void toolbox_unregister_class();
 
@@ -51,4 +52,4 @@ void tool_text_onlbuttondown(MOUSEEVENT mEvt);
 void tool_text_onmousemove(MOUSEEVENT mEvt);
 void tool_text_init();
 
-#endif  /* PANITENT_TOOLBOX_H */
+#endif /* PANITENT_TOOLBOX_H */

@@ -16,4 +16,4 @@ uint32_t abgr_to_argb(uint32_t abgr);
 void register_palette_dialog(HINSTANCE hInstance);
 void init_palette_window(HWND parent);
 
-#endif  // PANITENT_PALETTE_H_
+#endif /* PANITENT_PALETTE_H_ */

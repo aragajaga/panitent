@@ -16,4 +16,4 @@ void draw_rectangle(canvas_t*, rect_t);
 
 extern primitives_context_t g_primitives_context;
 
-#endif  /* PANITENT_PRIMITIVES_CONTEXT_H_ */
+#endif /* PANITENT_PRIMITIVES_CONTEXT_H_ */

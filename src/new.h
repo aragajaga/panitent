@@ -7,8 +7,10 @@
 
 void NewFileDialog(HWND hwnd);
 void RegisterNewFileDialog();
-LRESULT CALLBACK NewFileDialogWndProc(HWND hWnd, UINT uMsg,
-    WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK NewFileDialogWndProc(HWND hWnd,
+                                      UINT uMsg,
+                                      WPARAM wParam,
+                                      LPARAM lParam);
 void NewFileDialog(HWND hwnd);
 
-#endif  /* PANITENT_NEW_H_ */
+#endif /* PANITENT_NEW_H_ */

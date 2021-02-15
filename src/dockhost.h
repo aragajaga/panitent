@@ -15,13 +15,13 @@ typedef enum {
   DOCK_RIGHT = 1,
   DOCK_TOP,
   DOCK_LEFT,
-  DOCK_BOTTOM
+  DOCK_BOTTOM,
 } dock_side_e;
 
-// TODO Use significant bit
+/* TODO Use significant bit */
 typedef enum {
   GRIP_ALIGN_START,
-  GRIP_ALIGN_END
+  GRIP_ALIGN_END,
 } grip_align_e;
 
 typedef enum {
@@ -64,9 +64,8 @@ extern dock_side_e g_dock_side;
 extern dock_side_e eSuggest;
 extern binary_tree_t* root;
 
-
 ATOM DockHost_Register(HINSTANCE hInstance);
 HWND DockHost_Create(HWND hParent);
-void DockNode_arrange(binary_tree_t* );
+void DockNode_arrange(binary_tree_t*);
 
-#endif  /* DOCK_DOCKHOST_H_ */
+#endif /* DOCK_DOCKHOST_H_ */

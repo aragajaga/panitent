@@ -4,21 +4,21 @@
 #define IDS_STATUS 1330
 
 enum {
-    IDM_FILE_NEW = 1001,
-    IDM_FILE_OPEN,
-    IDM_FILE_SAVE,
-    IDM_FILE_CLOSE,
+  IDM_FILE_NEW = 1001,
+  IDM_FILE_OPEN,
+  IDM_FILE_SAVE,
+  IDM_FILE_CLOSE,
 
-    IDM_EDIT_TESTFILL,
-    IDM_EDIT_CLRCANVAS,
-    IDM_EDIT_WU_LINES,
+  IDM_EDIT_TESTFILL,
+  IDM_EDIT_CLRCANVAS,
+  IDM_EDIT_WU_LINES,
 
-    IDM_WINDOW_TOOLS,
+  IDM_WINDOW_TOOLS,
 
-    IDM_OPTIONS_SETTINGS,
+  IDM_OPTIONS_SETTINGS,
 
-    IDM_HELP_TOPICS,
-    IDM_HELP_ABOUT
+  IDM_HELP_TOPICS,
+  IDM_HELP_ABOUT
 };
 
 typedef struct _panitent {
@@ -32,14 +32,15 @@ typedef struct _mouseevent {
   LPARAM lParam;
 } MOUSEEVENT;
 
-int APIENTRY WinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
-    LPSTR lpCmdLine, int nCmdShow);
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam,
-    LPARAM lParam);
+int APIENTRY WinMain(HINSTANCE hInst,
+                     HINSTANCE hPrevInstance,
+                     LPSTR lpCmdLine,
+                     int nCmdShow);
+LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-void    NewFile();
-HMENU   CreateMainMenu();
-void    UnregisterClasses();
+void NewFile();
+HMENU CreateMainMenu();
+void UnregisterClasses();
 void SetGuiFont(HWND hwnd);
 
 #endif /* PANITENT_PANITENT_H */

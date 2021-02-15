@@ -7,4 +7,4 @@ typedef struct _brush_context {
 
 brush_context_t g_brush_context;
 
-#endif  // PANITENT_BRUSH_CONTEXT_H_
+#endif /* PANITENT_BRUSH_CONTEXT_H_ */

@@ -6,10 +6,10 @@
 
 typedef struct _tool_t {
   wchar_t* label;
-  int img; 
-  void (* onlbuttonup)(MOUSEEVENT mEvt);
-  void (* onlbuttondown)(MOUSEEVENT mEvt);
-  void (* onmousemove)(MOUSEEVENT mEvt);
+  int img;
+  void (*onlbuttonup)(MOUSEEVENT mEvt);
+  void (*onlbuttondown)(MOUSEEVENT mEvt);
+  void (*onmousemove)(MOUSEEVENT mEvt);
 } tool_t;
 
 #endif /* PANITENT_TOOL_H */
