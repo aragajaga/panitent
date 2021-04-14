@@ -47,10 +47,8 @@ void FetchSystemFont()
   hFontSys = hFontNew;
 }
 
-int APIENTRY WinMain(HINSTANCE hInst,
-                     HINSTANCE hPrevInstance,
-                     LPSTR lpCmdLine,
-                     int nCmdShow)
+int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
+    LPWSTR lpCmdLine, int nCmdShow)
 {
   UNREFERENCED_PARAMETER(hPrevInstance)
   UNREFERENCED_PARAMETER(lpCmdLine)

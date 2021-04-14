@@ -5,7 +5,6 @@ if(MINGW)
     # Optimization flags
     set(CMAKE_C_FLAGS_RELEASE "-O2")
     set(CMAKE_C_FLAGS_DEBUG "-g -O0")
-    add_compile_options(-Wall -Wextra -pedantic -Werror -Wno-unused)
 
     # Set windres as resource compiler
     set(CMAKE_RC_COMPILER_INIT windres)
@@ -38,5 +37,14 @@ if(MSVC)
     set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 endif(MSVC)
 
-add_executable(${PROJECT_NAME} ${SOURCE_EXE})
+add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
+
+if (MINGW)
+  target_compile_definitions(${PROJECT_NAME} PUBLIC _UNICODE UNICODE)
+  target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic
+      -Werror -Wno-unused)
+  target_link_options(${PROJECT_NAME} PRIVATE -municode)
+endif(MINGW)
+
 target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme)
+
