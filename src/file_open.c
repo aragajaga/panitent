@@ -5,8 +5,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wchar.h>
+#include <assert.h>
 
 #include "file_open.h"
+
+#define SAFE_RELEASE(obj) \
+if ((obj) != NULL) { \
+  (obj)->lpVtbl->Release(obj); \
+  (obj) = NULL; \
+}
 
 /*
 #include <png.h>
@@ -74,89 +81,148 @@ void FileOpenPng(LPWSTR pszPath)
   */
 }
 
-COMDLG_FILTERSPEC c_rgSaveTypes[1] = {{L"Portable Network Graphics", L"*.png"}};
+COMDLG_FILTERSPEC c_rgReadTypes[2] = {
+  {L"Windows/OS2 Bitmap", L"*.bmp"},
+  {L"Portable Network Graphics", L"*.png"},
+};
+
+COMDLG_FILTERSPEC c_rgSaveTypes[4] = {
+  {L"Windows/OS2 Bitmap", L"*.bmp"},
+  {L"Joint Picture Expert Group (JPEG)", L"*.jpg"},
+  {L"Portable Network Graphics", L"*.png"},
+  {L"Raw binary", L"*.*"}
+};
 
 int init_open_file_dialog()
 {
-  HRESULT hr = CoInitialize(NULL);
-  if (SUCCEEDED(hr)) {
-    IFileDialog* pfd = NULL;
+  HRESULT hr = S_OK;
 
-    hr = CoCreateInstance(&CLSID_FileOpenDialog,
-                          NULL,
-                          CLSCTX_INPROC_SERVER,
-                          &IID_IFileDialog,
-                          (void**)(&pfd));
-
-    if (SUCCEEDED(hr)) {
-      hr = pfd->lpVtbl->SetFileTypes(pfd,
-                                     ARRAYSIZE(c_rgSaveTypes),
-                                     c_rgSaveTypes);
-      if (SUCCEEDED(hr)) {
-        hr = pfd->lpVtbl->Show(pfd, NULL);
-        if (SUCCEEDED(hr)) {
-          IShellItem* psiResult;
-          hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
-          if (SUCCEEDED(hr)) {
-            PWSTR pszFilePath = NULL;
-
-            hr = psiResult->lpVtbl->GetDisplayName(psiResult,
-                                                   SIGDN_FILESYSPATH,
-                                                   &pszFilePath);
-            if (SUCCEEDED(hr)) {
-              wprintf(L"[FileOpen] Path: %ls\n", pszFilePath);
-              FileOpenPng(pszFilePath);
-              CoTaskMemFree(pszFilePath);
-            }
-            psiResult->lpVtbl->Release(psiResult);
-          }
-        }
-      }
-      pfd->lpVtbl->Release(pfd);
-    }
+  hr = CoInitialize(NULL);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"CoInitialize failed");
+    goto fail;
   }
+
+  IFileDialog* pfd = NULL;
+  hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
+      &IID_IFileDialog, (LPVOID)&pfd);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"CoCreateInstance FileOpenDialog failed");
+    goto fail;
+  }
+
+  hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgReadTypes), c_rgReadTypes);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileOpenDialog::SetFileType failed");
+    goto fail;
+  }
+
+  hr = pfd->lpVtbl->Show(pfd, NULL);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileOpenDialog::Show failed");
+    goto fail;
+  }
+
+  IShellItem* psiResult = NULL;
+  hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileOpenDialog::GetResult failed");
+    goto fail;
+  }
+  
+  LPWSTR pszFilePath = NULL;
+  hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH,
+      &pszFilePath);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"GetResult failed");
+    goto fail;
+  }
+
+  MessageBox(NULL, pszFilePath, pszFilePath, MB_OK);
+  CoTaskMemFree(pszFilePath);
+
+fail:
+
+  SAFE_RELEASE(psiResult)
+  SAFE_RELEASE(pfd)
 
   return 0;
 }
 
 int init_save_file_dialog()
 {
-  HRESULT hr = CoInitialize(NULL);
-  if (SUCCEEDED(hr)) {
-    IFileDialog* pfd = NULL;
+  HRESULT hr = S_OK;
 
-    hr = CoCreateInstance(&CLSID_FileSaveDialog,
-                          NULL,
-                          CLSCTX_INPROC_SERVER,
-                          &IID_IFileDialog,
-                          (void**)(&pfd));
-
-    if (SUCCEEDED(hr)) {
-      hr = pfd->lpVtbl->SetFileTypes(pfd,
-                                     ARRAYSIZE(c_rgSaveTypes),
-                                     c_rgSaveTypes);
-      if (SUCCEEDED(hr)) {
-        hr = pfd->lpVtbl->Show(pfd, NULL);
-        if (SUCCEEDED(hr)) {
-          IShellItem* psiResult;
-          hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
-          if (SUCCEEDED(hr)) {
-            PWSTR pszFilePath = NULL;
-
-            hr = psiResult->lpVtbl->GetDisplayName(psiResult,
-                                                   SIGDN_FILESYSPATH,
-                                                   &pszFilePath);
-            if (SUCCEEDED(hr)) {
-              MessageBoxW(NULL, pszFilePath, pszFilePath, MB_OK);
-              CoTaskMemFree(pszFilePath);
-            }
-            psiResult->lpVtbl->Release(psiResult);
-          }
-        }
-      }
-      pfd->lpVtbl->Release(pfd);
-    }
+  hr = CoInitialize(NULL);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"CoInitialize failed");
+    goto fail;
   }
+
+  IFileDialog* pfd = NULL;
+  hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
+      &IID_IFileDialog, (LPVOID)&pfd);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"CoCreateInstance FileSaveDialog failed");
+    goto fail;
+  }
+
+  hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileSaveDialog::SetFileTypes failed");
+    goto fail;
+  }
+
+  hr = pfd->lpVtbl->Show(pfd, NULL);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileSaveDialog::Show failed");
+    goto fail;
+  }
+
+  IShellItem* psiResult = NULL;
+  hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileSaveDialog::GetResult failed");
+    goto fail;
+  }
+
+  LPWSTR pszFilePath = NULL;
+  hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH,
+      &pszFilePath);
+  if (FAILED(hr))
+  {
+    assert(SUCCEEDED(hr));
+    OutputDebugString(L"FileSaveDialog::GetResult failed");
+    goto fail;
+  }
+  MessageBox(NULL, pszFilePath, pszFilePath, MB_OK);
+  CoTaskMemFree(pszFilePath);
+
+fail:
+  SAFE_RELEASE(psiResult)
+  SAFE_RELEASE(pfd)
 
   return 0;
 }
