@@ -220,23 +220,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case IDM_EDIT_CLRCANVAS:
       canvas_clear(g_viewport.document->canvas);
       break;
-    case IDM_EDIT_WU_LINES:
-      MessageBox(NULL, L"Obsolete, sorry.", L"panit.ent", MB_OK);
-      break;
     case IDM_WINDOW_TOOLS:
       CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
                     IDM_WINDOW_TOOLS,
                     IsWindowVisible(hwndToolShelf) ? MF_UNCHECKED : MF_CHECKED);
       ShowWindow(hwndToolShelf,
                  IsWindowVisible(hwndToolShelf) ? SW_HIDE : SW_SHOW);
-      break;
-    case IDM_HELP_TOPICS:
-      ShellExecute(hWnd,
-                   L"open",
-                   L"https://github.com/Aragajaga/panitent/wiki",
-                   0,
-                   0,
-                   SW_SHOWNORMAL);
       break;
     case IDM_OPTIONS_SETTINGS:
       ShowSettingsWindow(hWnd);
