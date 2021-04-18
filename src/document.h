@@ -7,11 +7,14 @@
 typedef struct _document {
   char* location;
   canvas_t* canvas;
+  LPWSTR szFilePath;
 } document_t;
 
 void document_save(document_t* doc);
+void document_open(document_t* doc);
 BOOL document_close(document_t* doc);
 void document_purge(document_t* doc);
 document_t* document_new(int width, int height);
+BOOL Document_IsFilePathSet(document_t* doc);
 
 #endif /* PANITENT_DOCUMENT_H_ */

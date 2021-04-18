@@ -93,7 +93,12 @@ COMDLG_FILTERSPEC c_rgSaveTypes[4] = {
   {L"Raw binary", L"*.*"}
 };
 
-int init_open_file_dialog()
+void CoStringDtor(void* str)
+{
+  CoTaskMemFree(str);
+}
+
+void* init_open_file_dialog()
 {
   HRESULT hr = S_OK;
 
@@ -150,15 +155,13 @@ int init_open_file_dialog()
     goto fail;
   }
 
-  MessageBox(NULL, pszFilePath, pszFilePath, MB_OK);
-  CoTaskMemFree(pszFilePath);
+  void* s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
-
   SAFE_RELEASE(psiResult)
   SAFE_RELEASE(pfd)
 
-  return 0;
+  return s;
 }
 
 int init_save_file_dialog()

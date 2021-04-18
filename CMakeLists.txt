@@ -31,6 +31,8 @@ set(SOURCE_EXE
     src/toolbox.c
     src/viewport.c
     src/wu_primitives.c
+    src/smartptr.c
+    src/wic.c
     res/panitent.rc)
     
 if(MSVC)
@@ -46,5 +48,6 @@ if (MINGW)
   target_link_options(${PROJECT_NAME} PRIVATE -municode)
 endif(MINGW)
 
-target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme)
+target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme
+    windowscodecs)
 

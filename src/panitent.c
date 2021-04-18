@@ -25,6 +25,8 @@ panitent_t g_panitent;
 
 HFONT hFontSys;
 
+const WCHAR szAppName[] = L"Panit.ent";
+
 void FetchSystemFont()
 {
   NONCLIENTMETRICS ncm = {0};
@@ -93,9 +95,9 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   AppWnd_RegisterClass(hInstance);
 
   /* Создание главного окна приложения */
-  HWND hwnd = CreateWindowEx(0, szAppWndClass, L"panit.ent",
-      WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-      CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
+  HWND hwnd = CreateWindowEx(0, szAppWndClass, szAppName, WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL,
+      hInstance, NULL);
 
   g_panitent.hwnd_main = hwnd;
 
@@ -206,10 +208,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       NewFileDialog(hWnd);
       break;
     case IDM_FILE_OPEN:
-      init_open_file_dialog();
+      // init_open_file_dialog();
+      document_open(g_viewport.document);
       break;
     case IDM_FILE_SAVE:
-      init_save_file_dialog();
+      document_save(g_viewport.document);
       break;
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);

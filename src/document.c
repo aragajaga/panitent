@@ -5,11 +5,52 @@
 #include "canvas.h"
 #include "panitent.h"
 #include "dockhost.h"
+#include "file_open.h"
+#include "smartptr.h"
+#include "wic.h"
+#include <stdio.h>
+
+extern const WCHAR szAppName[];
+
+BOOL Document_IsFilePathSet(document_t* doc)
+{
+  return doc->szFilePath != NULL;
+}
+
+void document_open(document_t* prevDoc)
+{
+  void* s = init_open_file_dialog();
+
+  LPWSTR pszFileName = (LPWSTR)sptr_get(s);
+  MessageBox(NULL, pszFileName, L"Open", MB_OK);
+  ImageBuffer ib = ImageFileReader(pszFileName);
+  
+  document_t* doc = calloc(1, sizeof(document_t));
+
+  canvas_t* canvas = malloc(sizeof(canvas_t));
+  canvas->width       = ib.width;
+  canvas->height      = ib.height;
+  canvas->color_depth = 4;
+  canvas->buffer_size = ib.size;
+  canvas->buffer      = ib.bits;
+  doc->canvas = canvas;
+
+  viewport_set_document(doc);
+
+  sptr_free(s);
+}
 
 void document_save(document_t* doc)
 {
-  (void)doc;
-  /* TODO */
+  if (!Document_IsFilePathSet(doc))
+  {
+    init_save_file_dialog(); 
+  }
+
+  const void* buffer = canvas_get_buffer(doc->canvas);
+  FILE* f = fopen("data.raw", "wb");
+  fwrite(buffer, doc->canvas->buffer_size, 1, f);
+  fclose(f);
 }
 
 void document_purge(document_t* doc)
@@ -21,7 +62,7 @@ BOOL document_close(document_t* doc)
 {
   int answer = MessageBox(NULL,
                           L"Do you want to save changes?",
-                          L"panit.ent",
+                          szAppName,
                           MB_YESNOCANCEL | MB_ICONWARNING);
 
   switch (answer) {

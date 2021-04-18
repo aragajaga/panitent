@@ -128,3 +128,8 @@ void canvas_fill_solid(canvas_t* canvas, uint32_t color)
 
   viewport_invalidate();
 }
+
+const void* canvas_get_buffer(canvas_t* canvas)
+{
+  return canvas->buffer; 
+}

@@ -42,5 +42,6 @@ uint32_t mix(uint32_t color1, uint32_t color2);
 void* canvas_buffer_alloc(canvas_t* canvas);
 void canvas_delete(canvas_t* canvas);
 void canvas_clear(canvas_t* canvas);
+const void* canvas_get_buffer(canvas_t*);
 
 #endif /* PANITENT_CANVAS_H_ */
