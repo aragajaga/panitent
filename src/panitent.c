@@ -103,6 +103,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   SetMenu(hwnd, hMenu);
 
   MSG msg;
+  ZeroMemory(&msg, sizeof(MSG));
   while (GetMessage(&msg, NULL, 0, 0)) {
     DispatchMessage(&msg);
     TranslateMessage(&msg);
