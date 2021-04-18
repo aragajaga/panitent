@@ -47,6 +47,22 @@ void FetchSystemFont()
   hFontSys = hFontNew;
 }
 
+const WCHAR szAppWndClass[] = L"Win32Class_PanitentWnd";
+
+BOOL AppWnd_RegisterClass(HINSTANCE hInstance)
+{
+  WNDCLASSEX wcex = {0};
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = (WNDPROC)WndProc;
+  wcex.hInstance = hInstance;
+  wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
+  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+  wcex.lpszClassName = szAppWndClass;
+
+  return RegisterClassEx(&wcex);
+}
+
 int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
     LPWSTR lpCmdLine, int nCmdShow)
 {
@@ -74,30 +90,13 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   HMENU hMenu = CreateMainMenu();
 
   /* Регистрация класса главного окна приложения */
-  WNDCLASSEX wcex    = {0};
-  wcex.cbSize        = sizeof(wcex);
-  wcex.style         = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc   = (WNDPROC)WndProc;
-  wcex.hInstance     = hInstance;
-  wcex.hIcon         = LoadIcon(hInst, MAKEINTRESOURCE(IDI_ICON));
-  wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wcex.lpszClassName = L"WindowClass";
-  RegisterClassEx(&wcex);
+  AppWnd_RegisterClass(hInstance);
 
   /* Создание главного окна приложения */
-  HWND hwnd            = CreateWindowEx(0,
-                             L"WindowClass",
-                             L"panit.ent",
-                             WS_OVERLAPPEDWINDOW,
-                             CW_USEDEFAULT,
-                             CW_USEDEFAULT,
-                             CW_USEDEFAULT,
-                             CW_USEDEFAULT,
-                             NULL,
-                             NULL,
-                             hInstance,
-                             NULL);
+  HWND hwnd = CreateWindowEx(0, szAppWndClass, L"panit.ent",
+      WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+      CW_USEDEFAULT, NULL, NULL, hInstance, NULL);
+
   g_panitent.hwnd_main = hwnd;
 
   ShowWindow(hwnd, nCmdShow);
