@@ -164,7 +164,7 @@ fail:
   return s;
 }
 
-int init_save_file_dialog()
+void* init_save_file_dialog()
 {
   HRESULT hr = S_OK;
 
@@ -220,12 +220,12 @@ int init_save_file_dialog()
     OutputDebugString(L"FileSaveDialog::GetResult failed");
     goto fail;
   }
-  MessageBox(NULL, pszFilePath, pszFilePath, MB_OK);
-  CoTaskMemFree(pszFilePath);
+
+  void* s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)
   SAFE_RELEASE(pfd)
 
-  return 0;
+  return s;
 }

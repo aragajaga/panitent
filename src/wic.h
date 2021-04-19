@@ -10,5 +10,6 @@ typedef struct _tagImageBuffer {
 } ImageBuffer;
 
 ImageBuffer ImageFileReader(LPWSTR szFilePath);
+void ImageFileWriter(LPWSTR, ImageBuffer);
 
 #endif  /* WIC_H */

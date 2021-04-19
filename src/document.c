@@ -42,15 +42,23 @@ void document_open(document_t* prevDoc)
 
 void document_save(document_t* doc)
 {
-  if (!Document_IsFilePathSet(doc))
-  {
-    init_save_file_dialog(); 
-  }
-
+  void* s = init_save_file_dialog(); 
+  /*
   const void* buffer = canvas_get_buffer(doc->canvas);
   FILE* f = fopen("data.raw", "wb");
   fwrite(buffer, doc->canvas->buffer_size, 1, f);
   fclose(f);
+  */
+
+  canvas_t* c = doc->canvas;
+  ImageBuffer ib  = {0};
+  ib.width        = c->width;
+  ib.height       = c->height;
+  ib.bits         = c->buffer;
+  ib.size         = c->buffer_size;
+
+  ImageFileWriter(sptr_get(s), ib);
+  sptr_deref(s);
 }
 
 void document_purge(document_t* doc)

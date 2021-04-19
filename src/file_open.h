@@ -11,6 +11,6 @@
 
 void FileOpenPng(LPWSTR pszPath);
 void* init_open_file_dialog();
-int init_save_file_dialog();
+void* init_save_file_dialog();
 
 #endif /* PANITENT_FILE_OPEN_H */
