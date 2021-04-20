@@ -101,6 +101,7 @@ void CoStringDtor(void* str)
 void* init_open_file_dialog()
 {
   HRESULT hr = S_OK;
+  void* s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
@@ -155,7 +156,7 @@ void* init_open_file_dialog()
     goto fail;
   }
 
-  void* s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
+  s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)
@@ -167,6 +168,7 @@ fail:
 void* init_save_file_dialog()
 {
   HRESULT hr = S_OK;
+  void* s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
@@ -221,7 +223,7 @@ void* init_save_file_dialog()
     goto fail;
   }
 
-  void* s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
+  s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)
