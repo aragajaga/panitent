@@ -98,10 +98,10 @@ void CoStringDtor(void* str)
   CoTaskMemFree(str);
 }
 
-void* init_open_file_dialog()
+crefptr_t init_open_file_dialog()
 {
   HRESULT hr = S_OK;
-  void* s = NULL;
+  crefptr_t s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
@@ -156,7 +156,7 @@ void* init_open_file_dialog()
     goto fail;
   }
 
-  s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
+  s = crefptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)
@@ -165,10 +165,10 @@ fail:
   return s;
 }
 
-void* init_save_file_dialog()
+crefptr_t init_save_file_dialog()
 {
   HRESULT hr = S_OK;
-  void* s = NULL;
+  crefptr_t s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
@@ -223,7 +223,7 @@ void* init_save_file_dialog()
     goto fail;
   }
 
-  s = sptr_new((LPVOID)pszFilePath, CoStringDtor);
+  s = crefptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)

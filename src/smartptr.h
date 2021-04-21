@@ -1,9 +1,11 @@
-#ifndef SMARTPTR_H
-#define SMARTPTR_H
+#ifndef CREFPTR_H
+#define CREFPTR_H
 
-void* sptr_get(void*);
-void sptr_deref(void* s);
-void* sptr_new(void* ptr, void (*)(void*));
-void sptr_free(void* s);
+typedef void* crefptr_t;
 
-#endif  /* SMARTPTR_H */
+crefptr_t crefptr_get(crefptr_t);
+void crefptr_deref(crefptr_t);
+crefptr_t crefptr_new(crefptr_t, void (*)(crefptr_t));
+void crefptr_free(crefptr_t);
+
+#endif  /* CREFPTR_H */
