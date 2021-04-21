@@ -31,7 +31,7 @@ set(SOURCE_EXE
     src/toolbox.c
     src/viewport.c
     src/wu_primitives.c
-    src/smartptr.c
+    src/crefptr.c
     src/wic.c
     res/panitent.rc)
     

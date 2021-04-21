@@ -6,7 +6,7 @@
 #include "panitent.h"
 #include "dockhost.h"
 #include "file_open.h"
-#include "smartptr.h"
+#include "crefptr.h"
 #include "wic.h"
 #include <stdio.h>
 

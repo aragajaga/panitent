@@ -5,7 +5,7 @@
 
 #include <initguid.h>
 #include <shlwapi.h>
-#include "smartptr.h"
+#include "crefptr.h"
 
 #define INDEX_PNG 1
 
