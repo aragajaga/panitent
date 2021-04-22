@@ -84,6 +84,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   toolbox_register_class();
   register_palette_dialog(hInstance);
   option_bar_register_class(hInstance);
+  SettingsWindow_Register(hInstance);
 
   bresenham_init();
   wu_init();
