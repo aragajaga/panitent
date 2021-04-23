@@ -13,6 +13,7 @@
 #include "viewport.h"
 #include "canvas.h"
 #include "debug.h"
+#include "resource.h"
 
 extern viewport_t g_viewport;
 
@@ -54,12 +55,8 @@ void toolbox_init(toolbox_t* tbox)
 
   g_tool = g_tool_pointer;
 
-  img_layout = (HBITMAP)LoadImage(GetModuleHandle(NULL),
-                                  L"tool.bmp",
-                                  IMAGE_BITMAP,
-                                  0,
-                                  0,
-                                  LR_LOADFROMFILE);
+  img_layout = (HBITMAP)LoadBitmap(GetModuleHandle(NULL),
+      MAKEINTRESOURCE(IDB_TOOLS));
 
   tbox->tools      = calloc(sizeof(tool_t), 8);
   tbox->tool_count = 0;
