@@ -25,7 +25,7 @@ void wu_draw_circle(canvas_t* canvas, int cx, int cy, int radius)
     if (dist < t)
       x--;
 
-    float alpha = dist / 2;
+    float alpha = 1 - dist / 2;
 
     canvas_plot(canvas, cx + x, cy + y, 1);
     canvas_plot(canvas, cx + x - 1, cy + y, alpha);
