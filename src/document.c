@@ -19,7 +19,7 @@ BOOL Document_IsFilePathSet(document_t* doc)
 
 void document_open(document_t* prevDoc)
 {
-  crefptr_t s = init_open_file_dialog();
+  crefptr_t* s = init_open_file_dialog();
 
   LPWSTR pszFileName = (LPWSTR)crefptr_get(s);
   MessageBox(NULL, pszFileName, L"Open", MB_OK);
@@ -37,12 +37,12 @@ void document_open(document_t* prevDoc)
 
   viewport_set_document(doc);
 
-  crefptr_free(s);
+  crefptr_deref(s);
 }
 
 void document_save(document_t* doc)
 {
-  crefptr_t s = init_save_file_dialog();
+  crefptr_t* s = init_save_file_dialog();
   /*
   const void* buffer = canvas_get_buffer(doc->canvas);
   FILE* f = fopen("data.raw", "wb");

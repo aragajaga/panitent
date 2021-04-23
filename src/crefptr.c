@@ -1,41 +1,37 @@
 #include "crefptr.h"
 #include <stdlib.h>
 
-typedef struct _crefptr_t{
+struct crefptr {
   int refCount;
-  void* ptr;
+  void* data;
   void (*dtor)(void*);
-} crefptr_t_;
+};
 
-crefptr_t crefptr_get(crefptr_t s)
+void* crefptr_get(crefptr_t* ptr)
 {
-  crefptr_t_* s_ = (crefptr_t_*)s;
-
-  s_->refCount++;
-  return s_->ptr;
+  ptr->refCount++;
+  return ptr->data;
 }
 
-void crefptr_deref(crefptr_t s)
+void crefptr_ref(crefptr_t* ptr)
 {
-  crefptr_t_* s_ = (crefptr_t_*)s;
-
-  if (!--s_->refCount)
-    s_->dtor(s_->ptr);
+  ++ptr->refCount;
 }
 
-crefptr_t crefptr_new(crefptr_t ptr, void (*dtor)(crefptr_t))
+void crefptr_deref(crefptr_t* ptr)
 {
-  crefptr_t_* s = malloc(sizeof(crefptr_t_));
+  if (!--ptr->refCount)
+  {
+    ptr->dtor(ptr->data);
+    free(ptr);
+  }
+}
+
+crefptr_t* crefptr_new(void* ptr, void (*dtor)(void* ptr))
+{
+  crefptr_t* s = malloc(sizeof(crefptr_t));
   s->refCount = 0;
-  s->ptr = ptr;
+  s->data = ptr;
   s->dtor = dtor;
   return s;
-}
-
-void crefptr_free(crefptr_t s)
-{
-  crefptr_t_* s_ = (crefptr_t_*)s;
-
-  s_->dtor(s_->ptr);
-  free(s);
 }

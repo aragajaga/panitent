@@ -1,11 +1,11 @@
 #ifndef CREFPTR_H
 #define CREFPTR_H
 
-typedef void* crefptr_t;
+typedef struct crefptr crefptr_t;
 
-crefptr_t crefptr_get(crefptr_t);
-void crefptr_deref(crefptr_t);
-crefptr_t crefptr_new(crefptr_t, void (*)(crefptr_t));
-void crefptr_free(crefptr_t);
+void* crefptr_get(crefptr_t* ptr);
+void crefptr_ref(crefptr_t* ptr);
+void crefptr_deref(crefptr_t* ptr);
+crefptr_t* crefptr_new(void* ptr, void (*)(void* ptr));
 
 #endif  /* CREFPTR_H */
