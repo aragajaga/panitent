@@ -3,13 +3,13 @@
 
 IDI_ICON ICON "panitent.ico"
 #ifdef __MINGW32__
-2 RT_MANIFEST "panitent.exe.manifest"
+1 RT_MANIFEST "panitent.exe.manifest"
 #endif
 
 IDB_TOOLS     BITMAP "tool.bmp"
 IDB_CLOSEBTN  BITMAP "close.bmp"
 
-1 VERSIONINFO
+2 VERSIONINFO
 FILEVERSION     1,0,0,0
 PRODUCTVERSION  1,0,0,0
 FILEOS          VOS_NT
