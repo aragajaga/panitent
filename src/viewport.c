@@ -121,6 +121,18 @@ void viewport_onpaint(HWND hwnd)
 
   hdc = BeginPaint(hwnd, &ps);
   gdi_blit_canvas(hdc, 0, 0, g_viewport.document->canvas);
+  /*
+  RECT rc = {0};
+  rc.left = 0;
+  rc.top = 0;
+  rc.right = g_viewport.document->canvas->width + 1;
+  rc.bottom = g_viewport.document->canvas->height + 1;
+  */
+
+  MoveToEx(hdc, g_viewport.document->canvas->width, 0, NULL);
+  LineTo(hdc, g_viewport.document->canvas->width,
+      g_viewport.document->canvas->height);
+  LineTo(hdc, 0, g_viewport.document->canvas->height);
   EndPaint(hwnd, &ps);
 }
 
