@@ -6,7 +6,7 @@
 #include "panitent.h"
 #include "dockhost.h"
 #include "file_open.h"
-#include "smartptr.h"
+#include "crefptr.h"
 #include "wic.h"
 #include <stdio.h>
 
@@ -19,9 +19,9 @@ BOOL Document_IsFilePathSet(document_t* doc)
 
 void document_open(document_t* prevDoc)
 {
-  void* s = init_open_file_dialog();
+  crefptr_t* s = init_open_file_dialog();
 
-  LPWSTR pszFileName = (LPWSTR)sptr_get(s);
+  LPWSTR pszFileName = (LPWSTR)crefptr_get(s);
   MessageBox(NULL, pszFileName, L"Open", MB_OK);
   ImageBuffer ib = ImageFileReader(pszFileName);
   
@@ -37,12 +37,12 @@ void document_open(document_t* prevDoc)
 
   viewport_set_document(doc);
 
-  sptr_free(s);
+  crefptr_deref(s);
 }
 
 void document_save(document_t* doc)
 {
-  void* s = init_save_file_dialog(); 
+  crefptr_t* s = init_save_file_dialog();
   /*
   const void* buffer = canvas_get_buffer(doc->canvas);
   FILE* f = fopen("data.raw", "wb");
@@ -57,8 +57,8 @@ void document_save(document_t* doc)
   ib.bits         = c->buffer;
   ib.size         = c->buffer_size;
 
-  ImageFileWriter(sptr_get(s), ib);
-  sptr_deref(s);
+  ImageFileWriter(crefptr_get(s), ib);
+  crefptr_deref(s);
 }
 
 void document_purge(document_t* doc)
