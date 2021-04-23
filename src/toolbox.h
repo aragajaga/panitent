@@ -53,5 +53,6 @@ void tool_text_onmousemove(MOUSEEVENT mEvt);
 void tool_text_init();
 
 void tool_fill_init();
+void tool_picker_init();
 
 #endif /* PANITENT_TOOLBOX_H */

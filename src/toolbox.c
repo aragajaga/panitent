@@ -33,6 +33,7 @@ tool_t g_tool_pointer;
 tool_t g_tool_rectangle;
 tool_t g_tool_text;
 tool_t g_tool_fill;
+tool_t g_tool_picker;
 
 static BOOL fDraw = FALSE;
 static POINT prev;
@@ -61,6 +62,7 @@ void toolbox_init(toolbox_t* tbox)
   tool_rectangle_init();
   tool_text_init();
   tool_fill_init();
+  tool_picker_init();
 
   g_tool = g_tool_pointer;
 
@@ -77,6 +79,7 @@ void toolbox_init(toolbox_t* tbox)
   toolbox_add_tool(tbox, g_tool_rectangle);
   toolbox_add_tool(tbox, g_tool_text);
   toolbox_add_tool(tbox, g_tool_fill);
+  toolbox_add_tool(tbox, g_tool_picker);
 }
 
 HTHEME hTheme = NULL;
@@ -203,6 +206,9 @@ void toolbox_onlbuttonup(toolbox_t* tbox, MOUSEEVENT mEvt)
         break;
       case 6:
         g_tool = g_tool_fill;
+        break;
+      case 7:
+        g_tool = g_tool_picker;
         break;
       default:
         g_tool = g_tool_pointer;
@@ -671,6 +677,15 @@ void queue_delete(queue_t* q)
 }
 #endif
 
+void tool_picker_onlbuttonup(MOUSEEVENT mEvt)
+{
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
+
+  uint32_t color = canvas_get_pixel(g_viewport.document->canvas, x, y);
+  g_color_context.fg_color = color;
+}
+
 void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
 {
   signed short x = LOWORD(mEvt.lParam);
@@ -771,4 +786,11 @@ void tool_fill_init()
   g_tool_fill.label = L"Flood fill";
   g_tool_fill.img = 8;
   g_tool_fill.onlbuttonup = tool_fill_onlbuttonup;
+}
+
+void tool_picker_init()
+{
+  g_tool_picker.label = L"Color picker";
+  g_tool_picker.img = 9;
+  g_tool_picker.onlbuttonup = tool_picker_onlbuttonup;
 }
