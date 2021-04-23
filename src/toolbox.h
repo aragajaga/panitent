@@ -52,4 +52,6 @@ void tool_text_onlbuttondown(MOUSEEVENT mEvt);
 void tool_text_onmousemove(MOUSEEVENT mEvt);
 void tool_text_init();
 
+void tool_fill_init();
+
 #endif /* PANITENT_TOOLBOX_H */
