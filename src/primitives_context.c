@@ -6,6 +6,7 @@
 #include "viewport.h"
 
 primitives_context_t g_primitives_context;
+unsigned int g_thickness = 1;
 
 void draw_rectangle(canvas_t* canvas, rect_t rc)
 {
@@ -40,6 +41,22 @@ void draw_circle(canvas_t* canvas, int cx, int cy, int radius)
 void draw_line(canvas_t* canvas, rect_t rc)
 {
   printf("[BoundingTest] x: %d, y: %d\n", rc.x1, rc.y1);
-  g_primitives_context.line(canvas, rc);
+
+  rc.x0 -= g_thickness / 2;
+  rc.y0 -= g_thickness / 2;
+  rc.x1 += g_thickness / 2;
+  rc.y1 += g_thickness / 2;
+
+  for (size_t i = 0; i < g_thickness; i++)
+  {
+    g_primitives_context.line(canvas, rc);
+    rc.x0++;
+    rc.y0++;
+  }
   viewport_invalidate();
+}
+
+void SetThickness(unsigned int thickness)
+{
+  g_thickness = thickness;
 }

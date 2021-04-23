@@ -13,6 +13,7 @@ typedef struct _primitives_context {
 void draw_circle(canvas_t* canvas, int cx, int cy, int radius);
 void draw_line(canvas_t* canvas, rect_t rc);
 void draw_rectangle(canvas_t*, rect_t);
+void SetThickness(unsigned int);
 
 extern primitives_context_t g_primitives_context;
 

@@ -10,17 +10,34 @@
 option_bar_t g_option_bar;
 
 #define IDCB_STENCIL_ALGORITHM 1553
+#define IDCB_THICKNESS 1554
 
 void option_bar_oncommand(WPARAM wparam, LPARAM lparam)
 {
+  if (HIWORD(wparam) != LBN_SELCHANGE)
+    return;
+
+  switch (LOWORD(wparam))
+  {
+    case IDCB_STENCIL_ALGORITHM:
+      switch (ComboBox_GetCurSel((HWND)lparam))
+      {
+        case 0:
+          g_primitives_context = g_bresenham_primitives;
+          break;
+        case 1:
+          g_primitives_context = g_wu_primitives;
+          break;
+      }
+      break;
+    case IDCB_THICKNESS:
+      SetThickness(ComboBox_GetCurSel((HWND)lparam) + 1);
+      break;
+  }
+
   if (LOWORD(wparam) == IDCB_STENCIL_ALGORITHM &&
       HIWORD(wparam) == LBN_SELCHANGE) {
     switch (ComboBox_GetCurSel((HWND)lparam)) {
-    case 0:
-      g_primitives_context = g_bresenham_primitives;
-      break;
-    case 1:
-      g_primitives_context = g_wu_primitives;
       break;
     default:
       break;
@@ -54,12 +71,26 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd,
     ComboBox_AddString(hcombo, L"Bresenham");
     ComboBox_AddString(hcombo, L"Wu");
 
+    HWND hComboThickness= CreateWindowEx(0, WC_COMBOBOX, L"",
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
+        WS_VISIBLE,
+        180, 3, 100, 20,
+        hwnd, (HMENU)IDCB_THICKNESS, GetModuleHandle(NULL), NULL);
+    SetGuiFont(hComboThickness);
+
+    WCHAR szThickness[4];
+    for (size_t i = 1; i <= 10; ++i)
+    {
+      _itow_s(i, szThickness, 4, 10);
+      ComboBox_AddString(hComboThickness, szThickness);
+    }
+
     HWND hedit =
         CreateWindowEx(0,
                        WC_EDIT,
                        L"Sample Text",
                        WS_BORDER | WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-                       180,
+                       296,
                        3,
                        140,
                        20,
