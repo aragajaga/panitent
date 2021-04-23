@@ -14,6 +14,8 @@
 #include "canvas.h"
 #include "debug.h"
 #include "resource.h"
+#include "color_context.h"
+#include "palette.h"
 
 extern viewport_t g_viewport;
 
@@ -267,13 +269,23 @@ void tool_text_onlbuttonup(MOUSEEVENT mEvt)
   HDC viewportdc = GetDC(g_viewport.hwnd);
   HDC bitmapdc   = CreateCompatibleDC(viewportdc);
 
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
+
   wchar_t textbuf[1024];
+  DWORD textLen = 0;
   GetWindowText(g_option_bar.textstring_handle,
                 textbuf,
                 sizeof(textbuf) / sizeof(wchar_t));
+  textLen = wcslen(textbuf);
+
+  HFONT hFont = CreateFont(24, 0, 0, 0, 600, FALSE, FALSE, FALSE,
+      DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
+      DEFAULT_PITCH, L"Arial");
+  HGDIOBJ hOldFont = SelectObject(bitmapdc, hFont);
 
   SIZE size = {0};
-  GetTextExtentPoint32(bitmapdc, textbuf, -1, &size);
+  GetTextExtentPoint32(bitmapdc, textbuf, textLen, &size);
   RECT textrc = {0, 0, size.cx, size.cy};
 
   uint8_t* bmbuf = calloc(size.cx * size.cy, sizeof(uint32_t));
@@ -281,10 +293,26 @@ void tool_text_onlbuttonup(MOUSEEVENT mEvt)
   HBITMAP hbitmap =
       CreateBitmap(size.cx, size.cy, 1, sizeof(uint32_t) * 8, bmbuf);
   SelectObject(bitmapdc, hbitmap);
+  SetTextColor(bitmapdc, abgr_to_argb(g_color_context.fg_color));
+
   DrawTextEx(bitmapdc, textbuf, -1, &textrc, 0, NULL);
 
-  GetDIBits(bitmapdc, hbitmap, 0, 0, NULL, NULL, DIB_RGB_COLORS);
+  SelectObject(bitmapdc, hOldFont);
 
+  void* inbuf = malloc(size.cx * size.cy * 8);
+
+  BITMAPINFO bmi = {0};
+  bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
+  bmi.bmiHeader.biWidth = size.cx;
+  bmi.bmiHeader.biHeight = size.cy;
+  bmi.bmiHeader.biPlanes = 1;
+  bmi.bmiHeader.biBitCount = 32;
+  bmi.bmiHeader.biCompression = BI_RGB;
+
+  GetDIBits(bitmapdc, hbitmap, 0, size.cy, inbuf, &bmi, DIB_RGB_COLORS);
+  canvas_paste_bits(g_viewport.document->canvas, inbuf, x, y, size.cx, size.cy);
+
+  free(inbuf);
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
 }

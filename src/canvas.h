@@ -43,5 +43,6 @@ void* canvas_buffer_alloc(canvas_t* canvas);
 void canvas_delete(canvas_t* canvas);
 void canvas_clear(canvas_t* canvas);
 const void* canvas_get_buffer(canvas_t*);
+void canvas_paste_bits(canvas_t*, void*, int, int, int, int);
 
 #endif /* PANITENT_CANVAS_H_ */

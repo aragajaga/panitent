@@ -133,3 +133,25 @@ const void* canvas_get_buffer(canvas_t* canvas)
 {
   return canvas->buffer; 
 }
+
+void canvas_paste_bits(canvas_t* canvas, void* bits, int x, int y, int width,
+    int height)
+{
+  char* byteCanvas = (char*)canvas->buffer;
+  char* byteBufIn = (char*)bits;
+
+  size_t startOffset = (y * canvas->width + x) * 4;
+  size_t imageStride = width * 4;
+
+  byteCanvas += startOffset;
+
+  /* Copy stride by stride, by offseting canvas stride */
+  for (int i = height; i; --i)
+  {
+    memcpy(byteCanvas, byteBufIn + width * i * 4, imageStride); 
+
+    byteCanvas += canvas->width * 4;
+  }
+
+  viewport_invalidate();
+}
