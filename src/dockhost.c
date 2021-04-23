@@ -6,6 +6,8 @@
 #include <assert.h>
 
 #include "dockhost.h"
+#include "panitent.h"
+#include "resource.h"
 
 dockhost_t g_dockhost;
 
@@ -132,6 +134,34 @@ BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
   return TRUE;
 }
 
+binary_tree_t* Dock_CaptionHitTest(binary_tree_t*, int, int);
+
+binary_tree_t* Dock_CloseButtonHitTest(binary_tree_t* root, int x, int y)
+{
+  if (!root)
+    return NULL;
+
+  RECT rcCaption = {0};
+  Dock_GetCaptionRect(root, &rcCaption);
+
+  if (x >= (rcCaption.right - 16)
+      && y >= rcCaption.top && x < rcCaption.right &&
+      y < rcCaption.bottom) {
+    return root;
+  }
+
+  binary_tree_t* found = NULL;
+  if (root->node1) {
+    found = Dock_CloseButtonHitTest(root->node1, x, y);
+  }
+
+  if (!found && root->node2) {
+    found = Dock_CloseButtonHitTest(root->node2, x, y);
+  }
+
+  return found;
+}
+
 binary_tree_t* Dock_CaptionHitTest(binary_tree_t* root, int x, int y)
 {
   if (!root)
@@ -189,16 +219,33 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
     FillRect(hDC, &rcCapt, hCaptionBrush);
 
     /* Print caption text */
-    SetBkColor(hDC, RGB(0xFF, 0xCC, 0x00));
+
+    SetBkColor(hDC, RGB(0x22, 0x22, 0x22));
     SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
 
     size_t chCount = 0;
     StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
+
+    HBITMAP hbmCloseBtn = LoadBitmap(GetModuleHandle(NULL),
+        MAKEINTRESOURCE(IDB_CLOSEBTN));
+    HDC hBmDC = CreateCompatibleDC(hDC);
+    HGDIOBJ hGdiPrevObj = SelectObject(hBmDC, hbmCloseBtn);
+    BitBlt(hDC, rc->left + (rc->right - rc->left) - 14 - 3, rc->top + 3, 14, 14, hBmDC, 0, 0, SRCCOPY);
+    SelectObject(hBmDC, hGdiPrevObj);
+
+    HFONT guiFont = GetGuiFont();
+    hGdiPrevObj = SelectObject(hDC, guiFont);
+
     TextOut(hDC,
             rc->left + iBorderWidth + 4,
             rc->top + iBorderWidth,
             parent->lpszCaption,
             chCount);
+
+    SelectObject(hDC, hGdiPrevObj);
+
+    if (parent->hwnd)
+      InvalidateRect(parent->hwnd, NULL, FALSE);
   }
 
   if (parent->node1) {
@@ -225,9 +272,22 @@ void DockNode_arrange(binary_tree_t* parent)
     RECT rcNode1 = rcClient;
     if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
       if (parent->gripAlign == GRIP_ALIGN_START) {
-        rcNode1.right = rcNode1.left + parent->posFixedGrip - iBorderWidth / 2;
-      } else {
-        rcNode1.right = rcNode1.right - parent->posFixedGrip - iBorderWidth / 2;
+        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
+        {
+          rcNode1.bottom = rcNode1.top + parent->posFixedGrip - iBorderWidth / 2;
+        }
+        else {
+          rcNode1.right = rcNode1.left + parent->posFixedGrip - iBorderWidth / 2;
+        }
+      }
+      else {
+        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
+        {
+          rcNode1.bottom = rcNode1.bottom - parent->posFixedGrip - iBorderWidth / 2;
+        }
+        else {
+          rcNode1.right = rcNode1.right - parent->posFixedGrip - iBorderWidth / 2;
+        }
       }
 
     } else {
@@ -239,9 +299,21 @@ void DockNode_arrange(binary_tree_t* parent)
     RECT rcNode2 = rcClient;
     if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
       if (parent->gripAlign == GRIP_ALIGN_START) {
-        rcNode2.left = rcNode2.left + parent->posFixedGrip + iBorderWidth / 2;
+        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
+        {
+          rcNode2.top = rcNode2.top + parent->posFixedGrip + iBorderWidth / 2;
+        }
+        else {
+          rcNode2.left = rcNode2.left + parent->posFixedGrip + iBorderWidth / 2;
+        }
       } else {
-        rcNode2.left = rcNode2.right - parent->posFixedGrip + iBorderWidth / 2;
+        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
+        {
+          rcNode2.top = rcNode2.bottom - parent->posFixedGrip + iBorderWidth / 2;
+        }
+        else {
+          rcNode2.left = rcNode2.right - parent->posFixedGrip + iBorderWidth / 2;
+        }
       }
     } else {
       rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth / 2;
@@ -267,6 +339,7 @@ void DockNode_arrange(binary_tree_t* parent)
                  rc.right - rc.left,
                  rc.bottom - rc.top,
                  0);
+    UpdateWindow(parent->hwnd);
   }
 
   if (parent->node1) {
@@ -388,7 +461,7 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
   switch (message) {
   case WM_CREATE:
   {
-    hCaptionBrush = CreateSolidBrush(RGB(0xFF, 0xCC, 0x00));
+    hCaptionBrush = CreateSolidBrush(RGB(0x22, 0x22, 0x22));
 
     /*
     RECT rc = {10, 10, 200, 200};
@@ -531,25 +604,9 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
     signed short y = GET_Y_LPARAM(lParam);
 
     if (root) {
-      binary_tree_t* t = Dock_CaptionHitTest(root, x, y);
+      binary_tree_t* t = Dock_CloseButtonHitTest(root, x, y);
       if (t) {
-        /*
-        wchar_t message[64];
-        binary_tree_t* parent = Dock_FindParent(root, t);
-
-        StringCchPrintfW(message,
-                         64,
-                         L"Target: %s\nParent: %s",
-                         (t->lpszCaption ? t->lpszCaption : L"< NULL >"),
-                         (parent ? (parent->lpszCaption ? parent->lpszCaption
-                                                        : L"< NULL CAPTION >")
-                                 : L"< NULL PARENT >"));
-
-        MessageBox(NULL, message, L"HitTest", MB_OK);
-        */
-
         Dock_DestroyInclusive(root, t);
-        /* Dock_Undock(root, t); */
         InvalidateRect(hWnd, NULL, TRUE);
       }
     }

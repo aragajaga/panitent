@@ -49,6 +49,14 @@ void FetchSystemFont()
   hFontSys = hFontNew;
 }
 
+HFONT GetGuiFont()
+{
+  if (!hFontSys)
+    FetchSystemFont();
+
+  return hFontSys;
+}
+
 const WCHAR szAppWndClass[] = L"Win32Class_PanitentWnd";
 
 BOOL AppWnd_RegisterClass(HINSTANCE hInstance)
@@ -129,6 +137,7 @@ HWND hPaletteToolbox;
 HWND hwndDockHost;
 
 HWND hwndToolbox;
+HWND hwndOptionBar;
 HWND hwndPalette;
 
 binary_tree_t* viewportNode;
@@ -137,18 +146,44 @@ toolbox_t g_toolbox;
 
 void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 {
-  parent->posFixedGrip = 128;
+  parent->posFixedGrip = 48;
   parent->gripAlign    = GRIP_ALIGN_END;
   parent->gripPosType  = GRIP_POS_ABSOLUTE;
-  parent->bShowCaption = TRUE;
+  parent->bShowCaption = FALSE;
+  parent->splitDirection = SPLIT_DIRECTION_VERTICAL;
+
+  binary_tree_t* nodeOptionBar = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeZ = calloc(1, sizeof(binary_tree_t));
+
+  hwndOptionBar = CreateWindowEx(WS_EX_TOOLWINDOW,
+                               L"Win32Class_OptionBar",
+                               L"Option Bar",
+                               WS_VISIBLE | WS_CHILD,
+                               0,
+                               32,
+                               64,
+                               256,
+                               hWnd,
+                               NULL,
+                               GetModuleHandle(NULL),
+                               NULL);
+
+  nodeOptionBar->lpszCaption  = L"Option Bar";
+  nodeOptionBar->bShowCaption = TRUE;
+  nodeOptionBar->hwnd         = hwndOptionBar;
+
+  nodeZ->posFixedGrip = 128;
+  nodeZ->gripAlign = GRIP_ALIGN_END;
+  nodeZ->gripPosType = GRIP_POS_ABSOLUTE;
+  nodeZ->bShowCaption = FALSE;
 
   /* Working Area */
-  binary_tree_t* nodeA = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* nodeB = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeY = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodePalette = calloc(1, sizeof(binary_tree_t));
 
-  nodeA->posFixedGrip = 64;
-  nodeA->gripAlign    = GRIP_ALIGN_START;
-  nodeA->gripPosType  = GRIP_POS_ABSOLUTE;
+  nodeY->posFixedGrip = 64;
+  nodeY->gripAlign    = GRIP_ALIGN_START;
+  nodeY->gripPosType  = GRIP_POS_ABSOLUTE;
 
   hwndPalette = CreateWindowEx(0,
                                L"Win32Class_PaletteWindow",
@@ -163,13 +198,13 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
                                GetModuleHandle(NULL),
                                NULL);
 
-  nodeB->lpszCaption  = L"Palette";
-  nodeB->bShowCaption = TRUE;
-  nodeB->hwnd         = hwndPalette;
+  nodePalette->lpszCaption  = L"Palette";
+  nodePalette->bShowCaption = TRUE;
+  nodePalette->hwnd         = hwndPalette;
 
   /* Toolbox and viewport split */
-  binary_tree_t* nodeAA = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* nodeAB = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeToolbox = calloc(1, sizeof(binary_tree_t));
+  binary_tree_t* nodeViewport = calloc(1, sizeof(binary_tree_t));
 
   hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW,
                                TOOLBOX_WC,
@@ -184,20 +219,23 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
                                GetModuleHandle(NULL),
                                (LPVOID)&g_toolbox);
 
-  nodeAA->lpszCaption  = L"Tool";
-  nodeAA->bShowCaption = TRUE;
-  nodeAA->hwnd         = hwndToolbox;
+  nodeToolbox->lpszCaption  = L"Tool";
+  nodeToolbox->bShowCaption = TRUE;
+  nodeToolbox->hwnd         = hwndToolbox;
 
-  nodeAB->lpszCaption  = L"Viewport";
-  nodeAB->bShowCaption = TRUE;
-  viewportNode         = nodeAB;
+  nodeViewport->lpszCaption  = L"Viewport";
+  nodeViewport->bShowCaption = TRUE;
+  viewportNode         = nodeViewport;
 
   /* Set graph */
-  nodeA->node1 = nodeAA;
-  nodeA->node2 = nodeAB;
+  nodeY->node1 = nodeToolbox;
+  nodeY->node2 = nodeViewport;
 
-  parent->node1 = nodeA;
-  parent->node2 = nodeB;
+  nodeZ->node1 = nodeY;
+  nodeZ->node2 = nodePalette;
+
+  parent->node1 = nodeZ;
+  parent->node2 = nodeOptionBar;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)

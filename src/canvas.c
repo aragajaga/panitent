@@ -117,7 +117,7 @@ void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
 
 void canvas_clear(canvas_t* canvas)
 {
-  canvas_fill_solid(canvas, g_color_context.bg_color);
+  canvas_fill_solid(canvas, g_color_context.bg_color | 0xFF000000);
 }
 
 void canvas_fill_solid(canvas_t* canvas, uint32_t color)

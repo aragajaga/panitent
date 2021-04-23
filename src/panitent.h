@@ -42,5 +42,6 @@ void NewFile();
 HMENU CreateMainMenu();
 void UnregisterClasses();
 void SetGuiFont(HWND hwnd);
+HFONT GetGuiFont();
 
 #endif /* PANITENT_PANITENT_H */

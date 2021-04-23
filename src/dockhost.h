@@ -56,6 +56,7 @@ struct _binary_tree {
   int posFixedGrip;
   BOOL bShowCaption;
   HWND hwnd;
+  split_direction_e splitDirection;
 };
 
 typedef struct _binary_tree binary_tree_t;

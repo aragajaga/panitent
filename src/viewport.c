@@ -25,12 +25,13 @@ void swapf(float* a, float* b)
 
 void viewport_invalidate()
 {
-  InvalidateRect(g_viewport.hwnd, NULL, FALSE);
+  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
 }
 
 void viewport_set_document(document_t* document)
 {
   g_viewport.document = document;
+  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
 }
 
 void viewport_register_class()
