@@ -19,11 +19,13 @@ void crefptr_ref(crefptr_t* ptr)
 
 void crefptr_deref(crefptr_t* ptr)
 {
-  if (!--ptr->refCount)
-  {
+  if (--ptr->refCount)
+    return;
+
+  if (ptr->dtor)
     ptr->dtor(ptr->data);
-    free(ptr);
-  }
+
+  free(ptr);
 }
 
 crefptr_t* crefptr_new(void* ptr, void (*dtor)(void* ptr))
