@@ -98,10 +98,10 @@ void CoStringDtor(void* str)
   CoTaskMemFree(str);
 }
 
-crefptr_t init_open_file_dialog()
+crefptr_t* init_open_file_dialog()
 {
   HRESULT hr = S_OK;
-  crefptr_t s = NULL;
+  crefptr_t* s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
@@ -165,10 +165,10 @@ fail:
   return s;
 }
 
-crefptr_t init_save_file_dialog()
+crefptr_t* init_save_file_dialog()
 {
   HRESULT hr = S_OK;
-  crefptr_t s = NULL;
+  crefptr_t* s = NULL;
 
   hr = CoInitialize(NULL);
   if (FAILED(hr))
