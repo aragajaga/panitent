@@ -17,6 +17,7 @@
 #include "palette.h"
 #include "winuser.h"
 #include "new.h"
+#include "color_context.h"
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
@@ -88,6 +89,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
 
   FetchSystemFont();
 
+  InitColorContext();
   DockHost_Register(hInstance);
   toolbox_register_class();
   register_palette_dialog(hInstance);
@@ -120,6 +122,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
     TranslateMessage(&msg);
   }
 
+  FreeColorContext();
   UnregisterClasses();
   return (int)msg.wParam;
 }
