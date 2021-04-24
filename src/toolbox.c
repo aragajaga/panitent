@@ -695,7 +695,7 @@ void tool_picker_onrbuttonup(MOUSEEVENT mEvt)
   SetBackgroundColor(color);
 }
 
-void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
+void tool_fill_dofloodfill(MOUSEEVENT mEvt, uint32_t newColor)
 {
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
@@ -705,7 +705,6 @@ void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
     return;
 
   uint32_t oldColor = canvas_get_pixel(canvas, x, y);
-  uint32_t newColor = g_color_context.fg_color;
   POINT nextpt = {x, y};
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
@@ -790,11 +789,22 @@ void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
 #endif
 }
 
+void tool_fill_onrbuttonup(MOUSEEVENT mEvt)
+{
+  tool_fill_dofloodfill(mEvt, g_color_context.bg_color);
+}
+
+void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
+{
+  tool_fill_dofloodfill(mEvt, g_color_context.fg_color);
+}
+
 void tool_fill_init()
 {
   g_tool_fill.label = L"Flood fill";
   g_tool_fill.img = 8;
   g_tool_fill.onlbuttonup = tool_fill_onlbuttonup;
+  g_tool_fill.onrbuttonup = tool_fill_onrbuttonup;
 }
 
 void tool_picker_init()
