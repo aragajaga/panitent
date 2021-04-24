@@ -159,6 +159,15 @@ void palette_window_onrbuttonup(HWND hwnd, LPARAM lParam)
   }
 }
 
+void palette_color_change_obs(void* userData, uint32_t fg, uint32_t bg)
+{
+  HWND hWnd = (HWND)userData;
+  if (!hWnd)
+    return;
+
+  InvalidateRect(hWnd, NULL, TRUE);
+}
+
 LRESULT CALLBACK palette_window_proc(HWND hwnd,
                                      UINT message,
                                      WPARAM wparam,
@@ -166,7 +175,10 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd,
 {
   switch (message) {
   case WM_CREATE:
-    g_palette_dialog.win_handle = hwnd;
+    {
+      RegisterColorObserver(palette_color_change_obs, (void*)hwnd);
+      g_palette_dialog.win_handle = hwnd;
+    }
     break;
   case WM_PAINT:
     palette_window_onpaint(hwnd);
@@ -176,6 +188,9 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd,
     break;
   case WM_RBUTTONUP:
     palette_window_onrbuttonup(hwnd, lparam);
+    break;
+  case WM_DESTROY:
+    RemoveColorObserver(palette_color_change_obs, (void*)hwnd);
     break;
   default:
     return DefWindowProc(hwnd, message, wparam, lparam);

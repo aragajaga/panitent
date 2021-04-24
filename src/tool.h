@@ -9,6 +9,7 @@ typedef struct _tool_t {
   int img;
   void (*onlbuttonup)(MOUSEEVENT mEvt);
   void (*onlbuttondown)(MOUSEEVENT mEvt);
+  void (*onrbuttonup)(MOUSEEVENT mEvt);
   void (*onmousemove)(MOUSEEVENT mEvt);
 } tool_t;
 

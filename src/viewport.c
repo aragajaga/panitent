@@ -168,6 +168,13 @@ void viewport_onlbuttonup(MOUSEEVENT mEvt)
   }
 }
 
+void viewport_onrbuttonup(MOUSEEVENT mEvt)
+{
+  if (g_tool.onrbuttonup != NULL) {
+    g_tool.onrbuttonup(mEvt);
+  }
+}
+
 void viewport_onmousemove(MOUSEEVENT mEvt)
 {
   if (g_viewport.view_dragging) {
@@ -207,6 +214,9 @@ LRESULT CALLBACK viewport_wndproc(HWND hwnd,
     break;
   case WM_LBUTTONUP:
     viewport_onlbuttonup(mevt);
+    break;
+  case WM_RBUTTONUP:
+    viewport_onrbuttonup(mevt);
     break;
   case WM_MOUSEMOVE:
     viewport_onmousemove(mevt);

@@ -683,7 +683,16 @@ void tool_picker_onlbuttonup(MOUSEEVENT mEvt)
   signed short y = HIWORD(mEvt.lParam);
 
   uint32_t color = canvas_get_pixel(g_viewport.document->canvas, x, y);
-  g_color_context.fg_color = color;
+  SetForegroundColor(color);
+}
+
+void tool_picker_onrbuttonup(MOUSEEVENT mEvt)
+{
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
+
+  uint32_t color = canvas_get_pixel(g_viewport.document->canvas, x, y);
+  SetBackgroundColor(color);
 }
 
 void tool_fill_onlbuttonup(MOUSEEVENT mEvt)
@@ -793,4 +802,5 @@ void tool_picker_init()
   g_tool_picker.label = L"Color picker";
   g_tool_picker.img = 9;
   g_tool_picker.onlbuttonup = tool_picker_onlbuttonup;
+  g_tool_picker.onrbuttonup = tool_picker_onrbuttonup;
 }
