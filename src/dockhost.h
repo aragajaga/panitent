@@ -3,70 +3,38 @@
 
 #include "precomp.h"
 
-typedef struct _dockhost {
-  ATOM wndClass;
-  HWND hWnd;
-
-} dockhost_t;
-
-extern dockhost_t g_dockhost;
+typedef enum {
+  E_DOCK_CONTAINER,
+  E_DOCK_WINDOW
+} DockType;
 
 typedef enum {
-  DOCK_RIGHT = 1,
-  DOCK_TOP,
-  DOCK_LEFT,
-  DOCK_BOTTOM,
-} dock_side_e;
-
-/* TODO Use significant bit */
-typedef enum {
-  GRIP_ALIGN_START,
-  GRIP_ALIGN_END,
-} grip_align_e;
+  E_CONTAINER_SPLIT,
+  E_CONTAINER_TAB
+} DockContainerType;
 
 typedef enum {
-  GRIP_POS_UNIFORM,
-  GRIP_POS_ABSOLUTE,
-  GRIP_POS_RELATIVE
-} grip_pos_type_e;
+  E_DIRECTION_HORIZONTAL,
+  E_DIRECTION_VERTICAL
+} DockSplitDirection;
 
 typedef enum {
-  SPLIT_DIRECTION_HORIZONTAL,
-  SPLIT_DIRECTION_VERTICAL
-} split_direction_e;
+  E_ALIGN_START,
+  E_ALIGN_END
+} DockSplitAlign;
 
-typedef struct _dock_window {
-  RECT rc;
-  RECT pins;
-  RECT undockedRc;
-  HWND hwnd;
-  LPWSTR caption;
-  BOOL fDock;
-} dock_window_t;
+typedef struct _Rect Rect;
+typedef struct _DockBase DockBase;
+typedef struct _DockContainer DockContainer;
+typedef struct _DockWindow DockWindow;
+typedef struct _DockHost DockHost;
+typedef struct _DockDrawCtx DockDrawCtx;
 
-struct _binary_tree {
-  struct _binary_tree* node1;
-  struct _binary_tree* node2;
-  int delimPos;
-  RECT rc;
-  LPWSTR lpszCaption;
-  grip_pos_type_e gripPosType;
-  float fGrip;
-  grip_align_e gripAlign;
-  int posFixedGrip;
-  BOOL bShowCaption;
-  HWND hwnd;
-  split_direction_e splitDirection;
-};
-
-typedef struct _binary_tree binary_tree_t;
-
-extern dock_side_e g_dock_side;
-extern dock_side_e eSuggest;
-extern binary_tree_t* root;
-
-ATOM DockHost_Register(HINSTANCE hInstance);
-HWND DockHost_Create(HWND hParent);
-void DockNode_arrange(binary_tree_t*);
+HWND DockHost_GetHWND(const DockHost*);
+DockWindow* DockWindow_Create(HWND hwnd);
+DockContainer* DockContainer_Create(int, DockSplitDirection, DockSplitAlign);
+void DockContainer_Attach(DockContainer*, DockBase*);
+BOOL DockHost_Register(HINSTANCE hInstance);
+const DockHost* DockHost_Create(HWND hParent, DockBase*);
 
 #endif /* DOCK_DOCKHOST_H_ */

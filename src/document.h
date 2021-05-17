@@ -3,18 +3,20 @@
 
 #include "precomp.h"
 #include "canvas.h"
+#include "layers.h"
 
-typedef struct _document {
-  char* location;
-  canvas_t* canvas;
-  LPWSTR szFilePath;
-} document_t;
+typedef struct _Document Document;
+typedef struct _LayerManager LayerManager;
 
-void document_save(document_t* doc);
-void document_open(document_t* doc);
-BOOL document_close(document_t* doc);
-void document_purge(document_t* doc);
-document_t* document_new(int width, int height);
-BOOL Document_IsFilePathSet(document_t* doc);
+void Document_Save(Document*);
+void Document_Open(Document*);
+BOOL Document_Close(Document*);
+void Document_Purge(Document*);
+Document* Document_New(int, int);
+BOOL Document_IsFilePathSet(Document*);
+void Document_SetCanvas(Document*, Canvas*);
+Canvas* Document_GetCanvas(Document*);
+Rect Document_GetSize(Document*);
+LayerManager* Document_GetLayerManager(Document*);
 
 #endif /* PANITENT_DOCUMENT_H_ */

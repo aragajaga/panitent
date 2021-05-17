@@ -5,6 +5,23 @@
 #include "canvas.h"
 #include "viewport.h"
 #include "color_context.h"
+#include "queue.h"
+#include "primitives_context.h"
+
+#include <assert.h>
+
+struct _Canvas
+{
+  int width;
+  int height;
+  uint8_t color_depth;
+  size_t buffer_size;
+  void* buffer;
+};
+
+DECLARE_TYPED_QUEUE(POINT)
+
+void Canvas_DrawPixel(Canvas*, int, int, uint32_t);
 
 uint32_t color_opacity(uint32_t color, float opacity)
 {
@@ -29,7 +46,15 @@ uint32_t mix(uint32_t color1, uint32_t color2)
   return ARGB(0, r, g, b);
 }
 
-void* canvas_buffer_alloc(canvas_t* canvas)
+Canvas* Canvas_New(int width, int height)
+{
+  Canvas* canvas = calloc(1, sizeof(Canvas));
+  canvas->width = width;
+  canvas->height = height;
+  return canvas;
+}
+
+void* Canvas_BufferAlloc(Canvas* canvas)
 {
   size_t buffer_size = canvas->width * canvas->height * canvas->color_depth;
 
@@ -39,7 +64,7 @@ void* canvas_buffer_alloc(canvas_t* canvas)
   return canvas->buffer;
 }
 
-void canvas_delete(canvas_t* canvas)
+void Canvas_Delete(Canvas* canvas)
 {
   canvas->width       = 0;
   canvas->height      = 0;
@@ -49,7 +74,7 @@ void canvas_delete(canvas_t* canvas)
   free(canvas->buffer);
 }
 
-BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
+BOOL Canvas_CheckBoundaries(Canvas* canvas, int x, int y)
 {
   if (x >= 0 && y >= 0 && x < canvas->width && y < canvas->height) {
     return TRUE;
@@ -58,9 +83,9 @@ BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
   return FALSE;
 }
 
-void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
+void Canvas_Plot(Canvas* canvas, float x, float y, float opacity)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -69,12 +94,12 @@ void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
 
   uint32_t fg_color = g_color_context.fg_color;
 
-  canvas_draw_pixel(canvas, x_, y_, color_opacity(fg_color, opacity));
+  Canvas_DrawPixel(canvas, x_, y_, color_opacity(fg_color, opacity));
 }
 
-void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
+void Canvas_DrawPixel(Canvas* canvas, int x, int y, uint32_t color)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -85,19 +110,19 @@ void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
 
   /* TODO: Непродуманно. А если fg_color имеет альфу? */
   if (alpha == 255) {
-    canvas_set_pixel(canvas, x_, y_, color);
+    Canvas_SetPixel(canvas, x_, y_, color);
   } else if (alpha == 0) {
     return;
   } else {
-    uint32_t underlying   = canvas_get_pixel(canvas, x, y);
+    uint32_t underlying   = Canvas_GetPixel(canvas, x, y);
     uint32_t result_color = mix(underlying, color);
-    canvas_set_pixel(canvas, x, y, result_color);
+    Canvas_SetPixel(canvas, x, y, result_color);
   }
 }
 
-uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
+uint32_t Canvas_GetPixel(Canvas* canvas, int x, int y)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return 0;
   }
 
@@ -105,9 +130,9 @@ uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
   return ((uint32_t*)(canvas->buffer))[pos];
 }
 
-void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
+void Canvas_SetPixel(Canvas* canvas, int x, int y, uint32_t color)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -115,26 +140,25 @@ void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
   ((uint32_t*)(canvas->buffer))[pos] = color;
 }
 
-void canvas_clear(canvas_t* canvas)
+void Canvas_Clear(Canvas* canvas)
 {
-  canvas_fill_solid(canvas, g_color_context.bg_color | 0xFF000000);
+  Canvas_FillSolid(canvas, g_color_context.bg_color | 0xFF000000);
 }
 
-void canvas_fill_solid(canvas_t* canvas, uint32_t color)
+void Canvas_FillSolid(Canvas* canvas, uint32_t color)
 {
   for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++) {
     ((uint32_t*)(canvas->buffer))[i] = color;
   }
-
-  viewport_invalidate();
 }
 
-const void* canvas_get_buffer(canvas_t* canvas)
+const void* Canvas_GetBuffer(Canvas* canvas, size_t* size)
 {
+  *size = canvas->buffer_size;
   return canvas->buffer; 
 }
 
-void canvas_paste_bits(canvas_t* canvas, void* bits, int x, int y, int width,
+void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     int height)
 {
   char* byteCanvas = (char*)canvas->buffer;
@@ -152,6 +176,116 @@ void canvas_paste_bits(canvas_t* canvas, void* bits, int x, int y, int width,
 
     byteCanvas += canvas->width * 4;
   }
+}
 
-  viewport_invalidate();
+void Canvas_FloodFill(Canvas* canvas, int x, int y, uint32_t color)
+{
+  assert(canvas);
+  if (!canvas)
+    return;
+
+  uint32_t oldColor = Canvas_GetPixel(canvas, x, y);
+  POINT nextpt = {x, y};
+
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+  queue_t* q = queue_new(sizeof(POINT));
+  queue_push(q, &nextpt);
+#else
+  tqueue_t(POINT)* q = tqueue_new(POINT)();
+  tqueue_push(POINT)(q, nextpt);
+#endif
+
+  while (q->length)
+  {
+    LPPOINT ppt = NULL;
+
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+    crefptr_t* ptr = queue_pop(q);
+    ppt = crefptr_get(ptr);
+#else
+    POINT pt = tqueue_pop(POINT)(q);
+    ppt = &pt;
+#endif
+
+    if (Canvas_GetPixel(canvas, ppt->x + 1, ppt->y) == oldColor)
+    {
+      Canvas_SetPixel(canvas, ppt->x + 1, ppt->y, color);
+      nextpt.x = ppt->x + 1;
+      nextpt.y = ppt->y;
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+      queue_push(q, &nextpt);
+#else
+      tqueue_push(POINT)(q, nextpt);
+#endif
+    }
+
+    if (Canvas_GetPixel(canvas, ppt->x - 1, ppt->y) == oldColor)
+    {
+      Canvas_SetPixel(canvas, ppt->x - 1, ppt->y, color);
+      nextpt.x = ppt->x - 1;
+      nextpt.y = ppt->y;
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+      queue_push(q, &nextpt);
+#else
+      tqueue_push(POINT)(q, nextpt);
+#endif
+    }
+
+    if (Canvas_GetPixel(canvas, ppt->x, ppt->y + 1) == oldColor)
+    {
+      Canvas_SetPixel(canvas, ppt->x, ppt->y + 1, color);
+      nextpt.x = ppt->x;
+      nextpt.y = ppt->y + 1;
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+      queue_push(q, &nextpt);
+#else
+      tqueue_push(POINT)(q, nextpt);
+#endif
+    }
+
+    if (Canvas_GetPixel(canvas, ppt->x, ppt->y - 1) == oldColor)
+    {
+      Canvas_SetPixel(canvas, ppt->x, ppt->y - 1, color);
+      nextpt.x = ppt->x;
+      nextpt.y = ppt->y - 1;
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+      queue_push(q, &nextpt);
+#else
+      tqueue_push(POINT)(q, nextpt);
+#endif
+    }
+
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+    crefptr_deref(ptr);
+#endif
+  }
+
+#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
+  queue_delete(q);
+#else
+  tqueue_delete(POINT)(q);
+#endif
+}
+
+void Canvas_DrawCircle(Canvas* canvas, int cx, int cy, int r)
+{
+  draw_circle(canvas, cx, cy, r);
+}
+
+void Canvas_DrawLine(Canvas* canvas, Rect rc)
+{
+  draw_line(canvas, rc);
+}
+
+void Canvas_DrawRectangle(Canvas* canvas, Rect rc)
+{
+  draw_rectangle(canvas, rc);
+}
+
+Rect Canvas_GetSize(Canvas* canvas)
+{
+  Rect rc = {0};
+  rc.right = canvas->width;
+  rc.bottom = canvas->height;
+  return rc;
 }

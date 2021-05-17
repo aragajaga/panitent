@@ -4,11 +4,12 @@
 
 #include "primitives_context.h"
 #include "viewport.h"
+#include "commontypes.h"
 
 primitives_context_t g_primitives_context;
 unsigned int g_thickness = 1;
 
-void draw_rectangle(canvas_t* canvas, rect_t rc)
+void draw_rectangle(Canvas* canvas, Rect rc)
 {
   /*
    * 1. +-------->  2. +--------+
@@ -21,10 +22,10 @@ void draw_rectangle(canvas_t* canvas, rect_t rc)
    *             |     |        |
    *    <--------+     +--------+
    */
-  rect_t l1 = {rc.x0, rc.y0, rc.x1, rc.y0};
-  rect_t l2 = {rc.x1, rc.y0, rc.x1, rc.y1};
-  rect_t l3 = {rc.x1, rc.y1, rc.x0, rc.y1};
-  rect_t l4 = {rc.x0, rc.y1, rc.x0, rc.y0};
+  Rect l1 = {rc.left, rc.top, rc.right, rc.top};
+  Rect l2 = {rc.right, rc.top, rc.right, rc.bottom};
+  Rect l3 = {rc.right, rc.bottom, rc.left, rc.bottom};
+  Rect l4 = {rc.left, rc.bottom, rc.left, rc.top};
 
   draw_line(canvas, l1);
   draw_line(canvas, l2);
@@ -32,28 +33,26 @@ void draw_rectangle(canvas_t* canvas, rect_t rc)
   draw_line(canvas, l4);
 }
 
-void draw_circle(canvas_t* canvas, int cx, int cy, int radius)
+void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 {
   g_primitives_context.circle(canvas, cx, cy, radius);
-  viewport_invalidate();
 }
 
-void draw_line(canvas_t* canvas, rect_t rc)
+void draw_line(Canvas* canvas, Rect rc)
 {
-  printf("[BoundingTest] x: %d, y: %d\n", rc.x1, rc.y1);
+  printf("[BoundingTest] x: %d, y: %d\n", rc.right, rc.bottom);
 
-  rc.x0 -= g_thickness / 2;
-  rc.y0 -= g_thickness / 2;
-  rc.x1 += g_thickness / 2;
-  rc.y1 += g_thickness / 2;
+  rc.left -= g_thickness / 2;
+  rc.top -= g_thickness / 2;
+  rc.right += g_thickness / 2;
+  rc.bottom += g_thickness / 2;
 
   for (size_t i = 0; i < g_thickness; i++)
   {
     g_primitives_context.line(canvas, rc);
-    rc.x0++;
-    rc.y0++;
+    rc.left++;
+    rc.top++;
   }
-  viewport_invalidate();
 }
 
 void SetThickness(unsigned int thickness)

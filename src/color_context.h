@@ -21,6 +21,8 @@ FWDDECL_TYPED_LIST(color_observer_t)
 
 void SetForegroundColor(uint32_t);
 void SetBackgroundColor(uint32_t);
+uint32_t GetForegroundColor();
+uint32_t GetBackgroundColor();
 void RegisterColorObserver(void (*)(void*, uint32_t, uint32_t), void*);
 void RemoveColorObserver(void (*)(void*, uint32_t, uint32_t), void*);
 void InitColorContext();

@@ -230,12 +230,12 @@ void palette_dialog_onpaint(HWND hwnd)
   Rectangle(hdc, 2, 2, 24, 24);
 }
 
-void init_palette_window(HWND parent)
+HWND Palette_Create(HWND parent)
 {
   HWND hPalette = CreateWindowEx(WS_EX_PALETTEWINDOW,
                                  L"Win32Class_PaletteWindow",
                                  L"Palette",
-                                 WS_CAPTION | WS_THICKFRAME | WS_VISIBLE,
+                                 WS_CHILD | WS_BORDER | WS_VISIBLE,
                                  CW_USEDEFAULT,
                                  CW_USEDEFAULT,
                                  300,
@@ -244,7 +244,6 @@ void init_palette_window(HWND parent)
                                  NULL,
                                  GetModuleHandle(NULL),
                                  NULL);
-
-  if (!hPalette)
-    printf("Failed to create window");
+  
+  return hPalette;
 }

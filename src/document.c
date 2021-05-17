@@ -9,15 +9,23 @@
 #include "crefptr.h"
 #include "wic.h"
 #include <stdio.h>
+#include <assert.h>
+#include "commontypes.h"
+#include "layers.h"
 
-extern const WCHAR szAppName[];
+struct _Document {
+  LPWSTR lpszLocation;
+  Canvas* canvas;
+  LayerManager* layers;
+  Rect size;
+};
 
-BOOL Document_IsFilePathSet(document_t* doc)
+BOOL Document_IsFilePathSet(Document* doc)
 {
-  return doc->szFilePath != NULL;
+  return doc->lpszLocation != NULL;
 }
 
-void document_open(document_t* prevDoc)
+void Document_Open(Document* prevDoc)
 {
   crefptr_t* s = init_open_file_dialog();
 
@@ -25,115 +33,91 @@ void document_open(document_t* prevDoc)
   MessageBox(NULL, pszFileName, L"Open", MB_OK);
   ImageBuffer ib = ImageFileReader(pszFileName);
   
-  document_t* doc = calloc(1, sizeof(document_t));
+  Document* doc = calloc(1, sizeof(Document));
 
-  canvas_t* canvas = malloc(sizeof(canvas_t));
-  canvas->width       = ib.width;
-  canvas->height      = ib.height;
-  canvas->color_depth = 4;
-  canvas->buffer_size = ib.size;
-  canvas->buffer      = ib.bits;
+  Canvas* canvas = Canvas_New(ib.width, ib.height);
   doc->canvas = canvas;
-
-  viewport_set_document(doc);
 
   crefptr_deref(s);
 }
 
-void document_save(document_t* doc)
+void Document_Save(Document* document)
 {
   crefptr_t* s = init_save_file_dialog();
-  /*
-  const void* buffer = canvas_get_buffer(doc->canvas);
-  FILE* f = fopen("data.raw", "wb");
-  fwrite(buffer, doc->canvas->buffer_size, 1, f);
-  fclose(f);
-  */
 
-  canvas_t* c = doc->canvas;
+  Canvas* canvas = Document_GetCanvas(document);
+  Rect rc = Canvas_GetSize(canvas);
+
+  size_t bufSize;
+  const void* lpBits = Canvas_GetBuffer(canvas, &bufSize);
+
   ImageBuffer ib  = {0};
-  ib.width        = c->width;
-  ib.height       = c->height;
-  ib.bits         = c->buffer;
-  ib.size         = c->buffer_size;
+  ib.width        = rc.right;
+  ib.height       = rc.bottom;
+  ib.bits         = (void*)lpBits;
+  ib.size         = bufSize;
 
   ImageFileWriter(crefptr_get(s), ib);
   crefptr_deref(s);
 }
 
-void document_purge(document_t* doc)
+void Document_Purge(Document* document)
 {
-  canvas_delete(doc->canvas);
+  Canvas_Delete(document->canvas);
 }
 
-BOOL document_close(document_t* doc)
+BOOL Document_Close(Document* document)
 {
-  int answer = MessageBox(NULL,
-                          L"Do you want to save changes?",
-                          szAppName,
-                          MB_YESNOCANCEL | MB_ICONWARNING);
+  int answer = MessageBox(NULL, L"Do you want to save changes?", szAppName,
+      MB_YESNOCANCEL | MB_ICONWARNING);
 
   switch (answer) {
-  case IDYES:
-    document_save(doc);
-    break;
-  case IDNO:
-    document_purge(doc);
-    break;
-  default:
-    return FALSE;
-    break;
+    case IDYES:
+      Document_Save(document);
+      break;
+    case IDNO:
+      Document_Purge(document);
+      break;
+    default:
+      return FALSE;
+      break;
   }
 
   return TRUE;
 }
 
-extern binary_tree_t* viewportNode;
-extern binary_tree_t* root;
-
-document_t* document_new(int width, int height)
+void Document_SetCanvas(Document* document, Canvas* canvas)
 {
-  viewport_register_class();
+  document->canvas = canvas;
+}
 
-  if (!g_viewport.hwnd) {
-    HWND hviewport = CreateWindowEx(0,
-                                    MAKEINTATOM(g_viewport.wndclass),
-                                    NULL,
-                                    WS_BORDER | WS_CHILD | WS_VISIBLE,
-                                    64,
-                                    0,
-                                    800,
-                                    600,
-                                    g_panitent.hwnd_main,
-                                    NULL,
-                                    GetModuleHandle(NULL),
-                                    NULL);
+Document* Document_New(int width, int height)
+{
+  Document* document = calloc(1, sizeof(Document));
 
-    if (!hviewport) {
-      MessageBox(NULL,
-                 L"Failed to create viewport window!",
-                 NULL,
-                 MB_OK | MB_ICONERROR);
-      return NULL;
-    }
+  Canvas* canvas = Canvas_New(width, height);
+  Document_SetCanvas(document, canvas);
 
-    viewportNode->hwnd = hviewport;
-    g_viewport.hwnd    = hviewport;
 
-    DockNode_arrange(root);
-  }
+  document->layers = LayerManager_Create(document);
+  document->size.right = width;
+  document->size.bottom = height;
 
-  document_t* doc = calloc(1, sizeof(document_t));
+  SetActiveDocument(document);
+  return document;
+}
 
-  canvas_t* canvas    = calloc(1, sizeof(canvas_t));
-  canvas->width       = width;
-  canvas->height      = height;
-  canvas->color_depth = 4;
-  canvas_buffer_alloc(canvas);
+Canvas* Document_GetCanvas(Document* document)
+{
+  return document->canvas;
+}
 
-  doc->canvas = canvas;
+Rect Document_GetSize(Document* document)
+{
+  return document->size;
+}
 
-  viewport_set_document(doc);
-
-  return doc;
+LayerManager* Document_GetLayerManager(Document* document)
+{
+  return document->layers;
 }

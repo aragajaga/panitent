@@ -10,6 +10,7 @@
 #include "bresenham.h"
 #include "toolbox.h"
 #include "dockhost.h"
+#include "docknode.h"
 #include "panitent.h"
 #include "resource.h"
 #include "settings.h"
@@ -18,6 +19,8 @@
 #include "winuser.h"
 #include "new.h"
 #include "color_context.h"
+#include "welcome.h"
+#include "layers.h"
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
@@ -27,6 +30,8 @@ panitent_t g_panitent;
 HFONT hFontSys;
 
 const WCHAR szAppName[] = L"Panit.ent";
+
+Document* g_activeDocument;
 
 void FetchSystemFont()
 {
@@ -90,8 +95,12 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   FetchSystemFont();
 
   InitColorContext();
+  InitDefaultTools();
+  Layers_Register(hInstance);
   DockHost_Register(hInstance);
-  toolbox_register_class();
+  Welcome_Register(hInstance);
+  Viewport_Register(hInstance);
+  Toolbox_Register(hInstance);
   register_palette_dialog(hInstance);
   option_bar_register_class(hInstance);
   SettingsWindow_Register(hInstance);
@@ -143,102 +152,52 @@ HWND hwndToolbox;
 HWND hwndOptionBar;
 HWND hwndPalette;
 
-binary_tree_t* viewportNode;
-
-toolbox_t g_toolbox;
-
-void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
+void Panitent_DockHostInit(HWND hwnd)
 {
-  parent->posFixedGrip = 48;
-  parent->gripAlign    = GRIP_ALIGN_END;
-  parent->gripPosType  = GRIP_POS_ABSOLUTE;
-  parent->bShowCaption = FALSE;
-  parent->splitDirection = SPLIT_DIRECTION_VERTICAL;
+  DockContainer* root = DockContainer_Create(64, E_DIRECTION_VERTICAL, E_ALIGN_END);
+  const DockHost* host = DockHost_Create(hwnd, (DockBase*)root);
 
-  binary_tree_t* nodeOptionBar = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* nodeZ = calloc(1, sizeof(binary_tree_t));
+  DockContainer* split1 = DockContainer_Create(196, E_DIRECTION_HORIZONTAL, E_ALIGN_END);
+  DockContainer* split2 = DockContainer_Create(196, E_DIRECTION_VERTICAL, E_ALIGN_START);
+  DockContainer* split3 = DockContainer_Create(72, E_DIRECTION_HORIZONTAL, E_ALIGN_START);
 
-  hwndOptionBar = CreateWindowEx(WS_EX_TOOLWINDOW,
-                               L"Win32Class_OptionBar",
-                               L"Option Bar",
-                               WS_VISIBLE | WS_CHILD,
-                               0,
-                               32,
-                               64,
-                               256,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               NULL);
+  DockWindow* toolbox = DockWindow_Create(Toolbox_Create(DockHost_GetHWND(host)));
+  DockWindow* welcome2 = DockWindow_Create(Welcome_Create(DockHost_GetHWND(host), L"Welcome 2"));
+  DockWindow* palette = DockWindow_Create(Palette_Create(DockHost_GetHWND(host)));
+  DockWindow* optionbar = DockWindow_Create(OptionBar_Create(DockHost_GetHWND(host)));
+  DockWindow* layers = DockWindow_Create(Layers_Create(DockHost_GetHWND(host)));
 
-  nodeOptionBar->lpszCaption  = L"Option Bar";
-  nodeOptionBar->bShowCaption = TRUE;
-  nodeOptionBar->hwnd         = hwndOptionBar;
+  DockContainer_Attach(split3, (DockBase*)toolbox);
+  DockContainer_Attach(split3, (DockBase*)welcome2);
 
-  nodeZ->posFixedGrip = 128;
-  nodeZ->gripAlign = GRIP_ALIGN_END;
-  nodeZ->gripPosType = GRIP_POS_ABSOLUTE;
-  nodeZ->bShowCaption = FALSE;
+  DockContainer_Attach(split2, (DockBase*)palette);
+  DockContainer_Attach(split2, (DockBase*)layers);
 
-  /* Working Area */
-  binary_tree_t* nodeY = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* nodePalette = calloc(1, sizeof(binary_tree_t));
+  DockContainer_Attach(split1, (DockBase*)split3);
+  DockContainer_Attach(split1, (DockBase*)split2);
 
-  nodeY->posFixedGrip = 64;
-  nodeY->gripAlign    = GRIP_ALIGN_START;
-  nodeY->gripPosType  = GRIP_POS_ABSOLUTE;
+  DockContainer_Attach(root, (DockBase*)split1);
+  DockContainer_Attach(root, (DockBase*)optionbar);
 
-  hwndPalette = CreateWindowEx(0,
-                               L"Win32Class_PaletteWindow",
-                               L"Palette",
-                               WS_CHILD | WS_VISIBLE,
-                               0,
-                               0,
-                               128,
-                               128,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               NULL);
+  hwndDockHost = DockHost_GetHWND(host);
+}
 
-  nodePalette->lpszCaption  = L"Palette";
-  nodePalette->bShowCaption = TRUE;
-  nodePalette->hwnd         = hwndPalette;
+Viewport* g_activeViewport;
 
-  /* Toolbox and viewport split */
-  binary_tree_t* nodeToolbox = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* nodeViewport = calloc(1, sizeof(binary_tree_t));
+Viewport* GetActiveViewport()
+{
+  return g_activeViewport; 
+}
 
-  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW,
-                               TOOLBOX_WC,
-                               L"Tools",
-                               WS_VISIBLE | WS_CHILD,
-                               0,
-                               32,
-                               64,
-                               256,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               (LPVOID)&g_toolbox);
-
-  nodeToolbox->lpszCaption  = L"Tool";
-  nodeToolbox->bShowCaption = TRUE;
-  nodeToolbox->hwnd         = hwndToolbox;
-
-  nodeViewport->lpszCaption  = L"Viewport";
-  nodeViewport->bShowCaption = TRUE;
-  viewportNode         = nodeViewport;
-
-  /* Set graph */
-  nodeY->node1 = nodeToolbox;
-  nodeY->node2 = nodeViewport;
-
-  nodeZ->node1 = nodeY;
-  nodeZ->node2 = nodePalette;
-
-  parent->node1 = nodeZ;
-  parent->node2 = nodeOptionBar;
+INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+  switch (message)
+  {
+    case WM_COMMAND:
+      EndDialog(hwndDlg, wParam);
+      return TRUE;
+  }
+  return FALSE;
 }
 
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
@@ -251,19 +210,31 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       break;
     case IDM_FILE_OPEN:
       // init_open_file_dialog();
-      document_open(g_viewport.document);
+      Document_Open(Viewport_GetDocument(GetActiveViewport()));
       break;
     case IDM_FILE_SAVE:
-      document_save(g_viewport.document);
+      Document_Save(Viewport_GetDocument(GetActiveViewport()));
       break;
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);
       break;
     case IDM_EDIT_TESTFILL:
-      canvas_fill_solid(g_viewport.document->canvas, 0xFFFFFFFF);
+      {
+        Viewport* viewport = GetActiveViewport();
+        Document* document = Viewport_GetDocument(viewport);
+        Canvas* canvas = Document_GetCanvas(document);
+
+        Canvas_FillSolid(canvas, 0xFFFFFFFF);
+      }
       break;
     case IDM_EDIT_CLRCANVAS:
-      canvas_clear(g_viewport.document->canvas);
+      {
+        Viewport* viewport = GetActiveViewport();
+        Document* document = Viewport_GetDocument(viewport);
+        Canvas* canvas = Document_GetCanvas(document);
+
+        Canvas_Clear(canvas);
+      }
       break;
     case IDM_WINDOW_TOOLS:
       CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
@@ -275,46 +246,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case IDM_OPTIONS_SETTINGS:
       ShowSettingsWindow(hWnd);
       break;
+    case IDM_HELP_ABOUT:
+      DialogBox(hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDlgProc);
+      break;
     default:
       break;
     }
     break;
   case WM_SIZE:
   {
-    WORD cx = LOWORD(lParam);
-    WORD cy = HIWORD(lParam);
+    WORD width = LOWORD(lParam);
+    WORD height = HIWORD(lParam);
 
-    SetWindowPos(hwndDockHost,
-                 NULL,
-                 0,
-                 0,
-                 cx,
-                 cy,
-                 SWP_NOACTIVATE | SWP_NOZORDER);
-
-    /*
-    if (g_viewport.win_handle)
-    {
-      SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
-          SWP_NOACTIVATE | SWP_NOZORDER);
-      SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
-          SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
-    }
-    */
+    SetWindowPos(hwndDockHost, NULL, 0, 0, width, height, SWP_NOACTIVATE |
+        SWP_NOZORDER);
   } break;
   case WM_CREATE:
-    hwndDockHost = DockHost_Create(hWnd);
-
-    RECT rcDockHost = {0};
-    GetClientRect(hwndDockHost, &rcDockHost);
-    root              = calloc(1, sizeof(binary_tree_t));
-    root->lpszCaption = L"Root";
-    root->rc          = rcDockHost;
-
-    Panitent_DockHostInit(hwndDockHost, root);
-
-    /* option_bar_create(hWnd); */
-
+    Panitent_DockHostInit(hWnd);
     break;
   case WM_THEMECHANGED:
     FetchSystemFont();
@@ -329,23 +277,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
   return 0;
 }
-
-#if 0
-HWND CreateStatusBar(HWND hParent)
-{
-  /* TODO: Do check CommonContorls initialized */
-  HWND hStatusBar;
-  RECT rcClient;
-
-  hStatusBar = CreateWindowEx(0, STATUSCLASSNAME, NULL,
-      SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hParent,
-      (HMENU)IDS_STATUS, GetModuleHandle(NULL), NULL);
-
-  GetClientRect(hParent, &rcClient);
-
-  return hStatusBar;
-}
-#endif
 
 void SetGuiFont(HWND hwnd)
 {
@@ -391,6 +322,20 @@ HMENU CreateMainMenu()
 
 void UnregisterClasses()
 {
-  UnregisterClass(VIEWPORTCTL_WC, NULL);
-  toolbox_unregister_class();
+  UnregisterClass(szViewportWndClass, NULL);
+}
+
+Document* GetActiveDocument()
+{
+  return g_activeDocument;
+}
+
+void SetActiveDocument(Document* document)
+{
+  g_activeDocument = document;
+}
+
+HWND Panitent_GetHWND()
+{
+  return g_panitent.hwnd_main;
 }

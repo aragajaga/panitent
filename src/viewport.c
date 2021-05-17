@@ -12,98 +12,74 @@
 #include "canvas.h"
 #include "debug.h"
 #include "tool.h"
+#include "commontypes.h"
 
-viewport_t g_viewport;
-tool_t g_tool;
+const WCHAR szViewportWndClass[] = L"Win32Class_Viewport";
 
-void swapf(float* a, float* b)
+struct _Viewport {
+  Document* document;
+  HWND hwnd; 
+  int canvasX;
+  int canvasY;
+  BOOL bViewDrag;
+};
+
+void Viewport_Invalidate(Viewport* viewport)
 {
-  float c = *a;
-  *b      = *a;
-  *a      = c;
+  InvalidateRect(Viewport_GetHWND(viewport), NULL, TRUE);
 }
 
-void viewport_invalidate()
+void Viewport_SetDocument(Viewport* viewport, Document* document)
 {
-  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
-}
-
-void viewport_set_document(document_t* document)
-{
-  g_viewport.document = document;
-  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
-}
-
-void viewport_register_class()
-{
-  /*Break if already registered */
-  if (g_viewport.wndclass)
+  assert(viewport);
+  if (!viewport)
     return;
 
+  viewport->document = document;
+}
+
+LRESULT CALLBACK Viewport_WndProc(HWND, UINT, WPARAM, LPARAM);
+
+BOOL Viewport_Register(HINSTANCE hInstance)
+{
   WNDCLASSEX wcex  = {0};
   wcex.cbSize      = sizeof(WNDCLASSEX);
   wcex.style       = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc = (WNDPROC)viewport_wndproc;
-  wcex.hInstance   = GetModuleHandle(NULL);
+  wcex.lpfnWndProc = (WNDPROC)Viewport_WndProc;
+  wcex.hInstance   = hInstance;
   wcex.hCursor     = LoadCursor(NULL, IDC_ARROW);
-  /* Cause flickering */
-  /* wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1); */
-  wcex.lpszClassName = VIEWPORTCTL_WC;
+  wcex.lpszClassName = szViewportWndClass;
 
-  ATOM class_atom = RegisterClassEx(&wcex);
-  if (!class_atom) {
-    MessageBox(NULL, L"Failed to register class!", NULL, MB_OK | MB_ICONERROR);
-    return;
-  }
-
-  g_viewport.wndclass = class_atom;
+  return RegisterClassEx(&wcex);
 }
 
-void viewport_get_canvas_rect(viewport_t* vp, IMAGE* img, RECT* rcCanvas)
+Document* Viewport_GetDocument(Viewport* viewport)
 {
-  RECT rcViewport = {0};
-  if (GetClientRect(g_viewport.hwnd, &rcViewport)) {
-    printf("[ViewportRect] w: %ld h: %ld\n",
-           rcViewport.right,
-           rcViewport.bottom);
-  } else {
-    printf("[GetCanvasRect] Failed to get viewport rect\n");
-  }
-  GetClientRect(g_viewport.hwnd, &rcViewport);
-
-  rcCanvas->left   = vp->canvas_x;
-  rcCanvas->top    = vp->canvas_y;
-  rcCanvas->right  = img->rc.width;
-  rcCanvas->bottom = img->rc.height;
-
-  printf("[GetCanvasRect] right: %ld\n", rcCanvas->right);
-  printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
+  return viewport->document;
 }
 
-void viewport_oncreate()
+void OnCreate(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
-  g_viewport.canvas_x = 0;
-  g_viewport.canvas_y = 0;
+  /* Do nothing for now */
 }
 
-BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
+BOOL GdiBlitCanvas(HDC hdc, int x, int y, Canvas* canvas)
 {
-  HBITMAP hbitmap = CreateBitmap(canvas->width,
-                                 canvas->height,
-                                 1,
-                                 sizeof(uint32_t) * 8,
-                                 canvas->buffer);
-
+  Rect rc = Canvas_GetSize(canvas);
+  size_t bufSize;
+  HBITMAP hbitmap = CreateBitmap(rc.right, rc.bottom, 1,
+      sizeof(uint32_t) * 8, Canvas_GetBuffer(canvas, &bufSize));
   HDC bitmapdc;
 
   bitmapdc = CreateCompatibleDC(hdc);
   SelectObject(bitmapdc, hbitmap);
 
-  BOOL status =
-      BitBlt(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0, SRCCOPY);
+  BOOL status = BitBlt(hdc, x, y, rc.right, rc.bottom, bitmapdc, 0, 0, SRCCOPY);
 
   if (!status)
+  {
     MessageBox(NULL, L"BitBlt failed", NULL, MB_OK | MB_ICONERROR);
+  }
 
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
@@ -111,122 +87,146 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
   return TRUE;
 }
 
-void viewport_onpaint(HWND hwnd)
+static void OnPaint(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (g_viewport.document == NULL)
-    return;
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
 
-  PAINTSTRUCT ps;
+  PAINTSTRUCT ps = {0};
   HDC hdc;
 
   hdc = BeginPaint(hwnd, &ps);
-  gdi_blit_canvas(hdc, 0, 0, g_viewport.document->canvas);
-  /*
-  RECT rc = {0};
-  rc.left = 0;
-  rc.top = 0;
-  rc.right = g_viewport.document->canvas->width + 1;
-  rc.bottom = g_viewport.document->canvas->height + 1;
-  */
 
-  MoveToEx(hdc, g_viewport.document->canvas->width, 0, NULL);
-  LineTo(hdc, g_viewport.document->canvas->width,
-      g_viewport.document->canvas->height);
-  LineTo(hdc, 0, g_viewport.document->canvas->height);
+  Document* document = Viewport_GetDocument(viewport);
+  Canvas* canvas = Document_GetCanvas(document);
+  GdiBlitCanvas(hdc, 0, 0, canvas);
+
+  Rect rc = Canvas_GetSize(canvas);
+
+  MoveToEx(hdc, rc.right, 0, NULL);
+  LineTo(hdc, rc.right, rc.bottom);
+  LineTo(hdc, 0, rc.bottom);
   EndPaint(hwnd, &ps);
 }
 
-void viewport_onkeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void OnKeyDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (wParam == VK_SPACE) {
-    g_viewport.view_dragging = TRUE;
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  if (wParam == VK_SPACE)
+  {
+    viewport->bViewDrag = TRUE;
   }
 }
 
-void viewport_onkeyup(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void OnKeyUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (wParam == VK_SPACE) {
-    g_viewport.view_dragging = FALSE;
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  if (wParam == VK_SPACE)
+  {
+    viewport->bViewDrag = FALSE;
   }
 }
 
-void viewport_onmousewheel(WPARAM wParam)
+void OnMouseMove(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-}
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
 
-void viewport_onlbuttondown(MOUSEEVENT mEvt)
-{
-  if (g_tool.onlbuttondown != NULL) {
-    g_tool.onlbuttondown(mEvt);
+  if (viewport->bViewDrag)
+  {
+    viewport->canvasX = LOWORD(lParam);
+    viewport->canvasY = HIWORD(lParam);
   }
 }
 
-void viewport_onlbuttonup(MOUSEEVENT mEvt)
+void ProceedToolEvent(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-  if (g_tool.onlbuttonup != NULL) {
-    g_tool.onlbuttonup(mEvt);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+  if (!viewport)
+    return;
+
+  Tool* tool = GetSelectedTool();
+  assert(tool);
+  if (!tool)
+    return;
+
+  switch (message)
+  {
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MOUSEMOVE:
+    case WM_MOUSEWHEEL:
+      Tool_ProcessEvent(tool, viewport, message, wParam, lParam);
   }
 }
 
-void viewport_onrbuttonup(MOUSEEVENT mEvt)
+LRESULT CALLBACK Viewport_WndProc(HWND hwnd, UINT message, WPARAM wParam,
+    LPARAM lParam)
 {
-  if (g_tool.onrbuttonup != NULL) {
-    g_tool.onrbuttonup(mEvt);
-  }
-}
-
-void viewport_onmousemove(MOUSEEVENT mEvt)
-{
-  if (g_viewport.view_dragging) {
-    g_viewport.canvas_x = LOWORD(mEvt.lParam);
-    g_viewport.canvas_y = HIWORD(mEvt.lParam);
+  Viewport* viewport = NULL;
+  if (message == WM_CREATE || message == WM_NCCREATE)
+  {
+    LPCREATESTRUCT lpcs = (LPCREATESTRUCT)lParam;
+    viewport = (Viewport*)lpcs->lpCreateParams;
+    viewport->hwnd = hwnd;
   }
 
-  if (g_tool.onmousemove) {
-    g_tool.onmousemove(mEvt);
+  switch (message)
+  {
+    case WM_LBUTTONUP:
+    case WM_RBUTTONUP:
+    case WM_LBUTTONDOWN:
+    case WM_RBUTTONDOWN:
+    case WM_MOUSEMOVE:
+    case WM_MOUSEWHEEL:
+      ProceedToolEvent(hwnd, message, wParam, lParam);
   }
-}
 
-LRESULT CALLBACK viewport_wndproc(HWND hwnd,
-                                  UINT msg,
-                                  WPARAM wParam,
-                                  LPARAM lParam)
-{
-  MOUSEEVENT mevt;
-  mevt.hwnd   = hwnd;
-  mevt.lParam = lParam;
-
-  switch (msg) {
+  switch (message) {
   case WM_CREATE:
-    viewport_oncreate();
-    break;
+    OnCreate(hwnd, wParam, lParam);
+    return 0;
   case WM_PAINT:
-    viewport_onpaint(hwnd);
-    break;
+    OnPaint(hwnd, wParam, lParam);
+    return 0;
   case WM_KEYDOWN:
-    viewport_onkeydown(hwnd, wParam, lParam);
-    break;
-  case WM_MOUSEWHEEL:
-    viewport_onmousewheel(wParam);
-    break;
-  case WM_LBUTTONDOWN:
-    viewport_onlbuttondown(mevt);
-    break;
-  case WM_LBUTTONUP:
-    viewport_onlbuttonup(mevt);
-    break;
-  case WM_RBUTTONUP:
-    viewport_onrbuttonup(mevt);
-    break;
+    OnKeyDown(hwnd, wParam, lParam);
+    return 0;
+  case WM_KEYUP:
+    OnKeyUp(hwnd, wParam, lParam);
+    return 0;
   case WM_MOUSEMOVE:
-    viewport_onmousemove(mevt);
-    break;
-  case WM_SIZE:
-    viewport_invalidate();
-    break;
-  default:
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    OnMouseMove(hwnd, wParam, lParam);
+    return 0;
   }
 
-  return 0;
+  return DefWindowProc(hwnd, message, wParam, lParam);
+}
+
+Viewport* Viewport_Create(HWND hwndParent, Document* document)
+{
+  Viewport* viewport = calloc(1, sizeof(Viewport));
+
+  HWND hwnd = CreateWindowEx(0, szViewportWndClass, L"", WS_OVERLAPPEDWINDOW |
+      WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT, 640, 480, hwndParent, NULL,
+      (HINSTANCE)GetWindowLongPtr(hwndParent, GWLP_HINSTANCE),
+      (LPVOID)viewport);
+  assert(hwnd);
+
+  viewport->document = document;
+  viewport->hwnd = hwnd;
+
+  return viewport;
+}
+
+HWND Viewport_GetHWND(Viewport* viewport)
+{
+  return viewport->hwnd;
 }

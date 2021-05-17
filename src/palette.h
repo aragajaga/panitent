@@ -14,6 +14,6 @@ extern palette_dialog_t g_palette_dialog;
 uint32_t abgr_to_argb(uint32_t abgr);
 
 void register_palette_dialog(HINSTANCE hInstance);
-void init_palette_window(HWND parent);
+HWND Palette_Create(HWND);
 
 #endif /* PANITENT_PALETTE_H_ */

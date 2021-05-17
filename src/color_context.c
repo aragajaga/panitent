@@ -97,6 +97,16 @@ void SetBackgroundColor(uint32_t color)
   }
 }
 
+uint32_t GetForegroundColor()
+{
+  return g_color_context.fg_color;
+}
+
+uint32_t GetBackgroundColor()
+{
+  return g_color_context.bg_color;
+}
+
 void RegisterColorObserver(void (*clbk)(void*, uint32_t, uint32_t),
     void* userData)
 {

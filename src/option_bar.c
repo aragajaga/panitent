@@ -133,12 +133,12 @@ void option_bar_register_class(HINSTANCE hInstance)
   g_option_bar.win_class = class_atom;
 }
 
-void option_bar_create(HWND hwnd)
+HWND OptionBar_Create(HWND hwnd)
 {
   HWND handle = CreateWindowEx(0,
                                MAKEINTATOM(g_option_bar.win_class),
-                               NULL,
-                               WS_CHILD | WS_VISIBLE,
+                               L"Option Bar",
+                               WS_CHILD | WS_BORDER | WS_VISIBLE,
                                0,
                                0,
                                500,
@@ -153,8 +153,9 @@ void option_bar_create(HWND hwnd)
                L"Failed to create option bar window!",
                NULL,
                MB_OK | MB_ICONERROR);
-    return;
+    return NULL;
   }
 
   g_option_bar.win_handle = handle;
+  return handle;
 }

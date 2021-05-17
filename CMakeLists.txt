@@ -29,10 +29,13 @@ set(SOURCE_EXE
     src/settings.c
     src/swatch.c
     src/toolbox.c
+    src/tool.c
     src/viewport.c
     src/wu_primitives.c
     src/crefptr.c
     src/wic.c
+    src/welcome.c
+    src/layers.c
     res/panitent.rc)
     
 if(MSVC)

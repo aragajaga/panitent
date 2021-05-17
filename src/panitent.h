@@ -3,6 +3,8 @@
 
 #define IDS_STATUS 1330
 
+#include "document.h"
+
 enum {
   IDM_FILE_NEW = 1001,
   IDM_FILE_OPEN,
@@ -43,5 +45,10 @@ HMENU CreateMainMenu();
 void UnregisterClasses();
 void SetGuiFont(HWND hwnd);
 HFONT GetGuiFont();
+Document* GetActiveDocument();
+void SetActiveDocument(Document*);
+HWND Panitent_GetHWND();
+
+extern const WCHAR szAppName[];
 
 #endif /* PANITENT_PANITENT_H */
