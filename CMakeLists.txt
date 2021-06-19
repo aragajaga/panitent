@@ -1,5 +1,6 @@
-cmake_minimum_required(VERSION 3.13)
-project(panitent C)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
+
+project(panitent LANGUAGES C)
 
 if(MINGW)
     # Optimization flags
