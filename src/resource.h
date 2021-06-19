@@ -10,4 +10,6 @@
 #define IDB_TOOLS 1201
 #define IDB_CLOSEBTN 12022
 
+#define IDD_ABOUTBOX 100
+
 #endif

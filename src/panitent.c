@@ -241,6 +241,19 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   parent->node2 = nodeOptionBar;
 }
 
+INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
+    LPARAM lParam)
+{
+  switch (message)
+  {
+    case WM_COMMAND:
+      EndDialog(hwndDlg, wParam);
+      return TRUE;
+  }
+
+  return FALSE;
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
   switch (uMsg) {
@@ -275,6 +288,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case IDM_OPTIONS_SETTINGS:
       ShowSettingsWindow(hWnd);
       break;
+    case IDM_HELP_ABOUT:
+      DialogBox(hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDlgProc);
     default:
       break;
     }
