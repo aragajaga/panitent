@@ -7,12 +7,12 @@
 #include "bresenham.h"
 #include "swatch.h"
 
-option_bar_t g_option_bar;
+OptionBar g_option_bar;
 
 #define IDCB_STENCIL_ALGORITHM 1553
 #define IDCB_THICKNESS 1554
 
-void option_bar_oncommand(WPARAM wparam, LPARAM lparam)
+void OptionBar_OnCommand(WPARAM wparam, LPARAM lparam)
 {
   if (HIWORD(wparam) != LBN_SELCHANGE)
     return;
@@ -45,10 +45,8 @@ void option_bar_oncommand(WPARAM wparam, LPARAM lparam)
   }
 }
 
-LRESULT CALLBACK option_bar_wndproc(HWND hwnd,
-                                    UINT message,
-                                    WPARAM wparam,
-                                    LPARAM lparam)
+LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
+    LPARAM lparam)
 {
   switch (message) {
   case WM_CREATE:
@@ -102,7 +100,7 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd,
     g_option_bar.textstring_handle = hedit;
   } break;
   case WM_COMMAND:
-    option_bar_oncommand(wparam, lparam);
+    OptionBar_OnCommand(wparam, lparam);
     break;
   default:
     return DefWindowProc(hwnd, message, wparam, lparam);
@@ -112,11 +110,11 @@ LRESULT CALLBACK option_bar_wndproc(HWND hwnd,
   return 0;
 }
 
-void option_bar_register_class(HINSTANCE hInstance)
+void OptionBar_RegisterClass(HINSTANCE hInstance)
 {
   WNDCLASSEX wcex    = {0};
   wcex.cbSize        = sizeof(WNDCLASSEX);
-  wcex.lpfnWndProc   = (WNDPROC)option_bar_wndproc;
+  wcex.lpfnWndProc   = (WNDPROC)OptionBar_WndProc;
   wcex.hInstance     = hInstance;
   wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
   wcex.lpszClassName = L"Win32Class_OptionBar";
@@ -133,7 +131,7 @@ void option_bar_register_class(HINSTANCE hInstance)
   g_option_bar.win_class = class_atom;
 }
 
-void option_bar_create(HWND hwnd)
+void OptionBar_Create(HWND hwnd)
 {
   HWND handle = CreateWindowEx(0,
                                MAKEINTATOM(g_option_bar.win_class),

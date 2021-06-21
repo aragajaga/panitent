@@ -4,17 +4,17 @@
 #include "precomp.h"
 #include "canvas.h"
 
-typedef struct _document {
+typedef struct _Document {
   char* location;
-  canvas_t* canvas;
+  Canvas* canvas;
   LPWSTR szFilePath;
-} document_t;
+} Document;
 
-void document_save(document_t* doc);
-void document_open(document_t* doc);
-BOOL document_close(document_t* doc);
-void document_purge(document_t* doc);
-document_t* document_new(int width, int height);
-BOOL Document_IsFilePathSet(document_t* doc);
+void Document_Save(Document* doc);
+void Document_Open(Document* doc);
+BOOL Document_Close(Document* doc);
+void Document_Purge(Document* doc);
+Document* Document_New(int width, int height);
+BOOL Document_IsFilePathSet(Document* doc);
 
 #endif /* PANITENT_DOCUMENT_H_ */

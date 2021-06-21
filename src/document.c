@@ -12,12 +12,12 @@
 
 extern const WCHAR szAppName[];
 
-BOOL Document_IsFilePathSet(document_t* doc)
+BOOL Document_IsFilePathSet(Document* doc)
 {
   return doc->szFilePath != NULL;
 }
 
-void document_open(document_t* prevDoc)
+void Document_Open(Document* prevDoc)
 {
   crefptr_t* s = init_open_file_dialog();
 
@@ -25,9 +25,9 @@ void document_open(document_t* prevDoc)
   MessageBox(NULL, pszFileName, L"Open", MB_OK);
   ImageBuffer ib = ImageFileReader(pszFileName);
   
-  document_t* doc = calloc(1, sizeof(document_t));
+  Document* doc = calloc(1, sizeof(Document));
 
-  canvas_t* canvas = malloc(sizeof(canvas_t));
+  Canvas* canvas = malloc(sizeof(Canvas));
   canvas->width       = ib.width;
   canvas->height      = ib.height;
   canvas->color_depth = 4;
@@ -35,22 +35,22 @@ void document_open(document_t* prevDoc)
   canvas->buffer      = ib.bits;
   doc->canvas = canvas;
 
-  viewport_set_document(doc);
+  Viewport_SetDocument(doc);
 
   crefptr_deref(s);
 }
 
-void document_save(document_t* doc)
+void Document_Save(Document* doc)
 {
   crefptr_t* s = init_save_file_dialog();
   /*
-  const void* buffer = canvas_get_buffer(doc->canvas);
+  const void* buffer = Canvas_GetBuffer(doc->canvas);
   FILE* f = fopen("data.raw", "wb");
   fwrite(buffer, doc->canvas->buffer_size, 1, f);
   fclose(f);
   */
 
-  canvas_t* c = doc->canvas;
+  Canvas* c = doc->canvas;
   ImageBuffer ib  = {0};
   ib.width        = c->width;
   ib.height       = c->height;
@@ -61,53 +61,56 @@ void document_save(document_t* doc)
   crefptr_deref(s);
 }
 
-void document_purge(document_t* doc)
+void Document_Purge(Document* doc)
 {
-  canvas_delete(doc->canvas);
+  Canvas_Delete(doc->canvas);
 }
 
-BOOL document_close(document_t* doc)
+BOOL Document_Close(Document* doc)
 {
-  int answer = MessageBox(NULL,
-                          L"Do you want to save changes?",
-                          szAppName,
-                          MB_YESNOCANCEL | MB_ICONWARNING);
+  int answer = MessageBox(NULL, L"Do you want to save changes?", szAppName,
+      MB_YESNOCANCEL | MB_ICONWARNING);
 
   switch (answer) {
-  case IDYES:
-    document_save(doc);
-    break;
-  case IDNO:
-    document_purge(doc);
-    break;
-  default:
-    return FALSE;
-    break;
+    case IDYES:
+      Document_Save(doc);
+      break;
+    case IDNO:
+      Document_Purge(doc);
+      break;
+    default:
+      return FALSE;
+      break;
   }
 
   return TRUE;
 }
 
+void Document_SetCanvas(Document* doc, Canvas* canvas)
+{
+  doc->canvas = canvas;
+}
+
 extern binary_tree_t* viewportNode;
 extern binary_tree_t* root;
 
-document_t* document_new(int width, int height)
+Document* Document_New(int width, int height)
 {
-  viewport_register_class();
+  Viewport_RegisterClass();
 
   if (!g_viewport.hwnd) {
     HWND hviewport = CreateWindowEx(0,
-                                    MAKEINTATOM(g_viewport.wndclass),
-                                    NULL,
-                                    WS_BORDER | WS_CHILD | WS_VISIBLE,
-                                    64,
-                                    0,
-                                    800,
-                                    600,
-                                    g_panitent.hwnd_main,
-                                    NULL,
-                                    GetModuleHandle(NULL),
-                                    NULL);
+        MAKEINTATOM(g_viewport.wndclass),
+        NULL,
+        WS_BORDER | WS_CHILD | WS_VISIBLE,
+        64,
+        0,
+        800,
+        600,
+        g_panitent.hwnd_main,
+        NULL,
+        GetModuleHandle(NULL),
+        NULL);
 
     if (!hviewport) {
       MessageBox(NULL,
@@ -123,17 +126,17 @@ document_t* document_new(int width, int height)
     DockNode_arrange(root);
   }
 
-  document_t* doc = calloc(1, sizeof(document_t));
+  Document* doc = calloc(1, sizeof(Document));
 
-  canvas_t* canvas    = calloc(1, sizeof(canvas_t));
+  Canvas* canvas    = calloc(1, sizeof(Canvas));
   canvas->width       = width;
   canvas->height      = height;
   canvas->color_depth = 4;
-  canvas_buffer_alloc(canvas);
+  Canvas_BufferAlloc(canvas);
 
   doc->canvas = canvas;
 
-  viewport_set_document(doc);
+  Viewport_SetDocument(doc);
 
   return doc;
 }

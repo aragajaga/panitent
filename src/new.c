@@ -21,7 +21,7 @@ void RegisterNewFileDialog()
     printf("[NewFileDialog] Class registration failed\n");
 }
 
-extern viewport_t g_viewport;
+extern Viewport g_viewport;
 
 HWND hEditWidth;
 HWND hEditHeight;
@@ -51,7 +51,7 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
       printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
 
       DestroyWindow(hwnd);
-      document_new(iWidth, iHeight);
+      Document_New(iWidth, iHeight);
     } break;
     default:
       break;

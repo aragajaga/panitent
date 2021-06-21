@@ -16,13 +16,13 @@
   ((uint32_t)(((a & 0xFF) << 24) | ((r & 0xFF) << 16) | ((g & 0xFF) << 8) | \
               (b & 0xff)))
 
-typedef struct _canvas {
+typedef struct _Canvas {
   int width;
   int height;
   uint8_t color_depth;
   size_t buffer_size;
   void* buffer;
-} canvas_t;
+} Canvas;
 
 typedef struct _rect {
   int x0;
@@ -31,18 +31,18 @@ typedef struct _rect {
   int y1;
 } rect_t;
 
-void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color);
-void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color);
-void canvas_plot(canvas_t* canvas, float x, float y, float opacity);
-BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y);
-uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y);
-void canvas_fill_solid(canvas_t* canvas, uint32_t color);
+void Canvas_DrawPixel(Canvas* canvas, int x, int y, uint32_t color);
+void Canvas_SetPixel(Canvas* canvas, int x, int y, uint32_t color);
+void Canvas_Plot(Canvas* canvas, float x, float y, float opacity);
+BOOL Canvas_CheckBoundaries(Canvas* canvas, int x, int y);
+uint32_t Canvas_GetPixel(Canvas* canvas, int x, int y);
+void Canvas_FillSolid(Canvas* canvas, uint32_t color);
 uint32_t color_opacity(uint32_t color, float opacity);
 uint32_t mix(uint32_t color1, uint32_t color2);
-void* canvas_buffer_alloc(canvas_t* canvas);
-void canvas_delete(canvas_t* canvas);
-void canvas_clear(canvas_t* canvas);
-const void* canvas_get_buffer(canvas_t*);
-void canvas_paste_bits(canvas_t*, void*, int, int, int, int);
+void* Canvas_BufferAlloc(Canvas* canvas);
+void Canvas_Delete(Canvas* canvas);
+void Canvas_Clear(Canvas* canvas);
+const void* Canvas_GetBuffer(Canvas*);
+void Canvas_PasteBits(Canvas*, void*, int, int, int, int);
 
 #endif /* PANITENT_CANVAS_H_ */

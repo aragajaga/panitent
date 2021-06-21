@@ -6,13 +6,13 @@
 #include "canvas.h"
 
 typedef struct _primitives_context {
-  void (*circle)(canvas_t* canvas, int cx, int cy, int radius);
-  void (*line)(canvas_t* canvas, rect_t rc);
+  void (*circle)(Canvas* canvas, int cx, int cy, int radius);
+  void (*line)(Canvas* canvas, rect_t rc);
 } primitives_context_t;
 
-void draw_circle(canvas_t* canvas, int cx, int cy, int radius);
-void draw_line(canvas_t* canvas, rect_t rc);
-void draw_rectangle(canvas_t*, rect_t);
+void draw_circle(Canvas* canvas, int cx, int cy, int radius);
+void draw_line(Canvas* canvas, rect_t rc);
+void draw_rectangle(Canvas*, rect_t);
 void SetThickness(unsigned int);
 
 extern primitives_context_t g_primitives_context;

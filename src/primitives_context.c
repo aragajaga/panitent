@@ -8,7 +8,7 @@
 primitives_context_t g_primitives_context;
 unsigned int g_thickness = 1;
 
-void draw_rectangle(canvas_t* canvas, rect_t rc)
+void draw_rectangle(Canvas* canvas, rect_t rc)
 {
   /*
    * 1. +-------->  2. +--------+
@@ -32,13 +32,13 @@ void draw_rectangle(canvas_t* canvas, rect_t rc)
   draw_line(canvas, l4);
 }
 
-void draw_circle(canvas_t* canvas, int cx, int cy, int radius)
+void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 {
   g_primitives_context.circle(canvas, cx, cy, radius);
-  viewport_invalidate();
+  Viewport_Invalidate();
 }
 
-void draw_line(canvas_t* canvas, rect_t rc)
+void draw_line(Canvas* canvas, rect_t rc)
 {
   printf("[BoundingTest] x: %d, y: %d\n", rc.x1, rc.y1);
 
@@ -53,7 +53,7 @@ void draw_line(canvas_t* canvas, rect_t rc)
     rc.x0++;
     rc.y0++;
   }
-  viewport_invalidate();
+  Viewport_Invalidate();
 }
 
 void SetThickness(unsigned int thickness)

@@ -13,8 +13,8 @@
 #include "debug.h"
 #include "tool.h"
 
-viewport_t g_viewport;
-tool_t g_tool;
+Viewport g_viewport;
+Tool g_tool;
 
 void swapf(float* a, float* b)
 {
@@ -23,18 +23,18 @@ void swapf(float* a, float* b)
   *a      = c;
 }
 
-void viewport_invalidate()
+void Viewport_Invalidate()
 {
   InvalidateRect(g_viewport.hwnd, NULL, TRUE);
 }
 
-void viewport_set_document(document_t* document)
+void Viewport_SetDocument(Document* document)
 {
   g_viewport.document = document;
   InvalidateRect(g_viewport.hwnd, NULL, TRUE);
 }
 
-void viewport_register_class()
+void Viewport_RegisterClass()
 {
   /*Break if already registered */
   if (g_viewport.wndclass)
@@ -43,7 +43,7 @@ void viewport_register_class()
   WNDCLASSEX wcex  = {0};
   wcex.cbSize      = sizeof(WNDCLASSEX);
   wcex.style       = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc = (WNDPROC)viewport_wndproc;
+  wcex.lpfnWndProc = (WNDPROC)Viewport_WndProc;
   wcex.hInstance   = GetModuleHandle(NULL);
   wcex.hCursor     = LoadCursor(NULL, IDC_ARROW);
   /* Cause flickering */
@@ -59,7 +59,7 @@ void viewport_register_class()
   g_viewport.wndclass = class_atom;
 }
 
-void viewport_get_canvas_rect(viewport_t* vp, IMAGE* img, RECT* rcCanvas)
+void Viewport_GetCanvasRect(Viewport* vp, IMAGE* img, RECT* rcCanvas)
 {
   RECT rcViewport = {0};
   if (GetClientRect(g_viewport.hwnd, &rcViewport)) {
@@ -80,13 +80,13 @@ void viewport_get_canvas_rect(viewport_t* vp, IMAGE* img, RECT* rcCanvas)
   printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
 }
 
-void viewport_oncreate()
+void Viewport_OnCreate()
 {
   g_viewport.canvas_x = 0;
   g_viewport.canvas_y = 0;
 }
 
-BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
+BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
 {
   HBITMAP hbitmap = CreateBitmap(canvas->width,
                                  canvas->height,
@@ -111,7 +111,7 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, canvas_t* canvas)
   return TRUE;
 }
 
-void viewport_onpaint(HWND hwnd)
+void Viewport_OnPaint(HWND hwnd)
 {
   if (g_viewport.document == NULL)
     return;
@@ -136,46 +136,46 @@ void viewport_onpaint(HWND hwnd)
   EndPaint(hwnd, &ps);
 }
 
-void viewport_onkeydown(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void Viewport_OnKeyDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
   if (wParam == VK_SPACE) {
     g_viewport.view_dragging = TRUE;
   }
 }
 
-void viewport_onkeyup(HWND hwnd, WPARAM wParam, LPARAM lParam)
+void Viewport_OnKeyUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
   if (wParam == VK_SPACE) {
     g_viewport.view_dragging = FALSE;
   }
 }
 
-void viewport_onmousewheel(WPARAM wParam)
+void Viewport_OnMouseWheel(WPARAM wParam)
 {
 }
 
-void viewport_onlbuttondown(MOUSEEVENT mEvt)
+void Viewport_OnLButtonDown(MOUSEEVENT mEvt)
 {
   if (g_tool.onlbuttondown != NULL) {
     g_tool.onlbuttondown(mEvt);
   }
 }
 
-void viewport_onlbuttonup(MOUSEEVENT mEvt)
+void Viewport_OnLButtonUp(MOUSEEVENT mEvt)
 {
   if (g_tool.onlbuttonup != NULL) {
     g_tool.onlbuttonup(mEvt);
   }
 }
 
-void viewport_onrbuttonup(MOUSEEVENT mEvt)
+void Viewport_OnRButtonUp(MOUSEEVENT mEvt)
 {
   if (g_tool.onrbuttonup != NULL) {
     g_tool.onrbuttonup(mEvt);
   }
 }
 
-void viewport_onmousemove(MOUSEEVENT mEvt)
+void Viewport_OnMouseMove(MOUSEEVENT mEvt)
 {
   if (g_viewport.view_dragging) {
     g_viewport.canvas_x = LOWORD(mEvt.lParam);
@@ -187,7 +187,7 @@ void viewport_onmousemove(MOUSEEVENT mEvt)
   }
 }
 
-LRESULT CALLBACK viewport_wndproc(HWND hwnd,
+LRESULT CALLBACK Viewport_WndProc(HWND hwnd,
                                   UINT msg,
                                   WPARAM wParam,
                                   LPARAM lParam)
@@ -198,31 +198,31 @@ LRESULT CALLBACK viewport_wndproc(HWND hwnd,
 
   switch (msg) {
   case WM_CREATE:
-    viewport_oncreate();
+    Viewport_OnCreate();
     break;
   case WM_PAINT:
-    viewport_onpaint(hwnd);
+    Viewport_OnPaint(hwnd);
     break;
   case WM_KEYDOWN:
-    viewport_onkeydown(hwnd, wParam, lParam);
+    Viewport_OnKeyDown(hwnd, wParam, lParam);
     break;
   case WM_MOUSEWHEEL:
-    viewport_onmousewheel(wParam);
+    Viewport_OnMouseWheel(wParam);
     break;
   case WM_LBUTTONDOWN:
-    viewport_onlbuttondown(mevt);
+    Viewport_OnLButtonDown(mevt);
     break;
   case WM_LBUTTONUP:
-    viewport_onlbuttonup(mevt);
+    Viewport_OnLButtonUp(mevt);
     break;
   case WM_RBUTTONUP:
-    viewport_onrbuttonup(mevt);
+    Viewport_OnRButtonUp(mevt);
     break;
   case WM_MOUSEMOVE:
-    viewport_onmousemove(mevt);
+    Viewport_OnMouseMove(mevt);
     break;
   case WM_SIZE:
-    viewport_invalidate();
+    Viewport_Invalidate();
     break;
   default:
     return DefWindowProc(hwnd, msg, wParam, lParam);

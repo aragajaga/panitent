@@ -29,7 +29,7 @@ uint32_t mix(uint32_t color1, uint32_t color2)
   return ARGB(0, r, g, b);
 }
 
-void* canvas_buffer_alloc(canvas_t* canvas)
+void* Canvas_BufferAlloc(Canvas* canvas)
 {
   size_t buffer_size = canvas->width * canvas->height * canvas->color_depth;
 
@@ -39,7 +39,7 @@ void* canvas_buffer_alloc(canvas_t* canvas)
   return canvas->buffer;
 }
 
-void canvas_delete(canvas_t* canvas)
+void Canvas_Delete(Canvas* canvas)
 {
   canvas->width       = 0;
   canvas->height      = 0;
@@ -49,7 +49,7 @@ void canvas_delete(canvas_t* canvas)
   free(canvas->buffer);
 }
 
-BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
+BOOL Canvas_CheckBoundaries(Canvas* canvas, int x, int y)
 {
   if (x >= 0 && y >= 0 && x < canvas->width && y < canvas->height) {
     return TRUE;
@@ -58,9 +58,9 @@ BOOL canvas_check_boundaries(canvas_t* canvas, int x, int y)
   return FALSE;
 }
 
-void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
+void Canvas_Plot(Canvas* canvas, float x, float y, float opacity)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -69,12 +69,12 @@ void canvas_plot(canvas_t* canvas, float x, float y, float opacity)
 
   uint32_t fg_color = g_color_context.fg_color;
 
-  canvas_draw_pixel(canvas, x_, y_, color_opacity(fg_color, opacity));
+  Canvas_DrawPixel(canvas, x_, y_, color_opacity(fg_color, opacity));
 }
 
-void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
+void Canvas_DrawPixel(Canvas* canvas, int x, int y, uint32_t color)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -83,21 +83,20 @@ void canvas_draw_pixel(canvas_t* canvas, int x, int y, uint32_t color)
 
   uint8_t alpha = CHANNEL_A_32(color);
 
-  /* TODO: Непродуманно. А если fg_color имеет альфу? */
   if (alpha == 255) {
-    canvas_set_pixel(canvas, x_, y_, color);
+    Canvas_SetPixel(canvas, x_, y_, color);
   } else if (alpha == 0) {
     return;
   } else {
-    uint32_t underlying   = canvas_get_pixel(canvas, x, y);
+    uint32_t underlying   = Canvas_GetPixel(canvas, x, y);
     uint32_t result_color = mix(underlying, color);
-    canvas_set_pixel(canvas, x, y, result_color);
+    Canvas_SetPixel(canvas, x, y, result_color);
   }
 }
 
-uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
+uint32_t Canvas_GetPixel(Canvas* canvas, int x, int y)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return 0;
   }
 
@@ -105,9 +104,9 @@ uint32_t canvas_get_pixel(canvas_t* canvas, int x, int y)
   return ((uint32_t*)(canvas->buffer))[pos];
 }
 
-void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
+void Canvas_SetPixel(Canvas* canvas, int x, int y, uint32_t color)
 {
-  if (!canvas_check_boundaries(canvas, x, y)) {
+  if (!Canvas_CheckBoundaries(canvas, x, y)) {
     return;
   }
 
@@ -115,26 +114,26 @@ void canvas_set_pixel(canvas_t* canvas, int x, int y, uint32_t color)
   ((uint32_t*)(canvas->buffer))[pos] = color;
 }
 
-void canvas_clear(canvas_t* canvas)
+void Canvas_Clear(Canvas* canvas)
 {
-  canvas_fill_solid(canvas, g_color_context.bg_color | 0xFF000000);
+  Canvas_FillSolid(canvas, g_color_context.bg_color | 0xFF000000);
 }
 
-void canvas_fill_solid(canvas_t* canvas, uint32_t color)
+void Canvas_FillSolid(Canvas* canvas, uint32_t color)
 {
   for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++) {
     ((uint32_t*)(canvas->buffer))[i] = color;
   }
 
-  viewport_invalidate();
+  Viewport_Invalidate();
 }
 
-const void* canvas_get_buffer(canvas_t* canvas)
+const void* Canvas_GetBuffer(Canvas* canvas)
 {
   return canvas->buffer; 
 }
 
-void canvas_paste_bits(canvas_t* canvas, void* bits, int x, int y, int width,
+void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     int height)
 {
   char* byteCanvas = (char*)canvas->buffer;
@@ -153,5 +152,5 @@ void canvas_paste_bits(canvas_t* canvas, void* bits, int x, int y, int width,
     byteCanvas += canvas->width * 4;
   }
 
-  viewport_invalidate();
+  Viewport_Invalidate();
 }

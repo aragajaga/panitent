@@ -91,9 +91,9 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
 
   InitColorContext();
   DockHost_Register(hInstance);
-  toolbox_register_class();
-  register_palette_dialog(hInstance);
-  option_bar_register_class(hInstance);
+  Toolbox_RegisterClass();
+  PaletteWindow_RegisterClass(hInstance);
+  OptionBar_RegisterClass(hInstance);
   SettingsWindow_Register(hInstance);
 
   bresenham_init();
@@ -129,13 +129,6 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
 
 BOOL bConsoleAttached;
 
-#ifdef _MSC_VER
-int main()
-{
-  return WinMain(GetModuleHandle(NULL), NULL, NULL, 0);
-}
-#endif
-
 HWND hPaletteToolbox;
 HWND hwndDockHost;
 
@@ -145,7 +138,7 @@ HWND hwndPalette;
 
 binary_tree_t* viewportNode;
 
-toolbox_t g_toolbox;
+Toolbox g_toolbox;
 
 void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 {
@@ -264,19 +257,19 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       break;
     case IDM_FILE_OPEN:
       // init_open_file_dialog();
-      document_open(g_viewport.document);
+      Document_Open(g_viewport.document);
       break;
     case IDM_FILE_SAVE:
-      document_save(g_viewport.document);
+      Document_Save(g_viewport.document);
       break;
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);
       break;
     case IDM_EDIT_TESTFILL:
-      canvas_fill_solid(g_viewport.document->canvas, 0xFFFFFFFF);
+      Canvas_FillSolid(g_viewport.document->canvas, 0xFFFFFFFF);
       break;
     case IDM_EDIT_CLRCANVAS:
-      canvas_clear(g_viewport.document->canvas);
+      Canvas_Clear(g_viewport.document->canvas);
       break;
     case IDM_WINDOW_TOOLS:
       CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
@@ -407,5 +400,5 @@ HMENU CreateMainMenu()
 void UnregisterClasses()
 {
   UnregisterClass(VIEWPORTCTL_WC, NULL);
-  toolbox_unregister_class();
+  Toolbox_UnregisterClass();
 }

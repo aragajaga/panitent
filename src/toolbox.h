@@ -7,52 +7,52 @@
 
 #define TOOLBOX_WC L"ToolBoxClass"
 
-typedef struct _toolbox_t {
-  tool_t* tools;
+typedef struct _Toolbox {
+  Tool* tools;
   unsigned int tool_count;
   HWND hwnd;
-} toolbox_t;
+} Toolbox;
 
-void toolbox_onpaint(toolbox_t*);
-void toolbox_onmousemove(HWND hwnd, LPARAM lParam);
-LRESULT CALLBACK toolbox_wndproc(HWND hwnd,
+void Toolbox_OnPaint(Toolbox*);
+void Toolbox_OnMouseMove(HWND hwnd, LPARAM lParam);
+LRESULT CALLBACK Toolbox_WndProc(HWND hwnd,
                                  UINT msg,
                                  WPARAM wParam,
                                  LPARAM lParam);
-void toolbox_register_class();
-void toolbox_unregister_class();
+void Toolbox_RegisterClass();
+void Toolbox_UnregisterClass();
 
-void tool_pointer_onlbuttonup(MOUSEEVENT mEvt);
-void tool_pointer_onlbuttondown(MOUSEEVENT mEvt);
-void tool_pointer_onmousemove(MOUSEEVENT mEvt);
-void tool_pointer_init();
+void ToolPointer_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolPointer_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolPointer_OnMouseMove(MOUSEEVENT mEvt);
+void ToolPointer_Init();
 
-void tool_pencil_onlbuttonup(MOUSEEVENT mEvt);
-void tool_pencil_onlbuttondown(MOUSEEVENT mEvt);
-void tool_pencil_onmousemove(MOUSEEVENT mEvt);
-void tool_pencil_init();
+void ToolPencil_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolPencil_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolPencil_OnMouseMove(MOUSEEVENT mEvt);
+void ToolPencil_Init();
 
-void tool_circle_onlbuttonup(MOUSEEVENT mEvt);
-void tool_circle_onlbuttondown(MOUSEEVENT mEvt);
-void tool_circle_onmousemove(MOUSEEVENT mEvt);
-void tool_circle_init();
+void ToolCircle_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolCircle_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolCircle_OnMouseMove(MOUSEEVENT mEvt);
+void ToolCircle_Init();
 
-void tool_line_onlbuttonup(MOUSEEVENT mEvt);
-void tool_line_onlbuttondown(MOUSEEVENT mEvt);
-void tool_line_onmousemove(MOUSEEVENT mEvt);
-void tool_line_init();
+void ToolLine_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolLine_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolLine_OnMouseMove(MOUSEEVENT mEvt);
+void ToolLine_Init();
 
-void tool_rectangle_onlbuttonup(MOUSEEVENT mEvt);
-void tool_rectangle_onlbuttondown(MOUSEEVENT mEvt);
-void tool_rectangle_onmousemove(MOUSEEVENT mEvt);
-void tool_rectangle_init();
+void ToolRectangle_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolRectangle_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolRectangle_OnMouseMove(MOUSEEVENT mEvt);
+void ToolRectangle_Init();
 
-void tool_text_onlbuttonup(MOUSEEVENT mEvt);
-void tool_text_onlbuttondown(MOUSEEVENT mEvt);
-void tool_text_onmousemove(MOUSEEVENT mEvt);
-void tool_text_init();
+void ToolText_OnLButtonUp(MOUSEEVENT mEvt);
+void ToolText_OnLButtonDown(MOUSEEVENT mEvt);
+void ToolText_OnLMouseMove(MOUSEEVENT mEvt);
+void ToolText_Init();
 
-void tool_fill_init();
-void tool_picker_init();
+void ToolFill_Init();
+void ToolPicker_Init();
 
 #endif /* PANITENT_TOOLBOX_H */

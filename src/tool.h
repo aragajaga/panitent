@@ -4,13 +4,13 @@
 #include "precomp.h"
 #include "panitent.h"
 
-typedef struct _tool_t {
+typedef struct _Tool {
   wchar_t* label;
   int img;
   void (*onlbuttonup)(MOUSEEVENT mEvt);
   void (*onlbuttondown)(MOUSEEVENT mEvt);
   void (*onrbuttonup)(MOUSEEVENT mEvt);
   void (*onmousemove)(MOUSEEVENT mEvt);
-} tool_t;
+} Tool;
 
 #endif /* PANITENT_TOOL_H */

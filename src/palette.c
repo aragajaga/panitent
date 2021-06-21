@@ -49,7 +49,7 @@ uint32_t abgr_to_argb(uint32_t abgr)
 int swatch_size   = 16;
 int swatch_margin = 2;
 
-void draw_swatch(HDC hdc, int x, int y, COLORREF color)
+void PaletteWindow_DrawSwatch(HDC hdc, int x, int y, COLORREF color)
 {
   HDC original = SelectObject(hdc, GetStockObject(DC_BRUSH));
 
@@ -59,7 +59,7 @@ void draw_swatch(HDC hdc, int x, int y, COLORREF color)
   SelectObject(hdc, original);
 }
 
-void palette_window_onpaint(HWND hwnd)
+void PaletteWindow_OnPaint(HWND hwnd)
 {
   PAINTSTRUCT ps;
   HDC hdc;
@@ -73,13 +73,14 @@ void palette_window_onpaint(HWND hwnd)
 
   hdc = BeginPaint(hwnd, &ps);
 
-  draw_swatch(hdc, 10, 10, (COLORREF)abgr_to_argb(g_color_context.fg_color));
-
-  draw_swatch(hdc, 40, 10, (COLORREF)abgr_to_argb(g_color_context.bg_color));
+  PaletteWindow_DrawSwatch(hdc, 10, 10,
+      (COLORREF)abgr_to_argb(g_color_context.fg_color));
+  PaletteWindow_DrawSwatch(hdc, 40, 10,
+      (COLORREF)abgr_to_argb(g_color_context.bg_color));
 
   uint32_t color = 0x00ff0000;
   for (size_t i = 0; i < sizeof(palette_colors) / sizeof(uint32_t); i++) {
-    draw_swatch(hdc,
+    PaletteWindow_DrawSwatch(hdc,
                 10 + (i % width_indices) * (swatch_size + swatch_margin),
                 40 + (i / width_indices) * (swatch_size + swatch_margin),
                 (COLORREF)(palette_colors[i]));
@@ -90,7 +91,7 @@ void palette_window_onpaint(HWND hwnd)
   EndPaint(hwnd, &ps);
 }
 
-int transform_pos_to_index(int x, int y)
+int PaletteWindow_PosToSwatchIndex(int x, int y)
 {
   RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
@@ -111,7 +112,7 @@ uint32_t get_color(int index)
   return palette_colors[index];
 }
 
-void palette_window_onbuttonup(HWND hwnd, LPARAM lParam)
+void PaletteWindow_OnLButtonUp(HWND hwnd, LPARAM lParam)
 {
   RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
@@ -124,7 +125,7 @@ void palette_window_onbuttonup(HWND hwnd, LPARAM lParam)
 
   if (((x - 10) < ((swatch_size + swatch_margin) * width_indices)) &&
       ((y - 40) < ((swatch_size + swatch_margin) * height_indices))) {
-    int index = transform_pos_to_index(x, y);
+    int index = PaletteWindow_PosToSwatchIndex(x, y);
     if (index < 0 || index >= swatch_count)
       return;
 
@@ -135,7 +136,7 @@ void palette_window_onbuttonup(HWND hwnd, LPARAM lParam)
   }
 }
 
-void palette_window_onrbuttonup(HWND hwnd, LPARAM lParam)
+void PaletteWindow_OnRButtonUp(HWND hwnd, LPARAM lParam)
 {
   RECT rc = {0};
   GetClientRect(g_palette_dialog.win_handle, &rc);
@@ -148,7 +149,7 @@ void palette_window_onrbuttonup(HWND hwnd, LPARAM lParam)
 
   if (((x - 10) < ((swatch_size + swatch_margin) * width_indices)) &&
       ((y - 40) < ((swatch_size + swatch_margin) * height_indices))) {
-    int index = transform_pos_to_index(x, y);
+    int index = PaletteWindow_PosToSwatchIndex(x, y);
     if (index < 0 || index >= swatch_count)
       return;
 
@@ -159,7 +160,7 @@ void palette_window_onrbuttonup(HWND hwnd, LPARAM lParam)
   }
 }
 
-void palette_color_change_obs(void* userData, uint32_t fg, uint32_t bg)
+void Palette_ColorChangeObserver(void* userData, uint32_t fg, uint32_t bg)
 {
   HWND hWnd = (HWND)userData;
   if (!hWnd)
@@ -168,7 +169,7 @@ void palette_color_change_obs(void* userData, uint32_t fg, uint32_t bg)
   InvalidateRect(hWnd, NULL, TRUE);
 }
 
-LRESULT CALLBACK palette_window_proc(HWND hwnd,
+LRESULT CALLBACK PaletteWindow_WndProc(HWND hwnd,
                                      UINT message,
                                      WPARAM wparam,
                                      LPARAM lparam)
@@ -176,21 +177,21 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd,
   switch (message) {
   case WM_CREATE:
     {
-      RegisterColorObserver(palette_color_change_obs, (void*)hwnd);
+      RegisterColorObserver(Palette_ColorChangeObserver, (void*)hwnd);
       g_palette_dialog.win_handle = hwnd;
     }
     break;
   case WM_PAINT:
-    palette_window_onpaint(hwnd);
+    PaletteWindow_OnPaint(hwnd);
     break;
   case WM_LBUTTONUP:
-    palette_window_onbuttonup(hwnd, lparam);
+    PaletteWindow_OnLButtonUp(hwnd, lparam);
     break;
   case WM_RBUTTONUP:
-    palette_window_onrbuttonup(hwnd, lparam);
+    PaletteWindow_OnRButtonUp(hwnd, lparam);
     break;
   case WM_DESTROY:
-    RemoveColorObserver(palette_color_change_obs, (void*)hwnd);
+    RemoveColorObserver(Palette_ColorChangeObserver, (void*)hwnd);
     break;
   default:
     return DefWindowProc(hwnd, message, wparam, lparam);
@@ -200,12 +201,12 @@ LRESULT CALLBACK palette_window_proc(HWND hwnd,
   return 0;
 }
 
-void register_palette_dialog(HINSTANCE hInstance)
+void PaletteWindow_RegisterClass(HINSTANCE hInstance)
 {
   WNDCLASSEX wcex    = {0};
   wcex.cbSize        = sizeof(WNDCLASSEX);
   wcex.style         = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc   = (WNDPROC)palette_window_proc;
+  wcex.lpfnWndProc   = (WNDPROC)PaletteWindow_WndProc;
   wcex.cbWndExtra    = 0;
   wcex.cbClsExtra    = 0;
   wcex.hInstance     = hInstance;
@@ -221,16 +222,7 @@ void register_palette_dialog(HINSTANCE hInstance)
     printf("Failed to register PaletteWindow");
 }
 
-void palette_dialog_onpaint(HWND hwnd)
-{
-  PAINTSTRUCT ps = {0};
-  HDC hdc;
-
-  hdc = BeginPaint(hwnd, &ps);
-  Rectangle(hdc, 2, 2, 24, 24);
-}
-
-void init_palette_window(HWND parent)
+void PaletteWindow_Create(HWND parent)
 {
   HWND hPalette = CreateWindowEx(WS_EX_PALETTEWINDOW,
                                  L"Win32Class_PaletteWindow",
