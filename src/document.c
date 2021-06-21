@@ -102,7 +102,7 @@ Document* Document_New(int width, int height)
     HWND hviewport = CreateWindowEx(0,
         MAKEINTATOM(g_viewport.wndclass),
         NULL,
-        WS_BORDER | WS_CHILD | WS_VISIBLE,
+        WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
         64,
         0,
         800,

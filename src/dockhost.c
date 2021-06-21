@@ -681,7 +681,7 @@ HWND DockHost_Create(HWND hParent)
   HWND hWnd = CreateWindowEx(0,
                              MAKEINTATOM(g_dockhost.wndClass),
                              L"DockHost",
-                             WS_CHILD | WS_VISIBLE,
+                             WS_CHILD | WS_CLIPCHILDREN | WS_VISIBLE,
                              0,
                              0,
                              320,
