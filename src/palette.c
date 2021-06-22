@@ -11,32 +11,32 @@
 palette_dialog_t g_palette_dialog;
 
 uint32_t palette_colors[] = {
-    0x00000000, /* Black */
-    0x00FFFFFF, /* White */
-    0x00CCCCCC, /* Light Gray */
-    0x00888888, /* Gray */
-    0x00444444, /* Dark Gray */
+    0xFF000000, /* Black */
+    0xFFFFFFFF, /* White */
+    0xFFCCCCCC, /* Light Gray */
+    0xFF888888, /* Gray */
+    0xFF444444, /* Dark Gray */
 
-    0x00FF8888, /* Light Red */
-    0x00FFFF88, /* Light Yellow */
-    0x0088FF88, /* Light Green */
-    0x0088FFFF, /* Light Cyan */
-    0x008888FF, /* Light Blue */
-    0x00FF88FF, /* Light Magenta */
+    0xFFFF8888, /* Light Red */
+    0xFFFFFF88, /* Light Yellow */
+    0xFF88FF88, /* Light Green */
+    0xFF88FFFF, /* Light Cyan */
+    0xFF8888FF, /* Light Blue */
+    0xFFFF88FF, /* Light Magenta */
 
-    0x00FF0000, /* Red */
-    0x00FFFF00, /* Yellow */
-    0x0000FF00, /* Green */
-    0x0000FFFF, /* Cyan */
-    0x000000FF, /* Blue */
-    0x00FF00FF, /* Magenta */
+    0xFFFF0000, /* Red */
+    0xFFFFFF00, /* Yellow */
+    0xFF00FF00, /* Green */
+    0xFF00FFFF, /* Cyan */
+    0xFF0000FF, /* Blue */
+    0xFFFF00FF, /* Magenta */
 
-    0x00880000, /* Crimson */
-    0x00888800, /* Gold */
-    0x00008800, /* Dark Green */
-    0x00008888, /* Dark Cyan */
-    0x00000088, /* Dark Blue */
-    0x00880088, /* Dark Magenta */
+    0xFF880000, /* Crimson */
+    0xFF888800, /* Gold */
+    0xFF008800, /* Dark Green */
+    0xFF008888, /* Dark Cyan */
+    0xFF000088, /* Dark Blue */
+    0xFF880088, /* Dark Magenta */
 };
 
 uint32_t abgr_to_argb(uint32_t abgr)
@@ -74,16 +74,16 @@ void PaletteWindow_OnPaint(HWND hwnd)
   hdc = BeginPaint(hwnd, &ps);
 
   PaletteWindow_DrawSwatch(hdc, 10, 10,
-      (COLORREF)abgr_to_argb(g_color_context.fg_color));
+      (COLORREF)abgr_to_argb(g_color_context.fg_color) & 0x00FFFFFF);
   PaletteWindow_DrawSwatch(hdc, 40, 10,
-      (COLORREF)abgr_to_argb(g_color_context.bg_color));
+      (COLORREF)abgr_to_argb(g_color_context.bg_color) & 0x00FFFFFF);
 
   uint32_t color = 0x00ff0000;
   for (size_t i = 0; i < sizeof(palette_colors) / sizeof(uint32_t); i++) {
     PaletteWindow_DrawSwatch(hdc,
                 10 + (i % width_indices) * (swatch_size + swatch_margin),
                 40 + (i / width_indices) * (swatch_size + swatch_margin),
-                (COLORREF)(palette_colors[i]));
+                (COLORREF)(palette_colors[i] & 0x00FFFFFF));
 
     color >>= 1;
   }

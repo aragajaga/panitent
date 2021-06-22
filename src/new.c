@@ -1,4 +1,6 @@
 #include "precomp.h"
+#include <windowsx.h>
+#include <commctrl.h>
 
 #include <shlwapi.h>
 #include <stdio.h>
@@ -7,6 +9,7 @@
 #include "debug.h"
 #include "document.h"
 #include "viewport.h"
+#include "color_context.h"
 
 void RegisterNewFileDialog()
 {
@@ -25,6 +28,7 @@ extern Viewport g_viewport;
 
 HWND hEditWidth;
 HWND hEditHeight;
+HWND hComboBackground;
 extern HWND hButtonOk;
 
 LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
@@ -45,6 +49,28 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
       GetWindowText(hEditWidth, szWidth, 40);
       GetWindowText(hEditHeight, szHeight, 40);
 
+      COLORREF bgColor;
+      int bgIndex = ComboBox_GetCurSel(hComboBackground);
+
+      switch (bgIndex)
+      {
+        case 0:
+          bgColor = 0x00000000;
+          break;
+        case 1:
+          bgColor = 0xFFFFFFFF;
+          break;
+        case 2:
+          bgColor = 0xFF000000;
+          break;
+        case 3:
+          bgColor = g_color_context.fg_color;
+          break;
+        case 4:
+          bgColor = g_color_context.bg_color;
+          break;
+      }
+
       iWidth  = StrToInt(szWidth);
       iHeight = StrToInt(szHeight);
 
@@ -52,6 +78,11 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
 
       DestroyWindow(hwnd);
       Document_New(iWidth, iHeight);
+
+      if (g_viewport.document && g_viewport.document->canvas)
+      {
+        Canvas_FillSolid(g_viewport.document->canvas, bgColor);
+      }
     } break;
     default:
       break;
@@ -119,11 +150,31 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
                                  NULL);
     SetGuiFont(hEditHeight);
 
+    HWND hStaticBackground = CreateWindow(L"STATIC", L"Background:",
+        WS_CHILD | WS_VISIBLE,
+        10, 69, 70, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+    SetGuiFont(hStaticBackground);
+
+    hComboBackground = CreateWindowEx(WS_EX_CLIENTEDGE, WC_COMBOBOX,
+        L"",
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
+            WS_VISIBLE,
+        100, 66, 100, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+    SetGuiFont(hComboBackground);
+    ComboBox_AddString(hComboBackground, L"Transparent");
+    ComboBox_AddString(hComboBackground, L"White");
+    ComboBox_AddString(hComboBackground, L"Black");
+    ComboBox_AddString(hComboBackground, L"Primary color");
+    ComboBox_AddString(hComboBackground, L"Secondary color");
+    ComboBox_SetCurSel(hComboBackground, 1);
+
     hButtonOk = CreateWindow(L"BUTTON",
                              L"OK",
                              WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
                              200,
-                             200,
+                             250,
                              100,
                              30,
                              hwnd,
@@ -146,7 +197,7 @@ void NewFileDialog(HWND hwnd)
 
   RECT rc   = {0};
   rc.right  = 210;
-  rc.bottom = 120;
+  rc.bottom = 170;
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
   CreateWindow(L"NewFileDialogClass",

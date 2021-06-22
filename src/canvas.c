@@ -83,10 +83,8 @@ void Canvas_DrawPixel(Canvas* canvas, int x, int y, uint32_t color)
 
   uint8_t alpha = CHANNEL_A_32(color);
 
-  if (alpha == 255) {
+  if (alpha == 255 || alpha == 0) {
     Canvas_SetPixel(canvas, x_, y_, color);
-  } else if (alpha == 0) {
-    return;
   } else {
     uint32_t underlying   = Canvas_GetPixel(canvas, x, y);
     uint32_t result_color = mix(underlying, color);

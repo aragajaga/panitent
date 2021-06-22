@@ -34,10 +34,23 @@ struct _ViewportSettings {
 };
 
 struct _ViewportSettings g_viewportSettings = {
-  .doubleBuffered = FALSE,
+  .doubleBuffered = TRUE,
   .bkgndExcludeCanvas = TRUE,
   .showDebugInfo = TRUE,
   .backgroundMethod = BKGND_REGION
+};
+
+struct _CheckerConfig {
+  int size;
+  BOOL invalidate;
+  HBRUSH hSolid1;
+  HBRUSH hSolid2;
+  HBRUSH hbrush;
+};
+
+struct _CheckerConfig g_checker = {
+  .size = 16,
+  .invalidate = TRUE
 };
 
 INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message,
@@ -93,10 +106,10 @@ INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message,
             g_viewportSettings.showDebugInfo = Button_GetCheck((HWND)lParam);
             break;
           case IDC_BKGNDFILLRECT:
-            g_viewportSettings.backgroundMethod = BKGND_RECTANGLES;   
+            g_viewportSettings.backgroundMethod = BKGND_RECTANGLES;
             break;
           case IDC_BKGNDREGION:
-            g_viewportSettings.backgroundMethod = BKGND_REGION;   
+            g_viewportSettings.backgroundMethod = BKGND_REGION;
             break;
           case IDOK:
           case IDCANCEL:
@@ -178,31 +191,74 @@ void Viewport_OnCreate()
 {
   g_viewport.canvas_x = 0;
   g_viewport.canvas_y = 0;
+
+  g_checker.hSolid1 = CreateSolidBrush(RGB(0xCC, 0xCC, 0xCC));
+  g_checker.hSolid2 = CreateSolidBrush(RGB(0xFF, 0xFF, 0xFF));
 }
 
 BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
 {
-  HBITMAP hbitmap = CreateBitmap(canvas->width,
-                                 canvas->height,
-                                 1,
-                                 sizeof(uint32_t) * 8,
-                                 canvas->buffer);
+  assert(canvas);
+  if (!canvas)
+    return FALSE;
 
-  HDC bitmapdc;
+  HDC bitmapdc = CreateCompatibleDC(hdc);
+  HBITMAP hbitmap = CreateBitmap(canvas->width, canvas->height, 1,
+      sizeof(uint32_t) * 8, canvas->buffer);
 
-  bitmapdc = CreateCompatibleDC(hdc);
   SelectObject(bitmapdc, hbitmap);
 
-  BOOL status =
-      BitBlt(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0, SRCCOPY);
+  BLENDFUNCTION blendFunc = {
+    .BlendOp = AC_SRC_OVER,
+    .BlendFlags = 0,
+    .SourceConstantAlpha = 0xFF,
+    .AlphaFormat = AC_SRC_ALPHA
+  };
 
-  if (!status)
-    MessageBox(NULL, L"BitBlt failed", NULL, MB_OK | MB_ICONERROR);
+  AlphaBlend(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0,
+      canvas->width, canvas->height, blendFunc);
 
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
 
   return TRUE;
+}
+
+HBRUSH GetCheckerBrush(HDC hdc)
+{
+  if (g_checker.invalidate)
+  {
+
+    HBITMAP hPatBmp = CreateCompatibleBitmap(hdc, g_checker.size,
+        g_checker.size);
+    HDC hPatDC = CreateCompatibleDC(hdc);
+    SelectObject(hPatDC, hPatBmp);
+
+    RECT rcBack = {0, 0, g_checker.size, g_checker.size};
+    FillRect(hPatDC, &rcBack, g_checker.hSolid2);
+
+    RECT rcLump1 = {0, 0, g_checker.size/2, g_checker.size/2};
+    FillRect(hPatDC, &rcLump1, g_checker.hSolid1);
+
+    RECT rcLump2 = {g_checker.size/2, g_checker.size/2, g_checker.size,
+        g_checker.size};
+    FillRect(hPatDC, &rcLump2, g_checker.hSolid1);
+
+    HBRUSH hCheckerBrush = CreatePatternBrush(hPatBmp);
+    assert(hCheckerBrush);
+    g_checker.hbrush = hCheckerBrush;
+
+    g_checker.invalidate = FALSE;
+  }
+
+  return g_checker.hbrush;
+}
+
+static void DrawCheckerTexture(HDC hdc, int width, int height)
+{
+  RECT rc = {0, 0, width, height};
+  HBRUSH hbrChecker = GetCheckerBrush(hdc);
+  FillRect(hdc, &rc, hbrChecker);
 }
 
 void Viewport_OnPaint(HWND hwnd)
@@ -217,7 +273,7 @@ void Viewport_OnPaint(HWND hwnd)
   HDC hdcBack;
   HBITMAP hbmBack;
   HGDIOBJ hOldObjBack;
-  
+
   GetClientRect(hwnd, &clientRc);
 
   /* Using double buffering to avoid canvas flicker */
@@ -239,6 +295,10 @@ void Viewport_OnPaint(HWND hwnd)
   /*Use hdcTarget for actual drawing */
   if (g_viewport.document)
   {
+    DrawCheckerTexture(
+        hdcTarget,
+        g_viewport.document->canvas->width,
+        g_viewport.document->canvas->height);
 
     /* Copy canvas to viewport */
     gdi_blit_canvas(hdcTarget, 0, 0, g_viewport.document->canvas);
@@ -339,7 +399,7 @@ void Viewport_OnCommand(HWND hwnd, WPARAM wParam, LPARAM lParam)
   if (LOWORD(wParam) == IDM_VIEWPORTSETTINGS)
   {
     DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_VIEWPORTSETTINGS),
-        hwnd, (DLGPROC)ViewportSettingsDlgProc);   
+        hwnd, (DLGPROC)ViewportSettingsDlgProc);
   }
 }
 
