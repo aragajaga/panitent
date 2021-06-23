@@ -203,8 +203,27 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
     return FALSE;
 
   HDC bitmapdc = CreateCompatibleDC(hdc);
+
+  unsigned char* premul = malloc(canvas->buffer_size);
+  ZeroMemory(premul, canvas->buffer_size);
+  memcpy(premul, canvas->buffer, canvas->buffer_size);
+
+  for (size_t y = 0; y < (size_t)canvas->height; y++)
+  {
+    for (size_t x = 0; x < (size_t)canvas->width; x++)
+    {
+      unsigned char *pixel= premul + (x + y * canvas->width) * 4;
+
+      float factor = pixel[3] / 255.f;
+      pixel[0] *= factor;
+      pixel[1] *= factor;
+      pixel[2] *= factor;
+    }
+  }
+
   HBITMAP hbitmap = CreateBitmap(canvas->width, canvas->height, 1,
-      sizeof(uint32_t) * 8, canvas->buffer);
+      sizeof(uint32_t) * 8, premul);
+
 
   SelectObject(bitmapdc, hbitmap);
 
@@ -221,6 +240,7 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
 
+  free(premul);
   return TRUE;
 }
 
