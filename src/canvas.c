@@ -8,12 +8,16 @@
 
 uint32_t color_opacity(uint32_t color, float opacity)
 {
-  return (((uint8_t)(round(opacity * 255.f))) << 24) | (color & 0x00FFFFFF);
+  uint8_t alpha = (uint8_t)round(opacity * (float)(color >> 24));
+  return (alpha << 24) | (color & 0x00FFFFFF);
 }
 
 uint32_t mix(uint32_t color1, uint32_t color2)
 {
   float opacity = (color2 >> 24) / 255.f;
+
+  uint8_t a =
+      CHANNEL_A_32(color1) * opacity + CHANNEL_A_32(color2) * (1.f - opacity);
 
   uint8_t r =
       CHANNEL_R_32(color1) * opacity + CHANNEL_R_32(color2) * (1.f - opacity);
@@ -24,9 +28,9 @@ uint32_t mix(uint32_t color1, uint32_t color2)
   uint8_t b =
       CHANNEL_B_32(color1) * opacity + CHANNEL_B_32(color2) * (1.f - opacity);
 
-  /* TODO: Alpha mixing */
+  /* TODO: NORMAL Alpha mixing */
 
-  return ARGB(0, r, g, b);
+  return ARGB(a, r, g, b);
 }
 
 void* Canvas_BufferAlloc(Canvas* canvas)
@@ -128,7 +132,7 @@ void Canvas_FillSolid(Canvas* canvas, uint32_t color)
 
 const void* Canvas_GetBuffer(Canvas* canvas)
 {
-  return canvas->buffer; 
+  return canvas->buffer;
 }
 
 void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
@@ -145,7 +149,7 @@ void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
   /* Copy stride by stride, by offseting canvas stride */
   for (int i = height; i; --i)
   {
-    memcpy(byteCanvas, byteBufIn + width * i * 4, imageStride); 
+    memcpy(byteCanvas, byteBufIn + width * i * 4, imageStride);
 
     byteCanvas += canvas->width * 4;
   }

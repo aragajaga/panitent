@@ -98,6 +98,7 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
                        NULL);
     SetGuiFont(hedit);
     g_option_bar.textstring_handle = hedit;
+
   } break;
   case WM_COMMAND:
     OptionBar_OnCommand(wparam, lparam);

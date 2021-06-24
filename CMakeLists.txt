@@ -29,13 +29,14 @@ set(SOURCE_EXE
     src/primitives_context.c
     src/settings.c
     src/swatch.c
+    src/swatch2.c
     src/toolbox.c
     src/viewport.c
     src/wu_primitives.c
     src/crefptr.c
     src/wic.c
     res/panitent.rc)
-    
+
 if(MSVC)
     set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 endif(MSVC)

@@ -13,6 +13,7 @@
 #include "panitent.h"
 #include "resource.h"
 #include "settings.h"
+#include "swatch2.h"
 #include "viewport.h"
 #include "palette.h"
 #include "winuser.h"
@@ -95,6 +96,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   PaletteWindow_RegisterClass(hInstance);
   OptionBar_RegisterClass(hInstance);
   SettingsWindow_Register(hInstance);
+  SwatchControl2_RegisterClass(hInstance);
 
   bresenham_init();
   wu_init();

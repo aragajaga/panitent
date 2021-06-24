@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include <stdio.h>
+#include <math.h>
 
 #include "primitives_context.h"
 #include "viewport.h"
@@ -40,19 +41,67 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 
 void draw_line(Canvas* canvas, rect_t rc)
 {
-  printf("[BoundingTest] x: %d, y: %d\n", rc.x1, rc.y1);
-
-  rc.x0 -= g_thickness / 2;
-  rc.y0 -= g_thickness / 2;
-  rc.x1 += g_thickness / 2;
-  rc.y1 += g_thickness / 2;
-
-  for (size_t i = 0; i < g_thickness; i++)
+  if (g_thickness < 2)
   {
     g_primitives_context.line(canvas, rc);
-    rc.x0++;
-    rc.y0++;
+    Viewport_Invalidate();
+    return;
   }
+
+  // g_primitives_context.line(canvas, rc);
+
+  int xdif = rc.x1 - rc.x0;
+  int ydif = rc.y1 - rc.y0;
+
+  if (rc.y1 - rc.y0 != 0)
+  {
+    float slope = (rc.y1 - rc.y0) / (float)(rc.x1 - rc.x0);
+    if (slope != 0)
+    {
+      float slope2 = -1.f / slope;
+
+      float factor = g_thickness;
+
+      if (slope2 > g_thickness)
+      {
+        factor /= slope2;
+      }
+
+      rect_t rc1 = {
+        rc.x0 - factor,
+        rc.y0 - slope2 * factor,
+        rc.x0 + factor,
+        rc.y0 + slope2 * factor
+      };
+
+      rect_t rc2 = {
+        rc.x1 - factor,
+        rc.y1 - slope2 * factor,
+        rc.x1 + factor,
+        rc.y1 + slope2 * factor
+      };
+
+      rect_t rc3 = {
+        rc.x0 + factor,
+        rc.y0 + slope2 * factor,
+        rc.x1 + factor,
+        rc.y1 + slope2 * factor
+      };
+
+      rect_t rc4 = {
+        rc.x0 - factor,
+        rc.y0 - slope2 * factor,
+        rc.x1 - factor,
+        rc.y1 - slope2 * factor
+      };
+
+      g_primitives_context.line(canvas, rc1);
+      g_primitives_context.line(canvas, rc2);
+      g_primitives_context.line(canvas, rc3);
+      g_primitives_context.line(canvas, rc4);
+    }
+  }
+
   Viewport_Invalidate();
 }
 
