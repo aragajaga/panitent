@@ -8,6 +8,7 @@
 #include "file_open.h"
 #include "crefptr.h"
 #include "wic.h"
+#include "history.h"
 #include <stdio.h>
 
 extern const WCHAR szAppName[];
@@ -128,6 +129,11 @@ Document* Document_New(int width, int height)
 
   Document* doc = calloc(1, sizeof(Document));
 
+  doc->history = calloc(1, sizeof(History));
+
+  HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
+  doc->history->peak = initialRecord;
+
   Canvas* canvas    = calloc(1, sizeof(Canvas));
   canvas->width       = width;
   canvas->height      = height;
@@ -139,4 +145,14 @@ Document* Document_New(int width, int height)
   Viewport_SetDocument(doc);
 
   return doc;
+}
+
+History* Document_GetHistory(Document* document)
+{
+  return document->history;
+}
+
+Canvas* Document_GetCanvas(Document* document)
+{
+  return document->canvas;
 }

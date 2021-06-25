@@ -17,6 +17,8 @@
 #include "resource.h"
 #include "color_context.h"
 #include "palette.h"
+#include "history.h"
+#include "panitent.h"
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
 #include "crefptr.h"
@@ -343,6 +345,8 @@ void ToolText_Init()
 
 void ToolPencil_OnLButtonDown(MOUSEEVENT mEvt)
 {
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
   fDraw = TRUE;
   SetCapture(mEvt.hwnd);
   prev.x = LOWORD(mEvt.lParam);
@@ -379,6 +383,8 @@ void ToolPencil_OnLButtonUp(MOUSEEVENT mEvt)
   }
   fDraw = FALSE;
   ReleaseCapture();
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolPencil_OnMouseMove(MOUSEEVENT mEvt)
@@ -429,6 +435,8 @@ POINT circCenter;
 
 void ToolCircle_OnLButtonDown(MOUSEEVENT mEvt)
 {
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
   fDraw = TRUE;
   SetCapture(mEvt.hwnd);
   circCenter.x = LOWORD(mEvt.lParam);
@@ -460,6 +468,8 @@ void ToolCircle_OnLButtonUp(MOUSEEVENT mEvt)
   }
   fDraw = FALSE;
   ReleaseCapture();
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolCircle_Init()
@@ -472,6 +482,8 @@ void ToolCircle_Init()
 
 void ToolLine_OnLButtonDown(MOUSEEVENT mEvt)
 {
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
   fDraw = TRUE;
   SetCapture(mEvt.hwnd);
   prev.x = LOWORD(mEvt.lParam);
@@ -496,6 +508,8 @@ void ToolLine_OnLButtonUp(MOUSEEVENT mEvt)
   }
   fDraw = FALSE;
   ReleaseCapture();
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolLine_Init()
@@ -697,6 +711,8 @@ void ToolPicker_OnRButtonUp(MOUSEEVENT mEvt)
 
 void ToolFill_DoFloodFill(MOUSEEVENT mEvt, uint32_t newColor)
 {
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
 
@@ -787,6 +803,7 @@ void ToolFill_DoFloodFill(MOUSEEVENT mEvt, uint32_t newColor)
 #else
   tqueue_delete(POINT)(q);
 #endif
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolFill_OnRButtonUp(MOUSEEVENT mEvt)

@@ -118,7 +118,7 @@ void Canvas_SetPixel(Canvas* canvas, int x, int y, uint32_t color)
 
 void Canvas_Clear(Canvas* canvas)
 {
-  Canvas_FillSolid(canvas, g_color_context.bg_color | 0xFF000000);
+  Canvas_FillSolid(canvas, g_color_context.bg_color);
 }
 
 void Canvas_FillSolid(Canvas* canvas, uint32_t color)
@@ -155,4 +155,43 @@ void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
   }
 
   Viewport_Invalidate();
+}
+
+Canvas* Canvas_Clone(Canvas* canvas)
+{
+  Canvas* clone = calloc(1, sizeof(Canvas));
+  memcpy(clone, canvas, sizeof(Canvas));
+
+  clone->buffer = calloc(1, canvas->buffer_size);
+  memcpy(clone->buffer, canvas->buffer, canvas->buffer_size);
+
+  return clone;
+}
+
+Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
+{
+  int subWidth = rc->right - rc->left;
+  int subHeight = rc->bottom - rc->top;
+
+  Canvas* sub = calloc(1, sizeof(Canvas));
+  sub->width = subWidth;
+  sub->height = subHeight;
+
+  sub->buffer_size = subWidth * subHeight * 4;
+  sub->buffer = calloc(1, sub->buffer_size);
+
+  size_t origStart = (rc->top * canvas->width + rc->left) * 4;
+  size_t originStride = canvas->width * 4;
+  size_t destStride = subWidth * 4;
+
+  unsigned char *pOrig = ((unsigned char*)canvas->buffer) + origStart;
+  unsigned char *pDest = sub->buffer;
+  for (int i = 0; i < subHeight; i++)
+  {
+    memcpy(pDest, pOrig, destStride);
+    pDest += destStride;
+    pOrig += originStride;
+  }
+
+  return sub;
 }

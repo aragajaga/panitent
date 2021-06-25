@@ -9,6 +9,8 @@ enum {
   IDM_FILE_SAVE,
   IDM_FILE_CLOSE,
 
+  IDM_EDIT_UNDO,
+  IDM_EDIT_REDO,
   IDM_EDIT_TESTFILL,
   IDM_EDIT_CLRCANVAS,
   IDM_EDIT_WU_LINES,
@@ -38,10 +40,13 @@ int APIENTRY WinMain(HINSTANCE hInst,
                      int nCmdShow);
 LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+typedef struct _Document Document;
+
 void NewFile();
 HMENU CreateMainMenu();
 void UnregisterClasses();
 void SetGuiFont(HWND hwnd);
 HFONT GetGuiFont();
+Document* Panitent_GetActiveDocument();
 
 #endif /* PANITENT_PANITENT_H */

@@ -17,6 +17,7 @@
 #include "viewport.h"
 #include "palette.h"
 #include "winuser.h"
+#include "history.h"
 #include "new.h"
 #include "color_context.h"
 
@@ -28,6 +29,11 @@ panitent_t g_panitent;
 HFONT hFontSys;
 
 const WCHAR szAppName[] = L"Panit.ent";
+
+Document* Panitent_GetActiveDocument()
+{
+  return g_viewport.document;
+}
 
 void FetchSystemFont()
 {
@@ -267,6 +273,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);
       break;
+    case IDM_EDIT_UNDO:
+      History_Undo(Panitent_GetActiveDocument());
+      break;
+    case IDM_EDIT_REDO:
+      History_Redo(Panitent_GetActiveDocument());
+      break;
     case IDM_EDIT_TESTFILL:
       Canvas_FillSolid(g_viewport.document->canvas, 0xFFFFFFFF);
       break;
@@ -377,6 +389,8 @@ HMENU CreateMainMenu()
   AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
 
   hSubMenu = CreatePopupMenu();
+  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
+  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_TESTFILL, L"&Test fill");
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_WU_LINES, L"&Wu lines");

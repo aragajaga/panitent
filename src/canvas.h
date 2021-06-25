@@ -44,5 +44,7 @@ void Canvas_Delete(Canvas* canvas);
 void Canvas_Clear(Canvas* canvas);
 const void* Canvas_GetBuffer(Canvas*);
 void Canvas_PasteBits(Canvas*, void*, int, int, int, int);
+Canvas* Canvas_Clone(Canvas*);
+Canvas* Canvas_Substitute(Canvas*, RECT* rc);
 
 #endif /* PANITENT_CANVAS_H_ */
