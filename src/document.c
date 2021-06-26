@@ -23,17 +23,16 @@ void Document_Open(Document* prevDoc)
   crefptr_t* s = init_open_file_dialog();
 
   LPWSTR pszFileName = (LPWSTR)crefptr_get(s);
-  MessageBox(NULL, pszFileName, L"Open", MB_OK);
   ImageBuffer ib = ImageFileReader(pszFileName);
   
   Document* doc = calloc(1, sizeof(Document));
 
-  Canvas* canvas = malloc(sizeof(Canvas));
-  canvas->width       = ib.width;
-  canvas->height      = ib.height;
-  canvas->color_depth = 4;
-  canvas->buffer_size = ib.size;
-  canvas->buffer      = ib.bits;
+  doc->history = calloc(1, sizeof(History));
+
+  HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
+  doc->history->peak = initialRecord;
+
+  Canvas *canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
   doc->canvas = canvas;
 
   Viewport_SetDocument(doc);

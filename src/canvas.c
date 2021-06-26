@@ -195,3 +195,16 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
 
   return sub;
 }
+
+Canvas* Canvas_CreateFromBuffer(int width, int height, void* data)
+{
+  Canvas *canvas = calloc(1, sizeof(Canvas));
+  canvas->width = width;
+  canvas->height = height;
+  canvas->color_depth = 4;
+  canvas->buffer_size = width * height * 4;
+  Canvas_BufferAlloc(canvas);
+
+  memcpy(canvas->buffer, data, canvas->buffer_size);
+  return canvas;
+}

@@ -46,5 +46,6 @@ const void* Canvas_GetBuffer(Canvas*);
 void Canvas_PasteBits(Canvas*, void*, int, int, int, int);
 Canvas* Canvas_Clone(Canvas*);
 Canvas* Canvas_Substitute(Canvas*, RECT* rc);
+Canvas* Canvas_CreateFromBuffer(int width, int height, void* data);
 
 #endif /* PANITENT_CANVAS_H_ */
