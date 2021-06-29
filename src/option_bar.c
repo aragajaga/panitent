@@ -11,9 +11,23 @@ OptionBar g_option_bar;
 
 #define IDCB_STENCIL_ALGORITHM 1553
 #define IDCB_THICKNESS 1554
+#define IDB_SHAPESTROKE 1555
+#define IDB_SHAPEFILL 1556
 
 void OptionBar_OnCommand(WPARAM wparam, LPARAM lparam)
 {
+  if (HIWORD(wparam) == BN_CLICKED) {
+    switch (LOWORD(wparam))
+    {
+      case IDB_SHAPESTROKE:
+        g_primitives_context.fStroke = Button_GetCheck((HWND)lparam);
+        break;
+      case IDB_SHAPEFILL:
+        g_primitives_context.fFill = Button_GetCheck((HWND)lparam);
+        break;
+    }
+  }
+
   if (HIWORD(wparam) != LBN_SELCHANGE)
     return;
 
@@ -51,19 +65,25 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
   switch (message) {
   case WM_CREATE:
   {
-    HWND hcombo = CreateWindowEx(0,
-                                 WC_COMBOBOX,
-                                 L"",
-                                 CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD |
-                                     WS_OVERLAPPED | WS_VISIBLE,
-                                 64,
-                                 3,
-                                 100,
-                                 20,
-                                 hwnd,
-                                 (HMENU)IDCB_STENCIL_ALGORITHM,
-                                 GetModuleHandle(NULL),
-                                 NULL);
+    HWND hCheckStroke = CreateWindowEx(0, WC_BUTTON, L"Stroke",
+        BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE,
+        4, 3, 70, 20, hwnd, (HMENU)IDB_SHAPESTROKE, GetModuleHandle(NULL),
+        NULL);
+    SetGuiFont(hCheckStroke);
+    Button_SetCheck(hCheckStroke, g_primitives_context.fStroke);
+
+    HWND hCheckFill = CreateWindowEx(0, WC_BUTTON, L"Fill",
+        BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE,
+        74, 3, 70, 20, hwnd, (HMENU)IDB_SHAPEFILL, GetModuleHandle(NULL),
+        NULL);
+    SetGuiFont(hCheckFill);
+    Button_SetCheck(hCheckFill, g_primitives_context.fFill);
+
+    HWND hcombo = CreateWindowEx(0, WC_COMBOBOX, L"",
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
+            WS_VISIBLE,
+        144, 3, 100, 20,
+        hwnd, (HMENU)IDCB_STENCIL_ALGORITHM, GetModuleHandle(NULL), NULL);
     SetGuiFont(hcombo);
 
     ComboBox_AddString(hcombo, L"Bresenham");
@@ -72,7 +92,7 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
     HWND hComboThickness= CreateWindowEx(0, WC_COMBOBOX, L"",
         CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
         WS_VISIBLE,
-        180, 3, 100, 20,
+        260, 3, 100, 20,
         hwnd, (HMENU)IDCB_THICKNESS, GetModuleHandle(NULL), NULL);
     SetGuiFont(hComboThickness);
 
@@ -88,7 +108,7 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
                        WC_EDIT,
                        L"Sample Text",
                        WS_BORDER | WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-                       296,
+                       376,
                        3,
                        140,
                        20,

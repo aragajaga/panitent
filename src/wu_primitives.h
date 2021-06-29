@@ -19,8 +19,8 @@
 
 extern primitives_context_t g_wu_primitives;
 
-void wu_draw_circle(Canvas* canvas, int cx, int cy, int radius);
-void wu_draw_line(Canvas* canvas, rect_t rc);
+void wu_draw_circle(Plotter p, int cx, int cy, int radius);
+void wu_draw_line(Plotter p, int x0, int y0, int x1, int y1);
 void wu_init();
 
 #endif /* PANITENT_WU_PRIMITIVES_H_ */

@@ -6,29 +6,42 @@
 #include "viewport.h"
 #include "color_context.h"
 
+float lerp(float a, float b, float f)
+{
+  return a + f * (b - a);
+}
+
 uint32_t color_opacity(uint32_t color, float opacity)
 {
   uint8_t alpha = (uint8_t)round(opacity * (float)(color >> 24));
   return (alpha << 24) | (color & 0x00FFFFFF);
 }
 
-uint32_t mix(uint32_t color1, uint32_t color2)
+uint32_t mix(uint32_t base, uint32_t overlay)
 {
-  float opacity = (color2 >> 24) / 255.f;
+  float baseA = (base >> 24 & 0xFF) / 255.f;
+  float baseR = (base >> 16 & 0xFF) / 255.f;
+  float baseG = (base >> 8  & 0xFF) / 255.f;
+  float baseB = (base       & 0xFF) / 255.f;
 
-  uint8_t a =
-      CHANNEL_A_32(color1) * opacity + CHANNEL_A_32(color2) * (1.f - opacity);
+  float overlayA = (overlay >> 24 & 0xFF) / 255.f;
+  float overlayR = (overlay >> 16 & 0xFF) / 255.f;
+  float overlayG = (overlay >> 8  & 0xFF) / 255.f;
+  float overlayB = (overlay       & 0xFF) / 255.f;
 
-  uint8_t r =
-      CHANNEL_R_32(color1) * opacity + CHANNEL_R_32(color2) * (1.f - opacity);
+  float blendR = baseR * overlayA + overlayR * (1.f - overlayA);
+  float blendG = baseG * overlayA + overlayG * (1.f - overlayA);
+  float blendB = baseB * overlayA + overlayB * (1.f - overlayA);
 
-  uint8_t g =
-      CHANNEL_G_32(color1) * opacity + CHANNEL_G_32(color2) * (1.f - opacity);
+  float resultR = (1.f - overlayA) * baseR + overlayA * overlayR;
+  float resultG = (1.f - overlayA) * baseG + overlayA * overlayG;
+  float resultB = (1.f - overlayA) * baseB + overlayA * overlayB;
+  float resultA = 1.f - (1.f - baseA) * (1.f - overlayA);
 
-  uint8_t b =
-      CHANNEL_B_32(color1) * opacity + CHANNEL_B_32(color2) * (1.f - opacity);
-
-  /* TODO: NORMAL Alpha mixing */
+  uint8_t a = round(resultA * 255.f);
+  uint8_t r = round(resultR * 255.f);
+  uint8_t g = round(resultG * 255.f);
+  uint8_t b = round(resultB * 255.f);
 
   return ARGB(a, r, g, b);
 }
@@ -196,7 +209,7 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
   return sub;
 }
 
-Canvas* Canvas_CreateFromBuffer(int width, int height, void* data)
+Canvas* Canvas_Create(int width, int height)
 {
   Canvas *canvas = calloc(1, sizeof(Canvas));
   canvas->width = width;
@@ -205,6 +218,77 @@ Canvas* Canvas_CreateFromBuffer(int width, int height, void* data)
   canvas->buffer_size = width * height * 4;
   Canvas_BufferAlloc(canvas);
 
+  return canvas;
+}
+
+Canvas* Canvas_CreateFromBuffer(int width, int height, void* data)
+{
+  Canvas* canvas = Canvas_Create(width, height);
+
   memcpy(canvas->buffer, data, canvas->buffer_size);
   return canvas;
+}
+
+void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source)
+{
+  uint32_t *pTarget = target->buffer;
+  uint32_t *pSource = source->buffer;
+  pTarget += y * target->width + x;
+
+  int width = source->width;
+  int height = source->height;
+
+  for (int i = 0; i < height; i++) {
+    for (int j = 0; j < width; j++) {
+      uint32_t color = g_color_context.fg_color;
+
+      float opacity = lerp(0, (*pSource >> 24) / 255.f, (color >> 24) / 255.f);
+      uint8_t alpha = round(opacity * 255.f);
+
+      color = (color & 0x00FFFFFF) | alpha << 24;
+
+      *pTarget = mix(*pTarget, color);
+      pTarget++;
+      pSource++;
+    }
+
+    pTarget += target->width - source->width;
+  }
+}
+
+void Canvas_Overlay(Canvas* target, int x, int y, Canvas* source)
+{
+  uint32_t *pTarget = target->buffer;
+  uint32_t *pSource = source->buffer;
+  pTarget += y * target->width + x;
+
+  for (int i = 0; i < source->height; i++) {
+    for (int j = 0; j < source->width; j++) {
+      *pTarget = mix(*pTarget, *pSource);
+      pTarget++;
+      pSource++;
+    }
+
+    pTarget += target->width - source->width;
+  }
+}
+
+void Canvas_Paste(Canvas* target, int x, int y, Canvas* source)
+{
+  uint32_t *pTarget = target->buffer;
+  uint32_t *pSource = source->buffer;
+  pTarget += y * target->width + x;
+
+  for (int i = 0; i < source->height; i++) {
+    for (int j = 0; j < source->width; j++) {
+      if (*pSource & 0xFF000000)
+      {
+        *pTarget = *pSource;
+      }
+      pTarget++;
+      pSource++;
+    }
+
+    pTarget += target->width - source->width;
+  }
 }

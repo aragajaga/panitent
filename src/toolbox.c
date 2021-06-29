@@ -12,6 +12,7 @@
 #include "tool.h"
 #include "toolbox.h"
 #include "viewport.h"
+#include "brush.h"
 #include "canvas.h"
 #include "debug.h"
 #include "resource.h"
@@ -28,6 +29,8 @@ extern Viewport g_viewport;
 
 extern Tool g_tool;
 
+void ToolBrush_Init();
+
 Tool g_tool_circle;
 Tool g_tool_line;
 Tool g_tool_pencil;
@@ -36,6 +39,7 @@ Tool g_tool_rectangle;
 Tool g_tool_text;
 Tool g_tool_fill;
 Tool g_tool_picker;
+Tool g_tool_brush;
 
 static BOOL fDraw = FALSE;
 static POINT prev;
@@ -55,6 +59,8 @@ void Toolbox_RemoveTool(Toolbox* tbox)
 
 HBITMAP img_layout;
 
+void ToolBrush_Init();
+
 void Toolbox_Init(Toolbox* tbox)
 {
   ToolPointer_Init();
@@ -65,13 +71,14 @@ void Toolbox_Init(Toolbox* tbox)
   ToolText_Init();
   ToolFill_Init();
   ToolPicker_Init();
+  ToolBrush_Init();
 
   g_tool = g_tool_pointer;
 
   img_layout = (HBITMAP)LoadBitmap(GetModuleHandle(NULL),
       MAKEINTRESOURCE(IDB_TOOLS));
 
-  tbox->tools      = calloc(sizeof(Tool), 8);
+  tbox->tools      = calloc(sizeof(Tool), 16);
   tbox->tool_count = 0;
 
   Toolbox_AddTool(tbox, g_tool_pointer);
@@ -82,6 +89,7 @@ void Toolbox_Init(Toolbox* tbox)
   Toolbox_AddTool(tbox, g_tool_text);
   Toolbox_AddTool(tbox, g_tool_fill);
   Toolbox_AddTool(tbox, g_tool_picker);
+  Toolbox_AddTool(tbox, g_tool_brush);
 }
 
 HTHEME hTheme = NULL;
@@ -211,6 +219,9 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
         break;
       case 7:
         g_tool = g_tool_picker;
+        break;
+      case 8:
+        g_tool = g_tool_brush;
         break;
       default:
         g_tool = g_tool_pointer;
@@ -368,14 +379,7 @@ void ToolPencil_OnLButtonUp(MOUSEEVENT mEvt)
 #endif
 
     Canvas* canvas = g_viewport.document->canvas;
-
-    rect_t line_rect = {0};
-    line_rect.x0     = prev.x;
-    line_rect.y0     = prev.y;
-    line_rect.x1     = x;
-    line_rect.y1     = y;
-
-    draw_line(canvas, line_rect);
+    draw_line(canvas, prev.x, prev.y, x, y);
 
 #ifdef PEN_OVERLAY
     ReleaseDC(mEvt.hwnd, hdc);
@@ -404,14 +408,7 @@ void ToolPencil_OnMouseMove(MOUSEEVENT mEvt)
 
     /* Draw on canvas */
     Canvas* canvas = g_viewport.document->canvas;
-
-    rect_t line_rect = {0};
-    line_rect.x0     = prev.x;
-    line_rect.y0     = prev.y;
-    line_rect.x1     = x;
-    line_rect.y1     = y;
-
-    draw_line(canvas, line_rect);
+    draw_line(canvas, prev.x, prev.y, x, y);
 
     prev.x = x;
     prev.y = y;
@@ -497,14 +494,7 @@ void ToolLine_OnLButtonUp(MOUSEEVENT mEvt)
 
   if (fDraw) {
     Canvas* canvas = g_viewport.document->canvas;
-
-    rect_t line_rect = {0};
-    line_rect.x0     = prev.x;
-    line_rect.y0     = prev.y;
-    line_rect.x1     = x;
-    line_rect.y1     = y;
-
-    draw_line(canvas, line_rect);
+    draw_line(canvas, prev.x, prev.y, x, y);
   }
   fDraw = FALSE;
   ReleaseCapture();
@@ -520,7 +510,7 @@ void ToolLine_Init()
   g_tool_line.onlbuttondown = ToolLine_OnLButtonDown;
 }
 
-void ToolRectangle_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolRectangle_OnLButtonDown(MOUSEEVENT mEvt)
 {
   fDraw = TRUE;
   SetCapture(mEvt.hwnd);
@@ -528,20 +518,14 @@ void ToolRectangle_OnLButtonUp(MOUSEEVENT mEvt)
   prev.y = HIWORD(mEvt.lParam);
 }
 
-void ToolRectangle_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolRectangle_OnLButtonUp(MOUSEEVENT mEvt)
 {
   signed short x = LOWORD(mEvt.lParam);
   signed short y = HIWORD(mEvt.lParam);
 
   if (fDraw) {
     Canvas* canvas = g_viewport.document->canvas;
-
-    rect_t rc = {0};
-    rc.x0     = prev.x;
-    rc.y0     = prev.y;
-    rc.x1     = x;
-    rc.y1     = y;
-    draw_rectangle(canvas, rc);
+    draw_rectangle(canvas, prev.x, prev.y, x, y);
   }
   fDraw = FALSE;
   ReleaseCapture();
@@ -830,4 +814,56 @@ void ToolPicker_Init()
   g_tool_picker.img = 9;
   g_tool_picker.onlbuttonup = ToolPicker_OnLButtonUp;
   g_tool_picker.onrbuttonup = ToolPicker_OnRButtonUp;
+}
+
+Brush *g_pBrush;
+
+void ToolBrush_OnLButtonUp(MOUSEEVENT mEvt)
+{
+  fDraw = FALSE;
+  ReleaseCapture();
+  free(g_pBrush);
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
+}
+
+void ToolBrush_OnLButtonDown(MOUSEEVENT mEvt)
+{
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
+
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
+  fDraw = TRUE;
+  SetCapture(mEvt.hwnd);
+  prev.x = LOWORD(mEvt.lParam);
+  prev.y = HIWORD(mEvt.lParam);
+
+  Canvas *tex = Canvas_Create(16, 16);
+  Canvas_FillSolid(tex, 0x0000000);
+  draw_circle(tex, 8, 8, 8);
+  g_pBrush = Brush_Create(tex);
+}
+
+void ToolBrush_OnMouseMove(MOUSEEVENT mEvt)
+{
+  signed short x = LOWORD(mEvt.lParam);
+  signed short y = HIWORD(mEvt.lParam);
+
+  if (fDraw)
+  {
+    Brush_DrawTo(g_pBrush, prev.x, prev.y, x, y, g_viewport.document->canvas);
+    prev.x = x;
+    prev.y = y;
+    Viewport_Invalidate();
+  }
+}
+
+void ToolBrush_Init()
+{
+  g_tool_brush.label = L"Brush";
+  g_tool_brush.img = 12;
+  g_tool_brush.onlbuttondown = ToolBrush_OnLButtonDown;
+  g_tool_brush.onlbuttonup = ToolBrush_OnLButtonUp;
+  g_tool_brush.onmousemove = ToolBrush_OnMouseMove;
 }

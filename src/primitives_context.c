@@ -3,13 +3,20 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "bresenham.h"
 #include "primitives_context.h"
+#include "color_context.h"
 #include "viewport.h"
 
 typedef struct _Point {
   int x;
   int y;
 } Point;
+
+typedef struct _PlotterData {
+  Canvas* canvas;
+  uint32_t color;
+} PlotterData;
 
 typedef struct _PolygonPath {
   Point points[80];
@@ -24,47 +31,95 @@ void PolygonPath_AddPoint(PolygonPath* poly, int x, int y);
 void PolygonPath_Enclose(PolygonPath* poly);
 void PolygonPath_Fill(Canvas* canvas, PolygonPath* poly);
 
-void draw_rectangle(Canvas* canvas, rect_t rc)
+void PixelPlotterCallback(void* userData, int x, int y, float factor)
 {
-  /*
-   * 1. +-------->  2. +--------+
-   *                            |
-   *                            |
-   *                            v
-   *
-   * 3. +--------+  4. +--------+
-   *             |     ^        |
-   *             |     |        |
-   *    <--------+     +--------+
-   */
-  rect_t l1 = {rc.x0, rc.y0, rc.x1, rc.y0};
-  rect_t l2 = {rc.x1, rc.y0, rc.x1, rc.y1};
-  rect_t l3 = {rc.x1, rc.y1, rc.x0, rc.y1};
-  rect_t l4 = {rc.x0, rc.y1, rc.x0, rc.y0};
+  PlotterData *data = (PlotterData*) userData;
+  Canvas_DrawPixel(data->canvas, x, y, color_opacity(data->color, factor));
+}
 
-  draw_line(canvas, l1);
-  draw_line(canvas, l2);
-  draw_line(canvas, l3);
-  draw_line(canvas, l4);
+void draw_rectangle(Canvas* canvas, int x0, int y0, int x1, int y1)
+{
+  if (g_primitives_context.fFill)
+  {
+    Plotter p;
+    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    pdat->canvas = canvas;
+    pdat->color = g_color_context.bg_color;
+    p.userData = pdat;
+    p.fn = PixelPlotterCallback;
+
+    for (int i = 0; i < y1 - y0; i++)
+    {
+      g_primitives_context.line(p, x0, y0 + i, x1, y0 + i);
+    }
+
+    free(p.userData);
+
+    Viewport_Invalidate();
+  }
+
+  if (g_primitives_context.fStroke)
+  {
+    draw_line(canvas, x0, y0, x1, y0);
+    draw_line(canvas, x1, y0, x1, y1);
+    draw_line(canvas, x1, y1, x0, y1);
+    draw_line(canvas, x0, y1, x0, y0);
+  }
 }
 
 void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 {
-  g_primitives_context.circle(canvas, cx, cy, radius);
+  if (g_primitives_context.fFill)
+  {
+    Plotter p;
+    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    pdat->canvas = canvas;
+    pdat->color = g_color_context.bg_color;
+    p.userData = pdat;
+    p.fn = PixelPlotterCallback;
+
+    bresenham_filled_circle(p, cx, cy, radius);
+
+    free(p.userData);
+  }
+
+  if (g_primitives_context.fStroke)
+  {
+    Plotter p;
+    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    pdat->canvas = canvas;
+    pdat->color = g_color_context.fg_color;
+    p.userData = pdat;
+    p.fn = PixelPlotterCallback;
+
+    g_primitives_context.circle(p, cx, cy, radius);
+
+    free(p.userData);
+  }
   Viewport_Invalidate();
 }
 
-void draw_line(Canvas* canvas, rect_t rc)
+void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
 {
   if (g_thickness < 2)
   {
-    g_primitives_context.line(canvas, rc);
+    Plotter p;
+    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    pdat->canvas = canvas;
+    pdat->color = g_color_context.fg_color;
+    p.userData = pdat;
+    p.fn = PixelPlotterCallback;
+
+    g_primitives_context.line(p, x0, y0, x1, y1);
+
+    free(p.userData);
+
     Viewport_Invalidate();
     return;
   }
 
-  int dx = rc.x1 - rc.x0;
-  int dy = rc.y1 - rc.y0;
+  int dx = x1 - x0;
+  int dy = y1 - y0;
   float slope;
 
   if (dx == 0)
@@ -75,7 +130,7 @@ void draw_line(Canvas* canvas, rect_t rc)
 
   if ((dx != 0) && (dy != 0))
   {
-    slope = (rc.y1 - rc.y0) / (float)(rc.x1 - rc.x0);
+    slope = (y1 - y0) / (float)(x1 - x0);
   }
 
   if (slope != 0)
@@ -84,48 +139,28 @@ void draw_line(Canvas* canvas, rect_t rc)
 
     float d = g_thickness / sqrt(pow(slope2, 2) + 1.f) / 2;
 
-    rect_t rc1 = {
-      rc.x0 - d,
-      rc.y0 - slope2 * d,
-      rc.x0 + d,
-      rc.y0 + slope2 * d
-    };
-
-    rect_t rc2 = {
-      rc.x1 - d,
-      rc.y1 - slope2 * d,
-      rc.x1 + d,
-      rc.y1 + slope2 * d
-    };
-
-    rect_t rc3 = {
-      rc.x0 + d,
-      rc.y0 + slope2 * d,
-      rc.x1 + d,
-      rc.y1 + slope2 * d
-    };
-
-    rect_t rc4 = {
-      rc.x0 - d,
-      rc.y0 - slope2 * d,
-      rc.x1 - d,
-      rc.y1 - slope2 * d
-    };
-
-    g_primitives_context.line(canvas, rc1);
-    g_primitives_context.line(canvas, rc2);
-    g_primitives_context.line(canvas, rc3);
-    g_primitives_context.line(canvas, rc4);
-
     PolygonPath *poly = PolygonPath_Create();
-    PolygonPath_AddPoint(poly, rc.x0 - d, rc.y0 - slope2 * d);
-    PolygonPath_AddPoint(poly, rc.x1 - d, rc.y1 - slope2 * d);
-    PolygonPath_AddPoint(poly, rc.x1 + d, rc.y1 + slope2 * d);
-    PolygonPath_AddPoint(poly, rc.x0 + d, rc.y0 + slope2 * d);
+    PolygonPath_AddPoint(poly, x0 - d, y0 - slope2 * d);
+    PolygonPath_AddPoint(poly, x1 - d, y1 - slope2 * d);
+    PolygonPath_AddPoint(poly, x1 + d, y1 + slope2 * d);
+    PolygonPath_AddPoint(poly, x0 + d, y0 + slope2 * d);
     PolygonPath_Enclose(poly);
     PolygonPath_Fill(canvas, poly);
-
     free(poly);
+
+    Plotter p;
+    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    pdat->canvas = canvas;
+    pdat->color = g_color_context.fg_color;
+    p.userData = pdat;
+    p.fn = PixelPlotterCallback;
+
+    g_primitives_context.line(p, x0 - d, y0 - slope2 * d, x0 + d, y0 + slope2 * d);
+    g_primitives_context.line(p, x1 - d, y1 - slope2 * d, x1 + d, y1 + slope2 * d);
+    g_primitives_context.line(p, x0 + d, y0 + slope2 * d, x1 + d, y1 + slope2 * d);
+    g_primitives_context.line(p, x0 - d, y0 - slope2 * d, x1 - d, y1 - slope2 * d);
+    free(p.userData);
+
   }
 
   Viewport_Invalidate();
@@ -155,6 +190,13 @@ void PolygonPath_Enclose(PolygonPath* poly)
 
 void PolygonPath_Fill(Canvas* canvas, PolygonPath* poly)
 {
+  Plotter p;
+  PlotterData *pdat = calloc(1, sizeof(PlotterData));
+  pdat->canvas = canvas;
+  pdat->color = g_color_context.fg_color;
+  p.userData = pdat;
+  p.fn = PixelPlotterCallback;
+
   float slope[80] = {0};
   Point *points = poly->points;
 
@@ -202,8 +244,8 @@ void PolygonPath_Fill(Canvas* canvas, PolygonPath* poly)
 
     for (int i = 0; i < k; i+=2)
     {
-      rect_t rc = { xi[i], y, xi[i + 1], y };
-      g_primitives_context.line(canvas, rc);
+      g_primitives_context.line(p, xi[i], y, xi[i + 1], y);
     }
   }
+free(p.userData);
 }

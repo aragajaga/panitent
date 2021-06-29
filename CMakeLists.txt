@@ -16,6 +16,7 @@ endif()
 
 set(SOURCE_EXE
     src/bresenham.c
+    src/brush.c
     src/canvas.c
     src/color_context.c
     src/debug.c

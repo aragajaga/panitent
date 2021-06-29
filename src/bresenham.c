@@ -2,24 +2,34 @@
 
 primitives_context_t g_bresenham_primitives;
 
-void bresenham_circle_plot(Canvas* canvas, int xc, int yc, int x, int y)
+void bresenham_circle_plot(Plotter p, int xc, int yc, int x,
+    int y)
 {
-  Canvas_Plot(canvas, xc + x, yc + y, 1.f);
-  Canvas_Plot(canvas, xc - x, yc + y, 1.f);
-  Canvas_Plot(canvas, xc + x, yc - y, 1.f);
-  Canvas_Plot(canvas, xc - x, yc - y, 1.f);
-  Canvas_Plot(canvas, xc + y, yc + x, 1.f);
-  Canvas_Plot(canvas, xc - y, yc + x, 1.f);
-  Canvas_Plot(canvas, xc + y, yc - x, 1.f);
-  Canvas_Plot(canvas, xc - y, yc - x, 1.f);
+  p.fn(p.userData, xc + x, yc + y, 1.f);
+  p.fn(p.userData, xc - x, yc + y, 1.f);
+  p.fn(p.userData, xc + x, yc - y, 1.f);
+  p.fn(p.userData, xc - x, yc - y, 1.f);
+  p.fn(p.userData, xc + y, yc + x, 1.f);
+  p.fn(p.userData, xc - y, yc + x, 1.f);
+  p.fn(p.userData, xc + y, yc - x, 1.f);
+  p.fn(p.userData, xc - y, yc - x, 1.f);
 }
 
-void bresenham_circle(Canvas* canvas, int cx, int cy, int radius)
+static void bresenham_circle_fill(Plotter p, int xc, int yc,
+    int x, int y)
+{
+  bresenham_line(p, xc - x, yc + y, xc + x, yc + y);
+  bresenham_line(p, xc - x, yc - y, xc + x, yc - y);
+  bresenham_line(p, xc - y, yc + x, xc + y, yc + x);
+  bresenham_line(p, xc - y, yc - x, xc + y, yc - x);
+}
+
+void bresenham_circle(Plotter p, int cx, int cy, int radius)
 {
   int x = 0;
   int y = radius;
   int d = 3 - 2 * radius;
-  bresenham_circle_plot(canvas, cx, cy, x, y);
+  bresenham_circle_plot(p, cx, cy, x, y);
 
   while (y >= x) {
     x++;
@@ -30,7 +40,28 @@ void bresenham_circle(Canvas* canvas, int cx, int cy, int radius)
     } else {
       d = d + 4 * x + 6;
     }
-    bresenham_circle_plot(canvas, cx, cy, x, y);
+    bresenham_circle_plot(p, cx, cy, x, y);
+  }
+}
+
+void bresenham_filled_circle(Plotter p, int cx, int cy,
+    int radius)
+{
+  int x = 0;
+  int y = radius;
+  int d = 3 - 2 * radius;
+  bresenham_circle_fill(p, cx, cy, x, y);
+
+  while (y >= x) {
+    x++;
+
+    if (d > 0) {
+      y--;
+      d = d + 4 * (x - y) + 10;
+    } else {
+      d = d + 4 * x + 6;
+    }
+    bresenham_circle_fill(p, cx, cy, x, y);
   }
 }
 
@@ -44,47 +75,54 @@ int sign(int x)
     return 0;
 }
 
-void bresenham_line(Canvas* canvas, rect_t rc)
+static inline void bresenham_line_rc(Plotter p, rect_t rc)
 {
-  int x1 = rc.x0;
-  int x2 = rc.x1;
-  int y1 = rc.y0;
-  int y2 = rc.y1;
+  bresenham_line(p, rc.x0, rc.y0, rc.x1, rc.y1);
+}
 
-  int x, y, dx, dy, swap, temp, s1, s2, p, i;
+void bresenham_line(Plotter p, int x0, int y0, int x1, int y1)
+{
+  int x = x0;
+  int y = y0;
+  int dx = abs(x1 - x0);
+  int dy = abs(y1 - y0);
+  int s1 = sign(x1 - x0);
+  int s2 = sign(y1 - y0);
+  int swap = 0;
+  int temp;
+  int p_;
+  int i;
 
-  x    = x1;
-  y    = y1;
-  dx   = abs(x2 - x1);
-  dy   = abs(y2 - y1);
-  s1   = sign(x2 - x1);
-  s2   = sign(y2 - y1);
-  swap = 0;
-  Canvas_Plot(canvas, x1, y1, 1.f);
+  p.fn(p.userData, x0, y0, 1.f);
 
   if (dy > dx) {
     temp = dx;
-    dx   = dy;
-    dy   = temp;
+    dx = dy;
+    dy = temp;
     swap = 1;
   }
-  p = 2 * dy - dx;
-  for (i = 0; i < dx; i++) {
-    Canvas_Plot(canvas, x, y, 1.f);
-    while (p >= 0) {
-      p = p - 2 * dx;
+
+  p_ = 2 * dy - dx;
+
+  for (i = 0; i < dx; i++)
+  {
+    p.fn(p.userData, x, y, 1.f);
+
+    while (p_ >= 0) {
+      p_ = p_ - 2 * dx;
       if (swap)
         x += s1;
       else
         y += s2;
     }
-    p = p + 2 * dy;
+    p_ = p_ + 2 * dy;
     if (swap)
       y += s2;
     else
       x += s1;
   }
-  Canvas_Plot(canvas, x, y, 1.f);
+
+  p.fn(p.userData, x, y, 1.f);
 }
 
 void bresenham_init()
