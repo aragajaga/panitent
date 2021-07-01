@@ -139,8 +139,6 @@ void Canvas_FillSolid(Canvas* canvas, uint32_t color)
   for (size_t i = 0; i < canvas->buffer_size / canvas->color_depth; i++) {
     ((uint32_t*)(canvas->buffer))[i] = color;
   }
-
-  Viewport_Invalidate();
 }
 
 const void* Canvas_GetBuffer(Canvas* canvas)
@@ -229,7 +227,8 @@ Canvas* Canvas_CreateFromBuffer(int width, int height, void* data)
   return canvas;
 }
 
-void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source)
+void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
+    uint32_t color)
 {
   uint32_t *pTarget = target->buffer;
   uint32_t *pSource = source->buffer;
@@ -240,14 +239,14 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source)
 
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
-      uint32_t color = g_color_context.fg_color;
+      uint32_t color_ = color;
 
-      float opacity = lerp(0, (*pSource >> 24) / 255.f, (color >> 24) / 255.f);
+      float opacity = lerp(0, (*pSource >> 24) / 255.f, (color_ >> 24) / 255.f);
       uint8_t alpha = round(opacity * 255.f);
 
-      color = (color & 0x00FFFFFF) | alpha << 24;
+      color_ = (color & 0x00FFFFFF) | alpha << 24;
 
-      *pTarget = mix(*pTarget, color);
+      *pTarget = mix(*pTarget, color_);
       pTarget++;
       pSource++;
     }

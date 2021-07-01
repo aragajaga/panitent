@@ -99,7 +99,22 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
   Viewport_Invalidate();
 }
 
-void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
+void draw_filled_circle_color(Canvas* canvas, int cx, int cy, int radius, uint32_t color)
+{
+  Plotter p;
+  PlotterData *pdat = calloc(1, sizeof(PlotterData));
+  pdat->canvas = canvas;
+  pdat->color = color;
+  p.userData = pdat;
+  p.fn = PixelPlotterCallback;
+
+  bresenham_filled_circle(p, cx, cy, radius);
+
+  free(p.userData);
+}
+
+void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
+    uint32_t color)
 {
   if (g_thickness < 2)
   {
@@ -151,7 +166,7 @@ void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
     Plotter p;
     PlotterData *pdat = calloc(1, sizeof(PlotterData));
     pdat->canvas = canvas;
-    pdat->color = g_color_context.fg_color;
+    pdat->color = color;
     p.userData = pdat;
     p.fn = PixelPlotterCallback;
 
@@ -164,6 +179,11 @@ void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
   }
 
   Viewport_Invalidate();
+}
+
+void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
+{
+  draw_line_color(canvas, x0, y0, x1, y1, g_color_context.fg_color);
 }
 
 void SetThickness(unsigned int thickness)

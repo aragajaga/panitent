@@ -816,15 +816,16 @@ void ToolPicker_Init()
   g_tool_picker.onrbuttonup = ToolPicker_OnRButtonUp;
 }
 
-Brush *g_pBrush;
+Brush* g_pBrushDraw;
 
 void ToolBrush_OnLButtonUp(MOUSEEVENT mEvt)
 {
   fDraw = FALSE;
   ReleaseCapture();
-  free(g_pBrush);
 
   History_FinalizeDifferentiation(Panitent_GetActiveDocument());
+
+  Brush_Delete(g_pBrushDraw);
 }
 
 void ToolBrush_OnLButtonDown(MOUSEEVENT mEvt)
@@ -839,10 +840,11 @@ void ToolBrush_OnLButtonDown(MOUSEEVENT mEvt)
   prev.x = LOWORD(mEvt.lParam);
   prev.y = HIWORD(mEvt.lParam);
 
-  Canvas *tex = Canvas_Create(16, 16);
-  Canvas_FillSolid(tex, 0x0000000);
-  draw_circle(tex, 8, 8, 8);
-  g_pBrush = Brush_Create(tex);
+
+  g_pBrushDraw = BrushBuilder_Build(g_pBrush, g_brushSize);
+
+  Brush_Draw(g_pBrushDraw, x, y, g_viewport.document->canvas, g_color_context.fg_color);
+  Viewport_Invalidate();
 }
 
 void ToolBrush_OnMouseMove(MOUSEEVENT mEvt)
@@ -852,7 +854,7 @@ void ToolBrush_OnMouseMove(MOUSEEVENT mEvt)
 
   if (fDraw)
   {
-    Brush_DrawTo(g_pBrush, prev.x, prev.y, x, y, g_viewport.document->canvas);
+    Brush_DrawTo(g_pBrushDraw, prev.x, prev.y, x, y, g_viewport.document->canvas, g_color_context.fg_color);
     prev.x = x;
     prev.y = y;
     Viewport_Invalidate();

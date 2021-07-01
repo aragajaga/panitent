@@ -20,6 +20,7 @@
 #include "history.h"
 #include "new.h"
 #include "color_context.h"
+#include "brush.h"
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
@@ -103,10 +104,15 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   OptionBar_RegisterClass(hInstance);
   SettingsWindow_Register(hInstance);
   SwatchControl2_RegisterClass(hInstance);
+  BrushSel_RegisterClass(hInstance);
 
   bresenham_init();
   wu_init();
-  g_primitives_context = g_wu_primitives;
+  g_primitives_context = g_bresenham_primitives;
+
+  InitializeBrushList();
+  g_pBrush = &g_brushList[0];
+  g_brushSize = 24;
 
   HMENU hMenu = CreateMainMenu();
 
@@ -279,11 +285,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     case IDM_EDIT_REDO:
       History_Redo(Panitent_GetActiveDocument());
       break;
-    case IDM_EDIT_TESTFILL:
-      Canvas_FillSolid(g_viewport.document->canvas, 0xFFFFFFFF);
-      break;
     case IDM_EDIT_CLRCANVAS:
       Canvas_Clear(g_viewport.document->canvas);
+      Viewport_Invalidate();
       break;
     case IDM_WINDOW_TOOLS:
       CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
@@ -391,9 +395,7 @@ HMENU CreateMainMenu()
   hSubMenu = CreatePopupMenu();
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
-  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_TESTFILL, L"&Test fill");
   AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
-  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_WU_LINES, L"&Wu lines");
   AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
 
   hSubMenu = CreatePopupMenu();
