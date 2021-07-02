@@ -24,8 +24,10 @@ Canvas* Brush_GetTexture(Brush* brush);
 void InitializeBrushList();
 BrushBuilder* Brush_GetBuilder(Brush* brush);
 Brush* BrushBuilder_Build(BrushBuilder* builder, int size);
+void Brush_BezierCurve(Brush* brush, Canvas* canvas, int x0, int y0, int x1,
+    int y1, int x2, int y2, int x3, int y3, uint32_t color);
 void Brush_BezierCurve2(Brush* brush, Canvas* canvas, int x0, int y0, int x1,
-    int y1, int x2, int y2, int x3, int y3);
+    int y1, int x2, int y2, int x3, int y3, uint32_t color);
 void Brush_SetSize(Brush** brush, int size);
 
 extern BrushBuilder g_brushList[80];

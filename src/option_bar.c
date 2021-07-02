@@ -34,62 +34,88 @@ void BrushSel_OnCreate(HWND hwnd, LPCREATESTRUCT lParam)
   hTheme = OpenThemeData(hwnd, L"ComboBox");
 }
 
+/*
+ *  For API calls that doesn't require biSizeImage to be precalculated
+ *  In special cases use this:
+ *
+ *  bmi.bmiHeader.biSizeImage = ((bmi.bmiHeader.biWidth *
+ *      bmi.bmiHeader.biBitCount + 31) / 32) * 4 * bmi.bmiHeader.biHeight;
+ */
+inline static void InitGdiBitmapInfo32Bpp(LPBITMAPINFO bmi, LONG width,
+    LONG height)
+{
+  ZeroMemory(bmi, sizeof(BITMAPINFO));
+
+  bmi->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  bmi->bmiHeader.biWidth = width;
+  bmi->bmiHeader.biHeight = height;
+  bmi->bmiHeader.biPlanes = 1;
+  bmi->bmiHeader.biBitCount = 32;
+  bmi->bmiHeader.biCompression = BI_RGB;
+  bmi->bmiHeader.biSizeImage = 0;
+  bmi->bmiHeader.biClrUsed = 0;
+  bmi->bmiHeader.biClrImportant = 0;
+}
+
 void BrushSel_OnPaint(HWND hwnd)
 {
-  BrushBuilder* builder = g_pBrush;
-
-  Brush *brush = BrushBuilder_Build(builder, 24);
-  Canvas *tex = Brush_GetTexture(brush);
-
   PAINTSTRUCT ps = {0};
   HDC hdc = BeginPaint(hwnd, &ps);
+  HGDIOBJ hOldObj;
 
-  BITMAPINFO bmi = {0};
-  bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-  bmi.bmiHeader.biWidth = tex->width;
-  bmi.bmiHeader.biHeight = tex->height;
-  bmi.bmiHeader.biPlanes = 1;
-  bmi.bmiHeader.biBitCount = 32;
-  bmi.bmiHeader.biCompression = BI_RGB;
-  bmi.bmiHeader.biSizeImage = 0;
-  bmi.bmiHeader.biClrUsed = 0;
-  bmi.bmiHeader.biClrImportant = 0;
+  int brushSize = min(g_brushSize, 24);
 
-  /*
-  bmi.bmiHeader.biSizeImage = ((bmi.bmiHeader.biWidth *
-      bmi.bmiHeader.biBitCount + 31) / 32) * 4 * bmi.bmiHeader.biHeight;
-  */
-
-  uint32_t *buffer = NULL;
-
-  HDC hSampleDC = CreateCompatibleDC(hdc);
-  HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS,
-      (LPVOID*)&buffer, NULL, 0);
-  assert(hBitmap != NULL);
-  assert(buffer != NULL);
-
-  for (int y = 0; y < (int)bmi.bmiHeader.biHeight; y++)
+  if (brushSize)
   {
-    /*
-    memcpy(buffer + y * bmi.bmiHeader.biWidth,
-        (uint32_t*)tex->buffer + y * tex->width, bmi.bmiHeader.biWidth);
-    */
+    /* Gather active application brush */
+    BrushBuilder* builder = g_pBrush;
+    Brush *brush = BrushBuilder_Build(builder, brushSize);
+    Canvas *tex = Brush_GetTexture(brush);
 
-    for (int x = 0; x < (int)bmi.bmiHeader.biWidth; x++)
+    /* Copy texture into GDI bitmap */
+    BITMAPINFO bmi;
+    InitGdiBitmapInfo32Bpp(&bmi, 24, 24);
+
+    uint32_t *buffer = NULL;
+
+    HDC hSampleDC = CreateCompatibleDC(hdc);
+    HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS,
+        (LPVOID*)&buffer, NULL, 0);
+    assert(hBitmap != NULL);
+    assert(buffer != NULL);
+
+    hOldObj = SelectObject(hSampleDC, hBitmap);
+    RECT rc = {0, 0, 24, 24};
+    FillRect(hSampleDC, &rc, GetStockObject(WHITE_BRUSH));
+
+    int offset = (24 - brushSize) / 2;
+    uint32_t *pBuffer = buffer + offset * 24 + offset;
+    for (int y = 0; y < brushSize; y++)
     {
-      buffer[y * bmi.bmiHeader.biWidth + x] = mix(0xFFFFFFFF,
-          *((uint32_t*)tex->buffer + y * tex->width + x));
+      for (int x = 0; x < brushSize; x++)
+      {
+        pBuffer[y * brushSize + x] = mix(0xFFFFFFFF,
+            *((uint32_t*)tex->buffer + y * tex->width + x));
+      }
+
+      pBuffer += (24 - brushSize - offset) + offset;
     }
+
+    /* As we copyed we doesn't need brush object and texture anymore */
+    Brush_Delete(brush);
+
+    /* Blit brush sample */
+    BitBlt(hdc, 0, 0, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, hSampleDC,
+        0, 0, SRCCOPY);
+
+    SelectObject(hSampleDC, hOldObj);
+
+    DeleteObject(hBitmap);
+    DeleteDC(hSampleDC);
   }
 
-  HGDIOBJ hOldObj = SelectObject(hSampleDC, hBitmap);
-  BitBlt(hdc, 0, 0, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, hSampleDC,
-      0, 0, SRCCOPY);
-  SelectObject(hSampleDC, hOldObj);
 
-  DeleteObject(hBitmap);
-  DeleteDC(hSampleDC);
-
+  /* Draw size label */
   RECT clientRc = {0};
   GetClientRect(hwnd, &clientRc);
 
@@ -102,22 +128,24 @@ void BrushSel_OnPaint(HWND hwnd)
   SIZE sText;
   GetTextExtentPoint32(hdc, szBrushSize, 2, &sText);
 
-  TextOut(hdc, 24, (clientRc.bottom - sText.cy) / 2, szBrushSize, 2);
+  TextOut(hdc, 26, (clientRc.bottom - sText.cy) / 2, szBrushSize, 2);
 
   SelectObject(hdc, hOldObj);
 
+  /* Dropdown button */
+  RECT dropBtnRc = clientRc;
+  dropBtnRc.left = dropBtnRc.right - 16;
+
   if (hTheme)
   {
-    RECT dropBtnRc = clientRc;
-    dropBtnRc.left = dropBtnRc.right - 16;
-
     DrawThemeBackground(hTheme, hdc, CP_DROPDOWNBUTTON, CBXS_NORMAL,
         &dropBtnRc, NULL);
   }
+  else {
+    DrawFrameControl(hdc, &dropBtnRc, DFC_SCROLL, DFCS_SCROLLCOMBOBOX);
+  }
 
   EndPaint(hwnd, &ps);
-
-  Brush_Delete(brush);
 }
 
 void BrushSel_OnDestroy(HWND hwnd)
@@ -314,32 +342,6 @@ void OptionBar_RegisterClass(HINSTANCE hInstance)
   g_option_bar.win_class = class_atom;
 }
 
-void OptionBar_Create(HWND hwnd)
-{
-  HWND handle = CreateWindowEx(0,
-                               MAKEINTATOM(g_option_bar.win_class),
-                               NULL,
-                               WS_CHILD | WS_VISIBLE,
-                               0,
-                               0,
-                               500,
-                               64,
-                               hwnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               NULL);
-
-  if (!handle) {
-    MessageBox(NULL,
-               L"Failed to create option bar window!",
-               NULL,
-               MB_OK | MB_ICONERROR);
-    return;
-  }
-
-  g_option_bar.win_handle = handle;
-}
-
 typedef struct _BrushDlgData {
   int iPvWidth;
   int iPvHeight;
@@ -366,7 +368,7 @@ void DrawBrushPreview(HWND hwnd)
       32, height/2,
       32 + (width - 64) / 4, height/4,
       width - 32 - (width - 64) / 4, height/4*3,
-      width - 32, height/2);
+      width - 32, height/2, 0xFF000000);
 
   for (int y = height; y--;)
   {
@@ -374,6 +376,8 @@ void DrawBrushPreview(HWND hwnd)
         width * 4);
   }
 }
+
+#define BRUSHSIZEMAX 128
 
 INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     LPARAM lParam)
@@ -384,16 +388,12 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
       {
         BrushDlgData *data = malloc(sizeof(BrushDlgData));
         ZeroMemory(data, sizeof(BrushDlgData));
-
         SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)data);
 
         HWND hList = GetDlgItem(hwndDlg, IDC_BRUSHLIST);
-        assert(hList);
-
-        int nItem;
 
         /* Add brush items to list */
-
+        int nItem;
         for (size_t i = 0; i < g_brushListLen; i++)
         {
           /* What 0 actually do? */
@@ -403,28 +403,20 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
         }
 
         /* Create preview bitmap */
+        HWND hPreview = GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW);
+
         RECT pvRc = {0};
-        GetClientRect(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW), &pvRc);
+        GetClientRect(hPreview, &pvRc);
 
         int width = pvRc.right;
         int height = pvRc.bottom;
 
         BITMAPINFO bmi = {0};
-        bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-        bmi.bmiHeader.biWidth = width;
-        bmi.bmiHeader.biHeight = height;
-        bmi.bmiHeader.biPlanes = 1;
-        bmi.bmiHeader.biBitCount = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-        bmi.bmiHeader.biSizeImage = 0;
-        bmi.bmiHeader.biXPelsPerMeter = 0;
-        bmi.bmiHeader.biYPelsPerMeter = 0;
-        bmi.bmiHeader.biClrUsed = 0;
-        bmi.bmiHeader.biClrImportant = 0;
+        InitGdiBitmapInfo32Bpp(&bmi, width, height);
 
         uint32_t *buffer = NULL;
 
-        HDC hdc = GetDC(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW));
+        HDC hdc = GetDC(hPreview);
         HBITMAP hbmPv = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS,
             (LPVOID*)&buffer, NULL, 0);
         assert(hbmPv);
@@ -445,12 +437,11 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
         DrawBrushPreview(hwndDlg);
         InvalidateRect(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW), NULL, TRUE);
-        InvalidateRect(GetParent(hwndDlg), NULL, TRUE);
 
-        /* Trackbar control */
+        /* Initialize size slider */
         HWND hTrack = GetDlgItem(hwndDlg, IDC_BRUSHSIZE);
         SendMessage(hTrack, TBM_SETRANGE, (WPARAM)TRUE,
-            (LPARAM)MAKELONG(0, 100));
+            (LPARAM)MAKELONG(0, BRUSHSIZEMAX));
         SendMessage(hTrack, TBM_SETPAGESIZE, 0, (LPARAM)4);
         SendMessage(hTrack, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)g_brushSize);
 
@@ -459,6 +450,10 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     case WM_HSCROLL:
       switch (LOWORD(wParam))
       {
+        case TB_LINEUP:
+        case TB_LINEDOWN:
+        case TB_PAGEUP:
+        case TB_PAGEDOWN:
         case TB_THUMBTRACK:
           {
             DWORD dwPos = SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHSIZE),
@@ -468,11 +463,11 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
             DrawBrushPreview(hwndDlg);
             InvalidateRect(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW), NULL, TRUE);
-            InvalidateRect(GetParent(hwndDlg), NULL, TRUE);
           }
           break;
       }
       return TRUE;
+
     case WM_MEASUREITEM:
       {
         PMEASUREITEMSTRUCT pmis = (PMEASUREITEMSTRUCT)lParam;
@@ -508,44 +503,35 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
               Brush* brush = BrushBuilder_Build(brushBuilder, 16);
               assert(brush);
 
-              Canvas *canvas = Canvas_Create(
-                  pdis->rcItem.right - pdis->rcItem.left,
-                  pdis->rcItem.bottom - pdis->rcItem.top);
+              int width = pdis->rcItem.right - pdis->rcItem.left;
+              int height = pdis->rcItem.bottom - pdis->rcItem.top;
 
-              Brush_Draw(brush, 16, 16, canvas, 0xFF000000);
+              uint32_t brColor = pdis->itemState & ODS_SELECTED ? 0xFFFFFFFF :
+                  0xFF000000;
+              Canvas *canvas = Canvas_Create(width, height);
+              Brush_Draw(brush, 16, 16, canvas, brColor);
 
               Brush_BezierCurve2(brush, canvas,
                   48, 16,
                   48 + 32, 8,
-                  canvas->width - 16 - 32, 24,
-                  canvas->width - 16, 16);
+                  width - 16 - 32, 24,
+                  width - 16, 16, brColor);
 
+              /* Create GDI bitmap */
               BITMAPINFO bmi = {0};
-              bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-              bmi.bmiHeader.biWidth = canvas->width;
-              bmi.bmiHeader.biHeight = canvas->height;
-              bmi.bmiHeader.biPlanes = 1;
-              bmi.bmiHeader.biBitCount = 32;
-              bmi.bmiHeader.biCompression = BI_RGB;
-              bmi.bmiHeader.biSizeImage = 0;
-              bmi.bmiHeader.biXPelsPerMeter = 0;
-              bmi.bmiHeader.biYPelsPerMeter = 0;
-              bmi.bmiHeader.biClrUsed = 0;
-              bmi.bmiHeader.biClrImportant = 0;
+              InitGdiBitmapInfo32Bpp(&bmi, canvas->width, canvas->height);
 
               uint32_t *buffer = NULL;
+
               HBITMAP hBitmap = CreateDIBSection(pdis->hDC, &bmi,
                   DIB_RGB_COLORS, (LPVOID*)&buffer, NULL, 0);
               assert(hBitmap != NULL);
               assert(buffer != NULL);
 
-              int width = bmi.bmiHeader.biWidth;
-              int height = bmi.bmiHeader.biHeight;
-
               for (int y = height; y--;)
               {
                 memcpy(buffer + y * width, ((uint32_t*)canvas->buffer) + y *
-                      canvas->width, canvas->width * 4);
+                      width, width * 4);
               }
 
               HDC hdcMem = CreateCompatibleDC(pdis->hDC);
@@ -562,12 +548,12 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
                   pdis->hDC,
                   pdis->rcItem.left,
                   pdis->rcItem.top,
-                  pdis->rcItem.right - pdis->rcItem.left,
-                  pdis->rcItem.bottom - pdis->rcItem.top,
+                  width,
+                  height,
                   hdcMem,
                   0, 0,
-                  pdis->rcItem.right - pdis->rcItem.left,
-                  pdis->rcItem.bottom - pdis->rcItem.top,
+                  width,
+                  height,
                   blendFunc);
 
               /*

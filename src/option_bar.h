@@ -12,7 +12,6 @@ typedef struct _OptionBar {
 extern OptionBar g_option_bar;
 
 BOOL BrushSel_RegisterClass(HINSTANCE hInstance);
-void OptionBar_RegisterClass(HINSTANCE);
-void OptionBar_Create(HWND);
+void OptionBar_RegisterClass(HINSTANCE hInstance);
 
 #endif /* PANITENT_OPTION_BAR_H_ */

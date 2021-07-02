@@ -220,7 +220,8 @@ void Brush_BezierCurve(Brush* brush, Canvas* canvas,
     int x0, int y0,
     int x1, int y1,
     int x2, int y2,
-    int x3, int y3)
+    int x3, int y3,
+    uint32_t color)
 {
   for (float i = 0; i < 1.f; i += 0.01f)
   {
@@ -239,7 +240,7 @@ void Brush_BezierCurve(Brush* brush, Canvas* canvas,
     int x = BezierGetPt(xm, xn, i);
     int y = BezierGetPt(ym, yn, i);
 
-    Brush_Draw(brush, x, y, canvas, 0xFF000000);
+    Brush_Draw(brush, x, y, canvas, color);
   }
 }
 
@@ -247,7 +248,8 @@ void Brush_BezierCurve2(Brush* brush, Canvas* canvas,
     int x0, int y0,
     int x1, int y1,
     int x2, int y2,
-    int x3, int y3)
+    int x3, int y3,
+    uint32_t color)
 {
   for (float u = 0.f; u <= 1.f; u += 0.01f)
   {
@@ -256,7 +258,7 @@ void Brush_BezierCurve2(Brush* brush, Canvas* canvas,
     float yu = pow(1 - u, 3) * y0 + 3 * u * pow(1 - u, 2) * y1 + 3 * pow(u, 2) *
       (1 - u) * y2 + pow(u, 3) * y3;
 
-    Brush_Draw(brush, xu, yu, canvas, 0xFF000000);
+    Brush_Draw(brush, xu, yu, canvas, color);
   }
 }
 

@@ -21,6 +21,7 @@
 #include "new.h"
 #include "color_context.h"
 #include "brush.h"
+#include <assert.h>
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
@@ -177,6 +178,15 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
                                NULL,
                                GetModuleHandle(NULL),
                                NULL);
+  assert(hwndOptionBar);
+
+#ifdef DEBUG
+  if (!hwndOptionBar)
+  {
+    OutputDebugString(L"OptionBar creation failed. "
+        "Maybe class not registered?");
+  }
+#endif /* DEBUG */
 
   nodeOptionBar->lpszCaption  = L"Option Bar";
   nodeOptionBar->bShowCaption = TRUE;

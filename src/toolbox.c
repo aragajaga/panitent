@@ -61,6 +61,9 @@ HBITMAP img_layout;
 
 void ToolBrush_Init();
 
+unsigned int g_uToolSelected;
+
+
 void Toolbox_Init(Toolbox* tbox)
 {
   ToolPointer_Init();
@@ -74,6 +77,7 @@ void Toolbox_Init(Toolbox* tbox)
   ToolBrush_Init();
 
   g_tool = g_tool_pointer;
+  g_uToolSelected = 0;
 
   img_layout = (HBITMAP)LoadBitmap(GetModuleHandle(NULL),
       MAKEINTRESOURCE(IDB_TOOLS));
@@ -96,7 +100,12 @@ HTHEME hTheme = NULL;
 int btnSize   = 24;
 int btnOffset = 4;
 
-void Toolbox_ButtonDraw(HDC hdc, int x, int y)
+enum {
+  NORMAL,
+  PUSHED
+};
+
+void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 {
   if (!hTheme) {
     HWND hButton = CreateWindowEx(0,
@@ -115,7 +124,27 @@ void Toolbox_ButtonDraw(HDC hdc, int x, int y)
   }
 
   RECT rc = {x, y, x + btnSize, y + btnSize};
-  DrawThemeBackgroundEx(hTheme, hdc, BP_PUSHBUTTON, PBS_NORMAL, &rc, NULL);
+
+  if (hTheme)
+  {
+    int iStateId = PBS_NORMAL;
+    if (state == PUSHED)
+      iStateId = PBS_PRESSED;
+
+    if (IsThemeBackgroundPartiallyTransparent(hTheme, BP_PUSHBUTTON, iStateId))
+    {
+      DrawThemeParentBackground(NULL, hdc, NULL);
+    }
+
+    DrawThemeBackgroundEx(hTheme, hdc, BP_PUSHBUTTON, iStateId, &rc, NULL);
+  }
+  else {
+    DWORD edge = EDGE_RAISED;
+    if (state == PUSHED)
+      edge = EDGE_SUNKEN;
+
+    DrawEdge(hdc, &rc, edge, BF_RECT);
+  }
 }
 
 void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
@@ -143,7 +172,14 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
     int y = btnOffset + (i / rowCount) * extSize;
 
     /* Rectangle(hdc, x, y, x+btnSize, y+btnSize); */
-    Toolbox_ButtonDraw(hdc, x, y);
+
+    unsigned int uState = NORMAL;
+    if (i == g_uToolSelected)
+    {
+      uState = PUSHED;
+    }
+
+    Toolbox_ButtonDraw(hdc, x, y, uState);
 
     int iBmp         = tbox->tools[(ptrdiff_t)i].img;
     const int offset = 4;
@@ -197,6 +233,8 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
     unsigned int pressed =
         (y - btnOffset) / extSize * rowCount + (x - btnOffset) / extSize;
 
+    g_uToolSelected = pressed;
+
     if (tbox->tool_count > pressed) {
       switch (pressed) {
       case 1:
@@ -229,6 +267,8 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
       }
     }
   }
+
+  InvalidateRect(tbox->hwnd, NULL, TRUE);
 }
 
 LRESULT CALLBACK Toolbox_WndProc(HWND hwnd,

@@ -232,26 +232,57 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
 {
   uint32_t *pTarget = target->buffer;
   uint32_t *pSource = source->buffer;
-  pTarget += y * target->width + x;
+
+  if (x >= target->width ||
+      y >= target->height ||
+      x + target->width < 0 ||
+      y + target->height < 0)
+    return;
+
+  pTarget += (y < 0 ? 0 : y) * target->width + (x < 0 ? 0 : x);
 
   int width = source->width;
   int height = source->height;
+
+  if (x + width > target->width)
+  {
+    width = target->width - x;
+  }
+
+  if (y + height > target->height)
+  {
+    height = target->height - y;
+  }
+
+  if (x < 0)
+  {
+    int x_ = abs(x);
+    pSource += x_;
+    width -= x_;
+  }
+
+  if (y < 0)
+  {
+    int y_ = abs(y);
+    pSource += y_ * source->width;
+    height -= y_;
+  }
 
   for (int i = 0; i < height; i++) {
     for (int j = 0; j < width; j++) {
       uint32_t color_ = color;
 
-      float opacity = lerp(0, (*pSource >> 24) / 255.f, (color_ >> 24) / 255.f);
+      float opacity = lerp(0, (*(pSource + j) >> 24) / 255.f,
+          (color_ >> 24) / 255.f);
       uint8_t alpha = round(opacity * 255.f);
 
       color_ = (color & 0x00FFFFFF) | alpha << 24;
 
-      *pTarget = mix(*pTarget, color_);
-      pTarget++;
-      pSource++;
+      *(pTarget + j) = mix(*(pTarget + j), color_);
     }
 
-    pTarget += target->width - source->width;
+    pSource += source->width;
+    pTarget += target->width;
   }
 }
 
@@ -277,6 +308,9 @@ void Canvas_Paste(Canvas* target, int x, int y, Canvas* source)
   uint32_t *pTarget = target->buffer;
   uint32_t *pSource = source->buffer;
   pTarget += y * target->width + x;
+
+  if (x >= target->width || y >= target->height)
+    return;
 
   for (int i = 0; i < source->height; i++) {
     for (int j = 0; j < source->width; j++) {
