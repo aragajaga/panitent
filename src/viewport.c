@@ -290,9 +290,9 @@ void Viewport_OnPaint(HWND hwnd)
   HDC hdcTarget = hdc;
 
   RECT clientRc;
-  HDC hdcBack;
-  HBITMAP hbmBack;
-  HGDIOBJ hOldObjBack;
+  HDC hdcBack = NULL;
+  HBITMAP hbmBack = NULL;
+  HGDIOBJ hOldObjBack = NULL;
 
   GetClientRect(hwnd, &clientRc);
 

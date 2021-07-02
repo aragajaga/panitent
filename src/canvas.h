@@ -44,6 +44,7 @@ void Canvas_Delete(Canvas* canvas);
 void Canvas_Clear(Canvas* canvas);
 const void* Canvas_GetBuffer(Canvas*);
 void Canvas_PasteBits(Canvas*, void*, int, int, int, int);
+void Canvas_ColorStencilBits(Canvas*, void*, int, int, int, int, uint32_t);
 Canvas* Canvas_Clone(Canvas*);
 Canvas* Canvas_Substitute(Canvas*, RECT* rc);
 Canvas* Canvas_Create(int width, int height);

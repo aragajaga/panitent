@@ -149,20 +149,81 @@ const void* Canvas_GetBuffer(Canvas* canvas)
 void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     int height)
 {
-  char* byteCanvas = (char*)canvas->buffer;
-  char* byteBufIn = (char*)bits;
+  uint32_t* pTarget = (uint32_t*)canvas->buffer;
+  uint32_t* pSource = (uint32_t*)bits + width * (height - 1);
 
-  size_t startOffset = (y * canvas->width + x) * 4;
-  size_t imageStride = width * 4;
+  pTarget += y * canvas->width + x;
 
-  byteCanvas += startOffset;
-
-  /* Copy stride by stride, by offseting canvas stride */
   for (int i = height; i; --i)
   {
-    memcpy(byteCanvas, byteBufIn + width * i * 4, imageStride);
+    memcpy(pTarget, pSource, width * 4);
 
-    byteCanvas += canvas->width * 4;
+    pTarget += canvas->width;
+    pSource -= width;
+  }
+
+  Viewport_Invalidate();
+}
+
+void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width,
+    int height, uint32_t color)
+{
+  if (x >= canvas->width ||
+      y >= canvas->height ||
+      x + canvas->width < 0 ||
+      y + canvas->height < 0)
+    return;
+
+  uint32_t* pTarget = (uint32_t*)canvas->buffer;
+  uint32_t* pSource = (uint32_t*)bits + width * (height - 1);
+
+  int width_ = width;
+  int height_ = height;
+
+  pTarget += max(0, y) * canvas->width + max(0, x);
+
+  if (x + width > canvas->width)
+  {
+    width_ = canvas->width - x;
+  }
+
+  if (y + height > canvas->height)
+  {
+    height_ = canvas->height - y;
+  }
+
+  if (x < 0)
+  {
+    int x_ = abs(x);
+    width -= x_;
+    pSource += x_;
+  }
+
+  if (y < 0)
+  {
+    int y_ = abs(y);
+    height -= y_;
+    pSource += y_ * width;
+  }
+
+  for (int i = height_; i; --i)
+  {
+    for (int j = 0; j < width_; j++)
+    { 
+      float channelB = ((*(pSource + j) >> 16) & 0xFF) / 255.f;
+      float channelG = ((*(pSource + j) >> 8 ) & 0xFF) / 255.f;
+      float channelR =  (*(pSource + j)        & 0xFF) / 255.f;
+
+      float srcAlpha = (channelB + channelG + channelR) / 3.f;
+      float colorAlpha = (color >> 24) / 255.f;
+
+      *(pTarget + j) = mix(*(pTarget + j),
+          (uint32_t)(round(lerp(0.f, srcAlpha, colorAlpha) * 255.f)) << 24 |
+          (color & 0x00FFFFFF));
+    }
+
+    pTarget += canvas->width;
+    pSource -= width;
   }
 
   Viewport_Invalidate();

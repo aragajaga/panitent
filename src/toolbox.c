@@ -336,6 +336,8 @@ void ToolPointer_Init()
 
 void ToolText_OnLButtonUp(MOUSEEVENT mEvt)
 {
+  History_StartDifferentiation(Panitent_GetActiveDocument());
+
   HDC viewportdc = GetDC(g_viewport.hwnd);
   HDC bitmapdc   = CreateCompatibleDC(viewportdc);
 
@@ -358,33 +360,45 @@ void ToolText_OnLButtonUp(MOUSEEVENT mEvt)
   GetTextExtentPoint32(bitmapdc, textbuf, textLen, &size);
   RECT textrc = {0, 0, size.cx, size.cy};
 
-  uint8_t* bmbuf = calloc(size.cx * size.cy, sizeof(uint32_t));
-
-  HBITMAP hbitmap =
-      CreateBitmap(size.cx, size.cy, 1, sizeof(uint32_t) * 8, bmbuf);
-  SelectObject(bitmapdc, hbitmap);
-  SetTextColor(bitmapdc, abgr_to_argb(g_color_context.fg_color));
-
-  DrawTextEx(bitmapdc, textbuf, -1, &textrc, 0, NULL);
-
-  SelectObject(bitmapdc, hOldFont);
-
-  void* inbuf = malloc(size.cx * size.cy * 8);
-
   BITMAPINFO bmi = {0};
-  bmi.bmiHeader.biSize = sizeof(BITMAPINFO);
+  bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
   bmi.bmiHeader.biWidth = size.cx;
   bmi.bmiHeader.biHeight = size.cy;
   bmi.bmiHeader.biPlanes = 1;
   bmi.bmiHeader.biBitCount = 32;
   bmi.bmiHeader.biCompression = BI_RGB;
 
-  GetDIBits(bitmapdc, hbitmap, 0, size.cy, inbuf, &bmi, DIB_RGB_COLORS);
-  Canvas_PasteBits(g_viewport.document->canvas, inbuf, x, y, size.cx, size.cy);
+  uint32_t *buffer = NULL;
 
-  free(inbuf);
+  HBITMAP hbitmap = CreateDIBSection(bitmapdc, &bmi, 0, (LPVOID*)&buffer, NULL, 0);
+  assert(hbitmap != NULL);
+  assert(buffer != NULL);
+
+  HGDIOBJ hOldObj = SelectObject(bitmapdc, hbitmap);
+
+  SetTextColor(bitmapdc, 0x00FFFFFF);
+  SetBkColor(bitmapdc, 0x00000000);
+  SetBkMode(bitmapdc, OPAQUE);
+
+  DrawTextEx(bitmapdc, textbuf, -1, &textrc, 0, NULL);
+
+  SelectObject(bitmapdc, hOldObj);
+
+  for (int y = 0; y < size.cy; y++)
+  {
+    for (int x = 0; x < size.cx; x++)
+    {
+      uint32_t *pixel = buffer + y * size.cx + x;
+      *pixel = *pixel | 0xFF000000;
+    }
+  }
+
+  Canvas_ColorStencilBits(g_viewport.document->canvas, buffer, x, y, size.cx, size.cy, g_color_context.fg_color);
+
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolText_Init()

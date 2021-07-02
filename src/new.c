@@ -49,7 +49,7 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
       GetWindowText(hEditWidth, szWidth, 40);
       GetWindowText(hEditHeight, szHeight, 40);
 
-      COLORREF bgColor;
+      COLORREF bgColor = 0x00000000;
       int bgIndex = ComboBox_GetCurSel(hComboBackground);
 
       switch (bgIndex)
