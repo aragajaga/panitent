@@ -19,8 +19,9 @@
 
 #define IDM_VIEWPORTSETTINGS 100
 
-Viewport g_viewport;
 Tool g_tool;
+
+const WCHAR szViewportClass[] = L"Win32Class_Viewport";
 
 struct _ViewportSettings {
   BOOL doubleBuffered;
@@ -36,7 +37,7 @@ struct _ViewportSettings {
 struct _ViewportSettings g_viewportSettings = {
   .doubleBuffered = TRUE,
   .bkgndExcludeCanvas = TRUE,
-  .showDebugInfo = TRUE,
+  .showDebugInfo = FALSE,
   .backgroundMethod = BKGND_REGION
 };
 
@@ -52,6 +53,13 @@ struct _CheckerConfig g_checker = {
   .size = 16,
   .invalidate = TRUE
 };
+
+LRESULT CALLBACK Viewport_WndProc(HWND hwnd, UINT message, WPARAM wParam,
+    LPARAM lParam);
+void Viewport_OnLButtonDown(HWND hwnd, WPARAM wParam, LPARAM lParam);
+void Viewport_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam);
+void Viewport_OnMouseMove(HWND hwnd, WPARAM wParam, LPARAM lParam);
+void Viewport_OnPaint(HWND hWnd);
 
 INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message,
     WPARAM wParam, LPARAM lParam)
@@ -117,7 +125,7 @@ INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message,
         }
       }
 
-      Viewport_Invalidate();
+      Viewport_Invalidate(Panitent_GetActiveViewport());
       return TRUE;
   }
 
@@ -131,72 +139,61 @@ void swapf(float* a, float* b)
   *a      = c;
 }
 
-void Viewport_Invalidate()
+void Viewport_Invalidate(Viewport *viewport)
 {
-  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
+  InvalidateRect(viewport->hwnd, NULL, TRUE);
 }
 
-void Viewport_SetDocument(Document* document)
+void Viewport_SetDocument(Viewport* viewport, Document* document)
 {
-  g_viewport.document = document;
-  InvalidateRect(g_viewport.hwnd, NULL, TRUE);
+  assert(viewport);
+  assert(document);
+
+  viewport->document = document;
+
+  viewport->offset.x = 0;
+  viewport->offset.y = 0;
+  viewport->scale = 1.f;
+
+  Viewport_Invalidate(viewport);
 }
 
-void Viewport_RegisterClass()
+Document* Viewport_GetDocument(Viewport* viewport)
 {
-  /*Break if already registered */
-  if (g_viewport.wndclass)
-    return;
+  return viewport->document;
+}
 
+BOOL Viewport_RegisterClass(HINSTANCE hInstance)
+{
   WNDCLASSEX wcex  = {0};
   wcex.cbSize      = sizeof(WNDCLASSEX);
   wcex.style       = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = (WNDPROC)Viewport_WndProc;
-  wcex.hInstance   = GetModuleHandle(NULL);
+  wcex.hInstance   = hInstance;
   wcex.hCursor     = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wcex.lpszClassName = VIEWPORTCTL_WC;
+  wcex.lpszClassName = szViewportClass;
 
-  ATOM class_atom = RegisterClassEx(&wcex);
-  if (!class_atom) {
-    MessageBox(NULL, L"Failed to register class!", NULL, MB_OK | MB_ICONERROR);
-    return;
-  }
-
-  g_viewport.wndclass = class_atom;
+  return RegisterClassEx(&wcex);
 }
 
-void Viewport_GetCanvasRect(Viewport* vp, IMAGE* img, RECT* rcCanvas)
+void Viewport_OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 {
-  RECT rcViewport = {0};
-  if (GetClientRect(g_viewport.hwnd, &rcViewport)) {
-    printf("[ViewportRect] w: %ld h: %ld\n",
-           rcViewport.right,
-           rcViewport.bottom);
-  } else {
-    printf("[GetCanvasRect] Failed to get viewport rect\n");
-  }
-  GetClientRect(g_viewport.hwnd, &rcViewport);
+  UNREFERENCED_PARAMETER(lpcs);
 
-  rcCanvas->left   = vp->canvas_x;
-  rcCanvas->top    = vp->canvas_y;
-  rcCanvas->right  = img->rc.width;
-  rcCanvas->bottom = img->rc.height;
+  Viewport *viewport = calloc(1, sizeof(Viewport));
+  SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)viewport);
+  viewport->hwnd = hwnd;
 
-  printf("[GetCanvasRect] right: %ld\n", rcCanvas->right);
-  printf("[GetCanvasRect] bottom: %ld\n", rcCanvas->bottom);
-}
-
-void Viewport_OnCreate()
-{
-  g_viewport.canvas_x = 0;
-  g_viewport.canvas_y = 0;
+  viewport->offset.x = 0;
+  viewport->offset.y = 0;
+  viewport->scale = 1.f;
 
   g_checker.hSolid1 = CreateSolidBrush(RGB(0xCC, 0xCC, 0xCC));
   g_checker.hSolid2 = CreateSolidBrush(RGB(0xFF, 0xFF, 0xFF));
 }
 
-BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
+BOOL gdi_blit_canvas(HDC hdc, int x, int y, int x1, int y1, Canvas* canvas)
 {
   assert(canvas);
   if (!canvas)
@@ -234,7 +231,7 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, Canvas* canvas)
     .AlphaFormat = AC_SRC_ALPHA
   };
 
-  AlphaBlend(hdc, x, y, canvas->width, canvas->height, bitmapdc, 0, 0,
+  AlphaBlend(hdc, x, y, x1, y1, bitmapdc, 0, 0,
       canvas->width, canvas->height, blendFunc);
 
   DeleteObject(hbitmap);
@@ -274,15 +271,41 @@ HBRUSH GetCheckerBrush(HDC hdc)
   return g_checker.hbrush;
 }
 
-static void DrawCheckerTexture(HDC hdc, int width, int height)
+static void DrawCheckerTexture(HDC hdc, int x, int y, int width, int height)
 {
-  RECT rc = {0, 0, width, height};
+  RECT rc = {x, y, x + width, y + height};
   HBRUSH hbrChecker = GetCheckerBrush(hdc);
   FillRect(hdc, &rc, hbrChecker);
 }
 
+void Viewport_ClientToCanvas(Viewport* viewport, int x, int y, LPPOINT lpPt)
+{
+  Document* document = Viewport_GetDocument(viewport);
+  assert(document);
+  if (!document)
+    return;
+
+  Canvas* canvas = Document_GetCanvas(document);
+  assert(canvas);
+  if (!canvas)
+    return;
+
+  RECT clientRc = {0};
+  GetClientRect(viewport->hwnd, &clientRc);
+
+  /* TODO: Try to get rid of intermediate negative value. Juggle around with
+     'x' and 'offset' positions. */
+  lpPt->x = (x - (clientRc.right - canvas->width * viewport->scale) / 2 -
+      viewport->offset.x) / viewport->scale;
+  lpPt->y = (y - (clientRc.bottom - canvas->height * viewport->scale) / 2 -
+      viewport->offset.y) / viewport->scale;
+}
+
 void Viewport_OnPaint(HWND hwnd)
 {
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
   PAINTSTRUCT ps;
   HDC hdc;
 
@@ -312,48 +335,143 @@ void Viewport_OnPaint(HWND hwnd)
     hdcTarget = hdcBack;
   }
 
-  /*Use hdcTarget for actual drawing */
-  if (g_viewport.document)
+
+  Document* document = Viewport_GetDocument(viewport);
+  if (document)
   {
-    DrawCheckerTexture(
-        hdcTarget,
-        g_viewport.document->canvas->width,
-        g_viewport.document->canvas->height);
+    Canvas* canvas = Document_GetCanvas(document);
+    assert(canvas);
 
-    /* Copy canvas to viewport */
-    gdi_blit_canvas(hdcTarget, 0, 0, g_viewport.document->canvas);
+    RECT renderRc = {
+      .left = ((clientRc.right - canvas->width * viewport->scale) / 2
+          + viewport->offset.x),
+      .top = ((clientRc.bottom - canvas->height * viewport->scale) / 2
+          + viewport->offset.y),
+      .right = (canvas->width * viewport->scale),
+      .bottom = (canvas->height * viewport->scale)
+    };
 
-    /* Draw canvas frame */
-    MoveToEx(hdcTarget, g_viewport.document->canvas->width, 0, NULL);
-    LineTo(hdcTarget, g_viewport.document->canvas->width,
-        g_viewport.document->canvas->height);
-    LineTo(hdcTarget, 0, g_viewport.document->canvas->height);
-  }
+    /* Use hdcTarget for actual drawing */
+    if (viewport->document)
+    {
+      DrawCheckerTexture(hdcTarget,
+          renderRc.left, renderRc.top,
+          renderRc.right, renderRc.bottom);
 
-  if (g_viewportSettings.showDebugInfo)
-  {
-    RECT textRc = clientRc;
-    WCHAR szFormat[256] = L"Debug shown\n"
-      L"Double Buffer: %s\n"
-      L"Background exclude canvas: %s\n"
-      L"Background method: %s\n";
-    WCHAR szDebugString[256];
-    StringCchPrintf(szDebugString, 256, szFormat,
-        g_viewportSettings.doubleBuffered ? L"ON" : L"OFF",
-        g_viewportSettings.bkgndExcludeCanvas ? L"ON" : L"OFF",
-        g_viewportSettings.bkgndExcludeCanvas ? g_viewportSettings.backgroundMethod ? L"GDI region" : L"FillRect" : L"N/A");
-    int len = wcslen(szDebugString);
-    DrawText(hdcTarget, szDebugString, len, &clientRc, DT_BOTTOM | DT_RIGHT);
-  }
+      /* Copy canvas to viewport */
+      gdi_blit_canvas(hdcTarget,
+          renderRc.left, renderRc.top,
+          renderRc.right, renderRc.bottom,
+          viewport->document->canvas);
 
-  if (g_viewportSettings.doubleBuffered) {
-    /* Copy backbuffer to window */
-    BitBlt(hdc, 0, 0, clientRc.right, clientRc.bottom, hdcBack, 0, 0, SRCCOPY);
+      /* Draw canvas frame */
+      RECT frameRc = {
+        renderRc.left, renderRc.top,
+        renderRc.left + renderRc.right, renderRc.top + renderRc.bottom,
+      };
+      FrameRect(hdcTarget, &frameRc, GetStockObject(BLACK_BRUSH));
+    }
 
-    /* Release and free backbuffer resources */
-    SelectObject(hdcBack, hOldObjBack);
-    DeleteObject(hbmBack);
-    DeleteDC(hdcBack);
+    if (g_viewportSettings.showDebugInfo)
+    {
+
+      /* Doesn't help */
+      int state = SaveDC(hdcTarget);
+
+      HGDIOBJ hOldObj_ = NULL;
+      COLORREF prevTextColor = GetTextColor(hdcTarget);
+      int prevBkMode = GetBkMode(hdcTarget);
+      HFONT hFont = GetGuiFont();
+
+      SetBkMode(hdcTarget, TRANSPARENT);
+
+      HPEN redPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
+      hOldObj_ = SelectObject(hdcTarget, redPen);
+      MoveToEx(hdcTarget, 0, clientRc.bottom / 2, NULL);
+      LineTo(hdcTarget, clientRc.right, clientRc.bottom / 2);
+      MoveToEx(hdcTarget, clientRc.right / 2, 0, NULL);
+      LineTo(hdcTarget, clientRc.right / 2, clientRc.bottom);
+      SelectObject(hdcTarget, hOldObj_);
+      DeleteObject(redPen);
+
+      hOldObj_ = SelectObject(hdcTarget, hFont);
+      SetTextColor(hdcTarget, RGB(255, 0, 0));
+      TextOut(hdcTarget, clientRc.right / 2 + 4, clientRc.bottom / 2,
+          L"VIEWPORT CENTER", 15);
+      SelectObject(hdcTarget, hOldObj_);
+
+      HPEN greenPen = CreatePen(PS_DASH, 1, RGB(0, 255, 0));
+      hOldObj_ = SelectObject(hdcTarget, greenPen);
+      MoveToEx(hdcTarget, 0, clientRc.bottom / 2 + viewport->offset.y, NULL);
+      LineTo(hdcTarget, clientRc.right, clientRc.bottom / 2 +
+          viewport->offset.y);
+      MoveToEx(hdcTarget, clientRc.right / 2 + viewport->offset.x, 0, NULL);
+      LineTo(hdcTarget, clientRc.right / 2 + viewport->offset.x,
+          clientRc.bottom);
+      SelectObject(hdcTarget, hOldObj_);
+      DeleteObject(greenPen);
+
+      hOldObj_ = SelectObject(hdcTarget, hFont);
+      WCHAR szOffset[80] = L"";
+      StringCchPrintf(szOffset, 80, L"x: %d, y: %d", viewport->offset.x,
+          viewport->offset.y);
+      int lenLabel = wcslen(szOffset);
+      SetTextColor(hdcTarget, RGB(0, 255, 0));
+      TextOut(hdcTarget, clientRc.right / 2 + viewport->offset.x + 4,
+          clientRc.bottom / 2 + viewport->offset.y, szOffset, lenLabel);
+      SelectObject(hdcTarget, hOldObj_);
+
+      HPEN bluePen = CreatePen(PS_DASH, 1, RGB(0, 0, 255));
+      hOldObj_ = SelectObject(hdcTarget, bluePen);
+      MoveToEx(hdcTarget, clientRc.right / 2, clientRc.bottom / 2, NULL);
+      LineTo(hdcTarget, clientRc.right / 2 + viewport->offset.x,
+          clientRc.bottom / 2 + viewport->offset.y);
+      SelectObject(hdcTarget, hOldObj_);
+      DeleteObject(bluePen);
+
+      SetTextColor(hdcTarget, prevTextColor);
+      SetBkMode(hdcTarget, prevBkMode);
+
+      RestoreDC(hdc, state);
+
+      RECT textRc = clientRc;
+      WCHAR szFormat[256] = L"Debug shown\n"
+        L"Double Buffer: %s\n"
+        L"Background exclude canvas: %s\n"
+        L"Background method: %s\n"
+        L"Offset x: %d, y: %d\n"
+        L"Scale: %f\n"
+        L"Document set: %s\n"
+        L"Document dimensions width: %d, height %d";
+      WCHAR szDebugString[256];
+      StringCchPrintf(szDebugString, 256, szFormat,
+          g_viewportSettings.doubleBuffered ? L"ON" : L"OFF",
+          g_viewportSettings.bkgndExcludeCanvas ? L"ON" : L"OFF",
+          g_viewportSettings.bkgndExcludeCanvas ?
+              g_viewportSettings.backgroundMethod ?
+                  L"GDI region" : L"FillRect" : L"N/A",
+          viewport->offset.x, viewport->offset.y,
+          viewport->scale,
+          viewport->document ? L"TRUE" : L"FALSE",
+          viewport->document ? viewport->document->canvas->width : 0,
+          viewport->document ? viewport->document->canvas->height : 0);
+
+      int len = wcslen(szDebugString);
+
+      HGDIOBJ hOldFont = SelectObject(hdcTarget, hFont);
+      DrawText(hdcTarget, szDebugString, len, &clientRc, DT_BOTTOM | DT_RIGHT);
+      SelectObject(hdcTarget, hOldFont);
+    }
+
+    if (g_viewportSettings.doubleBuffered) {
+      /* Copy backbuffer to window */
+      BitBlt(hdc, 0, 0, clientRc.right, clientRc.bottom, hdcBack, 0, 0, SRCCOPY);
+
+      /* Release and free backbuffer resources */
+      SelectObject(hdcBack, hOldObjBack);
+      DeleteObject(hbmBack);
+      DeleteDC(hdcBack);
+    }
   }
 
   EndPaint(hwnd, &ps);
@@ -361,8 +479,21 @@ void Viewport_OnPaint(HWND hwnd)
 
 void Viewport_OnKeyDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
   if (wParam == VK_SPACE) {
-    g_viewport.view_dragging = TRUE;
+    if (!viewport->fDrag)
+    {
+      POINT ptDelta;
+      GetCursorPos(&ptDelta);
+      ScreenToClient(hwnd, &ptDelta);
+
+      viewport->drag.x = ptDelta.x;
+      viewport->drag.y = ptDelta.y;
+
+      viewport->fDrag = TRUE;
+    }
   }
 
   DefWindowProc(hwnd, WM_KEYDOWN, wParam, lParam);
@@ -370,47 +501,132 @@ void Viewport_OnKeyDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 void Viewport_OnKeyUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
   if (wParam == VK_SPACE) {
-    g_viewport.view_dragging = FALSE;
+    viewport->fDrag = FALSE;
   }
 
   DefWindowProc(hwnd, WM_KEYUP, wParam, lParam);
 }
 
-void Viewport_OnMouseWheel(WPARAM wParam)
+void Viewport_OnMouseWheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  WORD fwKeys = GET_KEYSTATE_WPARAM(wParam);
+  int distance = GET_WHEEL_DELTA_WPARAM(wParam);
+
+  if (fwKeys & MK_CONTROL)
+  {
+    RECT clientRc = {0};
+    GetClientRect(hwnd, &clientRc);
+
+    viewport->scale = max(0.1f, viewport->scale + distance / (float)(120 * 16.f));
+
+    Document* document = Viewport_GetDocument(viewport);
+    Canvas* canvas = Document_GetCanvas(document);
+
+    int x = GET_X_LPARAM(lParam);
+    int y = GET_Y_LPARAM(lParam);
+
+    viewport->offset.x = -((x - clientRc.right / 2 + viewport->offset.x) /
+        (canvas->width * viewport->scale / 2));
+    viewport->offset.y = -((y - clientRc.bottom/ 2 + viewport->offset.y) /
+        (canvas->height * viewport->scale / 2));
+  }
+  else if (GetKeyState(VK_MENU) & 0x8000)
+  {
+    viewport->offset.x += distance / 2;
+  }
+  else {
+    viewport->offset.y += distance / 2;
+  }
+
+  Viewport_Invalidate(viewport);
 }
 
-void Viewport_OnLButtonDown(MOUSEEVENT mEvt)
+void Viewport_OnLButtonDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (g_tool.onlbuttondown != NULL) {
-    g_tool.onlbuttondown(mEvt);
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  long int x = GET_X_LPARAM(lParam);
+  long int y = GET_Y_LPARAM(lParam);
+
+  /* Receive keyboard messages */
+  SetFocus(hwnd);
+
+  if (g_tool.onlbuttondown != NULL)
+  {
+    POINT ptCanvas;
+    Viewport_ClientToCanvas(viewport, x, y, &ptCanvas);
+
+    g_tool.onlbuttondown(hwnd, wParam, MAKELPARAM(ptCanvas.x, ptCanvas.y));
   }
 }
 
-void Viewport_OnLButtonUp(MOUSEEVENT mEvt)
+void Viewport_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (g_tool.onlbuttonup != NULL) {
-    g_tool.onlbuttonup(mEvt);
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  long int x = GET_X_LPARAM(lParam);
+  long int y = GET_Y_LPARAM(lParam);
+
+  if (g_tool.onlbuttonup != NULL)
+  {
+    RECT clientRc;
+    GetClientRect(hwnd, &clientRc);
+
+    POINT ptCanvas;
+    Viewport_ClientToCanvas(viewport, x, y, &ptCanvas);
+
+    g_tool.onlbuttonup(hwnd, wParam, MAKELPARAM(ptCanvas.x, ptCanvas.y));
   }
 }
 
-void Viewport_OnRButtonUp(MOUSEEVENT mEvt)
+void Viewport_OnRButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (g_tool.onrbuttonup != NULL) {
-    g_tool.onrbuttonup(mEvt);
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
+  long int x = GET_X_LPARAM(lParam);
+  long int y = GET_Y_LPARAM(lParam);
+
+  if (g_tool.onrbuttonup != NULL)
+  {
+    POINT ptCanvas;
+    Viewport_ClientToCanvas(viewport, x, y, &ptCanvas);
+
+    g_tool.onrbuttonup(hwnd, wParam, MAKELPARAM(ptCanvas.x, ptCanvas.y));
   }
 }
 
-void Viewport_OnMouseMove(MOUSEEVENT mEvt)
+void Viewport_OnMouseMove(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  if (g_viewport.view_dragging) {
-    g_viewport.canvas_x = LOWORD(mEvt.lParam);
-    g_viewport.canvas_y = HIWORD(mEvt.lParam);
-  }
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
 
-  if (g_tool.onmousemove) {
-    g_tool.onmousemove(mEvt);
+  long int x = GET_X_LPARAM(lParam);
+  long int y = GET_Y_LPARAM(lParam);
+
+  if (viewport->fDrag)
+  {
+    viewport->offset.x = x - viewport->drag.x;
+    viewport->offset.y = y - viewport->drag.y;
+
+    InvalidateRect(hwnd, NULL, TRUE);
+
+  }
+  else if (g_tool.onmousemove)
+  {
+    POINT ptCanvas;
+    Viewport_ClientToCanvas(viewport, x, y, &ptCanvas);
+
+    g_tool.onmousemove(hwnd, wParam, MAKELPARAM(ptCanvas.x, ptCanvas.y));
   }
 }
 
@@ -425,6 +641,9 @@ void Viewport_OnCommand(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 BOOL Viewport_OnEraseBkgnd(HWND hwnd, HDC hdc)
 {
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
+
   if (g_viewportSettings.doubleBuffered)
     /* Avoid pass to user32 */
     return TRUE;
@@ -432,11 +651,11 @@ BOOL Viewport_OnEraseBkgnd(HWND hwnd, HDC hdc)
   RECT clientRc;
   GetClientRect(hwnd, &clientRc);
 
-  if (g_viewport.document && g_viewportSettings.bkgndExcludeCanvas)
+  if (viewport->document && g_viewportSettings.bkgndExcludeCanvas)
   {
     RECT canvasRc;
-    canvasRc.right = g_viewport.document->canvas->width;
-    canvasRc.bottom = g_viewport.document->canvas->height;
+    canvasRc.right = viewport->document->canvas->width;
+    canvasRc.bottom = viewport->document->canvas->height;
 
     HBRUSH hbr = (HBRUSH)GetClassLongPtr(hwnd, GCLP_HBRBACKGROUND);
 
@@ -487,58 +706,77 @@ void Viewport_OnContextMenu(HWND hwnd, int x, int y)
 
 }
 
-LRESULT CALLBACK Viewport_WndProc(HWND hwnd,
-                                  UINT msg,
-                                  WPARAM wParam,
-                                  LPARAM lParam)
+void Viewport_OnSize(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  MOUSEEVENT mevt;
-  mevt.hwnd   = hwnd;
-  mevt.lParam = lParam;
+  Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+  assert(viewport);
 
+  int width = LOWORD(lParam);
+  int height = HIWORD(lParam);
+
+  if (viewport->document)
+  {
+    Viewport_Invalidate(viewport);
+  }
+}
+
+LRESULT CALLBACK Viewport_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
+    LPARAM lParam)
+{
   switch (msg) {
   case WM_CREATE:
-    Viewport_OnCreate();
-    Viewport_Invalidate();
-    break;
+    Viewport_OnCreate(hwnd, (LPCREATESTRUCT)lParam);
+    return 0;
+
   case WM_PAINT:
     Viewport_OnPaint(hwnd);
-    break;
+    return 0;
+
   case WM_KEYDOWN:
     Viewport_OnKeyDown(hwnd, wParam, lParam);
-    break;
+    return 0;
+
+  case WM_KEYUP:
+    Viewport_OnKeyUp(hwnd, wParam, lParam);
+    return 0;
+
   case WM_MOUSEWHEEL:
-    Viewport_OnMouseWheel(wParam);
-    break;
+    Viewport_OnMouseWheel(hwnd, wParam, lParam);
+    return 0;
+
   case WM_LBUTTONDOWN:
-    Viewport_OnLButtonDown(mevt);
-    break;
+    Viewport_OnLButtonDown(hwnd, wParam, lParam);
+    return 0;
+
   case WM_LBUTTONUP:
-    Viewport_OnLButtonUp(mevt);
-    break;
+    Viewport_OnLButtonUp(hwnd, wParam, lParam);
+    return 0;
+
   case WM_RBUTTONUP:
-    Viewport_OnRButtonUp(mevt);
-    DefWindowProc(hwnd, msg, wParam, lParam);
+    Viewport_OnRButtonUp(hwnd, wParam, lParam);
+    /* Let system generate WM_CONTEXTMENU message*/
     break;
+
   case WM_MOUSEMOVE:
-    Viewport_OnMouseMove(mevt);
-    break;
+    Viewport_OnMouseMove(hwnd, wParam, lParam);
+    return 0;
+
   case WM_COMMAND:
     Viewport_OnCommand(hwnd, wParam, lParam);
-    break;
+    return 0;
+
   case WM_CONTEXTMENU:
     Viewport_OnContextMenu((HWND)wParam, GET_X_LPARAM(lParam),
         GET_Y_LPARAM(lParam));
-    break;
+    return 0;
+
   case WM_ERASEBKGND:
     return Viewport_OnEraseBkgnd(hwnd, (HDC)wParam);
-    break;
+
   case WM_SIZE:
-    Viewport_Invalidate();
-    break;
-  default:
-    return DefWindowProc(hwnd, msg, wParam, lParam);
+    Viewport_OnSize(hwnd, wParam, lParam);
+    return 0;
   }
 
-  return 0;
+  return DefWindowProc(hwnd, msg, wParam, lParam);
 }

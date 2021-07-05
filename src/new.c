@@ -24,8 +24,6 @@ void RegisterNewFileDialog()
     printf("[NewFileDialog] Class registration failed\n");
 }
 
-extern Viewport g_viewport;
-
 HWND hEditWidth;
 HWND hEditHeight;
 HWND hComboBackground;
@@ -77,11 +75,11 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
       printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
 
       DestroyWindow(hwnd);
-      Document_New(iWidth, iHeight);
+      Document* document = Document_New(iWidth, iHeight);
 
-      if (g_viewport.document && g_viewport.document->canvas)
+      if (document && document->canvas)
       {
-        Canvas_FillSolid(g_viewport.document->canvas, bgColor);
+        Canvas_FillSolid(document->canvas, bgColor);
       }
     } break;
     default:

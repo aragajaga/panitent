@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "panitent.h"
 #include "bresenham.h"
 #include "primitives_context.h"
 #include "color_context.h"
@@ -55,7 +56,7 @@ void draw_rectangle(Canvas* canvas, int x0, int y0, int x1, int y1)
 
     free(p.userData);
 
-    Viewport_Invalidate();
+    Viewport_Invalidate(Panitent_GetActiveViewport());
   }
 
   if (g_primitives_context.fStroke)
@@ -96,7 +97,7 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 
     free(p.userData);
   }
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 void draw_filled_circle_color(Canvas* canvas, int cx, int cy, int radius, uint32_t color)
@@ -129,7 +130,7 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
 
     free(p.userData);
 
-    Viewport_Invalidate();
+    Viewport_Invalidate(Panitent_GetActiveViewport());
     return;
   }
 
@@ -178,7 +179,7 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
 
   }
 
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
@@ -267,5 +268,6 @@ void PolygonPath_Fill(Canvas* canvas, PolygonPath* poly)
       g_primitives_context.line(p, xi[i], y, xi[i + 1], y);
     }
   }
-free(p.userData);
+
+  free(p.userData);
 }

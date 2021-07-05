@@ -6,6 +6,7 @@
 #include "document.h"
 #include "viewport.h"
 #include "canvas.h"
+#include "panitent.h"
 
 Canvas* g_historyTempSavedState;
 
@@ -30,7 +31,7 @@ void History_Undo(Document* document)
   }
 
   history->peak = history->peak->previous;
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 void History_Redo(Document* document)
@@ -54,7 +55,7 @@ void History_Redo(Document* document)
   }
 
   history->peak = history->peak->next;
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 void History_PushRecord(Document* document, HistoryRecord record)

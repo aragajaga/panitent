@@ -162,7 +162,7 @@ void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     pSource -= width;
   }
 
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width,
@@ -226,7 +226,7 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
     pSource -= width;
   }
 
-  Viewport_Invalidate();
+  Viewport_Invalidate(Panitent_GetActiveViewport());
 }
 
 Canvas* Canvas_Clone(Canvas* canvas)

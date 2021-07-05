@@ -6,6 +6,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <assert.h>
+#include <windowsx.h>
 
 #include "primitives_context.h"
 #include "option_bar.h"
@@ -25,10 +26,45 @@
 #include "crefptr.h"
 #endif
 
-extern Viewport g_viewport;
-
 extern Tool g_tool;
 
+LRESULT CALLBACK Toolbox_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
+    LPARAM lParam);
+void Toolbox_OnPaint(Toolbox*);
+void Toolbox_OnMouseMove(HWND hwnd, LPARAM lParam);
+
+void ToolPointer_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPointer_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPointer_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPointer_Init();
+
+void ToolPencil_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPencil_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPencil_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolPencil_Init();
+
+void ToolCircle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolCircle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolCircle_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolCircle_Init();
+
+void ToolLine_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolLine_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolLine_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolLine_Init();
+
+void ToolRectangle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolRectangle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolRectangle_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolRectangle_Init();
+
+void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolText_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolText_OnLMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam);
+void ToolText_Init();
+
+void ToolFill_Init();
+void ToolPicker_Init();
 void ToolBrush_Init();
 
 Tool g_tool_circle;
@@ -183,6 +219,26 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
 
     int iBmp         = tbox->tools[(ptrdiff_t)i].img;
     const int offset = 4;
+#ifdef TOOLBAR_32BPP_ICONS
+    BLENDFUNCTION blendFunc = {
+      .BlendOp = AC_SRC_OVER,
+      .BlendFlags = 0,
+      .SourceConstantAlpha = 0xFF,
+      .AlphaFormat = AC_SRC_ALPHA
+    };
+
+    AlphaBlend(hdc,
+        x + offset,
+        y + offset,
+        16,
+        bitmap.bmHeight,
+        hdcMem,
+        16 * iBmp,
+        0,
+        16,
+        bitmap.bmHeight,
+        blendFunc);
+#else
     TransparentBlt(hdc,
                    x + offset,
                    y + offset,
@@ -194,6 +250,7 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
                    16,
                    bitmap.bmHeight,
                    (UINT)0x00FF00FF);
+#endif
   }
 
   SelectObject(hdcMem, oldBitmap);
@@ -334,15 +391,18 @@ void ToolPointer_Init()
   g_tool_pointer.img   = 0;
 }
 
-void ToolText_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
-  HDC viewportdc = GetDC(g_viewport.hwnd);
+  HDC viewportdc = GetDC(hViewport);
   HDC bitmapdc   = CreateCompatibleDC(viewportdc);
 
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   wchar_t textbuf[1024];
   DWORD textLen = 0;
@@ -393,7 +453,7 @@ void ToolText_OnLButtonUp(MOUSEEVENT mEvt)
     }
   }
 
-  Canvas_ColorStencilBits(g_viewport.document->canvas, buffer, x, y, size.cx, size.cy, g_color_context.fg_color);
+  Canvas_ColorStencilBits(viewport->document->canvas, buffer, x, y, size.cx, size.cy, g_color_context.fg_color);
 
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
@@ -408,35 +468,41 @@ void ToolText_Init()
   g_tool_text.onlbuttonup = ToolText_OnLButtonUp;
 }
 
-void ToolPencil_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolPencil_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  long int x = GET_X_LPARAM(lParam);
+  long int y = GET_Y_LPARAM(lParam);
+
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
   fDraw = TRUE;
-  SetCapture(mEvt.hwnd);
-  prev.x = LOWORD(mEvt.lParam);
-  prev.y = HIWORD(mEvt.lParam);
+  SetCapture(hViewport);
+  prev.x = x;
+  prev.y = y;
 }
 
-void ToolPencil_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolPencil_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw) {
 #ifdef PEN_OVERLAY
     HDC hdc;
 
-    hdc = GetDC(mEvt.hwnd);
+    hdc = GetDC(hViewport);
     MoveToEx(hdc, prev.x, prev.y, NULL);
     LineTo(hdc, x, y);
 #endif
 
-    Canvas* canvas = g_viewport.document->canvas;
+    Canvas* canvas = viewport->document->canvas;
     draw_line(canvas, prev.x, prev.y, x, y);
 
 #ifdef PEN_OVERLAY
-    ReleaseDC(mEvt.hwnd, hdc);
+    ReleaseDC(hViewport, hdc);
 #endif
   }
   fDraw = FALSE;
@@ -445,15 +511,18 @@ void ToolPencil_OnLButtonUp(MOUSEEVENT mEvt)
   History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
-void ToolPencil_OnMouseMove(MOUSEEVENT mEvt)
+void ToolPencil_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw) {
 #ifdef PEN_OVERLAY
     HDC hdc;
-    hdc = GetDC(mEvt.hwnd);
+    hdc = GetDC(hViewport);
 
     /* Draw overlay path */
     MoveToEx(hdc, prev.x, prev.y, NULL);
@@ -461,14 +530,14 @@ void ToolPencil_OnMouseMove(MOUSEEVENT mEvt)
 #endif
 
     /* Draw on canvas */
-    Canvas* canvas = g_viewport.document->canvas;
+    Canvas* canvas = viewport->document->canvas;
     draw_line(canvas, prev.x, prev.y, x, y);
 
     prev.x = x;
     prev.y = y;
 
 #ifdef PEN_OVERLAY
-    ReleaseDC(mEvt.hwnd, hdc);
+    ReleaseDC(hViewport, hdc);
 #endif
   }
 }
@@ -484,37 +553,43 @@ void ToolPencil_Init()
 
 POINT circCenter;
 
-void ToolCircle_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolCircle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
   fDraw = TRUE;
-  SetCapture(mEvt.hwnd);
-  circCenter.x = LOWORD(mEvt.lParam);
-  circCenter.y = HIWORD(mEvt.lParam);
+  SetCapture(hViewport);
+  circCenter.x = x;
+  circCenter.y = y;
 }
 
-void ToolCircle_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolCircle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw) {
 #ifdef PEN_OVERLAY
     HDC hdc;
 
-    hdc = GetDC(mEvt.hwnd);
+    hdc = GetDC(hViewport);
     MoveToEx(hdc, prev.x, prev.y, NULL);
     LineTo(hdc, x, y);
 #endif
 
     int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
 
-    Canvas* canvas = g_viewport.document->canvas;
+    Canvas* canvas = viewport->document->canvas;
     draw_circle(canvas, circCenter.x, circCenter.y, radius);
 
 #ifdef PEN_OVERLAY
-    ReleaseDC(mEvt.hwnd, hdc);
+    ReleaseDC(hViewport, hdc);
 #endif
   }
   fDraw = FALSE;
@@ -531,23 +606,29 @@ void ToolCircle_Init()
   g_tool_circle.onlbuttondown = ToolCircle_OnLButtonDown;
 }
 
-void ToolLine_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolLine_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
   fDraw = TRUE;
-  SetCapture(mEvt.hwnd);
-  prev.x = LOWORD(mEvt.lParam);
-  prev.y = HIWORD(mEvt.lParam);
+  SetCapture(hViewport);
+  prev.x = x;
+  prev.y = y;
 }
 
-void ToolLine_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolLine_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw) {
-    Canvas* canvas = g_viewport.document->canvas;
+    Canvas* canvas = viewport->document->canvas;
     draw_line(canvas, prev.x, prev.y, x, y);
   }
   fDraw = FALSE;
@@ -564,25 +645,35 @@ void ToolLine_Init()
   g_tool_line.onlbuttondown = ToolLine_OnLButtonDown;
 }
 
-void ToolRectangle_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolRectangle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
   fDraw = TRUE;
-  SetCapture(mEvt.hwnd);
-  prev.x = LOWORD(mEvt.lParam);
-  prev.y = HIWORD(mEvt.lParam);
+  SetCapture(hViewport);
+  prev.x = x;
+  prev.y = y;
+
+  History_StartDifferentiation(Panitent_GetActiveDocument());
 }
 
-void ToolRectangle_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolRectangle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw) {
-    Canvas* canvas = g_viewport.document->canvas;
+    Canvas* canvas = viewport->document->canvas;
     draw_rectangle(canvas, prev.x, prev.y, x, y);
   }
   fDraw = FALSE;
   ReleaseCapture();
+
+  History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
 void ToolRectangle_Init()
@@ -729,32 +820,38 @@ void queue_delete(queue_t* q)
 }
 #endif
 
-void ToolPicker_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolPicker_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
 
-  uint32_t color = Canvas_GetPixel(g_viewport.document->canvas, x, y);
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
+  uint32_t color = Canvas_GetPixel(viewport->document->canvas, x, y);
   SetForegroundColor(color);
 }
 
-void ToolPicker_OnRButtonUp(MOUSEEVENT mEvt)
+void ToolPicker_OnRButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
 
-  uint32_t color = Canvas_GetPixel(g_viewport.document->canvas, x, y);
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
+  uint32_t color = Canvas_GetPixel(viewport->document->canvas, x, y);
   SetBackgroundColor(color);
 }
 
-void ToolFill_DoFloodFill(MOUSEEVENT mEvt, uint32_t newColor)
+void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
+    uint32_t newColor)
 {
+  assert(viewport);
+
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
-
-  Canvas* canvas = g_viewport.document->canvas;
+  Canvas* canvas = viewport->document->canvas;
   if (!canvas)
     return;
 
@@ -829,7 +926,7 @@ void ToolFill_DoFloodFill(MOUSEEVENT mEvt, uint32_t newColor)
 #endif
     }
 
-    Viewport_Invalidate(&g_viewport);
+    Viewport_Invalidate(Panitent_GetActiveViewport());
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
     crefptr_deref(ptr);
@@ -844,14 +941,26 @@ void ToolFill_DoFloodFill(MOUSEEVENT mEvt, uint32_t newColor)
   History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
-void ToolFill_OnRButtonUp(MOUSEEVENT mEvt)
+void ToolFill_OnRButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  ToolFill_DoFloodFill(mEvt, g_color_context.bg_color);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
+  ToolFill_DoFloodFill(viewport, x, y, g_color_context.bg_color);
 }
 
-void ToolFill_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolFill_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  ToolFill_DoFloodFill(mEvt, g_color_context.fg_color);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
+
+  ToolFill_DoFloodFill(viewport, x, y, g_color_context.fg_color);
 }
 
 void ToolFill_Init()
@@ -872,7 +981,7 @@ void ToolPicker_Init()
 
 Brush* g_pBrushDraw;
 
-void ToolBrush_OnLButtonUp(MOUSEEVENT mEvt)
+void ToolBrush_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
   fDraw = FALSE;
   ReleaseCapture();
@@ -882,36 +991,45 @@ void ToolBrush_OnLButtonUp(MOUSEEVENT mEvt)
   Brush_Delete(g_pBrushDraw);
 }
 
-void ToolBrush_OnLButtonDown(MOUSEEVENT mEvt)
+void ToolBrush_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   History_StartDifferentiation(Panitent_GetActiveDocument());
 
   fDraw = TRUE;
-  SetCapture(mEvt.hwnd);
-  prev.x = LOWORD(mEvt.lParam);
-  prev.y = HIWORD(mEvt.lParam);
-
+  SetCapture(hViewport);
+  prev.x = x;
+  prev.y = y;
 
   g_pBrushDraw = BrushBuilder_Build(g_pBrush, g_brushSize);
 
-  Brush_Draw(g_pBrushDraw, x, y, g_viewport.document->canvas, g_color_context.fg_color);
-  Viewport_Invalidate();
+  Brush_Draw(g_pBrushDraw, x, y, viewport->document->canvas,
+      g_color_context.fg_color);
+  Viewport_Invalidate(viewport);
 }
 
-void ToolBrush_OnMouseMove(MOUSEEVENT mEvt)
+void ToolBrush_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
-  signed short x = LOWORD(mEvt.lParam);
-  signed short y = HIWORD(mEvt.lParam);
+  Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+  assert(viewport);
+
+  signed short x = GET_X_LPARAM(lParam);
+  signed short y = GET_Y_LPARAM(lParam);
 
   if (fDraw)
   {
-    Brush_DrawTo(g_pBrushDraw, prev.x, prev.y, x, y, g_viewport.document->canvas, g_color_context.fg_color);
+    Brush_DrawTo(g_pBrushDraw, prev.x, prev.y, x, y, viewport->document->canvas,
+        g_color_context.fg_color);
+
     prev.x = x;
     prev.y = y;
-    Viewport_Invalidate();
+
+    Viewport_Invalidate(viewport);
   }
 }
 

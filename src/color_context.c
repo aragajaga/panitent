@@ -3,7 +3,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-color_context_t g_color_context;
+color_context_t g_color_context = {
+  .fg_color = 0xFF000000,
+  .bg_color = 0xFFFFFFFF
+};
 
 #define DECLARE_TYPED_LIST(T)                                                  \
 typedef struct tlist$$##T {                                                    \

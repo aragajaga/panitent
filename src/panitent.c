@@ -28,13 +28,26 @@ static HWND hwndToolShelf;
 
 panitent_t g_panitent;
 
+Viewport* g_activeViewport;
+
 HFONT hFontSys;
 
 const WCHAR szAppName[] = L"Panit.ent";
 
 Document* Panitent_GetActiveDocument()
 {
-  return g_viewport.document;
+  Viewport* viewport = Panitent_GetActiveViewport();
+  return viewport->document;
+}
+
+void Panitent_SetActiveViewport(Viewport* viewport)
+{
+  g_activeViewport = viewport;
+}
+
+Viewport* Panitent_GetActiveViewport()
+{
+  return g_activeViewport;
 }
 
 void FetchSystemFont()
@@ -99,6 +112,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   FetchSystemFont();
 
   InitColorContext();
+  Viewport_RegisterClass(hInstance);
   DockHost_Register(hInstance);
   Toolbox_RegisterClass();
   PaletteWindow_RegisterClass(hInstance);
@@ -110,6 +124,8 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   bresenham_init();
   wu_init();
   g_primitives_context = g_bresenham_primitives;
+  g_primitives_context.fStroke = TRUE;
+  g_primitives_context.fFill = TRUE;
 
   InitializeBrushList();
   g_pBrush = &g_brushList[0];
@@ -138,7 +154,6 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   }
 
   FreeColorContext();
-  UnregisterClasses();
   return (int)msg.wParam;
 }
 
@@ -281,10 +296,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       break;
     case IDM_FILE_OPEN:
       // init_open_file_dialog();
-      Document_Open(g_viewport.document);
+      Document_Open(Panitent_GetActiveViewport()->document);
       break;
     case IDM_FILE_SAVE:
-      Document_Save(g_viewport.document);
+      Document_Save(Panitent_GetActiveViewport()->document);
       break;
     case IDM_FILE_CLOSE:
       PostQuitMessage(0);
@@ -296,8 +311,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
       History_Redo(Panitent_GetActiveDocument());
       break;
     case IDM_EDIT_CLRCANVAS:
-      Canvas_Clear(g_viewport.document->canvas);
-      Viewport_Invalidate();
+      Canvas_Clear(Panitent_GetActiveViewport()->document->canvas);
+      Viewport_Invalidate(Panitent_GetActiveViewport());
       break;
     case IDM_WINDOW_TOOLS:
       CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
@@ -320,24 +335,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
     WORD cx = LOWORD(lParam);
     WORD cy = HIWORD(lParam);
 
-    SetWindowPos(hwndDockHost,
-                 NULL,
-                 0,
-                 0,
-                 cx,
-                 cy,
-                 SWP_NOACTIVATE | SWP_NOZORDER);
+    SetWindowPos(hwndDockHost, NULL, 0, 0, cx, cy,
+        SWP_NOACTIVATE | SWP_NOZORDER);
 
-    /*
-    if (g_viewport.win_handle)
-    {
-      SetWindowPos(g_viewport.win_handle, NULL, 64, 32, cx - 64, cy-32,
-          SWP_NOACTIVATE | SWP_NOZORDER);
-      SetWindowPos(g_option_bar.win_handle, NULL, 0, 0, cx, 32,
-          SWP_NOMOVE | SWP_NOACTIVATE | SWP_NOZORDER);
-    }
-    */
   } break;
+
   case WM_CREATE:
     hwndDockHost = DockHost_Create(hWnd);
 
@@ -427,6 +429,5 @@ HMENU CreateMainMenu()
 
 void UnregisterClasses()
 {
-  UnregisterClass(VIEWPORTCTL_WC, NULL);
   Toolbox_UnregisterClass();
 }

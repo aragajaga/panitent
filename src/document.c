@@ -10,8 +10,12 @@
 #include "wic.h"
 #include "history.h"
 #include <stdio.h>
+#include <assert.h>
 
 extern const WCHAR szAppName[];
+
+extern binary_tree_t* viewportNode;
+extern binary_tree_t* root;
 
 BOOL Document_IsFilePathSet(Document* doc)
 {
@@ -20,13 +24,36 @@ BOOL Document_IsFilePathSet(Document* doc)
 
 void Document_Open(Document* prevDoc)
 {
+  Viewport* viewport = NULL;
+
+  if (!Panitent_GetActiveViewport()) {
+    HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
+        WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
+        64, 0, 800, 600,
+        g_panitent.hwnd_main,
+        NULL, GetModuleHandle(NULL), NULL);
+
+    assert(hViewport);
+
+#ifdef DEBUG
+    if (!hViewport)
+      DebugOutputString(L"Failed to create viewport."
+          "May be class not registered?");
+#endif /* DEBUG */
+
+    viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+    Panitent_SetActiveViewport(viewport);
+
+    viewportNode->hwnd = hViewport;
+    DockNode_arrange(root);
+  }
+
   crefptr_t* s = init_open_file_dialog();
 
   LPWSTR pszFileName = (LPWSTR)crefptr_get(s);
   ImageBuffer ib = ImageFileReader(pszFileName);
   
   Document* doc = calloc(1, sizeof(Document));
-
   doc->history = calloc(1, sizeof(History));
 
   HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
@@ -35,7 +62,7 @@ void Document_Open(Document* prevDoc)
   Canvas *canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
   doc->canvas = canvas;
 
-  Viewport_SetDocument(doc);
+  Viewport_SetDocument(viewport, doc);
 
   crefptr_deref(s);
 }
@@ -91,57 +118,42 @@ void Document_SetCanvas(Document* doc, Canvas* canvas)
   doc->canvas = canvas;
 }
 
-extern binary_tree_t* viewportNode;
-extern binary_tree_t* root;
-
 Document* Document_New(int width, int height)
 {
-  Viewport_RegisterClass();
+  Viewport* viewport = NULL;
 
-  if (!g_viewport.hwnd) {
-    HWND hviewport = CreateWindowEx(0,
-        MAKEINTATOM(g_viewport.wndclass),
-        NULL,
+  if (!Panitent_GetActiveViewport()) {
+    HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
         WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
-        64,
-        0,
-        800,
-        600,
+        64, 0, 800, 600,
         g_panitent.hwnd_main,
-        NULL,
-        GetModuleHandle(NULL),
-        NULL);
+        NULL, GetModuleHandle(NULL), NULL);
 
-    if (!hviewport) {
-      MessageBox(NULL,
-                 L"Failed to create viewport window!",
-                 NULL,
-                 MB_OK | MB_ICONERROR);
-      return NULL;
-    }
+    assert(hViewport);
 
-    viewportNode->hwnd = hviewport;
-    g_viewport.hwnd    = hviewport;
+#ifdef DEBUG
+    if (!hViewport)
+      DebugOutputString(L"Failed to create viewport."
+          L"May be class not registered?");
+#endif /* DEBUG */
 
+    viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
+    Panitent_SetActiveViewport(viewport);
+
+    viewportNode->hwnd = hViewport;
     DockNode_arrange(root);
   }
 
   Document* doc = calloc(1, sizeof(Document));
-
   doc->history = calloc(1, sizeof(History));
 
   HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
   doc->history->peak = initialRecord;
 
-  Canvas* canvas    = calloc(1, sizeof(Canvas));
-  canvas->width       = width;
-  canvas->height      = height;
-  canvas->color_depth = 4;
-  Canvas_BufferAlloc(canvas);
-
+  Canvas* canvas = Canvas_Create(width, height);
   doc->canvas = canvas;
 
-  Viewport_SetDocument(doc);
+  Viewport_SetDocument(viewport, doc);
 
   return doc;
 }

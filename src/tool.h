@@ -7,10 +7,10 @@
 typedef struct _Tool {
   wchar_t* label;
   int img;
-  void (*onlbuttonup)(MOUSEEVENT mEvt);
-  void (*onlbuttondown)(MOUSEEVENT mEvt);
-  void (*onrbuttonup)(MOUSEEVENT mEvt);
-  void (*onmousemove)(MOUSEEVENT mEvt);
+  void (*onlbuttonup)(HWND hwnd, WPARAM wParam, LPARAM lParam);
+  void (*onlbuttondown)(HWND hwnd, WPARAM wParam, LPARAM lParam);
+  void (*onrbuttonup)(HWND hwnd, WPARAM wParam, LPARAM lParam);
+  void (*onmousemove)(HWND hwnd, WPARAM wParam, LPARAM lParam);
 } Tool;
 
 #endif /* PANITENT_TOOL_H */

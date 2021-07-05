@@ -58,13 +58,9 @@ Brush* BrushBuilder_Build(BrushBuilder* builder, int size)
 
 void InitializeBrushList()
 {
-  Canvas* texCross = Canvas_Create(16, 16);
-  draw_line_color(texCross, 0, 0, 10, 10, 0xFF000000);
-
   g_brushList[g_brushListLen++] = GetPointBrushBuilder();
   g_brushList[g_brushListLen++] = GetCircleBrushBuilder();
   g_brushList[g_brushListLen++] = GetSquareBrushBuilder();
-  g_brushList[g_brushListLen++] = GetTextureBrushBuilder(texCross);
 }
 
 

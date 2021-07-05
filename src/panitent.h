@@ -49,4 +49,8 @@ void SetGuiFont(HWND hwnd);
 HFONT GetGuiFont();
 Document* Panitent_GetActiveDocument();
 
+typedef struct _Viewport Viewport;
+void Panitent_SetActiveViewport(Viewport* viewport);
+Viewport* Panitent_GetActiveViewport();
+
 #endif /* PANITENT_PANITENT_H */
