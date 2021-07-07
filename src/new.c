@@ -562,6 +562,10 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
 void NewFileDialog(HWND hwnd)
 {
+#ifdef HAS_DISCORDSDK
+  Discord_SetActivityStatus(g_panitent.discord, L"Creating a new document");
+#endif /* HAS_DISCORDSDK */
+
 #ifdef LEGACYDIALOGNEW
   RegisterNewFileDialog();
 

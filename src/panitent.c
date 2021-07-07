@@ -22,6 +22,12 @@
 #include "color_context.h"
 #include "brush.h"
 #include <assert.h>
+#include <strsafe.h>
+#include <stdbool.h>
+
+#ifdef HAS_DISCORDSDK
+#include "discordsdk.h"
+#endif /* HAS_DISCORDSDK */
 
 static HINSTANCE hInstance;
 static HWND hwndToolShelf;
@@ -101,6 +107,11 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
 {
   UNREFERENCED_PARAMETER(hPrevInstance)
   UNREFERENCED_PARAMETER(lpCmdLine)
+
+#ifdef HAS_DISCORDSDK
+  g_panitent.discord = DiscordSDKInit();
+  Discord_SetActivityStatus(g_panitent.discord, L"Idle");
+#endif /* HAS_DISCORDSDK */
 
   hInstance = hInst;
 
@@ -278,6 +289,11 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 {
   switch (message)
   {
+    case WM_INITDIALOG:
+#ifdef HAS_DISCORDSDK
+      Discord_SetActivityStatus(g_panitent.discord, L"Seeking About dialog 👀");
+#endif /* HAS_DISCORDSDK */
+      return TRUE;
     case WM_COMMAND:
       EndDialog(hwndDlg, wParam);
       return TRUE;

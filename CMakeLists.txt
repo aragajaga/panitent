@@ -45,6 +45,18 @@ endif(MSVC)
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
 
+option(HAS_DISCORDRPC "Use Discord RPC" OFF)
+if (HAS_DISCORDRPC)
+  target_sources(${PROJECT_NAME} PUBLIC src/discordsdk.c)
+  target_include_directories(${PROJECT_NAME} PUBLIC
+      "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/include")
+  target_link_directories(${PROJECT_NAME} PUBLIC
+      "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/lib")
+  target_compile_definitions(${PROJECT_NAME} PUBLIC HAS_DISCORDSDK)
+
+  target_link_libraries(${PROJECT_NAME} "discord_game_sdk.dll.lib")
+endif()
+
 if (MINGW)
   target_compile_definitions(${PROJECT_NAME} PUBLIC _UNICODE UNICODE)
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic

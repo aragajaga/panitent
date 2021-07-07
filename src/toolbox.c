@@ -21,6 +21,7 @@
 #include "palette.h"
 #include "history.h"
 #include "panitent.h"
+#include <strsafe.h>
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
 #include "crefptr.h"
@@ -322,6 +323,12 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
         g_tool = g_tool_pointer;
         break;
       }
+
+#ifdef HAS_DISCORDSDK
+      WCHAR szStatus[80] = L"";
+      StringCchPrintf(szStatus, 80, L"Drawing with %s", g_tool.label);
+      Discord_SetActivityStatus(g_panitent.discord, szStatus);
+#endif /* HAS_DISCORDSDK */
     }
   }
 

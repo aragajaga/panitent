@@ -1,6 +1,10 @@
 #ifndef PANITENT_PANITENT_H
 #define PANITENT_PANITENT_H
 
+#ifdef HAS_DISCORDSDK
+#include "discordsdk.h"
+#endif /* HAS_DISCORDSDK */
+
 #define IDS_STATUS 1330
 
 enum {
@@ -25,6 +29,9 @@ enum {
 
 typedef struct _panitent {
   HWND hwnd_main;
+#ifdef HAS_DISCORDSDK
+  DiscordSDKInstance *discord;
+#endif /* USE_DISCORDSDK */
 } panitent_t;
 
 extern panitent_t g_panitent;
