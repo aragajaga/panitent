@@ -32,4 +32,17 @@
 #define IDC_BRUSHLIST 1012
 #define IDC_BRUSHPREVIEW 1013
 
+#define IDD_NEWDOCUMENT 132
+#define IDC_DOCUMENTPRESET              1014
+#define IDC_DOCUMENTWIDTH               1015
+#define IDC_DOCUMENTHEIGHT              1016
+#define IDC_WHLOCK                      1017
+#define IDC_WHSWAP                      1018
+#define IDC_DOCUMENTBKGND               1019
+#define IDC_DOCUMENTRAMLABEL            1020
+#define IDC_DOCUMENTRAM                 1021
+#define IDC_WHNOLIMIT                   1022
+
+#define CBS_CDCLRSEL_SWATCHBIAS 128
+
 #endif
