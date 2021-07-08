@@ -15,6 +15,7 @@
 #include "resource.h"
 #include "palette.h"
 #include "panitent.h"
+#include "checker.h"
 
 void RegisterNewFileDialog()
 {
@@ -246,41 +247,6 @@ BkgndColorItem pBkgndColors[] = {
 
 HBRUSH g_hbrChecker;
 
-HBRUSH CbGetCheckerBrush(HDC hdc)
-{
-  if (g_hbrChecker)
-    return g_hbrChecker;
-
-  int checkerSize = 8;
-  uint32_t checkerColor1 = 0x00CCCCCC;
-  uint32_t checkerColor2 = 0x00FFFFFF;
-
-  HBITMAP hPatBmp = CreateCompatibleBitmap(hdc, checkerSize, checkerSize);
-
-  HDC hPatDC = CreateCompatibleDC(hdc);
-  SelectObject(hPatDC, hPatBmp);
-
-  HBRUSH hbr1 = CreateSolidBrush(checkerColor1 & 0x00FFFFFF);
-  HBRUSH hbr2 = CreateSolidBrush(checkerColor2 & 0x00FFFFFF);
-
-  RECT rcBack = { 0, 0, checkerSize, checkerSize };
-  RECT rcLump1 = { 0, 0, checkerSize / 2, checkerSize / 2 };
-  RECT rcLump2 = { checkerSize / 2, checkerSize / 2, checkerSize,
-      checkerSize };
-
-  FillRect(hPatDC, &rcBack, hbr2);
-  FillRect(hPatDC, &rcLump1, hbr1);
-  FillRect(hPatDC, &rcLump2, hbr1);
-
-  DeleteObject(hbr1);
-  DeleteObject(hbr2);
-
-  g_hbrChecker = CreatePatternBrush(hPatBmp);
-  assert(g_hbrChecker);
-
-  return g_hbrChecker;
-}
-
 inline static void ContractRect(LPRECT lprc, int i)
 {
   lprc->left += i;
@@ -289,6 +255,11 @@ inline static void ContractRect(LPRECT lprc, int i)
   lprc->bottom -= i;
 }
 
+typedef struct _NewDocumentDlgData {
+  CheckerConfig checkerCfg;
+  HBRUSH hbrChecker;
+} NewDocumentDlgData;
+
 INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     LPARAM lParam)
 {
@@ -296,17 +267,19 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
   {
     case WM_INITDIALOG:
       {
+        NewDocumentDlgData *data = (NewDocumentDlgData*)
+            malloc(sizeof(NewDocumentDlgData));
+        ZeroMemory(data, sizeof(NewDocumentDlgData));
+        SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)data);
 
-        /*
-        SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET, LB_ADDSTRING, 0, (LPARAM)L"SVGA");
-        SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET, LB_ADDSTRING, 0, (LPARAM)L"HDTV 1080p");
-        */
+        data->checkerCfg.tileSize = 8;
+        data->checkerCfg.color[0] = 0x00CCCCCC;
+        data->checkerCfg.color[1] = 0x00FFFFFF;
 
-        /*
-        HWND hPresetList = GetDlgItem(hwndDlg, IDC_DOCUMENTPRESET);
-        int nSel = 0;
-        nSel = SendMessage(hPresetList, LB_ADDSTRING, 0, (LPARAM)L"Lol");
-        */
+        HWND hwndColorSel = GetDlgItem(hwndDlg, IDC_DOCUMENTBKGND);
+        HDC hdcColorSel = GetDC(hwndColorSel);
+        data->hbrChecker = CreateChecker(&data->checkerCfg, hdcColorSel);
+        ReleaseDC(hwndColorSel, hdcColorSel);
 
         for (size_t i = 0; i < sizeof(pDocPreset) / sizeof(DocumentPreset); i++)
         {
@@ -338,6 +311,13 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
       }
 
       return TRUE;
+    case WM_DESTROY:
+      {
+        NewDocumentDlgData *data = (NewDocumentDlgData*)
+          GetWindowLongPtr(hwndDlg, GWLP_USERDATA);
+        free(data);
+        break;
+      }
     case WM_COMMAND:
       switch (LOWORD(wParam))
       {
@@ -373,8 +353,10 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
         case IDOK:
           {
-            unsigned int width = GetDlgItemInt(hwndDlg, IDC_DOCUMENTWIDTH, NULL, FALSE);
-            unsigned int height = GetDlgItemInt(hwndDlg, IDC_DOCUMENTHEIGHT, NULL, FALSE);
+            unsigned int width = GetDlgItemInt(hwndDlg, IDC_DOCUMENTWIDTH,
+                NULL, FALSE);
+            unsigned int height = GetDlgItemInt(hwndDlg, IDC_DOCUMENTHEIGHT,
+                NULL, FALSE);
 
             int nBkgndSel = SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND,
                 CB_GETCURSEL, 0, 0);
@@ -460,13 +442,16 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
           int swatchWidth = swatchRc.right - swatchRc.left;
           int swatchHeight = swatchRc.bottom - swatchRc.top;
 
-          /* Set text color. The colors depend on whether the item is selected */
+          /* Set text color.
+           * The colors depend on whether the item is selected */
           COLORREF prevBkColor;
           COLORREF prevTextColor;
-          prevTextColor = SetTextColor(lpdis->hDC, GetSysColor(lpdis->itemState & ODS_SELECTED ?
-            COLOR_HIGHLIGHTTEXT : COLOR_WINDOWTEXT));
-          prevBkColor = SetBkColor(lpdis->hDC, GetSysColor(lpdis->itemState & ODS_SELECTED ?
-            COLOR_HIGHLIGHT : COLOR_WINDOW));
+          prevTextColor = SetTextColor(lpdis->hDC, GetSysColor(
+                lpdis->itemState & ODS_SELECTED ? COLOR_HIGHLIGHTTEXT
+                    : COLOR_WINDOWTEXT));
+          prevBkColor = SetBkColor(lpdis->hDC, GetSysColor(
+                lpdis->itemState & ODS_SELECTED ? COLOR_HIGHLIGHT
+                    : COLOR_WINDOW));
 
           /* Draw text */
           ExtTextOut(lpdis->hDC, x + swatchFrameRc.right + x, y,
@@ -478,7 +463,8 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
           /* Draw swatch frame */
           FrameRect(lpdis->hDC, &swatchFrameRc, GetStockObject(BLACK_BRUSH));
 
-          BkgndColorItem* pColorItem = (BkgndColorItem*)ComboBox_GetItemData(lpdis->hwndItem, lpdis->itemID);
+          BkgndColorItem* pColorItem = (BkgndColorItem*)ComboBox_GetItemData(
+              lpdis->hwndItem, lpdis->itemID);
           assert(pColorItem);
 
           uint32_t color = 0;
@@ -497,8 +483,11 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
           if (color >> 24 != 0xFF)
           {
+            NewDocumentDlgData* data = (NewDocumentDlgData*)
+              GetWindowLongPtr(hwndDlg, GWLP_USERDATA);
+
             SetBrushOrgEx(lpdis->hDC, swatchRc.left, swatchRc.top, NULL);
-            FillRect(lpdis->hDC, &swatchRc, CbGetCheckerBrush(lpdis->hDC));
+            FillRect(lpdis->hDC, &swatchRc, data->hbrChecker);
           }
 
           HBRUSH hbrColor = CreateSolidBrush(color & 0x00FFFFFF);
@@ -507,7 +496,8 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
             if (color >> 24 != 0xFF)
             {
               HDC hdcFill = CreateCompatibleDC(lpdis->hDC);
-              HBITMAP hbmFill = CreateCompatibleBitmap(lpdis->hDC, swatchWidth, swatchHeight);
+              HBITMAP hbmFill = CreateCompatibleBitmap(lpdis->hDC, swatchWidth,
+                  swatchHeight);
               HGDIOBJ hOldObj = SelectObject(hdcFill, hbmFill);
 
               RECT fillRc = { 0, 0, swatchWidth, swatchHeight };
@@ -522,8 +512,9 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
                 .AlphaFormat = 0
               };
 
-              AlphaBlend(lpdis->hDC, swatchRc.left, swatchRc.top, swatchWidth, swatchHeight,
-                hdcFill, 0, 0, swatchWidth, swatchHeight, blendFunc);
+              AlphaBlend(lpdis->hDC, swatchRc.left, swatchRc.top, swatchWidth,
+                  swatchHeight, hdcFill, 0, 0, swatchWidth, swatchHeight,
+                  blendFunc);
 
               if (GetWindowStyle(lpdis->hwndItem) & CBS_CDCLRSEL_SWATCHBIAS)
               {
@@ -533,6 +524,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
                 LineTo(lpdis->hDC, swatchRc.left, swatchRc.bottom);
                 CloseFigure(lpdis->hDC);
                 EndPath(lpdis->hDC);
+
                 HGDIOBJ hPrevBrush = SelectObject(lpdis->hDC, hbrColor);
                 FillPath(lpdis->hDC);
                 SelectObject(lpdis->hDC, hPrevBrush);

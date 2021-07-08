@@ -14,5 +14,10 @@
 #endif /* _UNICODE */
 
 #include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+
+#include <stdint.h>
+#include <assert.h>
 
 #endif /* PANITENT_PRECOMP_H_ */

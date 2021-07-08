@@ -37,6 +37,7 @@ set(SOURCE_EXE
     src/crefptr.c
     src/wic.c
     src/history.c
+    src/checker.c
     res/panitent.rc)
 
 if(MSVC)

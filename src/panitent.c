@@ -162,6 +162,7 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
   while (GetMessage(&msg, NULL, 0, 0)) {
     DispatchMessage(&msg);
     TranslateMessage(&msg);
+
   }
 
   FreeColorContext();

@@ -1,8 +1,6 @@
 #include "precomp.h"
 
 #include "swatch2.h"
-#include <commctrl.h>
-#include <assert.h>
 
 typedef struct _SwatchControlData {
   uint32_t color;

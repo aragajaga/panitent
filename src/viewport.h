@@ -20,6 +20,7 @@ typedef struct _Viewport {
   POINT scaleCenter;
   BOOL fDrag;
   float scale;
+  HBRUSH hbrChecker;
 } Viewport;
 
 void Viewport_Invalidate(Viewport* viewport);

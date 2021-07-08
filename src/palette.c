@@ -8,6 +8,7 @@
 #include "palette.h"
 #include "resource.h"
 #include "swatch2.h"
+#include "checker.h"
 
 #include "color_context.h"
 
@@ -98,6 +99,10 @@ uint32_t palette_colors[] = {
     0x88880088, /* Dark Magenta */
 };
 
+typedef struct _PaletteWindowData {
+  HBRUSH hbrChecker;
+} PaletteWindowData;
+
 INT_PTR CALLBACK PaletteSettingsDlgProc(HWND hwndDlg, UINT message,
     WPARAM wParam, LPARAM lParam);
 
@@ -127,87 +132,19 @@ struct _PaletteSettings g_paletteSettings = {
 
 int swatch_margin = 2;
 
-HBRUSH PaletteWindow_GetCheckerBrush(HDC hdc)
+void PaletteWindow_DrawSwatch(HWND hwnd, HDC hdc, int x, int y, uint32_t color)
 {
-  if (g_paletteSettings.checkerInvalidate)
-  {
-    if (g_paletteSettings.checkerBrush)
-    {
-      DeleteObject(g_paletteSettings.checkerBrush);
-    }
+  PaletteWindowData *data = (PaletteWindowData*)
+      GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
-    int checkerSize = g_paletteSettings.checkerSize;
-    uint32_t checkerColor1 = g_paletteSettings.checkerColor1;
-    uint32_t checkerColor2 = g_paletteSettings.checkerColor2;
-
-    HBITMAP hPatBmp = CreateCompatibleBitmap(hdc, checkerSize,
-        checkerSize);
-
-    HDC hPatDC = CreateCompatibleDC(hdc);
-    SelectObject(hPatDC, hPatBmp);
-
-    HBRUSH hbr1 = CreateSolidBrush(checkerColor1 & 0x00FFFFFF);
-    HBRUSH hbr2 = CreateSolidBrush(checkerColor2 & 0x00FFFFFF);
-
-    RECT rcBack = {0, 0, checkerSize, checkerSize};
-    RECT rcLump1 = {0, 0, checkerSize/2, checkerSize/2};
-    RECT rcLump2 = {checkerSize/2, checkerSize/2, checkerSize,
-        checkerSize};
-
-    FillRect(hPatDC, &rcBack, hbr2);
-    FillRect(hPatDC, &rcLump1, hbr1);
-    FillRect(hPatDC, &rcLump2, hbr1);
-
-    DeleteObject(hbr1);
-    DeleteObject(hbr2);
-
-    /*
-    HGDIOBJ hOldObj = SelectObject(hPatDC, GetStockObject(DC_BRUSH));
-
-    SetDCBrushColor(hPatDC, checkerColor2 & 0x00FFFFFF);
-    Rectangle(hPatDC, 0, 0, checkerSize, checkerSize);
-
-    SetDCBrushColor(hPatDC, checkerColor1 & 0x00FFFFFF);
-    Rectangle(hPatDC, 0, 0, checkerSize/2, checkerSize/2);
-    Rectangle(hPatDC, checkerSize/2, checkerSize/2, checkerSize, checkerSize);
-
-    SelectObject(hPatDC, hOldObj);
-    */
-
-    HBRUSH hCheckerBrush = CreatePatternBrush(hPatBmp);
-    assert(hCheckerBrush);
-    g_paletteSettings.checkerBrush = hCheckerBrush;
-
-    g_paletteSettings.checkerInvalidate = FALSE;
-  }
-
-  return g_paletteSettings.checkerBrush;
-}
-
-static void PaletteWindow_DrawCheckerTexture(HDC hdc, int x, int y, int width,
-    int height)
-{
-  RECT rc = {x, y, x+width, y+height};
-  HBRUSH hbrChecker = PaletteWindow_GetCheckerBrush(hdc);
-  FillRect(hdc, &rc, hbrChecker);
-
-}
-
-void PaletteWindow_DrawSwatch(HDC hdc, int x, int y, uint32_t color)
-{
   int swatchSize = g_paletteSettings.swatchSize;
 
-  /*
-  HDC original = SelectObject(hdc, GetStockObject(DC_BRUSH));
-
-  SetDCBrushColor(hdc, color);
-  Rectangle(hdc, x, y, x + swatch_size, y + swatch_size);
-
-  SelectObject(hdc, original);
-  */
-
   SetBrushOrgEx(hdc, x, y, NULL);
-  PaletteWindow_DrawCheckerTexture(hdc, x, y, swatchSize, swatchSize);
+
+  RECT checkerRc = {
+    x, y, x + swatchSize, y + swatchSize
+  };
+  FillRect(hdc, &checkerRc, data->hbrChecker);
 
   HDC hdcFill = CreateCompatibleDC(hdc);
   HBITMAP hbmFill = CreateCompatibleBitmap(hdc, swatchSize, swatchSize);
@@ -253,14 +190,14 @@ void PaletteWindow_OnPaint(HWND hwnd)
 
   hdc = BeginPaint(hwnd, &ps);
 
-  PaletteWindow_DrawSwatch(hdc, 10, 10,
+  PaletteWindow_DrawSwatch(hwnd, hdc, 10, 10,
       (COLORREF)abgr_to_argb(g_color_context.fg_color));
-  PaletteWindow_DrawSwatch(hdc, 40, 10,
+  PaletteWindow_DrawSwatch(hwnd, hdc, 40, 10,
       (COLORREF)abgr_to_argb(g_color_context.bg_color));
 
   uint32_t color = 0x00ff0000;
   for (size_t i = 0; i < sizeof(palette_colors) / sizeof(uint32_t); i++) {
-    PaletteWindow_DrawSwatch(hdc,
+    PaletteWindow_DrawSwatch(hwnd, hdc,
                 10 + (i % width_indices) * (swatch_size + swatch_margin),
                 40 + (i / width_indices) * (swatch_size + swatch_margin),
                 palette_colors[i]);
@@ -375,6 +312,26 @@ static void OnContextMenu(HWND hwnd, int x, int y)
   TrackPopupMenu(hMenu, TPM_TOPALIGN | TPM_LEFTALIGN, x, y, 0, hwnd, NULL);
 }
 
+void PaletteWindow_OnCreate(HWND hwnd)
+{
+  PaletteWindowData *data = (PaletteWindowData*)
+    malloc(sizeof(PaletteWindowData));
+  ZeroMemory(data, sizeof(PaletteWindowData));
+  SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);
+
+  CheckerConfig checkerCfg;
+  checkerCfg.tileSize = 8;
+  checkerCfg.color[0] = 0x00CCCCCC;
+  checkerCfg.color[1] = 0x00FFFFFF;
+
+  HDC hdc = GetDC(hwnd);
+  data->hbrChecker = CreateChecker(&checkerCfg, hdc);
+  ReleaseDC(hwnd, hdc);
+
+  RegisterColorObserver(Palette_ColorChangeObserver, (void*)hwnd);
+  g_palette_dialog.win_handle = hwnd;
+}
+
 LRESULT CALLBACK PaletteWindow_WndProc(HWND hwnd,
                                      UINT message,
                                      WPARAM wParam,
@@ -382,10 +339,7 @@ LRESULT CALLBACK PaletteWindow_WndProc(HWND hwnd,
 {
   switch (message) {
   case WM_CREATE:
-    {
-      RegisterColorObserver(Palette_ColorChangeObserver, (void*)hwnd);
-      g_palette_dialog.win_handle = hwnd;
-    }
+    PaletteWindow_OnCreate(hwnd);
     break;
   case WM_PAINT:
     PaletteWindow_OnPaint(hwnd);

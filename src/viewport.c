@@ -1,7 +1,6 @@
 #include "precomp.h"
 #include <windowsx.h>
 
-#include <assert.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <math.h>
@@ -14,6 +13,7 @@
 #include "debug.h"
 #include "tool.h"
 #include "resource.h"
+#include "checker.h"
 
 #include <strsafe.h>
 
@@ -39,19 +39,6 @@ struct _ViewportSettings g_viewportSettings = {
   .bkgndExcludeCanvas = TRUE,
   .showDebugInfo = FALSE,
   .backgroundMethod = BKGND_REGION
-};
-
-struct _CheckerConfig {
-  int size;
-  BOOL invalidate;
-  HBRUSH hSolid1;
-  HBRUSH hSolid2;
-  HBRUSH hbrush;
-};
-
-struct _CheckerConfig g_checker = {
-  .size = 16,
-  .invalidate = TRUE
 };
 
 LRESULT CALLBACK Viewport_WndProc(HWND hwnd, UINT message, WPARAM wParam,
@@ -189,8 +176,14 @@ void Viewport_OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
   viewport->offset.y = 0;
   viewport->scale = 1.f;
 
-  g_checker.hSolid1 = CreateSolidBrush(RGB(0xCC, 0xCC, 0xCC));
-  g_checker.hSolid2 = CreateSolidBrush(RGB(0xFF, 0xFF, 0xFF));
+  CheckerConfig checkerCfg;
+  checkerCfg.tileSize = 16;
+  checkerCfg.color[0] = 0x00CCCCCC;
+  checkerCfg.color[1] = 0x00FFFFFF;
+
+  HDC hdc = GetDC(hwnd);
+  viewport->hbrChecker = CreateChecker(&checkerCfg, hdc);
+  ReleaseDC(hwnd, hdc);
 }
 
 BOOL gdi_blit_canvas(HDC hdc, int x, int y, int x1, int y1, Canvas* canvas)
@@ -239,43 +232,6 @@ BOOL gdi_blit_canvas(HDC hdc, int x, int y, int x1, int y1, Canvas* canvas)
 
   free(premul);
   return TRUE;
-}
-
-HBRUSH GetCheckerBrush(HDC hdc)
-{
-  if (g_checker.invalidate)
-  {
-
-    HBITMAP hPatBmp = CreateCompatibleBitmap(hdc, g_checker.size,
-        g_checker.size);
-    HDC hPatDC = CreateCompatibleDC(hdc);
-    SelectObject(hPatDC, hPatBmp);
-
-    RECT rcBack = {0, 0, g_checker.size, g_checker.size};
-    FillRect(hPatDC, &rcBack, g_checker.hSolid2);
-
-    RECT rcLump1 = {0, 0, g_checker.size/2, g_checker.size/2};
-    FillRect(hPatDC, &rcLump1, g_checker.hSolid1);
-
-    RECT rcLump2 = {g_checker.size/2, g_checker.size/2, g_checker.size,
-        g_checker.size};
-    FillRect(hPatDC, &rcLump2, g_checker.hSolid1);
-
-    HBRUSH hCheckerBrush = CreatePatternBrush(hPatBmp);
-    assert(hCheckerBrush);
-    g_checker.hbrush = hCheckerBrush;
-
-    g_checker.invalidate = FALSE;
-  }
-
-  return g_checker.hbrush;
-}
-
-static void DrawCheckerTexture(HDC hdc, int x, int y, int width, int height)
-{
-  RECT rc = {x, y, x + width, y + height};
-  HBRUSH hbrChecker = GetCheckerBrush(hdc);
-  FillRect(hdc, &rc, hbrChecker);
 }
 
 void Viewport_ClientToCanvas(Viewport* viewport, int x, int y, LPPOINT lpPt)
@@ -354,20 +310,20 @@ void Viewport_OnPaint(HWND hwnd)
     /* Use hdcTarget for actual drawing */
     if (viewport->document)
     {
-      DrawCheckerTexture(hdcTarget,
-          renderRc.left, renderRc.top,
-          renderRc.right, renderRc.bottom);
+      FillRect(hdcTarget, &renderRc, viewport->hbrChecker);
 
       /* Copy canvas to viewport */
       gdi_blit_canvas(hdcTarget,
-          renderRc.left, renderRc.top,
-          renderRc.right, renderRc.bottom,
+          max(0, renderRc.left), max(0, renderRc.top),
+          min(clientRc.right, renderRc.right),
+          min(clientRc.bottom, renderRc.bottom),
           viewport->document->canvas);
 
       /* Draw canvas frame */
       RECT frameRc = {
-        renderRc.left, renderRc.top,
-        renderRc.left + renderRc.right, renderRc.top + renderRc.bottom,
+        max(0, renderRc.left), max(0, renderRc.top),
+        min(clientRc.right, renderRc.left + renderRc.right),
+        min(clientRc.bottom, renderRc.top + renderRc.bottom)
       };
       FrameRect(hdcTarget, &frameRc, GetStockObject(BLACK_BRUSH));
     }
