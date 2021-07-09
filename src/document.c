@@ -24,22 +24,22 @@ BOOL Document_IsFilePathSet(Document* doc)
 
 void Document_Open(Document* prevDoc)
 {
-  Viewport* viewport = NULL;
+  Viewport* viewport = Panitent_GetActiveViewport();
 
-  if (!Panitent_GetActiveViewport()) {
+  if (!viewport) {
     HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
         WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
         64, 0, 800, 600,
-        g_panitent.hwnd_main,
+        g_panitent.hwnd,
         NULL, GetModuleHandle(NULL), NULL);
 
     assert(hViewport);
 
-#ifdef DEBUG
+#ifndef NDEBUG
     if (!hViewport)
-      DebugOutputString(L"Failed to create viewport."
-          "May be class not registered?");
-#endif /* DEBUG */
+      OutputDebugString(L"Failed to create viewport."
+          L"May be class not registered?");
+#endif /* NDEBUG */
 
     viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
     Panitent_SetActiveViewport(viewport);
@@ -120,22 +120,22 @@ void Document_SetCanvas(Document* doc, Canvas* canvas)
 
 Document* Document_New(int width, int height)
 {
-  Viewport* viewport = NULL;
+  Viewport* viewport = Panitent_GetActiveViewport();
 
-  if (!Panitent_GetActiveViewport()) {
+  if (!viewport) {
     HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
         WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
         64, 0, 800, 600,
-        g_panitent.hwnd_main,
+        g_panitent.hwnd,
         NULL, GetModuleHandle(NULL), NULL);
 
     assert(hViewport);
 
-#ifdef DEBUG
+#ifndef NDEBUG
     if (!hViewport)
-      DebugOutputString(L"Failed to create viewport."
+      OutputDebugString(L"Failed to create viewport."
           L"May be class not registered?");
-#endif /* DEBUG */
+#endif /* NDEBUG */
 
     viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
     Panitent_SetActiveViewport(viewport);

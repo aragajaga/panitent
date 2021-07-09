@@ -1,136 +1,104 @@
 #include "precomp.h"
 
-#include <commctrl.h>
-
 #include "panitent.h"
 
-#include "wu_primitives.h"
-#include "option_bar.h"
-#include "file_open.h"
 #include "bresenham.h"
-#include "toolbox.h"
+#include "brush.h"
+#include "canvas.h"
+#include "color_context.h"
 #include "dockhost.h"
-#include "panitent.h"
-#include "resource.h"
-#include "settings.h"
-#include "swatch2.h"
-#include "viewport.h"
-#include "palette.h"
-#include "winuser.h"
 #include "history.h"
 #include "new.h"
-#include "color_context.h"
-#include "brush.h"
-#include <assert.h>
-#include <strsafe.h>
-#include <stdbool.h>
+#include "option_bar.h"
+#include "palette.h"
+#include "primitives_context.h"
+#include "settings.h"
+#include "swatch2.h"
+#include "toolbox.h"
+#include "viewport.h"
+#include "wu_primitives.h"
 
-#ifdef HAS_DISCORDSDK
-#include "discordsdk.h"
-#endif /* HAS_DISCORDSDK */
+#include "resource.h"
 
-static HINSTANCE hInstance;
-static HWND hwndToolShelf;
+static HINSTANCE g_hInstance;
 
-panitent_t g_panitent;
-
-Viewport* g_activeViewport;
+Panitent g_panitent;
 
 HFONT hFontSys;
+BOOL PanitentWindow_RegisterClass(HINSTANCE hInstance);
+INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
+    LPARAM lParam);
+LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
+    LPARAM lParam);
+
+HWND hPaletteToolbox;
+HWND hwndDockHost;
+
+HWND hwndToolbox;
+HWND hwndOptionBar;
+HWND hwndPalette;
+
+void Panitent_DockHostInit(HWND hwndDockHost, binary_tree_t* root);
+
+binary_tree_t* viewportNode;
+
+Toolbox g_toolbox;
 
 const WCHAR szAppName[] = L"Panit.ent";
+const WCHAR szPanitentWndClass[] = L"Win32Class_PanitentWindow";
 
-Document* Panitent_GetActiveDocument()
-{
-  Viewport* viewport = Panitent_GetActiveViewport();
-  return viewport->document;
-}
+void Panitent_RegisterClasses(HINSTANCE hInstance);
+HMENU CreateMainMenu();
+void FetchSystemFont();
+BOOL PanitentWindow_RegisterClass(HINSTANCE hInstance);
 
-void Panitent_SetActiveViewport(Viewport* viewport)
-{
-  g_activeViewport = viewport;
-}
+/* Menu ID values */
+enum {
+  IDM_FILE_NEW = 1001,
+  IDM_FILE_OPEN,
+  IDM_FILE_SAVE,
+  IDM_FILE_CLOSE,
 
-Viewport* Panitent_GetActiveViewport()
-{
-  return g_activeViewport;
-}
+  IDM_EDIT_UNDO,
+  IDM_EDIT_REDO,
+  IDM_EDIT_CLRCANVAS,
 
-void FetchSystemFont()
-{
-  NONCLIENTMETRICS ncm = {0};
-  ncm.cbSize           = sizeof(NONCLIENTMETRICS);
+  IDM_WINDOW_TOOLS,
 
-  BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
-                                      sizeof(NONCLIENTMETRICS),
-                                      &ncm,
-                                      0);
-  if (!bResult) {
-    return;
-  }
+  IDM_OPTIONS_SETTINGS,
 
-  HFONT hFontNew = CreateFontIndirect(&ncm.lfMessageFont);
-  if (!hFontNew) {
-    return;
-  }
+  IDM_HELP_TOPICS,
+  IDM_HELP_ABOUT
+};
 
-  DeleteObject(hFontSys);
-  hFontSys = hFontNew;
-}
-
-HFONT GetGuiFont()
-{
-  if (!hFontSys)
-    FetchSystemFont();
-
-  return hFontSys;
-}
-
-const WCHAR szAppWndClass[] = L"Win32Class_PanitentWnd";
-
-BOOL AppWnd_RegisterClass(HINSTANCE hInstance)
-{
-  WNDCLASSEX wcex = {0};
-  wcex.cbSize = sizeof(WNDCLASSEX);
-  wcex.style = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc = (WNDPROC)WndProc;
-  wcex.hInstance = hInstance;
-  wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
-  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wcex.lpszClassName = szAppWndClass;
-
-  return RegisterClassEx(&wcex);
-}
-
-int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
+/* Entry point for application */
+int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPWSTR lpCmdLine, int nCmdShow)
 {
   UNREFERENCED_PARAMETER(hPrevInstance)
   UNREFERENCED_PARAMETER(lpCmdLine)
 
 #ifdef HAS_DISCORDSDK
+  /* Initialize Discord SDK and set initial activity message */
+
   g_panitent.discord = DiscordSDKInit();
   Discord_SetActivityStatus(g_panitent.discord, L"Idle");
 #endif /* HAS_DISCORDSDK */
 
-  hInstance = hInst;
+  /* Share application instance */
+  g_panitent.hInstance = hInstance;
 
+  /* Request Common Controls v6 */
   INITCOMMONCONTROLSEX icex;
   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
   icex.dwICC  = ICC_TAB_CLASSES;
   InitCommonControlsEx(&icex);
 
   FetchSystemFont();
-
   InitColorContext();
-  Viewport_RegisterClass(hInstance);
-  DockHost_Register(hInstance);
-  Toolbox_RegisterClass();
-  PaletteWindow_RegisterClass(hInstance);
-  OptionBar_RegisterClass(hInstance);
-  SettingsWindow_Register(hInstance);
-  SwatchControl2_RegisterClass(hInstance);
-  BrushSel_RegisterClass(hInstance);
+
+  /* Register custom controls and windows classes */
+  Panitent_RegisterClasses(hInstance);
 
   bresenham_init();
   wu_init();
@@ -144,43 +112,153 @@ int APIENTRY wWinMain(HINSTANCE hInst, HINSTANCE hPrevInstance,
 
   HMENU hMenu = CreateMainMenu();
 
-  /* Регистрация класса главного окна приложения */
-  AppWnd_RegisterClass(hInstance);
+  /* Regiser application window class and create it */
+  PanitentWindow_RegisterClass(hInstance);
 
-  /* Создание главного окна приложения */
-  HWND hwnd = CreateWindowEx(0, szAppWndClass, szAppName, WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, NULL,
-      hInstance, NULL);
+  HWND hwnd = CreateWindowEx(0, szPanitentWndClass, szAppName,
+      WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+      NULL, NULL, hInstance, NULL);
 
-  g_panitent.hwnd_main = hwnd;
+  g_panitent.hwnd = hwnd;
 
   ShowWindow(hwnd, nCmdShow);
   SetMenu(hwnd, hMenu);
 
+  /* Application message loop.
+   * Just pump inbound window messages and forward them to associated with
+   * window procedure */
   MSG msg;
   ZeroMemory(&msg, sizeof(MSG));
   while (GetMessage(&msg, NULL, 0, 0)) {
     DispatchMessage(&msg);
     TranslateMessage(&msg);
-
   }
 
-  FreeColorContext();
   return (int)msg.wParam;
 }
 
-BOOL bConsoleAttached;
+/* Main window message handling procedure */
+LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
+    LPARAM lParam)
+{
+  switch (message)
+  {
+    case WM_CREATE:
+      {
+        hwndDockHost = DockHost_Create(hWnd);
 
-HWND hPaletteToolbox;
-HWND hwndDockHost;
+        RECT rcDockHost = {0};
+        GetClientRect(hwndDockHost, &rcDockHost);
+        root = calloc(1, sizeof(binary_tree_t));
+        root->lpszCaption = L"Root";
+        root->rc = rcDockHost;
 
-HWND hwndToolbox;
-HWND hwndOptionBar;
-HWND hwndPalette;
+        Panitent_DockHostInit(hwndDockHost, root);
+      }
+      return 0;
 
-binary_tree_t* viewportNode;
+    case WM_SIZE:
+      {
+        WORD width = LOWORD(lParam);
+        WORD height = HIWORD(lParam);
 
-Toolbox g_toolbox;
+        /* Adjust dock host control to new window size */
+        SetWindowPos(hwndDockHost, NULL, 0, 0, width, height,
+            SWP_NOACTIVATE | SWP_NOZORDER);
+      }
+      return 0;
+
+    case WM_COMMAND:
+      switch (LOWORD(wParam))
+      {
+        case IDM_FILE_NEW:
+          NewFileDialog(hWnd);
+          break;
+
+        case IDM_FILE_OPEN:
+          Document_Open(NULL);
+          break;
+
+        case IDM_FILE_SAVE:
+          Document_Save(Panitent_GetActiveViewport()->document);
+          break;
+
+        case IDM_FILE_CLOSE:
+          PostQuitMessage(0);
+          break;
+
+        case IDM_EDIT_UNDO:
+          History_Undo(Panitent_GetActiveDocument());
+          break;
+
+        case IDM_EDIT_REDO:
+          History_Redo(Panitent_GetActiveDocument());
+          break;
+
+        case IDM_EDIT_CLRCANVAS:
+          Canvas_Clear(Panitent_GetActiveViewport()->document->canvas);
+          Viewport_Invalidate(Panitent_GetActiveViewport());
+          break;
+
+        case IDM_WINDOW_TOOLS:
+          CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2), IDM_WINDOW_TOOLS,
+              IsWindowVisible(hwndToolbox) ? MF_UNCHECKED : MF_CHECKED);
+          ShowWindow(hwndToolbox,
+              IsWindowVisible(hwndToolbox) ? SW_HIDE : SW_SHOW);
+          break;
+
+        case IDM_OPTIONS_SETTINGS:
+          ShowSettingsWindow(hWnd);
+          break;
+
+        case IDM_HELP_ABOUT:
+          DialogBox(g_hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDlgProc);
+          break;
+        }
+      return 0;
+
+    case WM_THEMECHANGED:
+      FetchSystemFont();
+      return 0;
+
+    case WM_DESTROY:
+      PostQuitMessage(0);
+      return 0;
+
+    }
+
+  return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+/* Main window control class registerer */
+BOOL PanitentWindow_RegisterClass(HINSTANCE hInstance)
+{
+  WNDCLASSEX wcex = {0};
+  wcex.cbSize = sizeof(WNDCLASSEX);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = (WNDPROC)PanitentWindow_WndProc;
+  wcex.hInstance = hInstance;
+  wcex.hIcon = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_ICON));
+  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+  wcex.lpszClassName = szPanitentWndClass;
+
+  return RegisterClassEx(&wcex);
+}
+
+void Panitent_RegisterClasses(HINSTANCE hInstance)
+{
+  BOOL bStatus;
+
+  Viewport_RegisterClass(hInstance);
+  DockHost_Register(hInstance);
+  Toolbox_RegisterClass();
+  PaletteWindow_RegisterClass(hInstance);
+  OptionBar_RegisterClass(hInstance);
+  SettingsWindow_Register(hInstance);
+  SwatchControl2_RegisterClass(hInstance);
+  BrushSel_RegisterClass(hInstance);
+}
 
 void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 {
@@ -193,27 +271,21 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   binary_tree_t* nodeOptionBar = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* nodeZ = calloc(1, sizeof(binary_tree_t));
 
-  hwndOptionBar = CreateWindowEx(WS_EX_TOOLWINDOW,
-                               L"Win32Class_OptionBar",
-                               L"Option Bar",
-                               WS_VISIBLE | WS_CHILD,
-                               0,
-                               32,
-                               64,
-                               256,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               NULL);
+  hwndOptionBar = CreateWindowEx(WS_EX_TOOLWINDOW, L"Win32Class_OptionBar",
+      L"Option Bar",
+      WS_VISIBLE | WS_CHILD,
+      0, 32, 64, 256,
+      hWnd, NULL, GetModuleHandle(NULL), NULL);
+
   assert(hwndOptionBar);
 
-#ifdef DEBUG
+#ifndef NDEBUG
   if (!hwndOptionBar)
   {
-    OutputDebugString(L"OptionBar creation failed. "
-        "Maybe class not registered?");
+    OutputDebugString(
+        L"OptionBar creation failed. Maybe class not registered?");
   }
-#endif /* DEBUG */
+#endif /* NDEBUG */
 
   nodeOptionBar->lpszCaption  = L"Option Bar";
   nodeOptionBar->bShowCaption = TRUE;
@@ -232,18 +304,10 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   nodeY->gripAlign    = GRIP_ALIGN_START;
   nodeY->gripPosType  = GRIP_POS_ABSOLUTE;
 
-  hwndPalette = CreateWindowEx(0,
-                               L"Win32Class_PaletteWindow",
-                               L"Palette",
-                               WS_CHILD | WS_VISIBLE,
-                               0,
-                               0,
-                               128,
-                               128,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               NULL);
+  hwndPalette = CreateWindowEx(0, L"Win32Class_PaletteWindow", L"Palette",
+      WS_CHILD | WS_VISIBLE,
+      0, 0, 128, 128,
+      hWnd, NULL, GetModuleHandle(NULL), NULL);
 
   nodePalette->lpszCaption  = L"Palette";
   nodePalette->bShowCaption = TRUE;
@@ -253,18 +317,10 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   binary_tree_t* nodeToolbox = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* nodeViewport = calloc(1, sizeof(binary_tree_t));
 
-  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW,
-                               TOOLBOX_WC,
-                               L"Tools",
-                               WS_VISIBLE | WS_CHILD,
-                               0,
-                               32,
-                               64,
-                               256,
-                               hWnd,
-                               NULL,
-                               GetModuleHandle(NULL),
-                               (LPVOID)&g_toolbox);
+  hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLBOX_WC, L"Tools",
+      WS_VISIBLE | WS_CHILD,
+      0, 32, 64, 256,
+      hWnd, NULL, GetModuleHandle(NULL), (LPVOID)&g_toolbox);
 
   nodeToolbox->lpszCaption  = L"Tool";
   nodeToolbox->bShowCaption = TRUE;
@@ -303,104 +359,35 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
   return FALSE;
 }
 
-LRESULT CALLBACK WndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+void FetchSystemFont()
 {
-  switch (uMsg) {
-  case WM_COMMAND:
-    switch (LOWORD(wParam)) {
-    case IDM_FILE_NEW:
-      NewFileDialog(hWnd);
-      break;
-    case IDM_FILE_OPEN:
-      // init_open_file_dialog();
-      Document_Open(Panitent_GetActiveViewport()->document);
-      break;
-    case IDM_FILE_SAVE:
-      Document_Save(Panitent_GetActiveViewport()->document);
-      break;
-    case IDM_FILE_CLOSE:
-      PostQuitMessage(0);
-      break;
-    case IDM_EDIT_UNDO:
-      History_Undo(Panitent_GetActiveDocument());
-      break;
-    case IDM_EDIT_REDO:
-      History_Redo(Panitent_GetActiveDocument());
-      break;
-    case IDM_EDIT_CLRCANVAS:
-      Canvas_Clear(Panitent_GetActiveViewport()->document->canvas);
-      Viewport_Invalidate(Panitent_GetActiveViewport());
-      break;
-    case IDM_WINDOW_TOOLS:
-      CheckMenuItem(GetSubMenu(GetMenu(hWnd), 2),
-                    IDM_WINDOW_TOOLS,
-                    IsWindowVisible(hwndToolShelf) ? MF_UNCHECKED : MF_CHECKED);
-      ShowWindow(hwndToolShelf,
-                 IsWindowVisible(hwndToolShelf) ? SW_HIDE : SW_SHOW);
-      break;
-    case IDM_OPTIONS_SETTINGS:
-      ShowSettingsWindow(hWnd);
-      break;
-    case IDM_HELP_ABOUT:
-      DialogBox(hInstance, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, AboutDlgProc);
-    default:
-      break;
-    }
-    break;
-  case WM_SIZE:
-  {
-    WORD cx = LOWORD(lParam);
-    WORD cy = HIWORD(lParam);
+  NONCLIENTMETRICS ncm = {0};
+  ncm.cbSize           = sizeof(NONCLIENTMETRICS);
 
-    SetWindowPos(hwndDockHost, NULL, 0, 0, cx, cy,
-        SWP_NOACTIVATE | SWP_NOZORDER);
-
-  } break;
-
-  case WM_CREATE:
-    hwndDockHost = DockHost_Create(hWnd);
-
-    RECT rcDockHost = {0};
-    GetClientRect(hwndDockHost, &rcDockHost);
-    root              = calloc(1, sizeof(binary_tree_t));
-    root->lpszCaption = L"Root";
-    root->rc          = rcDockHost;
-
-    Panitent_DockHostInit(hwndDockHost, root);
-
-    /* option_bar_create(hWnd); */
-
-    break;
-  case WM_THEMECHANGED:
-    FetchSystemFont();
-    break;
-  case WM_DESTROY:
-    PostQuitMessage(0);
-    break;
-  default:
-    return DefWindowProc(hWnd, uMsg, wParam, lParam);
-    break;
+  BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
+                                      sizeof(NONCLIENTMETRICS),
+                                      &ncm,
+                                      0);
+  if (!bResult) {
+    return;
   }
 
-  return 0;
+  HFONT hFontNew = CreateFontIndirect(&ncm.lfMessageFont);
+  if (!hFontNew) {
+    return;
+  }
+
+  DeleteObject(hFontSys);
+  hFontSys = hFontNew;
 }
 
-#if 0
-HWND CreateStatusBar(HWND hParent)
+HFONT GetGuiFont()
 {
-  /* TODO: Do check CommonContorls initialized */
-  HWND hStatusBar;
-  RECT rcClient;
+  if (!hFontSys)
+    FetchSystemFont();
 
-  hStatusBar = CreateWindowEx(0, STATUSCLASSNAME, NULL,
-      SBARS_SIZEGRIP | WS_CHILD | WS_VISIBLE, 0, 0, 0, 0, hParent,
-      (HMENU)IDS_STATUS, GetModuleHandle(NULL), NULL);
-
-  GetClientRect(hParent, &rcClient);
-
-  return hStatusBar;
+  return hFontSys;
 }
-#endif
 
 void SetGuiFont(HWND hwnd)
 {
@@ -444,7 +431,18 @@ HMENU CreateMainMenu()
   return hMenu;
 }
 
-void UnregisterClasses()
+Document* Panitent_GetActiveDocument()
 {
-  Toolbox_UnregisterClass();
+  Viewport* viewport = Panitent_GetActiveViewport();
+  return viewport->document;
+}
+
+void Panitent_SetActiveViewport(Viewport* viewport)
+{
+  g_panitent.activeViewport = viewport;
+}
+
+Viewport* Panitent_GetActiveViewport()
+{
+  return g_panitent.activeViewport;
 }

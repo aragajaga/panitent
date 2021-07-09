@@ -97,9 +97,7 @@ void Toolbox_RemoveTool(Toolbox* tbox)
 HBITMAP img_layout;
 
 void ToolBrush_Init();
-
 unsigned int g_uToolSelected;
-
 
 void Toolbox_Init(Toolbox* tbox)
 {
@@ -145,19 +143,10 @@ enum {
 void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 {
   if (!hTheme) {
-    HWND hButton = CreateWindowEx(0,
-                                  L"BUTTON",
-                                  L"",
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  0,
-                                  NULL,
-                                  NULL,
-                                  GetModuleHandle(NULL),
-                                  NULL);
-    hTheme       = OpenThemeData(hButton, L"BUTTON");
+    HWND hButton = CreateWindowEx(0, L"BUTTON", L"",
+        0, 0, 0, 0,
+        0, NULL, NULL, GetModuleHandle(NULL), NULL);
+    hTheme = OpenThemeData(hButton, L"BUTTON");
   }
 
   RECT rc = {x, y, x + btnSize, y + btnSize};
@@ -241,16 +230,16 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
         blendFunc);
 #else
     TransparentBlt(hdc,
-                   x + offset,
-                   y + offset,
-                   16,
-                   bitmap.bmHeight,
-                   hdcMem,
-                   16 * iBmp,
-                   0,
-                   16,
-                   bitmap.bmHeight,
-                   (UINT)0x00FF00FF);
+        x + offset,
+        y + offset,
+        16,
+        bitmap.bmHeight,
+        hdcMem,
+        16 * iBmp,
+        0,
+        16,
+        bitmap.bmHeight,
+        (UINT)0x00FF00FF);
 #endif
   }
 
@@ -269,10 +258,12 @@ void Toolbox_OnPaint(Toolbox* tbox)
   EndPaint(tbox->hwnd, &ps);
 }
 
-void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
+void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
-  int x = LOWORD(mEvt.lParam);
-  int y = HIWORD(mEvt.lParam);
+  int x = GET_X_LPARAM(lParam);
+  int y = GET_Y_LPARAM(lParam);
+
+  Toolbox* tbox = (Toolbox*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
 
   int btnHot = btnSize + 5;
 
@@ -281,7 +272,7 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
     size_t extSize = btnSize + btnOffset;
 
     RECT rcClient = {0};
-    GetClientRect(mEvt.hwnd, &rcClient);
+    GetClientRect(hwnd, &rcClient);
 
     size_t rowCount = rcClient.right / extSize;
     if (rowCount < 1) {
@@ -335,19 +326,14 @@ void Toolbox_OnLButtonUp(Toolbox* tbox, MOUSEEVENT mEvt)
   InvalidateRect(tbox->hwnd, NULL, TRUE);
 }
 
-LRESULT CALLBACK Toolbox_WndProc(HWND hwnd,
-                                 UINT msg,
-                                 WPARAM wParam,
-                                 LPARAM lParam)
+LRESULT CALLBACK Toolbox_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
+    LPARAM lParam)
 {
-  MOUSEEVENT mevt;
-  mevt.hwnd   = hwnd;
-  mevt.lParam = lParam;
-
   switch (msg) {
   case WM_CREATE:
   {
     LPCREATESTRUCT cs = (LPCREATESTRUCT)lParam;
+
     Toolbox* tbox   = (Toolbox*)cs->lpCreateParams;
     tbox->hwnd        = hwnd;
     SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)tbox);
@@ -363,10 +349,7 @@ LRESULT CALLBACK Toolbox_WndProc(HWND hwnd,
   } break;
   case WM_LBUTTONUP:
   {
-    Toolbox* tbox = (Toolbox*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    if (tbox) {
-      Toolbox_OnLButtonUp(tbox, mevt);
-    }
+    Toolbox_OnLButtonUp(hwnd, wParam, lParam);
   } break;
   default:
     return DefWindowProc(hwnd, msg, wParam, lParam);

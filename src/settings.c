@@ -66,7 +66,7 @@ void rlist_add(struct rlist*, HWND);
 void rlist_destroy(struct rlist*);
 
 /* mock callback */
-void shima(__attribute__((unused)) WPARAM, LPARAM);
+void shima(WPARAM, LPARAM);
 
 static LRESULT CALLBACK Settings_WndProc(HWND hWnd, UINT message, WPARAM wParam,
     LPARAM lParam)
