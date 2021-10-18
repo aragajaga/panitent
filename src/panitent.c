@@ -17,6 +17,7 @@
 #include "toolbox.h"
 #include "viewport.h"
 #include "wu_primitives.h"
+#include "settings.h"
 
 #include "resource.h"
 
@@ -115,9 +116,31 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   /* Regiser application window class and create it */
   PanitentWindow_RegisterClass(hInstance);
 
+  PNTSETTINGS *pSettings;
+  pSettings = Panitent_GetSettings();
+
+  FILE *fp;
+  fp = fopen("settings.dat", "rb");
+  assert(fp);
+  fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
+  fclose(fp);
+
+  DWORD windowX = CW_USEDEFAULT;
+  DWORD windowY = 0;
+  DWORD windowWidth = CW_USEDEFAULT;
+  DWORD windowHeight = 0;
+
+  if (pSettings->bRememberWindowPos)
+  {
+    windowX = pSettings->x;
+    windowY = pSettings->y;
+    windowWidth = pSettings->width;
+    windowHeight = pSettings->height;
+  }
+
   HWND hwnd = CreateWindowEx(0, szPanitentWndClass, szAppName,
       WS_OVERLAPPEDWINDOW,
-      CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
+      windowX, windowY, windowWidth, windowHeight,
       NULL, NULL, hInstance, NULL);
 
   g_panitent.hwnd = hwnd;
@@ -138,6 +161,62 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   return (int)msg.wParam;
 }
 
+void Panitent_OnClose(HWND hWnd)
+{
+  PNTSETTINGS* pSettings = NULL;
+  RECT rc = {0};
+
+  pSettings = Panitent_GetSettings();
+  assert(pSettings);
+
+  GetWindowRect(hWnd, &rc);
+
+  if (pSettings->bRememberWindowPos)
+  {
+    if (pSettings->x == (DWORD)CW_USEDEFAULT ||
+        pSettings->y == (DWORD)CW_USEDEFAULT)
+    {
+      pSettings->x = CW_USEDEFAULT;
+      pSettings->y = 0;
+    }
+    else {
+      pSettings->x = rc.left;
+      pSettings->y = rc.top;
+    }
+
+    if (pSettings->width == (DWORD)CW_USEDEFAULT ||
+        pSettings->height == (DWORD)CW_USEDEFAULT)
+    {
+      pSettings->width = CW_USEDEFAULT;
+      pSettings->height = 0;
+    }
+    else {
+      pSettings->width = rc.right - rc.left;
+      pSettings->height= rc.bottom - rc.top;
+    }
+  }
+
+  FILE *fp = NULL;
+  fp = fopen("settings.dat", "wb");
+  fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
+  fclose(fp);
+
+  PostQuitMessage(0);
+}
+
+void Panitent_OnCreate(HWND hWnd) {
+
+  hwndDockHost = DockHost_Create(hWnd);
+
+  RECT rcDockHost = {0};
+  GetClientRect(hwndDockHost, &rcDockHost);
+  root = calloc(1, sizeof(binary_tree_t));
+  root->lpszCaption = L"Root";
+  root->rc = rcDockHost;
+
+  Panitent_DockHostInit(hwndDockHost, root);
+}
+
 /* Main window message handling procedure */
 LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
     LPARAM lParam)
@@ -145,17 +224,7 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
   switch (message)
   {
     case WM_CREATE:
-      {
-        hwndDockHost = DockHost_Create(hWnd);
-
-        RECT rcDockHost = {0};
-        GetClientRect(hwndDockHost, &rcDockHost);
-        root = calloc(1, sizeof(binary_tree_t));
-        root->lpszCaption = L"Root";
-        root->rc = rcDockHost;
-
-        Panitent_DockHostInit(hwndDockHost, root);
-      }
+      Panitent_OnCreate(hWnd);
       return 0;
 
     case WM_SIZE:
@@ -223,6 +292,7 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
       return 0;
 
     case WM_DESTROY:
+      Panitent_OnClose(hWnd);
       PostQuitMessage(0);
       return 0;
 
@@ -445,4 +515,14 @@ void Panitent_SetActiveViewport(Viewport* viewport)
 Viewport* Panitent_GetActiveViewport()
 {
   return g_panitent.activeViewport;
+}
+
+HWND Panitent_GetHWND()
+{
+  return g_panitent.hwnd;
+}
+
+PNTSETTINGS *Panitent_GetSettings()
+{
+  return &g_panitent.settings;
 }

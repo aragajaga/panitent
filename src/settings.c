@@ -4,8 +4,11 @@
 #include <windowsx.h>
 #include <knownfolders.h>
 
+// #include <json.h>
 #include "panitent.h"
 #include "settings.h"
+
+#include <strsafe.h>
 
 #define IDT_SETTINGS_PAGE_MAIN  0
 #define IDT_SETTINGS_PAGE_DEBUG 1
@@ -67,6 +70,39 @@ void rlist_destroy(struct rlist*);
 
 /* mock callback */
 void shima(WPARAM, LPARAM);
+
+/*
+typedef struct json_object json_t;
+
+void WriteJSONToFile(json_t* jObj, const char* szFileName)
+{
+  FILE *fp = NULL;
+  const char *jStr;
+
+  fp = fopen(szFileName, "w");
+  assert(fp);
+  if (!fp)
+    return;
+
+  jStr = json_object_to_json_string(jObj);
+
+  fputs(jStr, fp);
+  fclose(fp);
+}
+
+void DumpSettings()
+{
+  json_t *jObj;
+
+  jObj = json_object_new_object();
+
+  json_object_object_add(jObj, "height", json_object_new_int(640));
+  json_object_object_add(jObj, "width", json_object_new_int(480));
+
+  WriteJSONToFile(jObj, "settings.json");
+}
+
+*/
 
 static LRESULT CALLBACK Settings_WndProc(HWND hWnd, UINT message, WPARAM wParam,
     LPARAM lParam)
@@ -421,24 +457,191 @@ void rlist_destroy(struct rlist* list)
 
 struct rlist r = {0};
 
-LRESULT CALLBACK SettingsTabPageMainProc(HWND hwnd, UINT msg, WPARAM wParam,
+#define ID_REMEMBERWINDOWPOS 1001
+#define ID_WINDOWPOSX 1002
+#define ID_WINDOWPOSY 1003
+#define ID_WINDOWWIDTH 1004
+#define ID_WINDOWHEIGHT 1005
+#define ID_LEGACYFILEDIALOGS 1006
+
+HWND CreateComboGroup(int x, int y, HWND hParent, LPWSTR pszLabel, HMENU uId) {
+  HWND hWnd;
+
+  /* Label */
+  hWnd = CreateWindowEx(0, WC_STATIC, pszLabel, WS_CHILD | WS_VISIBLE,
+      x, y, 100, 20,
+      hParent, NULL,
+      (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE), NULL);
+  SetGuiFont(hWnd);
+
+  /* Control */
+  hWnd = CreateWindowEx(0, WC_COMBOBOX, NULL,
+      WS_CHILD | WS_VISIBLE | CBS_DROPDOWN | CBS_HASSTRINGS,
+      x + 100, y, 100, 20,
+      hParent, uId,
+      (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE), NULL);
+  SetGuiFont(hWnd);
+
+  return hWnd;
+}
+
+LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
     LPARAM lParam)
 {
   switch (msg) {
     case WM_CREATE: {
+      /*
       alloc_handlers_vault();
       rlist_create(&r, 2);
       rlist_add(&r, CreateCheckbox(hwnd, L"Show border", 0, 0));
+      */
+
+      HWND hXEdit;
+      HWND hYEdit;
+      HWND hWidthEdit;
+      HWND hHeightEdit;
+      HWND hWndTemp;
+      HWND hWndGrpAppFrame;
+
+      hWndGrpAppFrame = CreateWindowEx(0, WC_BUTTON, L"Application Frame", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
+          10, 10, 300, 200, hWnd, NULL, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+      SetGuiFont(hWndGrpAppFrame);
+
+      int y = 10;
+
+      hXEdit = CreateComboGroup(10, y, hWndGrpAppFrame, L"Pos X", (HMENU) ID_WINDOWPOSX);
+      y += 30;
+
+      hYEdit = CreateComboGroup(10, y, hWndGrpAppFrame, L"Pos Y", (HMENU) ID_WINDOWPOSY);
+      y += 30;
+
+      hWidthEdit = CreateComboGroup(10, y, hWndGrpAppFrame, L"Width", (HMENU) ID_WINDOWWIDTH);
+      y += 30;
+
+      hHeightEdit = CreateComboGroup(10, y, hWndGrpAppFrame, L"Height", (HMENU) ID_WINDOWHEIGHT);
+      y += 30;
+
+
+      HWND hCheckRememberWindowPos = CreateWindowEx(0, WC_BUTTON, L"Overwrite by current state on close", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+          20, 170, 300, 20, hWnd, (HMENU)ID_REMEMBERWINDOWPOS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+
+      HWND hLegacyFileDialogs = CreateWindowEx(0, WC_BUTTON, L"Use legacy file dialogs", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+          20, 240, 300, 20, hWnd, (HMENU)ID_LEGACYFILEDIALOGS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+
+      PNTSETTINGS *pSettings = Panitent_GetSettings();
+
+      WCHAR szTemp[256];
+
+      WCHAR szSpecValueLabel[] = L"< value... >";
+      WCHAR szUseDefaultLabel[] = L"OS default";
+
+      ComboBox_AddString(hWidthEdit, szSpecValueLabel);
+      ComboBox_AddString(hWidthEdit, szUseDefaultLabel);
+      ComboBox_AddString(hHeightEdit, szSpecValueLabel);
+      ComboBox_AddString(hHeightEdit, szUseDefaultLabel);
+      ComboBox_AddString(hXEdit, szSpecValueLabel);
+      ComboBox_AddString(hXEdit, szUseDefaultLabel);
+      ComboBox_AddString(hYEdit, szSpecValueLabel);
+      ComboBox_AddString(hYEdit, szUseDefaultLabel);
+
+      if (pSettings->x == (DWORD)CW_USEDEFAULT ||
+          pSettings->y == (DWORD)CW_USEDEFAULT) {
+        ComboBox_SetCurSel(hXEdit, 1);
+        ComboBox_SetCurSel(hYEdit, -1);
+        EnableWindow(hYEdit, FALSE);
+      }
+      else {
+        StringCchPrintf(szTemp, 256, L"%d", pSettings->x);
+        SetWindowText(hXEdit, szTemp);
+        StringCchPrintf(szTemp, 256, L"%d", pSettings->y);
+        SetWindowText(hYEdit, szTemp);
+      }
+
+      if (pSettings->width == (DWORD)CW_USEDEFAULT ||
+          pSettings->height == (DWORD)CW_USEDEFAULT) {
+        ComboBox_SetCurSel(hWidthEdit, 1);
+        ComboBox_SetCurSel(hHeightEdit, -1);
+        EnableWindow(hHeightEdit, FALSE);
+      }
+      else {
+        StringCchPrintf(szTemp, 256, L"%d", pSettings->width);
+        SetWindowText(hWidthEdit, szTemp);
+        StringCchPrintf(szTemp, 256, L"%d", pSettings->height);
+        SetWindowText(hHeightEdit, szTemp);
+      }
+
+      Button_SetCheck(hCheckRememberWindowPos, pSettings->bRememberWindowPos ? BST_CHECKED : BST_UNCHECKED);
+
     } break;
     case WM_DESTROY:
       rlist_destroy(&r);
       break;
     case WM_COMMAND:
-      process_event(wParam, lParam);
+      {
+        switch (LOWORD(wParam))
+        {
+          case ID_LEGACYFILEDIALOGS:
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
+              PNTSETTINGS *pSettings;
+              pSettings = Panitent_GetSettings();
+              pSettings->bLegacyFileDialogs = !pSettings->bLegacyFileDialogs;
+              Button_SetCheck((HWND)lParam, pSettings->bLegacyFileDialogs ?BST_CHECKED : BST_UNCHECKED);
+            }
+            break;
+          case ID_REMEMBERWINDOWPOS:
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
+              PNTSETTINGS *pSettings = Panitent_GetSettings();
+
+              pSettings->bRememberWindowPos = !pSettings->bRememberWindowPos;
+              Button_SetCheck((HWND)lParam, pSettings->bRememberWindowPos ?BST_CHECKED : BST_UNCHECKED);
+            }
+            break;
+          case ID_WINDOWPOSX:
+          case ID_WINDOWPOSY:
+          case ID_WINDOWWIDTH:
+          case ID_WINDOWHEIGHT:
+            if (HIWORD(wParam) == CBN_SELCHANGE)
+            {
+              PNTSETTINGS *pSettings = Panitent_GetSettings();
+
+              DWORD nItem;
+              nItem = ComboBox_GetCurSel((HWND)lParam);
+
+              if (nItem == 0)
+              {
+                ComboBox_SetCurSel((HWND)lParam, -1);
+                SetWindowText((HWND)lParam, L"0");
+              }
+
+              if (nItem == 1)
+              {
+                switch (LOWORD(wParam))
+                {
+                  case ID_WINDOWPOSX:
+                    pSettings->x = CW_USEDEFAULT;
+                    break;
+                  case ID_WINDOWPOSY:
+                    pSettings->y = CW_USEDEFAULT;
+                    break;
+                  case ID_WINDOWWIDTH:
+                    pSettings->width = CW_USEDEFAULT;
+                    break;
+                  case ID_WINDOWHEIGHT:
+                    pSettings->height = CW_USEDEFAULT;
+                    break;
+                }
+              }
+            }
+            break;
+        }
+      }
+      // process_event(wParam, lParam);
       break;
 
     default:
-      return DefWindowProc(hwnd, msg, wParam, lParam);
+      return DefWindowProc(hWnd, msg, wParam, lParam);
   }
 
   return 0;

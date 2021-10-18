@@ -1,5 +1,7 @@
 #include "precomp.h"
 
+#include "file_open.h"
+
 #include <shobjidl.h>
 
 #include <stdio.h>
@@ -7,7 +9,9 @@
 #include <wchar.h>
 #include <assert.h>
 
-#include "file_open.h"
+#include "panitent.h"
+#include "settings.h"
+#include "util.h"
 
 #define SAFE_RELEASE(obj) \
 if ((obj) != NULL) { \
@@ -100,6 +104,7 @@ void CoStringDtor(void* str)
 
 crefptr_t* init_open_file_dialog()
 {
+  MessageBox(NULL, L"WTF", NULL, MB_ICONERROR);
   HRESULT hr = S_OK;
   crefptr_t* s = NULL;
 
@@ -165,15 +170,39 @@ fail:
   return s;
 }
 
-crefptr_t* init_save_file_dialog()
+typedef struct _tagPNTSAVEPARAMS {
+  PNTMAP(pntwstr_t, pntwstr_t) m_extensionMap;
+  LPWSTR pszPath;
+} PNTSAVEPARAMS, *PPNTSAVEPARAMS;
+
+BOOL Win32LegacyFileSaveDialog(LPWSTR *pszPath)
+{
+  BOOL bStatus;
+  HWND hWnd = Panitent_GetHWND();
+
+  OPENFILENAME ofn = {0};
+
+  ofn.lStructSize = sizeof(OPENFILENAME);
+  ofn.hwndOwner = hWnd;
+  ofn.hInstance = GetModuleHandle(NULL);
+  ofn.lpstrFile = *pszPath;
+  ofn.nMaxFile = 256;
+  bStatus = GetSaveFileName(&ofn);
+  assert(bStatus);
+
+  *pszPath = ofn.lpstrFile;
+
+  return bStatus;
+}
+
+BOOL COMFileSaveDialog(LPWSTR *pszPath)
 {
   HRESULT hr = S_OK;
-  crefptr_t* s = NULL;
 
   hr = CoInitialize(NULL);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"CoInitialize failed");
     goto fail;
   }
@@ -181,53 +210,72 @@ crefptr_t* init_save_file_dialog()
   IFileDialog* pfd = NULL;
   hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
       &IID_IFileDialog, (LPVOID)&pfd);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"CoCreateInstance FileSaveDialog failed");
     goto fail;
   }
 
   hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"FileSaveDialog::SetFileTypes failed");
     goto fail;
   }
 
   hr = pfd->lpVtbl->Show(pfd, NULL);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"FileSaveDialog::Show failed");
     goto fail;
   }
 
   IShellItem* psiResult = NULL;
   hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"FileSaveDialog::GetResult failed");
     goto fail;
   }
 
-  LPWSTR pszFilePath = NULL;
   hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH,
-      &pszFilePath);
+      pszPath);
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"FileSaveDialog::GetResult failed");
     goto fail;
   }
 
-  s = crefptr_new((LPVOID)pszFilePath, CoStringDtor);
 
 fail:
   SAFE_RELEASE(psiResult)
   SAFE_RELEASE(pfd)
 
-  return s;
+  return TRUE;
+}
+
+BOOL init_save_file_dialog(LPWSTR *pszPath)
+{
+  PNTSETTINGS *pSettings;
+  BOOL bStatus;
+
+  pSettings = Panitent_GetSettings();
+
+  if (pSettings->bLegacyFileDialogs == TRUE) {
+    bStatus = Win32LegacyFileSaveDialog(pszPath);
+  }
+  else {
+    bStatus = COMFileSaveDialog(pszPath);
+  }
+
+  if (!bStatus) {
+    MessageBox(NULL, L"Can't initialize file save dialog", NULL, MB_ICONERROR); 
+  }
+
+  return bStatus;
 }

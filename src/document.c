@@ -69,7 +69,12 @@ void Document_Open(Document* prevDoc)
 
 void Document_Save(Document* doc)
 {
-  crefptr_t* s = init_save_file_dialog();
+  LPWSTR pszPath = NULL;
+  BOOL bResult = init_save_file_dialog(&pszPath);
+
+  if (!bResult)
+    return;
+
   /*
   const void* buffer = Canvas_GetBuffer(doc->canvas);
   FILE* f = fopen("data.raw", "wb");
@@ -84,8 +89,9 @@ void Document_Save(Document* doc)
   ib.bits         = c->buffer;
   ib.size         = c->buffer_size;
 
-  ImageFileWriter(crefptr_get(s), ib);
-  crefptr_deref(s);
+  ImageFileWriter(pszPath, ib);
+
+  free(pszPath);
 }
 
 void Document_Purge(Document* doc)

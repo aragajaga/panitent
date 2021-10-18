@@ -5,6 +5,8 @@
 #include "discordsdk.h"
 #endif /* HAS_DISCORDSDK */
 
+#include "settings.h"
+
 typedef struct _Document Document;
 typedef struct _Viewport Viewport;
 
@@ -15,6 +17,8 @@ typedef struct _Panitent {
 #ifdef HAS_DISCORDSDK
   DiscordSDKInstance *discord;
 #endif /* USE_DISCORDSDK */
+
+  PNTSETTINGS settings;
 } Panitent;
 
 extern Panitent g_panitent;
@@ -25,5 +29,7 @@ HFONT GetGuiFont();
 Document* Panitent_GetActiveDocument();
 void Panitent_SetActiveViewport(Viewport* viewport);
 Viewport* Panitent_GetActiveViewport();
+HWND Panitent_GetHWND();
+PNTSETTINGS* Panitent_GetSettings();
 
 #endif /* PANITENT_PANITENT_H */
