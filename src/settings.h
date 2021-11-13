@@ -13,6 +13,7 @@ typedef struct _tagPNTSETTINGS {
   DWORD height;
   BOOL bRememberWindowPos;
   BOOL bLegacyFileDialogs;
+  BOOL bEnablePenTablet;
 } PNTSETTINGS;
 
 #endif /* PANITENT_SETTINGS_H_ */

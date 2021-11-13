@@ -38,6 +38,7 @@ set(SOURCE_EXE
     src/wic.c
     src/history.c
     src/checker.c
+    src/pentablet.c
     res/panitent.rc)
 
 if(MSVC)

@@ -18,6 +18,7 @@
 #include "viewport.h"
 #include "wu_primitives.h"
 #include "settings.h"
+#include "pentablet.h"
 
 #include "resource.h"
 
@@ -147,6 +148,10 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 
   ShowWindow(hwnd, nCmdShow);
   SetMenu(hwnd, hMenu);
+
+  /* Initialize Wintab API */
+  if (pSettings->bEnablePenTablet)
+    LoadWintab();
 
   /* Application message loop.
    * Just pump inbound window messages and forward them to associated with

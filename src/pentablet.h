@@ -1,0 +1,17 @@
+#ifndef PANITENT_PENTABLET_H
+#define PANITENT_PENTABLET_H
+
+#define WTI_INTERFACE 1
+#define IFC_WINTABID 1
+
+#define WTI_DEVICES 100
+#define DVC_NAME 1
+
+typedef UINT (WINAPI *WTINFOW)(UINT, UINT, LPVOID);
+
+extern WTINFOW gpWTInfoW;
+/* extern HCTX (WINAPI *pfnWTOpenW) (HWND, LPLOGCONTEXTW, BOOL); */
+
+BOOL LoadWintab();
+
+#endif  /* PANITENT_PENTABLET_H */

@@ -7,6 +7,7 @@
 // #include <json.h>
 #include "panitent.h"
 #include "settings.h"
+#include "pentablet.h"
 
 #include <strsafe.h>
 
@@ -463,6 +464,20 @@ struct rlist r = {0};
 #define ID_WINDOWWIDTH 1004
 #define ID_WINDOWHEIGHT 1005
 #define ID_LEGACYFILEDIALOGS 1006
+#define ID_ENABLEPENTABLET 1007
+
+enum {
+  E_LDE_CHECKBOX,
+  E_LDE_EDITBOX,
+  E_LDE_SLIDER
+};
+
+typedef struct _tagLISTDESCENTRY {
+  int type;
+  LPWSTR pszLabel;
+} LISTDESCENTRY, *PLISTDESCENTRY;
+
+PLISTDESCENTRY g_listDescription;
 
 HWND CreateComboGroup(int x, int y, HWND hParent, LPWSTR pszLabel, HMENU uId) {
   HWND hWnd;
@@ -524,9 +539,15 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
 
       HWND hCheckRememberWindowPos = CreateWindowEx(0, WC_BUTTON, L"Overwrite by current state on close", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
           20, 170, 300, 20, hWnd, (HMENU)ID_REMEMBERWINDOWPOS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+      SetGuiFont(hCheckRememberWindowPos);
 
       HWND hLegacyFileDialogs = CreateWindowEx(0, WC_BUTTON, L"Use legacy file dialogs", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
           20, 240, 300, 20, hWnd, (HMENU)ID_LEGACYFILEDIALOGS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+      SetGuiFont(hLegacyFileDialogs);
+
+      HWND hCheckUseTablet = CreateWindowEx(0, WC_BUTTON, L"Enable pen tablet", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
+          20, 270, 300, 20, hWnd, (HMENU)ID_ENABLEPENTABLET, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
+      SetGuiFont(hCheckUseTablet);
 
       PNTSETTINGS *pSettings = Panitent_GetSettings();
 
@@ -572,6 +593,7 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
 
       Button_SetCheck(hCheckRememberWindowPos, pSettings->bRememberWindowPos ? BST_CHECKED : BST_UNCHECKED);
 
+      Button_SetCheck(hCheckUseTablet, pSettings->bEnablePenTablet ? BST_CHECKED : BST_UNCHECKED);
     } break;
     case WM_DESTROY:
       rlist_destroy(&r);
@@ -598,6 +620,21 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
               Button_SetCheck((HWND)lParam, pSettings->bRememberWindowPos ?BST_CHECKED : BST_UNCHECKED);
             }
             break;
+          case ID_ENABLEPENTABLET:
+            if (HIWORD(wParam) == BN_CLICKED)
+            {
+              PNTSETTINGS *pSettings = Panitent_GetSettings();
+
+              pSettings->bEnablePenTablet = !pSettings->bEnablePenTablet;
+              Button_SetCheck((HWND)lParam, pSettings->bEnablePenTablet ? BST_CHECKED : BST_UNCHECKED);
+
+              if (pSettings->bEnablePenTablet)
+              {
+                LoadWintab();
+              }
+            }
+            break;
+
           case ID_WINDOWPOSX:
           case ID_WINDOWPOSY:
           case ID_WINDOWWIDTH:
