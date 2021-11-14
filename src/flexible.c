@@ -1,32 +1,33 @@
 #include "precomp.h"
 
 #include "flexible.h"
+#include "util.h"
 
-void LayoutBox_SetPosition(LAYOUTBOX *, UINT, UINT);
+GROUPBOXCAPTIONSTYLE g_captionStyle;
 
-inline static LAYOUTBOXCONTENT LayoutBoxContentFromHWND(HWND hWnd)
+static inline LAYOUTBOXCONTENT LayoutBoxContentFromHWND(HWND hWnd)
 {
   LAYOUTBOXCONTENT lbc = { 0 };
   lbc.type = LAYOUTBOX_TYPE_CONTROL;
-  lbc.content.hWnd = hWnd;
+  lbc.data.hWnd = hWnd;
 
   return lbc;
 }
 
-inline static LAYOUTBOXCONTENT LayoutBoxContentFromBox(LAYOUTBOX *pLayoutBox)
+static inline LAYOUTBOXCONTENT LayoutBoxContentFromBox(LAYOUTBOX *pLayoutBox)
 {
   LAYOUTBOXCONTENT lbc = { 0 };
   lbc.type = LAYOUTBOX_TYPE_BOX;
-  lbc.content.pBox = pLayoutBox;
+  lbc.data.pBox = pLayoutBox;
 
   return lbc;
 }
 
-inline static LAYOUTBOXCONTENT LayoutBoxContentFromGroup(GROUPBOX *pGroupBox)
+static inline LAYOUTBOXCONTENT LayoutBoxContentFromGroup(GROUPBOX *pGroupBox)
 {
   LAYOUTBOXCONTENT lbc = { 0 };
   lbc.type = LAYOUTBOX_TYPE_GROUP;
-  lbc.content.pGroup = pGroupBox;
+  lbc.data.pGroup = pGroupBox;
 
   return lbc;
 }
@@ -67,11 +68,48 @@ void LayoutBox_SetSize(PLAYOUTBOX pLayoutBox, UINT uWidth, UINT uHeight)
   pLayoutBox->rc.bottom = pLayoutBox->rc.top + uHeight;
 }
 
+PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
+{
+  static GROUPBOXCAPTIONSTYLE g_captionStyle;
+  static BOOL g_bLoaded;
+
+  if (!g_bLoaded)
+  {
+    HFONT hSysFont = GetStockObject(DEFAULT_GUI_FONT);
+
+    LOGFONT fontAttrib = { 0 };
+    GetObject(hSysFont, sizeof(fontAttrib), &fontAttrib);
+    fontAttrib.lfHeight = 20;
+    fontAttrib.lfWeight = FW_BOLD;
+    StringCchCopy(fontAttrib.lfFaceName, LF_FACESIZE, L"Trebuchet MS\0");
+
+    HFONT hFont = CreateFontIndirect(&fontAttrib);
+
+    CAPTIONFILLSTYLE captionFill;
+
+    captionFill.uType = FILL_STYLE_GRADIENT;
+    captionFill.data.gradient.dwColorStart = RGB(127, 0, 0);
+    captionFill.data.gradient.dwColorEnd = RGB(255, 0, 0);
+    captionFill.data.gradient.uDirection = GRADIENT_FILL_RECT_H;
+
+    g_captionStyle.hFont = hFont;
+    g_captionStyle.uHeight = 24;
+    g_captionStyle.dwTextColor = RGB(255, 255, 255);
+    g_captionStyle.captionBkgFill = captionFill;
+
+    g_bLoaded = TRUE;
+  }
+
+  return &g_captionStyle;
+}
+
 void CreateGroupBox(PGROUPBOX *pGroupBox)
 {
   LAYOUTBOXCONTENT pContent;
   *pGroupBox = (PGROUPBOX) malloc(sizeof(GROUPBOX));
   ZeroMemory(*pGroupBox, sizeof(GROUPBOX));
+
+  (*pGroupBox)->pCaptionStyle = GroupBox_GetGlobalStyle();
 }
 
 void GroupBox_SetPosition(GROUPBOX *pGroupBox, UINT x, UINT y)
@@ -98,15 +136,15 @@ void GroupBox_Update(PGROUPBOX pGroupBox)
 
   if (pContent->type == LAYOUTBOX_TYPE_CONTROL)
   {
-    HWND hWnd = pContent->content.hWnd; 
+    HWND hWnd = pContent->data.hWnd; 
     GetClientRect(hWnd, &rcElement);
   }
   else if (pContent->type == LAYOUTBOX_TYPE_BOX) {
-    LAYOUTBOX *pLayoutBox = pContent->content.pBox;
+    LAYOUTBOX *pLayoutBox = pContent->data.pBox;
     rcElement = pLayoutBox->rc;
   }
   else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
-    GROUPBOX *pGroupBox = pContent->content.pGroup;
+    GROUPBOX *pGroupBox = pContent->data.pGroup;
     rcElement = pGroupBox->rc;
   }
   else {
@@ -118,7 +156,7 @@ void GroupBox_Update(PGROUPBOX pGroupBox)
 
   if (pContent->type == LAYOUTBOX_TYPE_CONTROL)
   {
-    HWND hWnd = pContent->content.hWnd;
+    HWND hWnd = pContent->data.hWnd;
 
     insWidth = rcContainer.right - rcContainer.left - 14;
     SetWindowPos(hWnd, NULL, insx, insy, insWidth, insHeight, SWP_NOACTIVATE | SWP_NOZORDER);
@@ -126,14 +164,14 @@ void GroupBox_Update(PGROUPBOX pGroupBox)
     pGroupBox->rc.bottom = pGroupBox->rc.top + rcElement.bottom + 33 + 7;
   }
   else if (pContent->type == LAYOUTBOX_TYPE_BOX) {
-    LAYOUTBOX *pBox = pContent->content.pBox;
+    LAYOUTBOX *pBox = pContent->data.pBox;
 
     LayoutBox_SetPosition(pBox, insx, insy);
     LayoutBox_SetSize(pBox, insWidth, insHeight);
     LayoutBox_Update(pBox);
   }
   else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
-    GROUPBOX *pGroup = pContent->content.pGroup;
+    GROUPBOX *pGroup = pContent->data.pGroup;
 
     GroupBox_SetPosition(pGroup, insx, insy);
     GroupBox_SetSize(pGroup, insWidth, insHeight);
@@ -159,64 +197,34 @@ void GroupBox_SetLayoutBox(PGROUPBOX pGroupBox, PLAYOUTBOX pLayoutBox)
   pGroupBox->hContent = LayoutBoxContentFromBox(pLayoutBox);
 }
 
-void CreateLabelLayoutBox(LAYOUTBOX **lb, HWND hStatic, HWND hControl, HWND hParent)
+static inline void BoxContent_Destroy(PLAYOUTBOXCONTENT pBoxContent)
 {
-  CreateLayoutBox(lb, hParent);
-  LayoutBox_AddControl(*lb, hStatic);
-  LayoutBox_AddControl(*lb, hControl);
-  (*lb)->direction = LAYOUTBOX_HORIZONTAL;
-  (*lb)->spaceBetween = 7; (*lb)->stretch = TRUE;
-  LayoutBox_SetSize(*lb, 200, 22);
+  assert(pBoxContent->type);
+  if (!pBoxContent->type)
+    return;
+
+  switch (pBoxContent->type)
+  {
+    case LAYOUTBOX_TYPE_CONTROL:
+      DestroyWindow(pBoxContent->data.hWnd);
+      break;
+
+    case LAYOUTBOX_TYPE_BOX:
+      LayoutBox_Destroy(pBoxContent->data.pBox);
+      break;
+
+    case LAYOUTBOX_TYPE_GROUP:
+      GroupBox_Destroy(pBoxContent->data.pGroup);
+      break;
+  }
 }
-
-inline static HWND CreateWindowExGuiFont(DWORD dwExStyle, LPCWSTR lpClassName,
-    LPCWSTR lpWindowName, DWORD dwStyle, int x, int y, int nWidth, int nHeight,
-    HWND hParent, HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
-{
-  HWND hWnd;
-  HFONT hFont;
-
-  hWnd = CreateWindowEx(dwExStyle, lpClassName, lpWindowName, dwStyle, x, y, nWidth,
-      nHeight, hParent, hMenu, hInstance, lpParam); 
-  hFont = (HFONT) GetStockObject(DEFAULT_GUI_FONT);
-
-  LOGFONT lfFont;
-  GetObject(hFont, sizeof(LOGFONT), &lfFont);
-  lfFont.lfWeight = FW_BOLD;
-  // wcscpy(lfFont.lfFaceName, L"Comic Sans MS");
-
-  HFONT hFont2 = CreateFontIndirect(&lfFont);
-
-  SendMessage(hWnd, WM_SETFONT, (WPARAM)hFont2, 0);
-
-  return hWnd;
-}
-
-void GroupBox_Destroy(PGROUPBOX); 
-void LayoutBox_Destroy(PLAYOUTBOX);
 
 void GroupBox_Destroy(PGROUPBOX pGroupBox)
 {
   PLAYOUTBOXCONTENT pContent;
 
   pContent = &(pGroupBox->hContent);
-
-  assert(pContent->type);
-  if (!pContent->type)
-    return;
-
-  switch (pContent->type)
-  {
-    case LAYOUTBOX_TYPE_CONTROL:
-      DestroyWindow(pContent->content.hWnd);
-      break;
-    case LAYOUTBOX_TYPE_BOX:
-      LayoutBox_Destroy(pContent->content.pBox);
-      break;
-    case LAYOUTBOX_TYPE_GROUP:
-      GroupBox_Destroy(pContent->content.pGroup);
-      break;
-  }
+  BoxContent_Destroy(pContent);
 
   free(pGroupBox);
 }
@@ -230,18 +238,7 @@ void LayoutBox_Destroy(PLAYOUTBOX pLayoutBox)
     PLAYOUTBOXCONTENT pContent;
 
     pContent = &(pLayoutBox->hContent[i]);
-    switch (pContent->type)
-    {
-      case LAYOUTBOX_TYPE_CONTROL:
-        DestroyWindow(pContent->content.hWnd);
-        break;
-      case LAYOUTBOX_TYPE_BOX:
-        LayoutBox_Destroy(pContent->content.pBox);
-        break;
-      case LAYOUTBOX_TYPE_GROUP:
-        GroupBox_Destroy(pContent->content.pGroup);
-        break;
-    }
+    BoxContent_Destroy(pContent);
   }
 
   free(pLayoutBox);
@@ -276,19 +273,19 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
 
     if (pContent->type == LAYOUTBOX_TYPE_CONTROL)
     {
-      HWND hWnd = pContent->content.hWnd;
+      HWND hWnd = pContent->data.hWnd;
 
       GetClientRect(hWnd, &rcElement);
       // MapWindowPoints(hWnd, GetParent(hWnd), (LPPOINT)&rcElement, 2);
     }
     else if (pContent->type == LAYOUTBOX_TYPE_BOX)
     {
-      LAYOUTBOX *pBox = pContent->content.pBox;
+      LAYOUTBOX *pBox = pContent->data.pBox;
       rcElement = pBox->rc;
     }
     else if (pContent->type == LAYOUTBOX_TYPE_GROUP)
     {
-      GROUPBOX *pGroup = pContent->content.pGroup;
+      GROUPBOX *pGroup = pContent->data.pGroup;
       rcElement = pGroup->rc;
     }
     else {
@@ -319,19 +316,19 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
 
     if (pContent->type == LAYOUTBOX_TYPE_CONTROL)
     {
-      HWND hWnd = pContent->content.hWnd;
+      HWND hWnd = pContent->data.hWnd;
 
       SetWindowPos(hWnd, NULL, insx, insy, insWidth, insHeight, dwSWPFlags);
     }
     else if (pContent->type == LAYOUTBOX_TYPE_BOX) {
-      LAYOUTBOX *pBox = pContent->content.pBox;
+      LAYOUTBOX *pBox = pContent->data.pBox;
 
       LayoutBox_SetPosition(pBox, insx, insy);
       LayoutBox_SetSize(pBox, insWidth, insHeight);
       LayoutBox_Update(pBox);
     }
     else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
-      GROUPBOX *pGroup = pContent->content.pGroup;
+      GROUPBOX *pGroup = pContent->data.pGroup;
 
       GroupBox_SetPosition(pGroup, insx, insy);
       GroupBox_SetSize(pGroup, insWidth, insHeight);
@@ -348,51 +345,62 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
 void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
 {
   RECT* rc = &pGroupBox->rc;
+  PGROUPBOXCAPTIONSTYLE pCaptionStyle;
+  PCAPTIONFILLSTYLE pFillStyle;
+
+  pCaptionStyle = pGroupBox->pCaptionStyle;
+  pFillStyle = &(pCaptionStyle->captionBkgFill);
+
 
   RECT rcCaption = *rc;
-  rcCaption.bottom = rcCaption.top + 25;
-  rcCaption.left += 2;
   rcCaption.top += 2;
+  rcCaption.bottom = rcCaption.top + pCaptionStyle->uHeight;
+  rcCaption.left += 2;
   rcCaption.right -= 3;
   // FrameRect(hDC, rc, CreateSolidBrush(RGB(255, 0, 0)));
   DrawEdge(hDC, rc, EDGE_ETCHED, BF_RECT);
 
   /* Fill caption background */
   /* FillRect(hDC, &rcCaption, CreateSolidBrush(RGB(27, 94, 32))); */
-  TRIVERTEX pGradVert[2];
-  GRADIENT_RECT mesh;
 
-  pGradVert[0].x = rcCaption.left;
-  pGradVert[0].y = rcCaption.top;
-  pGradVert[0].Red = 0x8888; 
-  pGradVert[0].Green = 0x0000;
-  pGradVert[0].Blue = 0x0000;
-  pGradVert[0].Alpha = 0x0000;
+  switch (pFillStyle->uType)
+  {
+    case FILL_STYLE_SOLID:
+      FillRect(hDC, &rcCaption, CreateSolidBrush(pFillStyle->data.dwColor));
+      break;
+    case FILL_STYLE_GRADIENT:
+      {
+        PCAPTIONGRADIENT pGradient = &(pFillStyle->data.gradient);
 
-  pGradVert[1].x = rcCaption.right;
-  pGradVert[1].y = rcCaption.bottom;
-  pGradVert[1].Red = 0xFFFF;
-  pGradVert[1].Green = 0x0000;
-  pGradVert[1].Blue = 0x0000;
-  pGradVert[1].Alpha = 0x0000;
+        TRIVERTEX pGradVert[2];
+        GRADIENT_RECT mesh;
 
-  mesh.UpperLeft = 0;
-  mesh.LowerRight = 1;
+        pGradVert[0].x = rcCaption.left;
+        pGradVert[0].y = rcCaption.top;
+        pGradVert[0].Red = ((pGradient->dwColorStart) & 0xFF) << 8;
+        pGradVert[0].Green = ((pGradient->dwColorStart >> 8) & 0xFF) << 8;
+        pGradVert[0].Blue = ((pGradient->dwColorStart >> 16) & 0xFF) << 8;
+        pGradVert[0].Alpha = 0;
 
-  GradientFill(hDC, pGradVert, 2, &mesh, 1, GRADIENT_FILL_RECT_H);
+        pGradVert[1].x = rcCaption.right;
+        pGradVert[1].y = rcCaption.bottom;
+        pGradVert[1].Red = ((pGradient->dwColorEnd) & 0xFF) << 8;
+        pGradVert[1].Green = ((pGradient->dwColorEnd >> 8) & 0xFF) << 8;
+        pGradVert[1].Blue = ((pGradient->dwColorEnd >> 16) & 0xFF) << 8;
+        pGradVert[1].Alpha = 0x0000;
+
+        mesh.UpperLeft = 0;
+        mesh.LowerRight = 1;
+
+        GradientFill(hDC, pGradVert, 2, &mesh, 1, pGradient->uDirection);
+      }
+      break;
+  }
 
   assert(pGroupBox->lpszCaption);
   if (pGroupBox->lpszCaption)
   {
-    HFONT hFont = GetStockObject(DEFAULT_GUI_FONT);
-
-    LOGFONT fontAttrib = { 0 };
-    GetObject(hFont, sizeof(fontAttrib), &fontAttrib);
-    fontAttrib.lfHeight = 20;
-    fontAttrib.lfWeight = FW_BOLD;
-    StringCchCopy(fontAttrib.lfFaceName, LF_FACESIZE, L"Trebuchet MS\0");
-
-    HFONT hFontBold = CreateFontIndirect(&fontAttrib);
+    HFONT hFontBold = pCaptionStyle->hFont;
 
     HFONT hOldFont = SelectObject(hDC, hFontBold);
 
@@ -400,19 +408,20 @@ void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
     rcCaption.top += 2;
     rcCaption.left += 7;
     rcCaption.right -= 7;
-    rcCaption.bottom = rcCaption.top + 23;
+    rcCaption.bottom = rcCaption.top + pCaptionStyle->uHeight;
 
     size_t len = wcslen(pGroupBox->lpszCaption);
     SetBkMode(hDC, TRANSPARENT);
-    SetTextColor(hDC, RGB(232, 245, 233));
+    SetTextColor(hDC, pCaptionStyle->dwTextColor);
 
+    /* Temporary buffer for overflow ellipsis */
     WCHAR szCaption[80] = { 0 };
     StringCchCopy(szCaption, 80, pGroupBox->lpszCaption);
 
-    DrawText(hDC, szCaption, len, &rcCaption, DT_SINGLELINE | DT_MODIFYSTRING | DT_END_ELLIPSIS | DT_VCENTER | DT_TOP);
+    DrawText(hDC, szCaption, len, &rcCaption, DT_SINGLELINE | DT_MODIFYSTRING |
+        DT_END_ELLIPSIS | DT_VCENTER | DT_TOP);
 
     SelectObject(hDC, hOldFont);
-    DeleteObject(hFontBold);
   }
 }
 
@@ -426,10 +435,10 @@ void DrawLayoutBox(HDC hDC, PLAYOUTBOX pLayoutBox)
 
     if (pContent->type == LAYOUTBOX_TYPE_BOX)
     {
-      DrawLayoutBox(hDC, pContent->content.pBox);
+      DrawLayoutBox(hDC, pContent->data.pBox);
     }
     else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
-      DrawGroupBox(hDC, pContent->content.pGroup);
+      DrawGroupBox(hDC, pContent->data.pGroup);
     }
   }
 }

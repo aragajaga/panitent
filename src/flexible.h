@@ -28,7 +28,7 @@ typedef struct _LAYOUTBOXCONTENT {
     HWND hWnd;
     LAYOUTBOX *pBox;
     GROUPBOX *pGroup;
-  } content;
+  } data;
 } LAYOUTBOXCONTENT, *PLAYOUTBOXCONTENT;
 
 struct _LAYOUTBOX {
@@ -45,16 +45,46 @@ struct _LAYOUTBOX {
   BOOL stretch;
 };
 
+enum {
+  FILL_STYLE_NONE,
+  FILL_STYLE_SOLID,
+  FILL_STYLE_GRADIENT
+};
+
+typedef struct _tagCAPTIONGRADIENT {
+  DWORD dwColorStart;
+  DWORD dwColorEnd;
+  UINT uDirection;
+} CAPTIONGRADIENT, *PCAPTIONGRADIENT;
+
+typedef struct _tagCAPTIONFILLSTYLE {
+  UINT uType;
+  union {
+    DWORD dwColor;
+    CAPTIONGRADIENT gradient;
+  } data;
+} CAPTIONFILLSTYLE, *PCAPTIONFILLSTYLE;
+
+typedef struct _tagGROUPBOXCAPTIONSTYLE {
+  HFONT hFont;
+  UINT uHeight;
+  DWORD dwTextColor;
+  CAPTIONFILLSTYLE captionBkgFill;
+} GROUPBOXCAPTIONSTYLE, *PGROUPBOXCAPTIONSTYLE;
+
 struct _GROUPBOX {
   RECT rc;
   LAYOUTBOXCONTENT hContent;
+  PGROUPBOXCAPTIONSTYLE pCaptionStyle;
   LPWSTR lpszCaption;
+  BOOL bFitContent;
 };
 
 void CreateLayoutBox(PLAYOUTBOX *, HWND);
 void LayoutBox_AddControl(PLAYOUTBOX, HWND);
 void LayoutBox_AddBox(PLAYOUTBOX, PLAYOUTBOX);
 void LayoutBox_AddGroup(PLAYOUTBOX, PGROUPBOX);
+void LayoutBox_SetPosition(PLAYOUTBOX, UINT, UINT);
 void LayoutBox_SetSize(PLAYOUTBOX, UINT, UINT);
 void LayoutBox_Update(PLAYOUTBOX);
 void LayoutBox_Destroy(PLAYOUTBOX);
@@ -66,4 +96,5 @@ void GroupBox_SetCaption(PGROUPBOX, LPWSTR);
 void GroupBox_SetSize(PGROUPBOX, UINT, UINT);
 void GroupBox_Update(PGROUPBOX);
 void GroupBox_Destroy(PGROUPBOX);
+
 #endif  /* PANITENT_FLEXIBLE_H */
