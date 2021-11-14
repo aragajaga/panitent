@@ -321,9 +321,12 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
   return 0;
 }
 
-void OptionBar_RegisterClass(HINSTANCE hInstance)
+BOOL OptionBar_RegisterClass(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex    = {0};
+  WNDCLASSEX wcex;
+
+  ZeroMemory(&wcex, sizeof(wcex));
+
   wcex.cbSize        = sizeof(WNDCLASSEX);
   wcex.lpfnWndProc   = (WNDPROC)OptionBar_WndProc;
   wcex.hInstance     = hInstance;
@@ -331,15 +334,10 @@ void OptionBar_RegisterClass(HINSTANCE hInstance)
   wcex.lpszClassName = L"Win32Class_OptionBar";
 
   ATOM class_atom = RegisterClassEx(&wcex);
-  if (!class_atom) {
-    MessageBox(NULL,
-               L"Failed to register option bar class!",
-               NULL,
-               MB_OK | MB_ICONERROR);
-    return;
-  }
+  if (class_atom)
+    g_option_bar.win_class = class_atom;
 
-  g_option_bar.win_class = class_atom;
+  return (BOOL) class_atom;
 }
 
 typedef struct _BrushDlgData {

@@ -368,25 +368,21 @@ LRESULT CALLBACK PaletteWindow_WndProc(HWND hwnd,
   return 0;
 }
 
-void PaletteWindow_RegisterClass(HINSTANCE hInstance)
+BOOL PaletteWindow_RegisterClass(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex    = {0};
+  WNDCLASSEX wcex;
+
+  ZeroMemory(&wcex, sizeof(wcex));
+
   wcex.cbSize        = sizeof(WNDCLASSEX);
   wcex.style         = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc   = (WNDPROC)PaletteWindow_WndProc;
-  wcex.cbWndExtra    = 0;
-  wcex.cbClsExtra    = 0;
   wcex.hInstance     = hInstance;
-  wcex.hIcon         = NULL;
   wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = L"Win32Class_PaletteWindow";
-  wcex.lpszMenuName  = NULL;
-  wcex.hIconSm       = NULL;
-  ATOM classAtom     = RegisterClassEx(&wcex);
 
-  if (!classAtom)
-    printf("Failed to register PaletteWindow");
+  return RegisterClassEx(&wcex);
 }
 
 void PaletteWindow_Create(HWND parent)

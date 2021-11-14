@@ -358,16 +358,20 @@ LRESULT CALLBACK Toolbox_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
   return 0;
 }
 
-void Toolbox_RegisterClass()
+BOOL Toolbox_RegisterClass()
 {
-  WNDCLASS wc      = {0};
-  wc.style         = CS_HREDRAW | CS_VREDRAW;
-  wc.lpfnWndProc   = Toolbox_WndProc;
-  wc.hCursor       = LoadCursor(NULL, IDC_ARROW);
-  wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wc.lpszClassName = TOOLBOX_WC;
+  WNDCLASSEX wcex;
 
-  RegisterClass(&wc);
+  ZeroMemory(&wcex, sizeof(wcex));
+
+  wcex.cbSize = sizeof(wcex);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = Toolbox_WndProc;
+  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+  wcex.lpszClassName = TOOLBOX_WC;
+
+  return RegisterClassEx(&wcex);
 }
 
 void Toolbox_UnregisterClass()

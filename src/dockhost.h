@@ -65,7 +65,7 @@ extern dock_side_e g_dock_side;
 extern dock_side_e eSuggest;
 extern binary_tree_t* root;
 
-ATOM DockHost_Register(HINSTANCE hInstance);
+BOOL DockHost_RegisterClass(HINSTANCE hInstance);
 HWND DockHost_Create(HWND hParent);
 void DockNode_arrange(binary_tree_t*);
 

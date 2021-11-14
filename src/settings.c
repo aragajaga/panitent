@@ -8,6 +8,7 @@
 #include "panitent.h"
 #include "settings.h"
 #include "pentablet.h"
+#include "settings_dialog.h"
 
 #include <strsafe.h>
 
@@ -245,8 +246,7 @@ static void OnGetMinMaxInfo(HWND hWnd, WPARAM wParam, LPARAM lParam)
   lpMMI->ptMinTrackSize.y = rc.bottom - rc.top;
 }
 
-
-int ShowSettingsWindow(HWND hParent)
+int ShowSettingsWindow1(HWND hParent)
 {
   if (g_hSettingsWindow)
   {
@@ -271,6 +271,37 @@ int ShowSettingsWindow(HWND hParent)
       NULL);
 
   return 0;
+}
+
+int ShowSettingsWindow(HWND hParent)
+{
+  BOOL bResult;
+  HINSTANCE hInstance;
+  RECT rc;
+
+  ZeroMemory(&rc, sizeof(RECT));
+
+  rc.right  = 640;
+  rc.bottom = 480;
+  AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
+
+  HWND hWndSettings = CreateWindowEx(0, L"SettingsDialogClass", L"Settings",
+      WS_VISIBLE | WS_OVERLAPPEDWINDOW,
+      (GetSystemMetrics(SM_CXSCREEN) - rc.right - rc.left) / 2,
+      (GetSystemMetrics(SM_CYSCREEN) - rc.bottom - rc.top) / 2,
+      rc.right - rc.left,
+      rc.bottom - rc.top,
+      hParent, NULL, hInstance, NULL);
+
+  assert(hWndSettings);
+  if (!hWndSettings)
+  {
+    MessageBox(hParent, L"Unable to create settings dialog window",
+        NULL, MB_OK | MB_ICONERROR);
+    return FALSE;
+  }
+
+  return TRUE;
 }
 
 static void InitSettingsWindow(HWND hwnd)

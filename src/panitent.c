@@ -19,6 +19,7 @@
 #include "wu_primitives.h"
 #include "settings.h"
 #include "pentablet.h"
+#include "settings_dialog.h"
 
 #include "resource.h"
 
@@ -49,7 +50,7 @@ Toolbox g_toolbox;
 const WCHAR szAppName[] = L"Panit.ent";
 const WCHAR szPanitentWndClass[] = L"Win32Class_PanitentWindow";
 
-void Panitent_RegisterClasses(HINSTANCE hInstance);
+BOOL Panitent_RegisterClasses(HINSTANCE hInstance);
 HMENU CreateMainMenu();
 void FetchSystemFont();
 BOOL PanitentWindow_RegisterClass(HINSTANCE hInstance);
@@ -80,6 +81,8 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   UNREFERENCED_PARAMETER(hPrevInstance)
   UNREFERENCED_PARAMETER(lpCmdLine)
 
+  BOOL bResult;
+
 #ifdef HAS_DISCORDSDK
   /* Initialize Discord SDK and set initial activity message */
 
@@ -100,7 +103,10 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   InitColorContext();
 
   /* Register custom controls and windows classes */
-  Panitent_RegisterClasses(hInstance);
+  bResult = Panitent_RegisterClasses(hInstance);
+  assert(bResult);
+  if (!bResult)
+    return -1;
 
   bresenham_init();
   wu_init();
@@ -321,18 +327,67 @@ BOOL PanitentWindow_RegisterClass(HINSTANCE hInstance)
   return RegisterClassEx(&wcex);
 }
 
-void Panitent_RegisterClasses(HINSTANCE hInstance)
+static inline void PopupClassRegistrationFail(LPWSTR lpszTip)
+{
+  WCHAR szMessage[256];
+  ZeroMemory(szMessage, sizeof(szMessage));
+
+  StringCchPrintf(szMessage, 256, L"Failed to register %s class", lpszTip);
+
+  MessageBox(NULL, szMessage, NULL, MB_OK | MB_ICONERROR);
+}
+
+static inline BOOL AssertClassRegistration(
+    HINSTANCE hInstance,
+    LPWSTR lpszClassName,
+    BOOL (*lpfnClassRegisterer)(HINSTANCE))
+{
+  BOOL bResult;
+
+  bResult = (*lpfnClassRegisterer)(hInstance);
+  assert(bResult);
+  if (!bResult)
+  {
+    PopupClassRegistrationFail(lpszClassName);
+  }
+
+  return TRUE;
+}
+
+BOOL Panitent_RegisterClasses(HINSTANCE hInstance)
 {
   BOOL bStatus;
 
-  Viewport_RegisterClass(hInstance);
-  DockHost_Register(hInstance);
-  Toolbox_RegisterClass();
-  PaletteWindow_RegisterClass(hInstance);
-  OptionBar_RegisterClass(hInstance);
-  SettingsWindow_Register(hInstance);
-  SwatchControl2_RegisterClass(hInstance);
-  BrushSel_RegisterClass(hInstance);
+  bStatus = TRUE;
+
+  bStatus = bStatus && AssertClassRegistration( hInstance, L"SettingsDialog",
+      SettingsDialog_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"Viewport",
+      Viewport_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"DockHost",
+      DockHost_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"ToolBox",
+      Toolbox_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"PaletteWindow",
+      PaletteWindow_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"OptonBar",
+      OptionBar_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"SettingsWindow",
+      SettingsWindow_Register);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"SwatchControl2",
+      SwatchControl2_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"BrushSel",
+      BrushSel_RegisterClass);
+
+  return bStatus;
 }
 
 void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)

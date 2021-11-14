@@ -9,8 +9,6 @@
 #include "crefptr.h"
 #include "wic.h"
 #include "history.h"
-#include <stdio.h>
-#include <assert.h>
 
 extern const WCHAR szAppName[];
 

@@ -655,25 +655,26 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
   return 0;
 }
 
-ATOM DockHost_Register(HINSTANCE hInstance)
+BOOL DockHost_RegisterClass(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex    = {0};
-  wcex.cbSize        = sizeof(WNDCLASSEX);
-  wcex.style         = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc   = (WNDPROC)DockHost_WndProc;
-  wcex.cbClsExtra    = 0;
-  wcex.cbWndExtra    = 0;
-  wcex.hInstance     = hInstance;
-  wcex.hIcon         = NULL;
-  wcex.hCursor       = LoadCursor(NULL, IDC_ARROW);
+  WNDCLASSEX wcex;
+
+  ZeroMemory(&wcex, sizeof(wcex));
+
+  wcex.cbSize = sizeof(wcex);
+  wcex.style = CS_HREDRAW | CS_VREDRAW;
+  wcex.lpfnWndProc = (WNDPROC)DockHost_WndProc;
+  wcex.hInstance = hInstance;
+  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = L"Win32Class_DockHost";
-  wcex.lpszMenuName  = NULL;
-  wcex.hIconSm       = NULL;
-  ATOM atom          = RegisterClassEx(&wcex);
+
+  ATOM atom = RegisterClassEx(&wcex);
+
   assert(atom);
   g_dockhost.wndClass = atom;
-  return atom;
+
+  return (BOOL) atom;
 }
 
 HWND DockHost_Create(HWND hParent)

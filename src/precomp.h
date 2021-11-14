@@ -15,7 +15,10 @@
 
 #include <windows.h>
 #include <windowsx.h>
+#include <initguid.h>
+#include <shlwapi.h>
 #include <commctrl.h>
+#include <strsafe.h>
 
 #include <stdint.h>
 #include <assert.h>

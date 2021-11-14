@@ -39,6 +39,8 @@ set(SOURCE_EXE
     src/history.c
     src/checker.c
     src/pentablet.c
+    src/flexible.c
+    src/settings_dialog.c
     res/panitent.rc)
 
 if(MSVC)
