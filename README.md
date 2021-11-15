@@ -1,2 +1,2 @@
 # panitent
-[![Build Status](https://travis-ci.com/Aragajaga/panitent.svg?branch=master)](https://travis-ci.com/Aragajaga/panitent)
+![Build Status](https://github.com/Aragajaga/panitent/actions/workflows/cmake.yml/badge.svg?branch=master)
