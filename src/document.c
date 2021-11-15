@@ -22,7 +22,12 @@ BOOL Document_IsFilePathSet(Document* doc)
 
 void Document_Open(Document* prevDoc)
 {
+  BOOL bResult;
   Viewport* viewport = Panitent_GetActiveViewport();
+  LPWSTR pszPath;
+  WCHAR szPath[256] = { 0 };
+
+  pszPath = szPath;
 
   if (!viewport) {
     HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
@@ -46,10 +51,12 @@ void Document_Open(Document* prevDoc)
     DockNode_arrange(root);
   }
 
-  crefptr_t* s = init_open_file_dialog();
+  bResult = init_open_file_dialog(&pszPath);
 
-  LPWSTR pszFileName = (LPWSTR)crefptr_get(s);
-  ImageBuffer ib = ImageFileReader(pszFileName);
+  if (!bResult)
+    return;
+
+  ImageBuffer ib = ImageFileReader(pszPath);
   
   Document* doc = calloc(1, sizeof(Document));
   doc->history = calloc(1, sizeof(History));
@@ -61,8 +68,6 @@ void Document_Open(Document* prevDoc)
   doc->canvas = canvas;
 
   Viewport_SetDocument(viewport, doc);
-
-  crefptr_deref(s);
 }
 
 void Document_Save(Document* doc)

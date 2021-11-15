@@ -31,5 +31,6 @@ void Panitent_SetActiveViewport(Viewport* viewport);
 Viewport* Panitent_GetActiveViewport();
 HWND Panitent_GetHWND();
 PNTSETTINGS* Panitent_GetSettings();
+void Panitent_Open();
 
 #endif /* PANITENT_PANITENT_H */

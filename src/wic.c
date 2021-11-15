@@ -239,8 +239,6 @@ ImageBuffer ImageFileReader(LPWSTR szFilePath)
     goto fail;
   }
 
-  MessageBox(NULL, L"Decoded lol", NULL, MB_OK);
-
   UINT nWidth;
   UINT nHeight;
   hr = pFrame->lpVtbl->GetSize(pFrame, &nWidth, &nHeight);

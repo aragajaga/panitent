@@ -257,7 +257,7 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
           break;
 
         case IDM_FILE_OPEN:
-          Document_Open(NULL);
+          Panitent_Open();
           break;
 
         case IDM_FILE_SAVE:
@@ -585,4 +585,9 @@ HWND Panitent_GetHWND()
 PNTSETTINGS *Panitent_GetSettings()
 {
   return &g_panitent.settings;
+}
+
+void Panitent_Open()
+{
+  Document_Open(NULL);
 }
