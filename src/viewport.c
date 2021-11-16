@@ -257,6 +257,142 @@ void Viewport_ClientToCanvas(Viewport* viewport, int x, int y, LPPOINT lpPt)
       viewport->offset.y) / viewport->scale;
 }
 
+static inline void Viewport_DrawWindowOrdinates(HDC hDC, Viewport *viewport, LPRECT lpRect)
+{
+  HPEN hPen;
+  HGDIOBJ hOldObj;
+  HFONT hFont;
+
+  hFont = GetGuiFont();
+
+  hPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
+  hOldObj = SelectObject(hDC, hPen);
+
+  SetBkMode(hDC, TRANSPARENT);
+
+  MoveToEx(hDC, 0, lpRect->bottom / 2, NULL);
+  LineTo(hDC, lpRect->right, lpRect->bottom / 2);
+  MoveToEx(hDC, lpRect->right / 2, 0, NULL);
+  LineTo(hDC, lpRect->right / 2, lpRect->bottom);
+
+  SelectObject(hDC, hOldObj);
+  DeleteObject(hPen);
+
+  hOldObj = SelectObject(hDC, hFont);
+
+  SetTextColor(hDC, RGB(255, 0, 0));
+
+  TextOut(hDC, lpRect->right / 2 + 4, lpRect->bottom / 2,
+      L"VIEWPORT CENTER", 15);
+
+  SelectObject(hDC, hOldObj);
+}
+
+static inline void Viewport_DrawCanvasOrdinates(HDC hDC, Viewport *viewport, LPRECT lpRect)
+{
+  HPEN hPen;
+  HGDIOBJ hOldObj;
+  LPPOINT lpptOffset;
+  HFONT hFont;
+
+  lpptOffset = &(viewport->offset);
+
+  hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 0));
+  hOldObj = SelectObject(hDC, hPen);
+  hFont = GetGuiFont();
+
+  SetBkMode(hDC, TRANSPARENT);
+
+  MoveToEx(hDC, 0, lpRect->bottom / 2 + lpptOffset->y, NULL);
+  LineTo(hDC, lpRect->right, lpRect->bottom / 2 + lpptOffset->y);
+  MoveToEx(hDC, lpRect->right / 2 + lpptOffset->x, 0, NULL);
+  LineTo(hDC, lpRect->right / 2 + lpptOffset->x, lpRect->bottom);
+
+  SelectObject(hDC, hOldObj);
+  DeleteObject(hPen);
+
+  hOldObj = SelectObject(hDC, hFont);
+
+  WCHAR szOffset[80] = L"";
+  StringCchPrintf(szOffset, 80, L"x: %d, y: %d", viewport->offset.x,
+      viewport->offset.y);
+
+  int lenLabel = wcslen(szOffset);
+
+  SetTextColor(hDC, RGB(0, 255, 0));
+
+  TextOut(hDC, lpRect->right / 2 + lpptOffset->x + 4,
+      lpRect->bottom / 2 + lpptOffset->y, szOffset, lenLabel);
+
+  SelectObject(hDC, hOldObj);
+}
+
+static inline void Viewport_DrawOffsetTrace(HDC hDC, Viewport *viewport, LPRECT lpRect)
+{
+  HPEN hPen;
+  HGDIOBJ hOldObj;
+  LPPOINT lpptOffset;
+
+  lpptOffset = &(viewport->offset);
+
+  hPen = CreatePen(PS_DASH, 1, RGB(0, 0, 255));
+  hOldObj = SelectObject(hDC, hPen);
+
+  SetBkMode(hDC, TRANSPARENT);
+
+  MoveToEx(hDC, lpRect->right / 2, lpRect->bottom / 2, NULL);
+  LineTo(hDC, lpRect->right / 2 + lpptOffset->x,
+      lpRect->bottom / 2 + lpptOffset->y);
+
+  SelectObject(hDC, hOldObj);
+  DeleteObject(hPen);
+}
+
+static inline void Viewport_DrawDebugText(HDC hDC, Viewport *viewport, LPRECT lpRect)
+{
+  HFONT hFont;
+  HGDIOBJ hOldObj;
+  WCHAR szDebugString[256];
+  WCHAR szFormat[256] = L"Debug shown\n"
+    L"Double Buffer: %s\n"
+    L"Background exclude canvas: %s\n"
+    L"Background method: %s\n"
+    L"Offset x: %d, y: %d\n"
+    L"Scale: %f\n"
+    L"Document set: %s\n"
+    L"Document dimensions width: %d, height %d";
+
+  hFont = GetGuiFont();
+
+  StringCchPrintf(szDebugString, 256, szFormat,
+      g_viewportSettings.doubleBuffered ? L"ON" : L"OFF",
+      g_viewportSettings.bkgndExcludeCanvas ? L"ON" : L"OFF",
+      g_viewportSettings.bkgndExcludeCanvas ?
+          g_viewportSettings.backgroundMethod ?
+              L"GDI region" : L"FillRect" : L"N/A",
+      viewport->offset.x, viewport->offset.y,
+      viewport->scale,
+      viewport->document ? L"TRUE" : L"FALSE",
+      viewport->document ? viewport->document->canvas->width : 0,
+      viewport->document ? viewport->document->canvas->height : 0);
+
+  int len = wcslen(szDebugString);
+
+  SetTextColor(hDC, RGB(0, 0, 0));
+
+  hOldObj = SelectObject(hDC, hFont);
+  DrawText(hDC, szDebugString, len, lpRect, DT_BOTTOM | DT_RIGHT);
+  SelectObject(hDC, hOldObj);
+}
+
+static inline void Viewport_DrawDebugOverlay(HDC hDC, Viewport *viewport, LPRECT lpRect)
+{
+  Viewport_DrawWindowOrdinates(hDC, viewport, lpRect);
+  Viewport_DrawCanvasOrdinates(hDC, viewport, lpRect);
+  Viewport_DrawOffsetTrace(hDC, viewport, lpRect);
+  Viewport_DrawDebugText(hDC, viewport, lpRect);
+}
+
 void Viewport_OnPaint(HWND hwnd)
 {
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
@@ -290,7 +426,6 @@ void Viewport_OnPaint(HWND hwnd)
     /* Set backbuffer as draw target */
     hdcTarget = hdcBack;
   }
-
 
   Document* document = Viewport_GetDocument(viewport);
   if (document)
@@ -329,95 +464,7 @@ void Viewport_OnPaint(HWND hwnd)
     }
 
     if (g_viewportSettings.showDebugInfo)
-    {
-
-      /* Doesn't help */
-      int state = SaveDC(hdcTarget);
-
-      HGDIOBJ hOldObj_ = NULL;
-      COLORREF prevTextColor = GetTextColor(hdcTarget);
-      int prevBkMode = GetBkMode(hdcTarget);
-      HFONT hFont = GetGuiFont();
-
-      SetBkMode(hdcTarget, TRANSPARENT);
-
-      HPEN redPen = CreatePen(PS_DASH, 1, RGB(255, 0, 0));
-      hOldObj_ = SelectObject(hdcTarget, redPen);
-      MoveToEx(hdcTarget, 0, clientRc.bottom / 2, NULL);
-      LineTo(hdcTarget, clientRc.right, clientRc.bottom / 2);
-      MoveToEx(hdcTarget, clientRc.right / 2, 0, NULL);
-      LineTo(hdcTarget, clientRc.right / 2, clientRc.bottom);
-      SelectObject(hdcTarget, hOldObj_);
-      DeleteObject(redPen);
-
-      hOldObj_ = SelectObject(hdcTarget, hFont);
-      SetTextColor(hdcTarget, RGB(255, 0, 0));
-      TextOut(hdcTarget, clientRc.right / 2 + 4, clientRc.bottom / 2,
-          L"VIEWPORT CENTER", 15);
-      SelectObject(hdcTarget, hOldObj_);
-
-      HPEN greenPen = CreatePen(PS_DASH, 1, RGB(0, 255, 0));
-      hOldObj_ = SelectObject(hdcTarget, greenPen);
-      MoveToEx(hdcTarget, 0, clientRc.bottom / 2 + viewport->offset.y, NULL);
-      LineTo(hdcTarget, clientRc.right, clientRc.bottom / 2 +
-          viewport->offset.y);
-      MoveToEx(hdcTarget, clientRc.right / 2 + viewport->offset.x, 0, NULL);
-      LineTo(hdcTarget, clientRc.right / 2 + viewport->offset.x,
-          clientRc.bottom);
-      SelectObject(hdcTarget, hOldObj_);
-      DeleteObject(greenPen);
-
-      hOldObj_ = SelectObject(hdcTarget, hFont);
-      WCHAR szOffset[80] = L"";
-      StringCchPrintf(szOffset, 80, L"x: %d, y: %d", viewport->offset.x,
-          viewport->offset.y);
-      int lenLabel = wcslen(szOffset);
-      SetTextColor(hdcTarget, RGB(0, 255, 0));
-      TextOut(hdcTarget, clientRc.right / 2 + viewport->offset.x + 4,
-          clientRc.bottom / 2 + viewport->offset.y, szOffset, lenLabel);
-      SelectObject(hdcTarget, hOldObj_);
-
-      HPEN bluePen = CreatePen(PS_DASH, 1, RGB(0, 0, 255));
-      hOldObj_ = SelectObject(hdcTarget, bluePen);
-      MoveToEx(hdcTarget, clientRc.right / 2, clientRc.bottom / 2, NULL);
-      LineTo(hdcTarget, clientRc.right / 2 + viewport->offset.x,
-          clientRc.bottom / 2 + viewport->offset.y);
-      SelectObject(hdcTarget, hOldObj_);
-      DeleteObject(bluePen);
-
-      SetTextColor(hdcTarget, prevTextColor);
-      SetBkMode(hdcTarget, prevBkMode);
-
-      RestoreDC(hdc, state);
-
-      RECT textRc = clientRc;
-      WCHAR szFormat[256] = L"Debug shown\n"
-        L"Double Buffer: %s\n"
-        L"Background exclude canvas: %s\n"
-        L"Background method: %s\n"
-        L"Offset x: %d, y: %d\n"
-        L"Scale: %f\n"
-        L"Document set: %s\n"
-        L"Document dimensions width: %d, height %d";
-      WCHAR szDebugString[256];
-      StringCchPrintf(szDebugString, 256, szFormat,
-          g_viewportSettings.doubleBuffered ? L"ON" : L"OFF",
-          g_viewportSettings.bkgndExcludeCanvas ? L"ON" : L"OFF",
-          g_viewportSettings.bkgndExcludeCanvas ?
-              g_viewportSettings.backgroundMethod ?
-                  L"GDI region" : L"FillRect" : L"N/A",
-          viewport->offset.x, viewport->offset.y,
-          viewport->scale,
-          viewport->document ? L"TRUE" : L"FALSE",
-          viewport->document ? viewport->document->canvas->width : 0,
-          viewport->document ? viewport->document->canvas->height : 0);
-
-      int len = wcslen(szDebugString);
-
-      HGDIOBJ hOldFont = SelectObject(hdcTarget, hFont);
-      DrawText(hdcTarget, szDebugString, len, &clientRc, DT_BOTTOM | DT_RIGHT);
-      SelectObject(hdcTarget, hOldFont);
-    }
+      Viewport_DrawDebugOverlay(hdcTarget, viewport, &clientRc);
 
     if (g_viewportSettings.doubleBuffered) {
       /* Copy backbuffer to window */
