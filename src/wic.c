@@ -199,100 +199,108 @@ fail:
 
 ImageBuffer ImageFileReader(LPWSTR szFilePath)
 {
-  void* imageBits = NULL;
   HRESULT hr = S_OK;
+  IWICImagingFactory* pFactory = NULL;
+  IWICBitmapDecoder* pDecoder = NULL;
+  IWICBitmapFrameDecode* pFrame = NULL;
+  IWICFormatConverter* pConverter = NULL;
+  ImageBuffer ib = {0};
+  void* imageBits = NULL;
+  UINT nWidth;
+  UINT nHeight;
+  UINT nStride;
+  UINT nImage;
 
   hr = CoInitialize(NULL);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"CoInitialize failed");
     goto fail;
   }
 
-  IWICImagingFactory* pFactory = NULL;
   hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
       &IID_IWICImagingFactory, (LPVOID)&pFactory);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"CoCreateInstance WICImagingFactory failed");
     goto fail;
   }
 
-  IWICBitmapDecoder* pDecoder = NULL;
   hr = pFactory->lpVtbl->CreateDecoderFromFilename(pFactory, szFilePath, NULL,
       GENERIC_READ, WICDecodeMetadataCacheOnDemand, &pDecoder);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICImagingFactory::CreateDecoderFromFilename failed");
     goto fail;
   }
 
-  IWICBitmapFrameDecode* pFrame = NULL;
   hr = pDecoder->lpVtbl->GetFrame(pDecoder, 0, &pFrame);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICBitmapDecoder::GetFrame failed");
     goto fail;
   }
 
-  UINT nWidth;
-  UINT nHeight;
   hr = pFrame->lpVtbl->GetSize(pFrame, &nWidth, &nHeight);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICBitmapDecoder::GetSize");
     goto fail;
   }
 
-  IWICFormatConverter* pConverter = NULL;
   hr = pFactory->lpVtbl->CreateFormatConverter(pFactory, &pConverter);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICBitmapDecoder::CreateFormatConverter failed");
     goto fail;
   }
 
   hr = pConverter->lpVtbl->Initialize(pConverter, (IWICBitmapSource*)pFrame,
-      &GUID_WICPixelFormat32bppBGR,
-      WICBitmapDitherTypeNone,
-      NULL,
-      0.f,
+      &GUID_WICPixelFormat32bppBGR, WICBitmapDitherTypeNone, NULL, 0.f,
       WICBitmapPaletteTypeCustom);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICFormatConverter::Initialize failed");
     goto fail;
   }
 
   hr = pConverter->lpVtbl->GetSize(pConverter, &nWidth, &nHeight);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICFormatConverter::GetSize failed");
     goto fail;
   }
 
-  UINT nStride = DIB_WIDTHBYTES(nWidth * 32);
-  UINT nImage = nStride * nWidth;
+  nStride = DIB_WIDTHBYTES(nWidth * 32);
+  nImage = nStride * nHeight;
   imageBits = malloc(nImage);
 
   hr = pConverter->lpVtbl->CopyPixels(pConverter, NULL, nStride, nImage,
       (LPVOID)imageBits);
+
+  assert(SUCCEEDED(hr));
   if (FAILED(hr))
   {
-    assert(SUCCEEDED(hr));
     OutputDebugString(L"WICFormatConverter::CopyPixels failed");
     goto fail;
   }
 
-  ImageBuffer ib = {0};
   ib.width  = nWidth;
   ib.height = nHeight;
   ib.stride = nStride;

@@ -15,6 +15,7 @@ typedef struct _Document {
 
 void Document_Save(Document* doc);
 void Document_Open(Document* doc);
+void Document_OpenFile(LPWSTR);
 BOOL Document_Close(Document* doc);
 void Document_Purge(Document* doc);
 Document* Document_New(int width, int height);

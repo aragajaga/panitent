@@ -17,8 +17,10 @@
 #include <windowsx.h>
 #include <initguid.h>
 #include <shlwapi.h>
+#include <shlobj.h>
 #include <commctrl.h>
 #include <strsafe.h>
+#include <knownfolders.h>
 
 #include <stdint.h>
 #include <assert.h>

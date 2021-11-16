@@ -79,9 +79,50 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     LPWSTR lpCmdLine, int nCmdShow)
 {
   UNREFERENCED_PARAMETER(hPrevInstance)
-  UNREFERENCED_PARAMETER(lpCmdLine)
 
   BOOL bResult;
+  LPWSTR *pszArgList;
+  int nArgs;
+  LPWSTR pszArgFile;
+  WCHAR szModulePath[MAX_PATH];
+  WCHAR szWorkDir[MAX_PATH];
+  WCHAR szAppData[MAX_PATH];
+
+
+  pszArgFile = NULL;
+
+  /*  Get command line arguments
+   *
+   *  If lpCmdLine is empty, the CommandLineToArgvW will return the
+   *  executable path
+   */
+  if (lpCmdLine && *lpCmdLine != L'\0')
+  {
+    pszArgList = CommandLineToArgvW(lpCmdLine, &nArgs);
+
+    if (nArgs > 0)
+      pszArgFile = pszArgList[0];
+  }
+
+  ZeroMemory(szModulePath, sizeof(szModulePath));
+  GetModuleFileName(GetModuleHandle(NULL), szModulePath, MAX_PATH);
+
+  ZeroMemory(szWorkDir, sizeof(szWorkDir));
+  GetCurrentDirectory(MAX_PATH, szWorkDir);
+
+  PWSTR lpszAppData;
+  ZeroMemory(szAppData, sizeof(szAppData));
+  SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &lpszAppData);
+  StringCchCopy(szAppData, MAX_PATH, lpszAppData);
+  CoTaskMemFree(lpszAppData);
+  PathAppend(szAppData, L"\\Aragajaga\\Panit.ent");
+
+  /*  Create %APPDATA% application folder
+   *
+   *  This function is available through XP SP2 and Server 2003.
+   *  It might be altered or unavailable in subsequent versions of OS.
+   */
+  SHCreateDirectoryEx(NULL, szAppData, NULL);
 
 #ifdef HAS_DISCORDSDK
   /* Initialize Discord SDK and set initial activity message */
@@ -126,8 +167,12 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   PNTSETTINGS *pSettings;
   pSettings = Panitent_GetSettings();
 
+  WCHAR szSettingsPath[MAX_PATH];
+  StringCchCopy(szSettingsPath, MAX_PATH, szAppData);
+  PathAppend(szSettingsPath, L"\\settings.dat");
+
   FILE *fp;
-  fp = fopen("settings.dat", "rb");
+  fp = _wfopen(szSettingsPath, L"rb");
   assert(fp);
   fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
   fclose(fp);
@@ -156,12 +201,17 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   SetMenu(hwnd, hMenu);
 
   /* Initialize Wintab API */
+  /*
   if (pSettings->bEnablePenTablet)
     LoadWintab();
+    */
+
+  if (pszArgFile)
+    Panitent_OpenFile(pszArgFile);
 
   /* Application message loop.
-   * Just pump inbound window messages and forward them to associated with
-   * window procedure */
+   * Just pump inbound window messages and forward them to associated window
+     procedure */
   MSG msg;
   ZeroMemory(&msg, sizeof(MSG));
   while (GetMessage(&msg, NULL, 0, 0)) {
@@ -590,4 +640,35 @@ PNTSETTINGS *Panitent_GetSettings()
 void Panitent_Open()
 {
   Document_Open(NULL);
+}
+
+void Panitent_OpenFile(LPWSTR pszPath)
+{
+  Document_OpenFile(pszPath);
+}
+
+Viewport* Panitent_CreateViewport()
+{
+  Viewport* pViewport = Panitent_GetActiveViewport();
+
+  if (!pViewport)
+  {
+    HWND hWndViewport;
+
+    hWndViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
+        WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
+        64, 0, 800, 600,
+        g_panitent.hwnd,
+        NULL, GetModuleHandle(NULL), NULL);
+
+    assert(hWndViewport);
+
+    pViewport = (Viewport *) GetWindowLongPtr(hWndViewport, GWLP_USERDATA);
+    Panitent_SetActiveViewport(pViewport);
+
+    viewportNode->hwnd = hWndViewport;
+    DockNode_arrange(root);
+  }
+
+  return pViewport;
 }

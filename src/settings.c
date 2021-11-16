@@ -1,9 +1,5 @@
 #include "precomp.h"
 
-#include <commctrl.h>
-#include <windowsx.h>
-#include <knownfolders.h>
-
 // #include <json.h>
 #include "panitent.h"
 #include "settings.h"

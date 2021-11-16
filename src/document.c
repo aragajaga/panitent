@@ -20,41 +20,10 @@ BOOL Document_IsFilePathSet(Document* doc)
   return doc->szFilePath != NULL;
 }
 
-void Document_Open(Document* prevDoc)
+void Document_OpenFile(LPWSTR pszPath)
 {
   BOOL bResult;
-  Viewport* viewport = Panitent_GetActiveViewport();
-  LPWSTR pszPath;
-  WCHAR szPath[256] = { 0 };
-
-  pszPath = szPath;
-
-  if (!viewport) {
-    HWND hViewport = CreateWindowEx(0, WC_VIEWPORT, NULL,
-        WS_BORDER | WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
-        64, 0, 800, 600,
-        g_panitent.hwnd,
-        NULL, GetModuleHandle(NULL), NULL);
-
-    assert(hViewport);
-
-#ifndef NDEBUG
-    if (!hViewport)
-      OutputDebugString(L"Failed to create viewport."
-          L"May be class not registered?");
-#endif /* NDEBUG */
-
-    viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
-    Panitent_SetActiveViewport(viewport);
-
-    viewportNode->hwnd = hViewport;
-    DockNode_arrange(root);
-  }
-
-  bResult = init_open_file_dialog(&pszPath);
-
-  if (!bResult)
-    return;
+  Viewport* viewport;
 
   ImageBuffer ib = ImageFileReader(pszPath);
   
@@ -67,7 +36,28 @@ void Document_Open(Document* prevDoc)
   Canvas *canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
   doc->canvas = canvas;
 
+  viewport = Panitent_CreateViewport();
   Viewport_SetDocument(viewport, doc);
+}
+
+void Document_Open(Document* prevDoc)
+{
+  BOOL bResult;
+  Viewport* viewport;
+  LPWSTR pszPath;
+  WCHAR szPath[256] = { 0 };
+
+  pszPath = szPath;
+
+  /* Prompt the user file selection */
+  bResult = init_open_file_dialog(&pszPath);
+
+  /* If user cancelled the file selection or error occured during file
+     dialog initialization */
+  if (!bResult)
+    return;
+
+  Document_OpenFile(pszPath);
 }
 
 void Document_Save(Document* doc)
