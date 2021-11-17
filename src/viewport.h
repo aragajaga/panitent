@@ -15,11 +15,10 @@
 typedef struct _Viewport {
   Document* document;
   HWND hwnd;
-  POINT offset;
-  POINT drag;
-  POINT scaleCenter;
-  BOOL fDrag;
-  float scale;
+  POINT ptOffset;
+  POINT ptDrag;
+  BOOL bDrag;
+  float fZoom;
   HBRUSH hbrChecker;
 } Viewport;
 
