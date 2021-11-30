@@ -17,6 +17,14 @@
     b   = tmp;         \
   } while (0)
 
+#define ffswapT_(T, a, b) \
+  do {                    \
+    T tmp;                \
+    tmp = a;              \
+    a = b;                \
+    b = tmp;              \
+  } while (0)
+
 extern primitives_context_t g_wu_primitives;
 
 void wu_draw_circle(Plotter p, int cx, int cy, int radius);

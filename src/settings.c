@@ -277,6 +277,8 @@ int ShowSettingsWindow(HWND hParent)
 
   ZeroMemory(&rc, sizeof(RECT));
 
+  hInstance = (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE);
+
   rc.right  = 640;
   rc.bottom = 480;
   AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
@@ -382,29 +384,11 @@ int new_control_id()
   return i++;
 }
 
-void shima(__attribute__((unused)) WPARAM wParam, LPARAM lParam)
-{
-  DWORD bCheck = Button_GetCheck((HWND)lParam);
-
-  if (bCheck == BST_UNCHECKED) {
-    int result = MessageBox(g_hSettingsWindow,
-                            L"Are you sure?",
-                            L"Warning",
-                            MB_YESNO | MB_ICONEXCLAMATION);
-    if (result == IDNO) {
-      return;
-    }
-  }
-
-  Button_SetCheck((HWND)lParam,
-                  bCheck == BST_CHECKED ? BST_UNCHECKED : BST_CHECKED);
-}
-
 HWND CreateCheckbox(HWND parent, const wchar_t* label, unsigned int posX,
     unsigned int posY)
 {
   size_t id = new_control_id();
-  register_event_handler(id, &shima);
+  /* register_event_handler(id, &shima); */
 
   HWND hWnd = CreateWindow(L"BUTTON", label, WS_CHILD | WS_VISIBLE |
       BS_CHECKBOX, posX, posY, 250, 20, parent, (HMENU)id,

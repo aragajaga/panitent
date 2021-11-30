@@ -71,8 +71,8 @@ void wu_draw_line(Plotter p, int x0, int y0, int x1, int y1)
 
   if (fabs(dx) > fabs(dy)) {
     if (x1 < x0) {
-      swap_(x0, x1);
-      swap_(y0, y1);
+      ffswapT_(int, x0, x1);
+      ffswapT_(int, y0, y1);
     }
 
     float gradient = dy / dx;
@@ -101,8 +101,8 @@ void wu_draw_line(Plotter p, int x0, int y0, int x1, int y1)
     }
   } else {
     if (y1 < y0) {
-      swap_(x0, x1);
-      swap_(y0, y1);
+      ffswapT_(int, x0, x1);
+      ffswapT_(int, y0, y1);
     }
     float gradient = dx / dy;
     float yend     = round_(y0);
