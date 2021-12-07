@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-project(panitent LANGUAGES C)
+project(panitent C)
 
 if(MINGW)
     # Optimization flags
@@ -14,7 +14,7 @@ if(MINGW)
         "<CMAKE_RC_COMPILER> <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>")
 endif()
 
-set(SOURCE_EXE
+set(C_SOURCES
     src/bresenham.c
     src/brush.c
     src/canvas.c
@@ -41,11 +41,56 @@ set(SOURCE_EXE
     src/pentablet.c
     src/flexible.c
     src/settings_dialog.c
-    res/panitent.rc)
+    src/util.c
+    )
+
+set(SOURCE_EXE ${C_SOURCES} res/panitent.rc)
 
 if(MSVC)
-    set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
+  set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
+
+  set(HEADERS
+      src/bresenham.h
+      src/brush.h
+      src/brush_context.h
+      src/canvas.h
+      src/checker.h
+      src/color_context.h
+      src/crefptr.h
+      src/debug.h
+      src/discordsdk.h
+      src/dockhost.h
+      src/document.h
+      src/file_open.h
+      src/flexible.h
+      src/history.h
+      src/new.h
+      src/option_bar.h
+      src/palette.h
+      src/pencil_tool.h
+      src/pentablet.h
+      src/precomp.h
+      src/primitives_context.h
+      src/resource.h
+      src/settings.h
+      src/settings_dialog.h
+      src/swatch.h
+      src/swatch2.h
+      src/test.h
+      src/tool.h
+      src/toolbox.h
+      src/util.h
+      src/viewport.h
+      src/wic.h
+      src/wu_primitives.h
+      )
+
+  source_group("Headers" FILES ${HEADERS})
+
+  set(SOURCE_EXE ${SOURCE_EXE} ${HEADERS})
 endif(MSVC)
+
+set_source_files_properties(${C_SOURCES} PROPERTIES LANGUAGE C)
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
 
@@ -61,12 +106,19 @@ if (HAS_DISCORDRPC)
   target_link_libraries(${PROJECT_NAME} "discord_game_sdk.dll.lib")
 endif()
 
+target_compile_definitions(${PROJECT_NAME} PUBLIC _UNICODE UNICODE)
+target_compile_features(${PROJECT_NAME} PUBLIC c_std_99)
+
 if (MINGW)
-  target_compile_definitions(${PROJECT_NAME} PUBLIC _UNICODE UNICODE)
   target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -pedantic
       -Werror -Wno-unused)
   target_link_options(${PROJECT_NAME} PRIVATE -municode)
 endif(MINGW)
+
+if (MSVC)
+  target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
+  target_link_options(${PROJECT_NAME} PRIVATE /WX)
+endif(MSVC)
 
 target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme
     windowscodecs)

@@ -1,10 +1,12 @@
 #include "precomp.h"
 
 #include <math.h>
+#include <stdbool.h>
 
 #include "canvas.h"
 #include "viewport.h"
 #include "color_context.h"
+#include "util.h"
 
 float lerp(float a, float b, float f)
 {
@@ -13,7 +15,7 @@ float lerp(float a, float b, float f)
 
 uint32_t color_opacity(uint32_t color, float opacity)
 {
-  uint8_t alpha = (uint8_t)round(opacity * (float)(color >> 24));
+  uint8_t alpha = (uint8_t)roundf(opacity * (float)(color >> 24 & 0xFF));
   return (alpha << 24) | (color & 0x00FFFFFF);
 }
 
@@ -29,26 +31,28 @@ uint32_t mix(uint32_t base, uint32_t overlay)
   float overlayG = (overlay >> 8  & 0xFF) / 255.f;
   float overlayB = (overlay       & 0xFF) / 255.f;
 
+  /*
   float blendR = baseR * overlayA + overlayR * (1.f - overlayA);
   float blendG = baseG * overlayA + overlayG * (1.f - overlayA);
   float blendB = baseB * overlayA + overlayB * (1.f - overlayA);
+  */
 
   float resultR = (1.f - overlayA) * baseR + overlayA * overlayR;
   float resultG = (1.f - overlayA) * baseG + overlayA * overlayG;
   float resultB = (1.f - overlayA) * baseB + overlayA * overlayB;
   float resultA = 1.f - (1.f - baseA) * (1.f - overlayA);
 
-  uint8_t a = round(resultA * 255.f);
-  uint8_t r = round(resultR * 255.f);
-  uint8_t g = round(resultG * 255.f);
-  uint8_t b = round(resultB * 255.f);
+  uint8_t a = (uint8_t)roundf(resultA * 255.f);
+  uint8_t r = (uint8_t)roundf(resultR * 255.f);
+  uint8_t g = (uint8_t)roundf(resultG * 255.f);
+  uint8_t b = (uint8_t)roundf(resultB * 255.f);
 
   return ARGB(a, r, g, b);
 }
 
 void* Canvas_BufferAlloc(Canvas* canvas)
 {
-  size_t buffer_size = canvas->width * canvas->height * canvas->color_depth;
+  size_t buffer_size = (size_t)canvas->width * (size_t)abs(canvas->height) * (size_t)canvas->color_depth;
 
   canvas->buffer_size = buffer_size;
   canvas->buffer      = calloc(buffer_size, sizeof(uint8_t));
@@ -77,7 +81,13 @@ BOOL Canvas_CheckBoundaries(Canvas* canvas, int x, int y)
 
 void Canvas_Plot(Canvas* canvas, float x, float y, float opacity)
 {
-  if (!Canvas_CheckBoundaries(canvas, x, y)) {
+  int ix;
+  int iy;
+
+  if (!float2int_s(&ix, x) || !float2int_s(&iy, y))
+    return;
+
+  if (!Canvas_CheckBoundaries(canvas, ix, iy)) {
     return;
   }
 
@@ -115,7 +125,7 @@ uint32_t Canvas_GetPixel(Canvas* canvas, int x, int y)
     return 0;
   }
 
-  size_t pos = y * canvas->width + x;
+  size_t pos = (size_t)y * (size_t)canvas->width + (size_t)x;
   return ((uint32_t*)(canvas->buffer))[pos];
 }
 
@@ -125,7 +135,7 @@ void Canvas_SetPixel(Canvas* canvas, int x, int y, uint32_t color)
     return;
   }
 
-  size_t pos                         = y * canvas->width + x;
+  size_t pos = (size_t)y * (size_t)canvas->width + x;
   ((uint32_t*)(canvas->buffer))[pos] = color;
 }
 
@@ -150,13 +160,13 @@ void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     int height)
 {
   uint32_t* pTarget = (uint32_t*)canvas->buffer;
-  uint32_t* pSource = (uint32_t*)bits + width * (height - 1);
+  uint32_t* pSource = (uint32_t*)bits + (size_t)width * ((size_t)height - 1);
 
-  pTarget += y * canvas->width + x;
+  pTarget += (size_t)y * (size_t)canvas->width + (size_t)x;
 
   for (int i = height; i; --i)
   {
-    memcpy(pTarget, pSource, width * 4);
+    memcpy(pTarget, pSource, (size_t)width * 4);
 
     pTarget += canvas->width;
     pSource -= width;
@@ -175,12 +185,12 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
     return;
 
   uint32_t* pTarget = (uint32_t*)canvas->buffer;
-  uint32_t* pSource = (uint32_t*)bits + width * (height - 1);
+  uint32_t* pSource = (uint32_t*)bits + (size_t)width * ((size_t)height - 1);
 
   int width_ = width;
   int height_ = height;
 
-  pTarget += max(0, y) * canvas->width + max(0, x);
+  pTarget += (size_t)max(0, y) * (size_t)canvas->width + (size_t)max(0, x);
 
   if (x + width > canvas->width)
   {
@@ -203,7 +213,7 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
   {
     int y_ = abs(y);
     height -= y_;
-    pSource += y_ * width;
+    pSource += (size_t)y_ * (size_t)width;
   }
 
   for (int i = height_; i; --i)
@@ -218,7 +228,7 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
       float colorAlpha = (color >> 24) / 255.f;
 
       *(pTarget + j) = mix(*(pTarget + j),
-          (uint32_t)(round(lerp(0.f, srcAlpha, colorAlpha) * 255.f)) << 24 |
+          (uint32_t)(roundf(lerp(0.f, srcAlpha, colorAlpha) * 255.f)) << 24 |
           (color & 0x00FFFFFF));
     }
 
@@ -232,9 +242,24 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
 Canvas* Canvas_Clone(Canvas* canvas)
 {
   Canvas* clone = calloc(1, sizeof(Canvas));
+  if (!clone)
+    return NULL;
   memcpy(clone, canvas, sizeof(Canvas));
 
   clone->buffer = calloc(1, canvas->buffer_size);
+  if (!clone->buffer)
+  {
+    free(clone);
+    return NULL;
+  }
+
+  if (!canvas->buffer)
+  {
+    free(clone->buffer);
+    free(clone);
+    return NULL;
+  }
+
   memcpy(clone->buffer, canvas->buffer, canvas->buffer_size);
 
   return clone;
@@ -246,19 +271,22 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
   int subHeight = rc->bottom - rc->top;
 
   Canvas* sub = calloc(1, sizeof(Canvas));
+  if (!sub)
+    return NULL;
+
   sub->width = subWidth;
   sub->height = subHeight;
 
-  sub->buffer_size = subWidth * subHeight * 4;
+  sub->buffer_size = (size_t)subWidth * (size_t)subHeight * 4;
   sub->buffer = calloc(1, sub->buffer_size);
 
-  size_t origStart = (rc->top * canvas->width + rc->left) * 4;
-  size_t originStride = canvas->width * 4;
-  size_t destStride = subWidth * 4;
+  size_t origStart = ((size_t)rc->top * (size_t)canvas->width + (size_t)rc->left) * 4;
+  size_t originStride = (size_t)canvas->width * 4;
+  size_t destStride = (size_t)subWidth * 4;
 
   unsigned char *pOrig = ((unsigned char*)canvas->buffer) + origStart;
   unsigned char *pDest = sub->buffer;
-  for (int i = 0; i < subHeight; i++)
+  for (int i = 0; i < subHeight && pDest; i++)
   {
     memcpy(pDest, pOrig, destStride);
     pDest += destStride;
@@ -271,10 +299,13 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
 Canvas* Canvas_Create(int width, int height)
 {
   Canvas *canvas = calloc(1, sizeof(Canvas));
+  if (!canvas)
+    return NULL;
+
   canvas->width = width;
   canvas->height = height;
   canvas->color_depth = 4;
-  canvas->buffer_size = width * height * 4;
+  canvas->buffer_size = (size_t)width * (size_t)height * 4;
   Canvas_BufferAlloc(canvas);
 
   return canvas;
@@ -300,7 +331,7 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
       y + target->height < 0)
     return;
 
-  pTarget += (y < 0 ? 0 : y) * target->width + (x < 0 ? 0 : x);
+  pTarget += (y < 0 ? 0 : (size_t)y) * (size_t)target->width + (x < 0 ? 0 : (size_t)x);
 
   int width = source->width;
   int height = source->height;
@@ -325,7 +356,7 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
   if (y < 0)
   {
     int y_ = abs(y);
-    pSource += y_ * source->width;
+    pSource += (size_t)y_ * (size_t)source->width;
     height -= y_;
   }
 
@@ -335,7 +366,7 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
 
       float opacity = lerp(0, (*(pSource + j) >> 24) / 255.f,
           (color_ >> 24) / 255.f);
-      uint8_t alpha = round(opacity * 255.f);
+      uint8_t alpha = (uint8_t)roundf(opacity * 255.f);
 
       color_ = (color & 0x00FFFFFF) | alpha << 24;
 
@@ -351,7 +382,7 @@ void Canvas_Overlay(Canvas* target, int x, int y, Canvas* source)
 {
   uint32_t *pTarget = target->buffer;
   uint32_t *pSource = source->buffer;
-  pTarget += y * target->width + x;
+  pTarget += (size_t)y * (size_t)target->width + (size_t)x;
 
   for (int i = 0; i < source->height; i++) {
     for (int j = 0; j < source->width; j++) {
@@ -360,7 +391,7 @@ void Canvas_Overlay(Canvas* target, int x, int y, Canvas* source)
       pSource++;
     }
 
-    pTarget += target->width - source->width;
+    pTarget += (size_t)target->width - (size_t)source->width;
   }
 }
 
@@ -368,7 +399,7 @@ void Canvas_Paste(Canvas* target, int x, int y, Canvas* source)
 {
   uint32_t *pTarget = target->buffer;
   uint32_t *pSource = source->buffer;
-  pTarget += y * target->width + x;
+  pTarget += (size_t)y * (size_t)target->width + (size_t)x;
 
   if (x >= target->width || y >= target->height)
     return;
@@ -383,6 +414,6 @@ void Canvas_Paste(Canvas* target, int x, int y, Canvas* source)
       pSource++;
     }
 
-    pTarget += target->width - source->width;
+    pTarget += (size_t)target->width - (size_t)source->width;
   }
 }

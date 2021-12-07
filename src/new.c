@@ -269,6 +269,9 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
       {
         NewDocumentDlgData *data = (NewDocumentDlgData*)
             malloc(sizeof(NewDocumentDlgData));
+        if (!data)
+          return TRUE;
+
         ZeroMemory(data, sizeof(NewDocumentDlgData));
         SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)data);
 
@@ -285,7 +288,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
         {
           int nItem;
 
-          nItem = SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET, CB_ADDSTRING,
+          nItem = (int)SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET, CB_ADDSTRING,
               0, (LPARAM)pDocPreset[i].szName);
           SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET, CB_SETITEMDATA,
               nItem, (LPARAM)&pDocPreset[i]);
@@ -295,7 +298,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
         {
           int nItem;
 
-          nItem = SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND, CB_ADDSTRING,
+          nItem = (int)SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND, CB_ADDSTRING,
               0, (LPARAM)pBkgndColors[i].szName);
           SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND, CB_SETITEMDATA,
               nItem, (LPARAM)&pBkgndColors[i]);
@@ -329,7 +332,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
                 DocumentPreset *pPreset;
                 int nItem;
 
-                nItem = SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET,
+                nItem = (int)SendDlgItemMessage(hwndDlg, IDC_DOCUMENTPRESET,
                     CB_GETCURSEL, 0, 0);
                 pPreset = (DocumentPreset*)SendDlgItemMessage(hwndDlg,
                     IDC_DOCUMENTPRESET, CB_GETITEMDATA, (WPARAM)nItem, 0);
@@ -358,7 +361,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
             unsigned int height = GetDlgItemInt(hwndDlg, IDC_DOCUMENTHEIGHT,
                 NULL, FALSE);
 
-            int nBkgndSel = SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND,
+            int nBkgndSel = (int)SendDlgItemMessage(hwndDlg, IDC_DOCUMENTBKGND,
                 CB_GETCURSEL, 0, 0);
             BkgndColorItem *bkgndItem = (BkgndColorItem*)SendDlgItemMessage(
                 hwndDlg, IDC_DOCUMENTBKGND, CB_GETITEMDATA, nBkgndSel, 0);

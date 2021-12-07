@@ -5,9 +5,9 @@
 #include "primitives_context.h"
 
 #define ipart_(X)  ((int)(X))
-#define round_(X)  ((int)(((double)(X)) + 0.5))
-#define fpart_(X)  (((double)(X)) - (double)ipart_(X))
-#define rfpart_(X) (1.0 - fpart_(X))
+#define round_(X)  ((int)(((float)(X)) + 0.5f))
+#define fpart_(X)  (((float)(X)) - (float)ipart_(X))
+#define rfpart_(X) (1.0f - fpart_(X))
 
 #define swap_(a, b)    \
   do {                 \

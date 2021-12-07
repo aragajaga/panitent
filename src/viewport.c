@@ -173,6 +173,9 @@ void Viewport_OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
   UNREFERENCED_PARAMETER(lpcs);
 
   Viewport *viewport = calloc(1, sizeof(Viewport));
+  if (!viewport)
+    return;
+
   SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)viewport);
   viewport->hwnd = hwnd;
 
@@ -197,6 +200,9 @@ BOOL Viewport_BlitCanvas(HDC hDC, LPRECT prcView, Canvas *canvas)
   HDC hBmDC = CreateCompatibleDC(hDC);
 
   unsigned char *pData = malloc(canvas->buffer_size);
+  if (!pData)
+    return FALSE;
+
   ZeroMemory(pData, canvas->buffer_size);
   memcpy(pData, canvas->buffer, canvas->buffer_size);
 
@@ -205,12 +211,23 @@ BOOL Viewport_BlitCanvas(HDC hDC, LPRECT prcView, Canvas *canvas)
   {
     for (size_t x = 0; x < (size_t) canvas->width; x++)
     {
-      unsigned char *pixel = pData + (x + y * canvas->width) * 4;
+      uint8_t *pixel = pData + (x + y * canvas->width) * 4;
 
-      float factor = pixel[3] / 255.f;
-      pixel[0] *= factor;
-      pixel[1] *= factor;
-      pixel[2] *= factor;
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 6385 )
+#endif  /* _MSC_VER */
+
+      float factor = (float)(pixel[3]) / 255.f;
+
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif  /* _MSC_VER */
+
+      pixel[0] *= (uint8_t)factor;
+      pixel[1] *= (uint8_t)factor;
+      pixel[2] *= (uint8_t)factor;
+
     }
   }
 
@@ -258,14 +275,16 @@ void Viewport_ClientToCanvas(Viewport* viewport, int x, int y, LPPOINT lpPt)
 
   /* TODO: Try to get rid of intermediate negative value. Juggle around with
      'x' and .ptOffset' positions. */
-  lpPt->x = (x - (clientRc.right - canvas->width * viewport->fZoom) / 2 -
-      viewport->ptOffset.x) / viewport->fZoom;
-  lpPt->y = (y - (clientRc.bottom - canvas->height * viewport->fZoom) / 2 -
-      viewport->ptOffset.y) / viewport->fZoom;
+  lpPt->x = (LONG)(((float)x - ((float)clientRc.right - (float)canvas->width * viewport->fZoom) / 2.f -
+      (float)viewport->ptOffset.x) / viewport->fZoom);
+  lpPt->y = (LONG)(((float)y - ((float)clientRc.bottom - (float)canvas->height * viewport->fZoom) / 2.f -
+      (float)viewport->ptOffset.y) / viewport->fZoom);
 }
 
 static inline void Viewport_DrawWindowOrdinates(HDC hDC, Viewport *viewport, LPRECT lpRect)
 {
+  UNREFERENCED_PARAMETER(viewport);
+
   HPEN hPen;
   HGDIOBJ hOldObj;
   HFONT hFont;
@@ -324,12 +343,12 @@ static inline void Viewport_DrawCanvasOrdinates(HDC hDC, Viewport *viewport, LPR
   StringCchPrintf(szOffset, 80, L"x: %d, y: %d", viewport->ptOffset.x,
       viewport->ptOffset.y);
 
-  int lenLabel = wcslen(szOffset);
+  size_t lenLabel = wcslen(szOffset);
 
   SetTextColor(hDC, RGB(0, 255, 0));
 
   TextOut(hDC, lpRect->right / 2 + lpptOffset->x + 4,
-      lpRect->bottom / 2 + lpptOffset->y, szOffset, lenLabel);
+      lpRect->bottom / 2 + lpptOffset->y, szOffset, (int)lenLabel);
 
   SelectObject(hDC, hOldObj);
 }
@@ -371,6 +390,11 @@ static inline void Viewport_DrawDebugText(HDC hDC, Viewport *viewport, LPRECT lp
 
   hFont = GetGuiFont();
 
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 6001 )
+#endif  /* _MSC_VER */
+
   StringCchPrintf(szDebugString, 256, szFormat,
       g_viewportSettings.doubleBuffered ? L"ON" : L"OFF",
       g_viewportSettings.bkgndExcludeCanvas ? L"ON" : L"OFF",
@@ -383,12 +407,16 @@ static inline void Viewport_DrawDebugText(HDC hDC, Viewport *viewport, LPRECT lp
       viewport->document ? viewport->document->canvas->width : 0,
       viewport->document ? viewport->document->canvas->height : 0);
 
-  int len = wcslen(szDebugString);
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif  /* _MSC_VER */
+
+  size_t len = wcslen(szDebugString);
 
   SetTextColor(hDC, RGB(0, 0, 0));
 
   hOldObj = SelectObject(hDC, hFont);
-  DrawText(hDC, szDebugString, len, lpRect, DT_BOTTOM | DT_RIGHT);
+  DrawText(hDC, szDebugString, (int)len, lpRect, DT_BOTTOM | DT_RIGHT);
   SelectObject(hDC, hOldObj);
 }
 
@@ -442,12 +470,12 @@ void Viewport_OnPaint(HWND hwnd)
 
     RECT renderRc;
 
-    renderRc.left = ((clientRc.right - canvas->width * viewport->fZoom) / 2
-          + viewport->ptOffset.x);
-    renderRc.top = ((clientRc.bottom - canvas->height * viewport->fZoom) / 2
-          + viewport->ptOffset.y);
-    renderRc.right = renderRc.left + (canvas->width * viewport->fZoom);
-    renderRc.bottom = renderRc.top + (canvas->height * viewport->fZoom);
+    renderRc.left = (LONG)(((float)clientRc.right - (float)canvas->width * viewport->fZoom) / 2.f
+          + (float)viewport->ptOffset.x);
+    renderRc.top = (LONG)(((float)clientRc.bottom - (float)canvas->height * viewport->fZoom) / 2.f
+          + (float)viewport->ptOffset.y);
+    renderRc.right = (LONG)((float)renderRc.left + ((float)canvas->width * viewport->fZoom));
+    renderRc.bottom = (LONG)((float)renderRc.top + ((float)canvas->height * viewport->fZoom));
 
     /* Use hdcTarget for actual drawing */
     if (viewport->document)
@@ -526,6 +554,8 @@ void Viewport_OnKeyUp(HWND hWnd, WPARAM wParam, LPARAM lParam)
 
 void Viewport_OnMouseWheel(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
   assert(viewport);
 
@@ -611,11 +641,16 @@ void Viewport_OnRButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 void Viewport_OnMButtonDown(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   Viewport *viewport = (Viewport *) GetWindowLongPtr(hWnd, GWLP_USERDATA);
   assert(viewport);
 
+  /*
   long int x = GET_X_LPARAM(lParam);
   long int y = GET_Y_LPARAM(lParam);
+  */
 
   if (!viewport->bDrag)
   {
@@ -632,6 +667,9 @@ void Viewport_OnMButtonDown(HWND hWnd, WPARAM wParam, LPARAM lParam)
 
 void Viewport_OnMButtonUp(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   Viewport *viewport = (Viewport *) GetWindowLongPtr(hWnd, GWLP_USERDATA);
   assert(viewport);
 
@@ -667,6 +705,8 @@ void Viewport_OnMouseMove(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 void Viewport_OnCommand(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   if (LOWORD(wParam) == IDM_VIEWPORTSETTINGS)
   {
     DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_VIEWPORTSETTINGS),
@@ -742,11 +782,16 @@ void Viewport_OnContextMenu(HWND hwnd, int x, int y)
 
 void Viewport_OnSize(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   Viewport *viewport = (Viewport*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
   assert(viewport);
 
+  /*
   int width = LOWORD(lParam);
   int height = HIWORD(lParam);
+  */
 
   if (viewport->document)
   {

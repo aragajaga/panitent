@@ -198,8 +198,8 @@ void PaletteWindow_OnPaint(HWND hwnd)
   uint32_t color = 0x00ff0000;
   for (size_t i = 0; i < sizeof(palette_colors) / sizeof(uint32_t); i++) {
     PaletteWindow_DrawSwatch(hwnd, hdc,
-                10 + (i % width_indices) * (swatch_size + swatch_margin),
-                40 + (i / width_indices) * (swatch_size + swatch_margin),
+                10 + ((int)i % width_indices) * (swatch_size + swatch_margin),
+                40 + ((int)i / width_indices) * (swatch_size + swatch_margin),
                 palette_colors[i]);
 
     color >>= 1;
@@ -252,8 +252,8 @@ void PaletteWindow_OnLButtonUp(HWND hwnd, LPARAM lParam)
 
     g_color_context.fg_color = abgr_to_argb(get_color(index));
 
-    RECT rc = {10, 10, 34, 34};
-    InvalidateRect(hwnd, &rc, FALSE);
+    RECT rcInvalidate = {10, 10, 34, 34};
+    InvalidateRect(hwnd, &rcInvalidate, FALSE);
   }
 }
 
@@ -278,13 +278,16 @@ void PaletteWindow_OnRButtonUp(HWND hwnd, LPARAM lParam)
 
     g_color_context.bg_color = abgr_to_argb(get_color(index));
 
-    RECT rc = {40, 10, 64, 34};
-    InvalidateRect(hwnd, &rc, FALSE);
+    RECT rcInvalidate = {40, 10, 64, 34};
+    InvalidateRect(hwnd, &rcInvalidate, FALSE);
   }
 }
 
 void Palette_ColorChangeObserver(void* userData, uint32_t fg, uint32_t bg)
 {
+  UNREFERENCED_PARAMETER(fg);
+  UNREFERENCED_PARAMETER(bg);
+
   HWND hWnd = (HWND)userData;
   if (!hWnd)
     return;
@@ -294,6 +297,8 @@ void Palette_ColorChangeObserver(void* userData, uint32_t fg, uint32_t bg)
 
 static void OnCommand(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   if (LOWORD(wParam) == IDM_PALETTESETTINGS)
   {
     DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_PALETTESETTINGS),
@@ -316,6 +321,9 @@ void PaletteWindow_OnCreate(HWND hwnd)
 {
   PaletteWindowData *data = (PaletteWindowData*)
     malloc(sizeof(PaletteWindowData));
+  if (!data)
+    return;
+
   ZeroMemory(data, sizeof(PaletteWindowData));
   SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);
 
@@ -397,19 +405,24 @@ void PaletteWindow_Create(HWND parent)
     printf("Failed to create window");
 }
 
+#define SWATCH_SIZE_LEN 4
+#define CHECKER_SIZE_LEN 4
+
 INT_PTR CALLBACK PaletteSettingsDlgProc(HWND hwndDlg, UINT message,
     WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   switch (message)
   {
     case WM_INITDIALOG:
       {
-        WCHAR szSwatchSize[4];
-        _itow(g_paletteSettings.swatchSize, szSwatchSize, 10);
+        WCHAR szSwatchSize[SWATCH_SIZE_LEN];
+        _itow_s(g_paletteSettings.swatchSize, szSwatchSize, SWATCH_SIZE_LEN, 10);
         Edit_SetText(GetDlgItem(hwndDlg, IDC_SWATCHSIZEEDIT), szSwatchSize);
 
-        WCHAR szCheckerSize[4];
-        _itow(g_paletteSettings.checkerSize, szCheckerSize, 10);
+        WCHAR szCheckerSize[CHECKER_SIZE_LEN];
+        _itow_s(g_paletteSettings.checkerSize, szCheckerSize, CHECKER_SIZE_LEN, 10);
         Edit_SetText(GetDlgItem(hwndDlg, IDC_CHECKERSIZEEDIT), szCheckerSize);
 
         SwatchControl2_SetColor(GetDlgItem(hwndDlg, IDC_CHECKERCOLOR1),

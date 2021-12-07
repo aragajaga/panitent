@@ -159,7 +159,16 @@ void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 
     if (IsThemeBackgroundPartiallyTransparent(hTheme, BP_PUSHBUTTON, iStateId))
     {
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 6387 )
+#endif  /* _MSC_VER */
+
       DrawThemeParentBackground(NULL, hdc, NULL);
+
+#ifdef _MSC_VER
+#pragma warning ( pop )
+#endif  /* _MSC_VER */
     }
 
     DrawThemeBackgroundEx(hTheme, hdc, BP_PUSHBUTTON, iStateId, &rc, NULL);
@@ -186,21 +195,21 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
   RECT rcClient = {0};
   GetClientRect(tbox->hwnd, &rcClient);
 
-  size_t extSize  = btnSize + btnOffset;
-  size_t rowCount = rcClient.right / btnSize;
+  int extSize  = btnSize + btnOffset;
+  int rowCount = rcClient.right / btnSize;
 
   if (rowCount < 1) {
     rowCount = 1;
   }
 
-  for (size_t i = 0; i < tbox->tool_count; i++) {
+  for (unsigned int i = 0; i < tbox->tool_count; i++) {
     int x = btnOffset + (i % rowCount) * extSize;
     int y = btnOffset + (i / rowCount) * extSize;
 
     /* Rectangle(hdc, x, y, x+btnSize, y+btnSize); */
 
     unsigned int uState = NORMAL;
-    if (i == g_uToolSelected)
+    if ((unsigned int)i == g_uToolSelected)
     {
       uState = PUSHED;
     }
@@ -260,6 +269,8 @@ void Toolbox_OnPaint(Toolbox* tbox)
 
 void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   int x = GET_X_LPARAM(lParam);
   int y = GET_Y_LPARAM(lParam);
 
@@ -269,7 +280,7 @@ void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
   if (x >= 0 && y >= 0 && x < btnHot * 2 &&
       y < (int)tbox->tool_count * btnHot) {
-    size_t extSize = btnSize + btnOffset;
+    size_t extSize = (size_t)btnSize + (size_t)btnOffset;
 
     RECT rcClient = {0};
     GetClientRect(hwnd, &rcClient);
@@ -280,7 +291,7 @@ void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
     }
 
     unsigned int pressed =
-        (y - btnOffset) / extSize * rowCount + (x - btnOffset) / extSize;
+        (y - btnOffset) / (int)extSize * (int)rowCount + (x - btnOffset) / (int)extSize;
 
     g_uToolSelected = pressed;
 
@@ -358,7 +369,7 @@ LRESULT CALLBACK Toolbox_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
   return 0;
 }
 
-BOOL Toolbox_RegisterClass()
+BOOL Toolbox_RegisterClass(HINSTANCE hInstance)
 {
   WNDCLASSEX wcex;
 
@@ -367,6 +378,7 @@ BOOL Toolbox_RegisterClass()
   wcex.cbSize = sizeof(wcex);
   wcex.style = CS_HREDRAW | CS_VREDRAW;
   wcex.lpfnWndProc = Toolbox_WndProc;
+  wcex.hInstance = hInstance;
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
   wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
   wcex.lpszClassName = TOOLBOX_WC;
@@ -387,6 +399,8 @@ void ToolPointer_Init()
 
 void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -395,11 +409,11 @@ void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
   HDC viewportdc = GetDC(hViewport);
   HDC bitmapdc   = CreateCompatibleDC(viewportdc);
 
-  signed short x = GET_X_LPARAM(lParam);
-  signed short y = GET_Y_LPARAM(lParam);
+  signed short mouseX = GET_X_LPARAM(lParam);
+  signed short mouseY = GET_Y_LPARAM(lParam);
 
   wchar_t textbuf[1024];
-  DWORD textLen = 0;
+  size_t textLen = 0;
   GetWindowText(g_option_bar.textstring_handle,
                 textbuf,
                 sizeof(textbuf) / sizeof(wchar_t));
@@ -408,10 +422,10 @@ void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
   HFONT hFont = CreateFont(24, 0, 0, 0, 600, FALSE, FALSE, FALSE,
       DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY,
       DEFAULT_PITCH, L"Arial");
-  HGDIOBJ hOldFont = SelectObject(bitmapdc, hFont);
+  SelectObject(bitmapdc, hFont);
 
   SIZE size = {0};
-  GetTextExtentPoint32(bitmapdc, textbuf, textLen, &size);
+  GetTextExtentPoint32(bitmapdc, textbuf, (int)textLen, &size);
   RECT textrc = {0, 0, size.cx, size.cy};
 
   BITMAPINFO bmi = {0};
@@ -442,12 +456,12 @@ void ToolText_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
   {
     for (int x = 0; x < size.cx; x++)
     {
-      uint32_t *pixel = buffer + y * size.cx + x;
+      uint32_t *pixel = buffer + (size_t)y * (size_t)size.cx + (size_t)x;
       *pixel = *pixel | 0xFF000000;
     }
   }
 
-  Canvas_ColorStencilBits(viewport->document->canvas, buffer, x, y, size.cx, size.cy, g_color_context.fg_color);
+  Canvas_ColorStencilBits(viewport->document->canvas, buffer, mouseX, mouseY, size.cx, size.cy, g_color_context.fg_color);
 
   DeleteObject(hbitmap);
   DeleteDC(bitmapdc);
@@ -464,6 +478,8 @@ void ToolText_Init()
 
 void ToolPencil_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   long int x = GET_X_LPARAM(lParam);
   long int y = GET_Y_LPARAM(lParam);
 
@@ -477,6 +493,8 @@ void ToolPencil_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolPencil_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -507,6 +525,8 @@ void ToolPencil_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolPencil_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -549,6 +569,8 @@ POINT circCenter;
 
 void ToolCircle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   signed short x = GET_X_LPARAM(lParam);
   signed short y = GET_Y_LPARAM(lParam);
 
@@ -562,6 +584,8 @@ void ToolCircle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolCircle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -577,7 +601,9 @@ void ToolCircle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
     LineTo(hdc, x, y);
 #endif
 
-    int radius = sqrt(pow(x - circCenter.x, 2) + pow(y - circCenter.y, 2));
+    int radius;
+    if (!float2int_s(&radius, sqrtf(powf((float)x - circCenter.x, 2.f) + powf((float)y - circCenter.y, 2.f))))
+      return;
 
     Canvas* canvas = viewport->document->canvas;
     draw_circle(canvas, circCenter.x, circCenter.y, radius);
@@ -602,6 +628,8 @@ void ToolCircle_Init()
 
 void ToolLine_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   signed short x = GET_X_LPARAM(lParam);
   signed short y = GET_Y_LPARAM(lParam);
 
@@ -615,6 +643,8 @@ void ToolLine_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolLine_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -641,6 +671,8 @@ void ToolLine_Init()
 
 void ToolRectangle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   signed short x = GET_X_LPARAM(lParam);
   signed short y = GET_Y_LPARAM(lParam);
 
@@ -654,6 +686,8 @@ void ToolRectangle_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolRectangle_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -703,9 +737,19 @@ void tqueue$$##T_push(tqueue$$##T_t* q, T data)                                \
   if (!q)                                                                      \
     return;                                                                    \
                                                                                \
+  assert(q->data);                                                             \
+  if (!q->data)                                                                \
+    return;                                                                    \
+                                                                               \
   if (q->capacity <= q->length)                                                \
   {                                                                            \
-    q->data = realloc(q->data, (q->capacity + CAPACITY_GROW) * sizeof(T));     \
+    T* pData = NULL;                                                           \
+    pData = realloc(q->data, (q->capacity + CAPACITY_GROW) * sizeof(T));       \
+    assert(pData && L"Unable to reallocate memory");                           \
+    if (pData)                                                                 \
+      q->data = pData;                                                         \
+    else                                                                       \
+      return;                                                                  \
     q->capacity += CAPACITY_GROW;                                              \
   }                                                                            \
                                                                                \
@@ -816,6 +860,8 @@ void queue_delete(queue_t* q)
 
 void ToolPicker_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -828,6 +874,8 @@ void ToolPicker_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolPicker_OnRButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -937,6 +985,8 @@ void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
 
 void ToolFill_OnRButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -948,6 +998,8 @@ void ToolFill_OnRButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolFill_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -977,6 +1029,10 @@ Brush* g_pBrushDraw;
 
 void ToolBrush_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(hViewport);
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   fDraw = FALSE;
   ReleaseCapture();
 
@@ -987,6 +1043,8 @@ void ToolBrush_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolBrush_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 
@@ -1009,6 +1067,8 @@ void ToolBrush_OnLButtonDown(HWND hViewport, WPARAM wParam, LPARAM lParam)
 
 void ToolBrush_OnMouseMove(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+
   Viewport* viewport = (Viewport*)GetWindowLongPtr(hViewport, GWLP_USERDATA);
   assert(viewport);
 

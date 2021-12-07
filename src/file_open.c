@@ -38,9 +38,9 @@ void user_warning_fn(png_structp png_ptr, png_const_charp message)
 }
 */
 
+/*
 void FileOpenPng(LPWSTR pszPath)
 {
-  /*
   FILE* fp = _wfopen(pszPath, L"rb");
   if (!fp)
     exit(1);
@@ -82,8 +82,8 @@ void FileOpenPng(LPWSTR pszPath)
   } else {
     printf("[libpng] Info struct created\n");
   }
-  */
 }
+*/
 
 typedef struct _tagPNTSAVEPARAMS {
   PNTMAP(pntwstr_t, pntwstr_t) m_extensionMap;
@@ -230,6 +230,9 @@ BOOL COMFileSaveDialog(LPWSTR *pszPath)
 {
   HRESULT hr = S_OK;
 
+  IFileDialog* pfd = NULL;
+  IShellItem* psiResult = NULL;
+
   hr = CoInitialize(NULL);
   assert(SUCCEEDED(hr));
   if (FAILED(hr))
@@ -238,7 +241,6 @@ BOOL COMFileSaveDialog(LPWSTR *pszPath)
     goto fail;
   }
 
-  IFileDialog* pfd = NULL;
   hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
       &IID_IFileDialog, (LPVOID)&pfd);
   assert(SUCCEEDED(hr));
@@ -267,7 +269,6 @@ BOOL COMFileSaveDialog(LPWSTR *pszPath)
     goto fail;
   }
 
-  IShellItem* psiResult = NULL;
   hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
   assert(SUCCEEDED(hr));
   if (FAILED(hr))

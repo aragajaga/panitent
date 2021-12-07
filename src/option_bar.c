@@ -31,6 +31,8 @@ static HTHEME hTheme = NULL;
 
 void BrushSel_OnCreate(HWND hwnd, LPCREATESTRUCT lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   hTheme = OpenThemeData(hwnd, L"ComboBox");
 }
 
@@ -89,16 +91,16 @@ void BrushSel_OnPaint(HWND hwnd)
     FillRect(hSampleDC, &rc, GetStockObject(WHITE_BRUSH));
 
     int offset = (24 - brushSize) / 2;
-    uint32_t *pBuffer = buffer + offset * 24 + offset;
+    uint32_t *pBuffer = buffer + (size_t)offset * 24 + (size_t)offset;
     for (int y = 0; y < brushSize; y++)
     {
       for (int x = 0; x < brushSize; x++)
       {
         pBuffer[y * brushSize + x] = mix(0xFFFFFFFF,
-            *((uint32_t*)tex->buffer + y * tex->width + x));
+            *((uint32_t*)tex->buffer + (size_t)y * (size_t)tex->width + (size_t)x));
       }
 
-      pBuffer += (24 - brushSize - offset) + offset;
+      pBuffer += (24 - (size_t)brushSize - (size_t)offset) + (size_t)offset;
     }
 
     /* As we copyed we doesn't need brush object and texture anymore */
@@ -123,7 +125,7 @@ void BrushSel_OnPaint(HWND hwnd)
   hOldObj = SelectObject(hdc, hFont);
 
   WCHAR szBrushSize[4];
-  _itow(g_brushSize, szBrushSize, 10);
+  _itow_s(g_brushSize, szBrushSize, 4, 10);
 
   SIZE sText;
   GetTextExtentPoint32(hdc, szBrushSize, 2, &sText);
@@ -148,13 +150,18 @@ void BrushSel_OnPaint(HWND hwnd)
   EndPaint(hwnd, &ps);
 }
 
-void BrushSel_OnDestroy(HWND hwnd)
+void BrushSel_OnDestroy(HWND hWnd)
 {
+  UNREFERENCED_PARAMETER(hWnd);
+
   CloseThemeData(hTheme);
 }
 
 void BrushSel_OnLButtonDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_BRUSHPROP), hwnd,
       (DLGPROC)BrushProp_DlgProc);
 }
@@ -282,7 +289,7 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
     SetGuiFont(hComboThickness);
 
     WCHAR szThickness[4];
-    for (size_t i = 1; i <= 10; ++i)
+    for (int i = 1; i <= 10; ++i)
     {
       _itow_s(i, szThickness, 4, 10);
       ComboBox_AddString(hComboThickness, szThickness);
@@ -304,7 +311,7 @@ LRESULT CALLBACK OptionBar_WndProc(HWND hwnd, UINT message, WPARAM wparam,
     SetGuiFont(hedit);
     g_option_bar.textstring_handle = hedit;
 
-    HWND hBrushSel = CreateWindowEx(0, szBrushSelClass, NULL,
+    CreateWindowEx(0, szBrushSelClass, NULL,
         WS_BORDER | WS_CHILD | WS_VISIBLE,
         526, 0, 64, 24,
         hwnd, NULL, GetModuleHandle(NULL), NULL);
@@ -370,8 +377,8 @@ void DrawBrushPreview(HWND hwnd)
 
   for (int y = height; y--;)
   {
-    memcpy(data->pPvBuffer + y * width, ((uint32_t*)canvas->buffer) + y * width,
-        width * 4);
+    memcpy(data->pPvBuffer + (size_t)y * (size_t)width, ((uint32_t*)canvas->buffer) + (size_t)y * (size_t)width,
+        (size_t)width * 4);
   }
 }
 
@@ -385,6 +392,9 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     case WM_INITDIALOG:
       {
         BrushDlgData *data = malloc(sizeof(BrushDlgData));
+        if (!data)
+          return TRUE;
+
         ZeroMemory(data, sizeof(BrushDlgData));
         SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)data);
 
@@ -395,7 +405,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
         for (size_t i = 0; i < g_brushListLen; i++)
         {
           /* What 0 actually do? */
-          nItem = SendMessage(hList, LB_ADDSTRING, 0, (LPARAM)NULL);
+          nItem = (int)SendMessage(hList, LB_ADDSTRING, 0, (LPARAM)NULL);
           SendMessage(hList, LB_SETITEMDATA, (WPARAM)nItem,
               (LPARAM)&g_brushList[i]);
         }
@@ -454,7 +464,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
         case TB_PAGEDOWN:
         case TB_THUMBTRACK:
           {
-            DWORD dwPos = SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHSIZE),
+            DWORD dwPos = (DWORD)SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHSIZE),
                 TBM_GETPOS, 0, 0);
 
             g_brushSize = dwPos;
@@ -528,8 +538,8 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
               for (int y = height; y--;)
               {
-                memcpy(buffer + y * width, ((uint32_t*)canvas->buffer) + y *
-                      width, width * 4);
+                memcpy(buffer + (size_t)y * (size_t)width, ((uint32_t*)canvas->buffer) + (size_t)y *
+                      (size_t)width, (size_t)width * 4);
               }
 
               HDC hdcMem = CreateCompatibleDC(pdis->hDC);

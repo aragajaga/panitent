@@ -7,10 +7,10 @@ BOOL SettingsWindow_Register(HINSTANCE);
 int ShowSettingsWindow(HWND hwnd);
 
 typedef struct _tagPNTSETTINGS {
-  DWORD x;
-  DWORD y;
-  DWORD width;
-  DWORD height;
+  int x;
+  int y;
+  int width;
+  int height;
   BOOL bRememberWindowPos;
   BOOL bLegacyFileDialogs;
   BOOL bEnablePenTablet;

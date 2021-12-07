@@ -24,10 +24,17 @@ BOOL LoadWintab()
   assert(pfnWTOpenW);
   */
 
+#ifdef __GNUC__
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wcast-function-type"
+#endif  /* ifdef __GNUC__ */
+
   gpWTInfoW = (WTINFOW)GetProcAddress(hWintab, "WTInfoW");
+
+#ifdef __GNUC__
 #pragma GCC diagnostic pop
+#endif  /* ifdef __GNUC__ */
+
   assert(gpWTInfoW);
 
   WCHAR szTabletName[50] = { 0 };

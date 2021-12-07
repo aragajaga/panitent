@@ -13,7 +13,7 @@
 extern const WCHAR szAppName[];
 
 extern binary_tree_t* viewportNode;
-extern binary_tree_t* root;
+extern binary_tree_t* g_pRoot;
 
 BOOL Document_IsFilePathSet(Document* doc)
 {
@@ -22,13 +22,23 @@ BOOL Document_IsFilePathSet(Document* doc)
 
 void Document_OpenFile(LPWSTR pszPath)
 {
+  /*
   BOOL bResult;
+  */
   Viewport* viewport;
 
   ImageBuffer ib = ImageFileReader(pszPath);
   
   Document* doc = calloc(1, sizeof(Document));
+  if (!doc)
+    return;
+
   doc->history = calloc(1, sizeof(History));
+  if (!doc->history)
+  {
+    free(doc);
+    return;
+  }
 
   HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
   doc->history->peak = initialRecord;
@@ -42,8 +52,9 @@ void Document_OpenFile(LPWSTR pszPath)
 
 void Document_Open(Document* prevDoc)
 {
+  UNREFERENCED_PARAMETER(prevDoc);
+
   BOOL bResult;
-  Viewport* viewport;
   LPWSTR pszPath;
   WCHAR szPath[256] = { 0 };
 
@@ -140,11 +151,19 @@ Document* Document_New(int width, int height)
     Panitent_SetActiveViewport(viewport);
 
     viewportNode->hwnd = hViewport;
-    DockNode_arrange(root);
+    DockNode_arrange(g_pRoot);
   }
 
   Document* doc = calloc(1, sizeof(Document));
+  if (!doc)
+    return NULL;
+
   doc->history = calloc(1, sizeof(History));
+  if (!doc->history)
+  {
+    free(doc);
+    return NULL;
+  }
 
   HistoryRecord *initialRecord = calloc(1, sizeof(HistoryRecord));
   doc->history->peak = initialRecord;

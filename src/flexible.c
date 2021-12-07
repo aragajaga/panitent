@@ -35,6 +35,9 @@ static inline LAYOUTBOXCONTENT LayoutBoxContentFromGroup(GROUPBOX *pGroupBox)
 void CreateLayoutBox(PLAYOUTBOX* pLayoutBox, HWND hWnd)
 {
   *pLayoutBox = (PLAYOUTBOX) malloc(sizeof(LAYOUTBOX));
+  if (!*pLayoutBox)
+    return;
+
   ZeroMemory(*pLayoutBox, sizeof(LAYOUTBOX));
 
   (*pLayoutBox)->hContainer = hWnd;
@@ -70,10 +73,10 @@ void LayoutBox_SetSize(PLAYOUTBOX pLayoutBox, UINT uWidth, UINT uHeight)
 
 PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
 {
-  static GROUPBOXCAPTIONSTYLE g_captionStyle;
-  static BOOL g_bLoaded;
+  static GROUPBOXCAPTIONSTYLE s_captionStyle;
+  static BOOL s_bLoaded;
 
-  if (!g_bLoaded)
+  if (!s_bLoaded)
   {
     HFONT hSysFont = GetStockObject(DEFAULT_GUI_FONT);
 
@@ -92,21 +95,23 @@ PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
     captionFill.data.gradient.dwColorEnd = RGB(255, 0, 0);
     captionFill.data.gradient.uDirection = GRADIENT_FILL_RECT_H;
 
-    g_captionStyle.hFont = hFont;
-    g_captionStyle.uHeight = 24;
-    g_captionStyle.dwTextColor = RGB(255, 255, 255);
-    g_captionStyle.captionBkgFill = captionFill;
+    s_captionStyle.hFont = hFont;
+    s_captionStyle.uHeight = 24;
+    s_captionStyle.dwTextColor = RGB(255, 255, 255);
+    s_captionStyle.captionBkgFill = captionFill;
 
-    g_bLoaded = TRUE;
+    s_bLoaded = TRUE;
   }
 
-  return &g_captionStyle;
+  return &s_captionStyle;
 }
 
 void CreateGroupBox(PGROUPBOX *pGroupBox)
 {
-  LAYOUTBOXCONTENT pContent;
   *pGroupBox = (PGROUPBOX) malloc(sizeof(GROUPBOX));
+  if (!*pGroupBox)
+    return;
+
   ZeroMemory(*pGroupBox, sizeof(GROUPBOX));
 
   (*pGroupBox)->pCaptionStyle = GroupBox_GetGlobalStyle();
@@ -144,8 +149,8 @@ void GroupBox_Update(PGROUPBOX pGroupBox)
     rcElement = pLayoutBox->rc;
   }
   else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
-    GROUPBOX *pGroupBox = pContent->data.pGroup;
-    rcElement = pGroupBox->rc;
+    GROUPBOX *pGroupBoxInner = pContent->data.pGroup;
+    rcElement = pGroupBoxInner->rc;
   }
   else {
     assert(FALSE);
@@ -404,11 +409,11 @@ void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
 
     HFONT hOldFont = SelectObject(hDC, hFontBold);
 
-    RECT rcCaption = *rc;
-    rcCaption.top += 2;
-    rcCaption.left += 7;
-    rcCaption.right -= 7;
-    rcCaption.bottom = rcCaption.top + pCaptionStyle->uHeight;
+    RECT rcGroupCaption = *rc;
+    rcGroupCaption.top += 2;
+    rcGroupCaption.left += 7;
+    rcGroupCaption.right -= 7;
+    rcGroupCaption.bottom = rcGroupCaption.top + pCaptionStyle->uHeight;
 
     size_t len = wcslen(pGroupBox->lpszCaption);
     SetBkMode(hDC, TRANSPARENT);
@@ -418,7 +423,7 @@ void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
     WCHAR szCaption[80] = { 0 };
     StringCchCopy(szCaption, 80, pGroupBox->lpszCaption);
 
-    DrawText(hDC, szCaption, len, &rcCaption, DT_SINGLELINE | DT_MODIFYSTRING |
+    DrawText(hDC, szCaption, (int)len, &rcGroupCaption, DT_SINGLELINE | DT_MODIFYSTRING |
         DT_END_ELLIPSIS | DT_VCENTER | DT_TOP);
 
     SelectObject(hDC, hOldFont);

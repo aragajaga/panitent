@@ -32,7 +32,7 @@ void Brush_SetSize(Brush** brush, int size);
 
 extern BrushBuilder g_brushList[80];
 extern size_t g_brushListLen;
-extern size_t g_brushSize;
+extern int g_brushSize;
 
 extern BrushBuilder* g_pBrush;
 
