@@ -18,6 +18,12 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
   UINT uWidth = ib.width;
   UINT uHeight = ib.height;
 
+  IWICImagingFactory* pFactory = NULL;
+  IWICStream* pStream = NULL;
+  IWICBitmapEncoder* pEncoder = NULL;
+  IWICBitmapFrameEncode* pBitmapFrame = NULL;
+  WICPixelFormatGUID formatGUID = GUID_WICPixelFormat32bppBGRA;
+
   hr = CoInitialize(NULL);
   if (FAILED(hr))
   {
@@ -26,7 +32,6 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
     goto fail;
   }
 
-  IWICImagingFactory* pFactory = NULL;
   hr = CoCreateInstance(&CLSID_WICImagingFactory, NULL, CLSCTX_INPROC_SERVER,
       &IID_IWICImagingFactory, (LPVOID)&pFactory);
   if (FAILED(hr))
@@ -36,7 +41,6 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
     goto fail;
   }
 
-  IWICStream* pStream = NULL;
   hr = pFactory->lpVtbl->CreateStream(pFactory, &pStream);
   if (FAILED(hr))
   {
@@ -54,7 +58,6 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
     goto fail;
   }
 
-  IWICBitmapEncoder* pEncoder = NULL;
   hr = pFactory->lpVtbl->CreateEncoder(pFactory, &GUID_ContainerFormatPng,
       NULL, &pEncoder);
   if (FAILED(hr))
@@ -72,7 +75,6 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
     goto fail;
   }
 
-  IWICBitmapFrameEncode* pBitmapFrame = NULL;
   /* IPropertyBag2* pPropertyBag = NULL; */
   hr = pEncoder->lpVtbl->CreateNewFrame(pEncoder, &pBitmapFrame, NULL /* &pPropertyBag */);
   if (FAILED(hr))
@@ -139,7 +141,6 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
     goto fail;
   }
 
-  WICPixelFormatGUID formatGUID = GUID_WICPixelFormat32bppBGRA;
   hr = pBitmapFrame->lpVtbl->SetPixelFormat(pBitmapFrame, &formatGUID);
   if (FAILED(hr))
   {
@@ -170,7 +171,7 @@ void ImageFileWriter(LPWSTR szFilePath, ImageBuffer ib)
 
   WCHAR szImageInfo[80];
   StringCchPrintf(szImageInfo, 80, L"W: %d\nH: %d\nSize: %d\nBufsize: %d",
-      uWidth, uHeight, ib.size, cbBufferSize);
+      uWidth, uHeight, (int)ib.size, cbBufferSize);
   MessageBox(NULL, szImageInfo, L"Info", MB_OK);
 
   hr = pBitmapFrame->lpVtbl->Commit(pBitmapFrame);

@@ -153,13 +153,18 @@ BOOL SettingsWindow_Register(HINSTANCE hInstance)
 
 static void OnCreate(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
-  g_hSettingsWindow = hWnd;
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
 
+  g_hSettingsWindow = hWnd;
   InitSettingsWindow(hWnd);
 }
 
 static void OnSize(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(hWnd);
+  UNREFERENCED_PARAMETER(wParam);
+
   UINT width  = GET_X_LPARAM(lParam);
   UINT height = GET_Y_LPARAM(lParam);
 
@@ -192,12 +197,24 @@ static void OnSize(HWND hWnd, WPARAM wParam, LPARAM lParam)
 
 static void OnDestroy(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(hWnd);
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   g_hSettingsWindow = NULL;
 }
 
 static void OnNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(hWnd);
+  UNREFERENCED_PARAMETER(wParam);
+
   LPNMHDR pNm = (LPNMHDR)lParam;
+
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 26454)
+#endif  /* _MSC_VER */
 
   /* At now we expect only tab changing messages */
   if (pNm->hwndFrom == hTabControl &&
@@ -205,6 +222,9 @@ static void OnNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
   {
     return;
   }
+#ifdef _MSC_VER
+#pragma warning( pop )
+#endif  /* _MSC_VER */
 
   UINT tabId = TabCtrl_GetCurSel(hTabControl);
 
@@ -223,6 +243,8 @@ static void OnNotify(HWND hWnd, WPARAM wParam, LPARAM lParam)
 
 static void OnCommand(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   if (LOWORD(wParam) == IDOK &&
       HIWORD(wParam) == BN_CLICKED)
   {
@@ -232,6 +254,9 @@ static void OnCommand(HWND hWnd, WPARAM wParam, LPARAM lParam)
 
 static void OnGetMinMaxInfo(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(hWnd);
+  UNREFERENCED_PARAMETER(wParam);
+
   RECT rc   = {0};
   rc.right  = 640;
   rc.bottom = 480;
@@ -271,7 +296,6 @@ int ShowSettingsWindow1(HWND hParent)
 
 int ShowSettingsWindow(HWND hParent)
 {
-  BOOL bResult;
   HINSTANCE hInstance;
   RECT rc;
 
@@ -410,13 +434,18 @@ void register_event_handler(int id, void (*callback)(WPARAM wParam,
    * if modulo 16 of capacity is zero, that means there no more space
    * left for the new entry.
    */
+
+  struct callback_entry **entries = g_handlers.entries;
   if (g_handlers.size >= *cap) {
     size_t new_cap     = (*cap / 16 + 1) * 16;
-    g_handlers.entries = realloc(g_handlers.entries, new_cap);
+    g_handlers.entries = realloc(entries, new_cap);
     *cap               = new_cap;
   }
 
   struct callback_entry* e = calloc(1, sizeof(struct callback_entry));
+  if (!e)
+    return;
+
   e->id                    = id;
   e->callback              = callback;
   g_handlers.entries[g_handlers.size++] = e;
@@ -446,11 +475,12 @@ void rlist_add(struct rlist* list, HWND hWnd)
 
   if (list->size >= *cap) {
     size_t new_cap = (*cap / 16 + 1) * 16;
-    list->array    = realloc(list->array, new_cap);
+    HWND* array = list->array;
+    list->array    = realloc(array, new_cap);
     *cap           = new_cap;
   }
 
-  SetWindowPos(hWnd, 0, 10, 10 + 20 * list->size++, 0, 0, SWP_NOSIZE);
+  SetWindowPos(hWnd, 0, 10, 10 + 20 * (int)(list->size++), 0, 0, SWP_NOSIZE);
 }
 
 void alloc_handlers_vault()
@@ -526,7 +556,6 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
       HWND hYEdit;
       HWND hWidthEdit;
       HWND hHeightEdit;
-      HWND hWndTemp;
       HWND hWndGrpAppFrame;
 
       hWndGrpAppFrame = CreateWindowEx(0, WC_BUTTON, L"Application Frame", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
@@ -576,8 +605,8 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
       ComboBox_AddString(hYEdit, szSpecValueLabel);
       ComboBox_AddString(hYEdit, szUseDefaultLabel);
 
-      if (pSettings->x == (DWORD)CW_USEDEFAULT ||
-          pSettings->y == (DWORD)CW_USEDEFAULT) {
+      if (pSettings->x == CW_USEDEFAULT ||
+          pSettings->y == CW_USEDEFAULT) {
         ComboBox_SetCurSel(hXEdit, 1);
         ComboBox_SetCurSel(hYEdit, -1);
         EnableWindow(hYEdit, FALSE);
@@ -589,8 +618,8 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
         SetWindowText(hYEdit, szTemp);
       }
 
-      if (pSettings->width == (DWORD)CW_USEDEFAULT ||
-          pSettings->height == (DWORD)CW_USEDEFAULT) {
+      if (pSettings->width == CW_USEDEFAULT ||
+          pSettings->height == CW_USEDEFAULT) {
         ComboBox_SetCurSel(hWidthEdit, 1);
         ComboBox_SetCurSel(hHeightEdit, -1);
         EnableWindow(hHeightEdit, FALSE);

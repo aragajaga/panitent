@@ -25,7 +25,7 @@ dock_window_t g_dock_window;
 
 dock_side_e g_dock_side;
 dock_side_e eSuggest;
-binary_tree_t* root;
+binary_tree_t* g_pRoot;
 
 void Dock_DestroyInner(binary_tree_t* node)
 {
@@ -93,27 +93,33 @@ binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
 
   binary_tree_t* node1 = calloc(1, sizeof(binary_tree_t));
   binary_tree_t* node2 = calloc(1, sizeof(binary_tree_t));
-  node2->bShowCaption  = TRUE;
-  node2->lpszCaption   = L"Palette";
+  if (node1 && node2)
+  {
+    node2->bShowCaption = TRUE;
+    node2->lpszCaption = L"Palette";
 
-  node1->posFixedGrip = 64;
-  node1->gripAlign    = GRIP_ALIGN_START;
-  /* TODO Use significant bit */
-  node1->gripPosType = GRIP_POS_ABSOLUTE;
-  node1->lpszCaption = L"Working Area";
+    node1->posFixedGrip = 64;
+    node1->gripAlign = GRIP_ALIGN_START;
+    /* TODO Use significant bit */
+    node1->gripPosType = GRIP_POS_ABSOLUTE;
+    node1->lpszCaption = L"Working Area";
 
-  binary_tree_t* subnode1 = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* subnode2 = calloc(1, sizeof(binary_tree_t));
-  subnode1->bShowCaption  = TRUE;
-  subnode1->lpszCaption   = L"Tools";
-  subnode1->hwnd          = hButton;
-  subnode2->bShowCaption  = TRUE;
-  subnode2->lpszCaption   = L"Untitled-1";
-  node1->node1            = subnode1;
-  node1->node2            = subnode2;
+    binary_tree_t* subnode1 = calloc(1, sizeof(binary_tree_t));
+    binary_tree_t* subnode2 = calloc(1, sizeof(binary_tree_t));
+    if (subnode1 && subnode2)
+    {
+      subnode1->bShowCaption = TRUE;
+      subnode1->lpszCaption = L"Tools";
+      subnode1->hwnd = hButton;
+      subnode2->bShowCaption = TRUE;
+      subnode2->lpszCaption = L"Untitled-1";
+      node1->node1 = subnode1;
+      node1->node2 = subnode2;
 
-  parent->node1 = node1;
-  parent->node2 = node2;
+      parent->node1 = node1;
+      parent->node2 = node2;
+    }
+  }
 
   return NULL;
 }
@@ -224,7 +230,12 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
     SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
 
     size_t chCount = 0;
-    StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
+    HRESULT hr = StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+      return;
+    }
 
     HBITMAP hbmCloseBtn = LoadBitmap(GetModuleHandle(NULL),
         MAKEINTRESOURCE(IDB_CLOSEBTN));
@@ -240,7 +251,7 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
             rc->left + iBorderWidth + 4,
             rc->top + iBorderWidth,
             parent->lpszCaption,
-            chCount);
+            (int)chCount);
 
     SelectObject(hDC, hGdiPrevObj);
 
@@ -473,11 +484,11 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
     int width  = LOWORD(lParam);
     int height = HIWORD(lParam);
 
-    if (root) {
+    if (g_pRoot) {
       RECT rcRoot = {0, 0, width, height};
-      root->rc    = rcRoot;
+      g_pRoot->rc    = rcRoot;
 
-      DockNode_arrange(root);
+      DockNode_arrange(g_pRoot);
     }
 
     if (g_dock_window.fDock) {
@@ -489,10 +500,10 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
     PAINTSTRUCT ps = {0};
     HDC hDC        = BeginPaint(hWnd, &ps);
 
-    RECT rc = g_dock_window.rc;
+    /* RECT rc = g_dock_window.rc; */
 
-    if (root) {
-      DockNode_paint(root, hDC);
+    if (g_pRoot) {
+      DockNode_paint(g_pRoot, hDC);
     }
 
     /*
@@ -603,10 +614,10 @@ LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
     signed short x = GET_X_LPARAM(lParam);
     signed short y = GET_Y_LPARAM(lParam);
 
-    if (root) {
-      binary_tree_t* t = Dock_CloseButtonHitTest(root, x, y);
+    if (g_pRoot) {
+      binary_tree_t* t = Dock_CloseButtonHitTest(g_pRoot, x, y);
       if (t) {
-        Dock_DestroyInclusive(root, t);
+        Dock_DestroyInclusive(g_pRoot, t);
         InvalidateRect(hWnd, NULL, TRUE);
       }
     }

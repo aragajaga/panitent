@@ -74,9 +74,14 @@ enum {
   IDM_HELP_ABOUT
 };
 
+#ifdef _MSC_VER
+#pragma warning( push )
+#pragma warning( disable : 28251 )
+#endif  /* _MSC_VER */
+
 /* Entry point for application */
-int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-    LPWSTR lpCmdLine, int nCmdShow)
+int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+  LPWSTR lpCmdLine, int nCmdShow)
 {
   UNREFERENCED_PARAMETER(hPrevInstance);
 
@@ -172,15 +177,18 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   PathAppend(szSettingsPath, L"\\settings.dat");
 
   FILE *fp;
-  fp = _wfopen(szSettingsPath, L"rb");
-  assert(fp);
-  fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
-  fclose(fp);
+  errno_t result = _wfopen_s(&fp, szSettingsPath, L"rb");
+  assert(result);
+  if (result && fp)
+  {
+    fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    fclose(fp);
+  }
 
-  DWORD windowX = CW_USEDEFAULT;
-  DWORD windowY = 0;
-  DWORD windowWidth = CW_USEDEFAULT;
-  DWORD windowHeight = 0;
+  int windowX = CW_USEDEFAULT;
+  int windowY = 0;
+  int windowWidth = CW_USEDEFAULT;
+  int windowHeight = 0;
 
   if (pSettings->bRememberWindowPos)
   {
@@ -222,10 +230,14 @@ int APIENTRY wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   return (int)msg.wParam;
 }
 
+#ifdef _MSCVER
+#pragma warning( pop )
+#endif  /* _MSC_VER */
+
 void Panitent_OnClose(HWND hWnd)
 {
   PNTSETTINGS* pSettings = NULL;
-  RECT rc = {0};
+  RECT rc = { 0 };
 
   pSettings = Panitent_GetSettings();
   assert(pSettings);
@@ -234,8 +246,8 @@ void Panitent_OnClose(HWND hWnd)
 
   if (pSettings->bRememberWindowPos)
   {
-    if (pSettings->x == (DWORD)CW_USEDEFAULT ||
-        pSettings->y == (DWORD)CW_USEDEFAULT)
+    if (pSettings->x == CW_USEDEFAULT ||
+      pSettings->y == CW_USEDEFAULT)
     {
       pSettings->x = CW_USEDEFAULT;
       pSettings->y = 0;
@@ -245,23 +257,27 @@ void Panitent_OnClose(HWND hWnd)
       pSettings->y = rc.top;
     }
 
-    if (pSettings->width == (DWORD)CW_USEDEFAULT ||
-        pSettings->height == (DWORD)CW_USEDEFAULT)
+    if (pSettings->width == CW_USEDEFAULT ||
+      pSettings->height == CW_USEDEFAULT)
     {
       pSettings->width = CW_USEDEFAULT;
       pSettings->height = 0;
     }
     else {
       pSettings->width = rc.right - rc.left;
-      pSettings->height= rc.bottom - rc.top;
+      pSettings->height = rc.bottom - rc.top;
     }
   }
 
-  FILE *fp = NULL;
-  fp = fopen("settings.dat", "wb");
-  fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
-  fclose(fp);
-
+  FILE* fp = NULL;
+  errno_t result = _wfopen_s(&fp, L"settings.dat", L"wb");
+  assert(result == 0 && fp);
+  if (result == 0 && fp)
+  {
+    fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    fclose(fp);
+  }
+  
   PostQuitMessage(0);
 }
 
@@ -271,11 +287,14 @@ void Panitent_OnCreate(HWND hWnd) {
 
   RECT rcDockHost = {0};
   GetClientRect(hwndDockHost, &rcDockHost);
-  root = calloc(1, sizeof(binary_tree_t));
-  root->lpszCaption = L"Root";
-  root->rc = rcDockHost;
+  g_pRoot = calloc(1, sizeof(binary_tree_t));
+  if (!g_pRoot)
+    return;
 
-  Panitent_DockHostInit(hwndDockHost, root);
+  g_pRoot->lpszCaption = L"Root";
+  g_pRoot->rc = rcDockHost;
+
+  Panitent_DockHostInit(hwndDockHost, g_pRoot);
 }
 
 /* Main window message handling procedure */
@@ -356,7 +375,6 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
       Panitent_OnClose(hWnd);
       PostQuitMessage(0);
       return 0;
-
     }
 
   return DefWindowProc(hWnd, message, wParam, lParam);
@@ -449,7 +467,17 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
   parent->splitDirection = SPLIT_DIRECTION_VERTICAL;
 
   binary_tree_t* nodeOptionBar = calloc(1, sizeof(binary_tree_t));
+  if (!nodeOptionBar)
+  {
+    return;
+  }
+
   binary_tree_t* nodeZ = calloc(1, sizeof(binary_tree_t));
+  if (!nodeZ)
+  {
+    free(nodeOptionBar);
+    return;
+  }
 
   hwndOptionBar = CreateWindowEx(WS_EX_TOOLWINDOW, L"Win32Class_OptionBar",
       L"Option Bar",
@@ -478,7 +506,12 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 
   /* Working Area */
   binary_tree_t* nodeY = calloc(1, sizeof(binary_tree_t));
+  if (!nodeY)
+    return;
+
   binary_tree_t* nodePalette = calloc(1, sizeof(binary_tree_t));
+  if (!nodePalette)
+    return;
 
   nodeY->posFixedGrip = 64;
   nodeY->gripAlign    = GRIP_ALIGN_START;
@@ -495,7 +528,12 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 
   /* Toolbox and viewport split */
   binary_tree_t* nodeToolbox = calloc(1, sizeof(binary_tree_t));
+  if (!nodeToolbox)
+    return;
+
   binary_tree_t* nodeViewport = calloc(1, sizeof(binary_tree_t));
+  if (!nodeViewport)
+    return;
 
   hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLBOX_WC, L"Tools",
       WS_VISIBLE | WS_CHILD,
@@ -524,6 +562,8 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   switch (message)
   {
     case WM_INITDIALOG:
@@ -667,7 +707,7 @@ Viewport* Panitent_CreateViewport()
     Panitent_SetActiveViewport(pViewport);
 
     viewportNode->hwnd = hWndViewport;
-    DockNode_arrange(root);
+    DockNode_arrange(g_pRoot);
   }
 
   return pViewport;

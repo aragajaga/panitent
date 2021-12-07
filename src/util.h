@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <math.h>
 
 #define DEFAULT_CAPACITY 16
 
@@ -84,5 +85,20 @@ typedef PNTSTRING(char) pntstr_t;
   \
   ARRLEN(pstr); \
 })
+
+inline int __float2int_s_check_safecast(float val)
+{
+  return isfinite(val) && val >= INT_MIN && val <= INT_MAX;
+}
+
+inline int float2int_s(int* i, float val)
+{
+  int bsafe = __float2int_s_check_safecast(val);
+
+  assert(bsafe && L"float2int_s: Can't cast to int");
+
+  *i = bsafe ? (int)val : 0;
+  return bsafe;
+}
 
 #endif  /* PANITENT_UTIL_H_ */

@@ -31,7 +31,18 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd,
     cc.rgbResult    = RGB(255, 0, 0);
     cc.lpfnHook     = NULL;
     BOOL bResult    = ChooseColor(&cc);
-    assert(bResult);
+    if (!bResult)
+    {
+      DWORD dwError = CommDlgExtendedError();
+      assert(!dwError);
+      if (dwError)
+      {
+        WCHAR szMessage[256] = { 0 };
+        StringCchPrintf(szMessage, 256, L"CommDlg Error: 0x%08x", dwError);
+        MessageBox(hWnd, szMessage, NULL, MB_OK | MB_ICONERROR);
+        return TRUE;
+      }
+    }
   }
     return TRUE;
     break;

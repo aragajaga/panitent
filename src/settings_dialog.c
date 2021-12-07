@@ -208,10 +208,15 @@ void InitSettingsDialogLayout(PLAYOUTBOX pLayoutBox, HWND hParent)
 
 void SettingsDialog_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
 {
+  UNREFERENCED_PARAMETER(lpcs);
+
   PSETTINGSDIALOGDATA pData;
   PLAYOUTBOX pLayoutBox;
  
   pData = (PSETTINGSDIALOGDATA) malloc(sizeof(SETTINGSDIALOGDATA));
+  if (!pData)
+    return;
+
   ZeroMemory(pData, sizeof(SETTINGSDIALOGDATA));
 
   SetWindowLongPtr(hWnd, 0, (LONG_PTR) pData);

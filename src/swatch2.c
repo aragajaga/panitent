@@ -10,6 +10,8 @@ WCHAR szSwatchClass[] = L"Win32Class_SwatchControl2";
 
 static void OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 {
+  UNREFERENCED_PARAMETER(lpcs);
+
   SwatchControlData *data = calloc(1, sizeof(SwatchControlData));
   assert(data);
 

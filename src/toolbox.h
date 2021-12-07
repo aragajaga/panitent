@@ -13,7 +13,7 @@ typedef struct _Toolbox {
   HWND hwnd;
 } Toolbox;
 
-BOOL Toolbox_RegisterClass();
+BOOL Toolbox_RegisterClass(HINSTANCE);
 void Toolbox_UnregisterClass();
 
 #endif /* PANITENT_TOOLBOX_H */

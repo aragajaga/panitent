@@ -15,7 +15,7 @@ typedef struct _Brush {
 BrushBuilder g_brushList[80];
 BrushBuilder* g_pBrush;
 size_t g_brushListLen;
-size_t g_brushSize;
+int g_brushSize;
 
 Brush* PointBrushBuilder_Build(BrushBuilder* builder, int size);
 Brush* CircleBrushBuilder_Build(BrushBuilder* builder, int size);
@@ -76,7 +76,7 @@ void Brush_SetBuilder(Brush* brush, BrushBuilder* builder)
 
 float euclidean_distance(float px, float py)
 {
-  return 1.f - min(sqrt(pow(px, 2) + pow(py, 2)), 1.f);
+  return 1.f - min(sqrtf(powf(px, 2.f) + powf(py, 2.f)), 1.f);
 }
 
 Brush* Brush_Create(Canvas* tex)
@@ -86,14 +86,19 @@ Brush* Brush_Create(Canvas* tex)
     return NULL;
 
   Brush *brush = calloc(1, sizeof(Brush));
-  brush->distance = 0.25;
-  brush->tex = tex;
+  if (brush)
+  {
+    brush->distance = 0.25;
+    brush->tex = tex;
+  }
 
   return brush;
 }
 
 Brush* TextureBrushBuilder_Build(BrushBuilder* builder, int size)
 {
+  UNREFERENCED_PARAMETER(size);
+
   Canvas* tex = (Canvas*)builder->userData;
   Brush* brush = Brush_Create(tex);
   Brush_SetBuilder(brush, builder);
@@ -167,14 +172,13 @@ void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
   int signx = sign(x1 - x0);
   int signy = sign(y1 - y0);
 
-
   if (dy > dx)
   {
     float slope = dx/(float)dy;
 
     for (int i = 0; i < dy; i++)
     {
-      Brush_Draw(brush, x0 + i * slope * signx, y0 + i * signy, target, color);
+      Brush_Draw(brush, x0 + (int)roundf((float)i * slope * (float)signx), y0 + i * signy, target, color);
     }
   }
   else {
@@ -182,7 +186,7 @@ void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
 
     for (int i = 0; i < dx; i++)
     {
-      Brush_Draw(brush, x0 + i * signx, y0 + i * slope * signy, target, color);
+      Brush_Draw(brush, x0 + i * signx, y0 + (int)roundf((float)i * slope * (float)signy), target, color);
     }
   }
 }
@@ -209,7 +213,7 @@ Canvas* Brush_GetTexture(Brush* brush)
 inline static int BezierGetPt(int n1, int n2, float perc)
 {
   int diff = n2 - n1;
-  return n1 + (diff * perc);
+  return n1 + (int)((float)diff * perc);
 }
 
 void Brush_BezierCurve(Brush* brush, Canvas* canvas,
@@ -249,12 +253,19 @@ void Brush_BezierCurve2(Brush* brush, Canvas* canvas,
 {
   for (float u = 0.f; u <= 1.f; u += 0.01f)
   {
-    float xu = pow(1 - u, 3) * x0 + 3 * u * pow(1 - u, 2) * x1 + 3 * pow(u, 2) *
-      (1 - u) * x2 + pow(u, 3) * x3;
-    float yu = pow(1 - u, 3) * y0 + 3 * u * pow(1 - u, 2) * y1 + 3 * pow(u, 2) *
-      (1 - u) * y2 + pow(u, 3) * y3;
+    float xu =
+      powf(1.f - u, 3.f) * (float)x0 + 3.f * u *
+      powf(1.f - u, 2.f) * (float)x1 + 3.f *
+      powf(u, 2.f) * (1.f - u) * (float)x2 +
+      powf(u, 3.f) * (float)x3;
 
-    Brush_Draw(brush, xu, yu, canvas, color);
+    float yu =
+      powf(1.f - u, 3.f) * (float)y0 + 3.f * u *
+      powf(1.f - u, 2.f) * (float)y1 + 3.f *
+      powf(u, 2.f) * (1.f - u) * (float)y2 +
+      powf(u, 3.f) * (float)y3;
+
+    Brush_Draw(brush, (int)xu, (int)yu, canvas, color);
   }
 }
 
