@@ -60,6 +60,7 @@ enum {
   IDM_FILE_NEW = 1001,
   IDM_FILE_OPEN,
   IDM_FILE_SAVE,
+  IDM_FILE_CLIPBOARD_EXPORT,
   IDM_FILE_CLOSE,
 
   IDM_EDIT_UNDO,
@@ -331,6 +332,10 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
         case IDM_FILE_SAVE:
           Document_Save(Panitent_GetActiveViewport()->document);
+          break;
+
+        case IDM_FILE_CLIPBOARD_EXPORT:
+          Panitent_ClipboardExport();
           break;
 
         case IDM_FILE_CLOSE:
@@ -625,6 +630,7 @@ HMENU CreateMainMenu()
   AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New\tCtrl+N");
   AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open\tCtrl+O");
   AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save\tCtrl+S");
+  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLIPBOARD_EXPORT, L"Export image to clipboard");
   AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
   AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
 
@@ -711,4 +717,57 @@ Viewport* Panitent_CreateViewport()
   }
 
   return pViewport;
+}
+
+void Panitent_ClipboardExport() {
+  HWND hWndPanitent;
+  HGLOBAL hglbCopy;
+
+  hWndPanitent = Panitent_GetHWND();
+
+  if (!OpenClipboard(hWndPanitent)) {
+    return;
+  }
+  EmptyClipboard();
+
+  Document *doc = Panitent_GetActiveDocument();
+  if (!doc)
+    return;
+
+  Canvas *canvas = Document_GetCanvas(doc);
+  if (!canvas)
+    return;
+
+  unsigned char *pData = malloc(canvas->buffer_size);
+  if (!pData)
+    return;
+
+  ZeroMemory(pData, canvas->buffer_size);
+  memcpy(pData, canvas->buffer, canvas->buffer_size);
+
+  for (size_t y = 0; y < (size_t) canvas->height; y++) {
+    for (size_t x = 0; x < (size_t) canvas->width; x++) {
+      uint8_t *pixel = pData + (x + y * canvas->width) * 4;
+
+      float factor = (float)(pixel[3]) / 255.f;
+
+      pixel[0] *= (uint8_t)factor;
+      pixel[1] *= (uint8_t)factor;
+      pixel[2] *= (uint8_t)factor;
+    }
+  }
+
+  HBITMAP hBitmap = CreateBitmap(canvas->width,
+      canvas->height, 1, sizeof(uint32_t) * 8, pData);
+
+  /*
+  hglbCopy = GlobalAlloc(GMEM_MOVEABLE, sizeof(HBITMAP));
+  if (!hglbCopy) {
+    CloseClipboard();
+    return;
+  }
+  */
+
+  SetClipboardData(CF_BITMAP, hBitmap);
+  CloseClipboard();
 }

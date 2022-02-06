@@ -34,5 +34,6 @@ PNTSETTINGS* Panitent_GetSettings();
 void Panitent_Open();
 void Panitent_OpenFile(LPWSTR);
 Viewport* Panitent_CreateViewport();
+void Panitent_ClipboardExport();
 
 #endif /* PANITENT_PANITENT_H */
