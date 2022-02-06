@@ -542,7 +542,7 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
 
   hwndToolbox = CreateWindowEx(WS_EX_TOOLWINDOW, TOOLBOX_WC, L"Tools",
       WS_VISIBLE | WS_CHILD,
-      0, 32, 64, 256,
+      0, 32, 128, 256,
       hWnd, NULL, GetModuleHandle(NULL), (LPVOID)&g_toolbox);
 
   nodeToolbox->lpszCaption  = L"Tool";

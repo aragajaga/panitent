@@ -13,6 +13,11 @@ typedef struct _Toolbox {
   HWND hwnd;
 } Toolbox;
 
+typedef struct _tagTOOLBOXICONTHEME {
+  LPWSTR lpszName;
+  LPWSTR lpszResource;
+} TOOLBOXICONTHEME, *PTOOLBOXICONTHEME;
+
 BOOL Toolbox_RegisterClass(HINSTANCE);
 void Toolbox_UnregisterClass();
 

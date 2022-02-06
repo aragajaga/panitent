@@ -3,10 +3,6 @@
 #include <uxtheme.h>
 #include <vsstyle.h>
 #include <vssym32.h>
-#include <math.h>
-#include <stdio.h>
-#include <assert.h>
-#include <windowsx.h>
 
 #include "primitives_context.h"
 #include "option_bar.h"
@@ -21,11 +17,13 @@
 #include "palette.h"
 #include "history.h"
 #include "panitent.h"
-#include <strsafe.h>
+#include "util.h"
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
 #include "crefptr.h"
 #endif
+
+#define IDM_TOOLBOXSETTINGS 101
 
 extern Tool g_tool;
 
@@ -68,6 +66,9 @@ void ToolFill_Init();
 void ToolPicker_Init();
 void ToolBrush_Init();
 
+INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
+    WPARAM wParam, LPARAM lParam);
+
 Tool g_tool_circle;
 Tool g_tool_line;
 Tool g_tool_pencil;
@@ -80,6 +81,9 @@ Tool g_tool_brush;
 
 static BOOL fDraw = FALSE;
 static POINT prev;
+
+PNTVECTOR(TOOLBOXICONTHEME) g_tBoxIconThemes;
+PTOOLBOXICONTHEME g_tBoxSelectedIconTheme;
 
 void Toolbox_AddTool(Toolbox* tbox, Tool tool)
 {
@@ -115,7 +119,7 @@ void Toolbox_Init(Toolbox* tbox)
   g_uToolSelected = 0;
 
   img_layout = (HBITMAP)LoadBitmap(GetModuleHandle(NULL),
-      MAKEINTRESOURCE(IDB_TOOLS));
+      MAKEINTRESOURCE(IDB_TOOLS24));
 
   tbox->tools      = calloc(sizeof(Tool), 16);
   tbox->tool_count = 0;
@@ -132,7 +136,7 @@ void Toolbox_Init(Toolbox* tbox)
 }
 
 HTHEME hTheme = NULL;
-int btnSize   = 24;
+int btnSize   = 32;
 int btnOffset = 4;
 
 enum {
@@ -218,7 +222,7 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
 
     int iBmp         = tbox->tools[(ptrdiff_t)i].img;
     const int offset = 4;
-#ifdef TOOLBAR_32BPP_ICONS
+
     BLENDFUNCTION blendFunc = {
       .BlendOp = AC_SRC_OVER,
       .BlendFlags = 0,
@@ -229,15 +233,15 @@ void Toolbox_DrawButtons(Toolbox* tbox, HDC hdc)
     AlphaBlend(hdc,
         x + offset,
         y + offset,
-        16,
+        24,
         bitmap.bmHeight,
         hdcMem,
-        16 * iBmp,
+        24 * iBmp,
         0,
-        16,
+        24,
         bitmap.bmHeight,
         blendFunc);
-#else
+#if 0
     TransparentBlt(hdc,
         x + offset,
         y + offset,
@@ -337,34 +341,73 @@ void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
   InvalidateRect(tbox->hwnd, NULL, TRUE);
 }
 
+void Toolbox_OnContextMenu(HWND hWnd, WPARAM wParam, LPARAM lParam)
+{
+  int x = GET_X_LPARAM(lParam);
+  int y = GET_Y_LPARAM(lParam);
+
+  HMENU hMenu;
+
+  hMenu = CreatePopupMenu();
+  InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING, IDM_TOOLBOXSETTINGS,
+      L"Settings");
+  TrackPopupMenu(hMenu, TPM_TOPALIGN | TPM_LEFTALIGN, x, y, 0, hWnd, NULL);
+}
+
+static inline void Toolbox_OpenSettings(HWND hParent)
+{
+  DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_TOOLBOXSETTINGS),
+      hParent, (DLGPROC)ToolboxSettingsDlgProc);
+}
+
 LRESULT CALLBACK Toolbox_WndProc(HWND hwnd, UINT msg, WPARAM wParam,
     LPARAM lParam)
 {
   switch (msg) {
-  case WM_CREATE:
-  {
-    LPCREATESTRUCT cs = (LPCREATESTRUCT)lParam;
+    case WM_CREATE:
+      {
+        LPCREATESTRUCT cs = (LPCREATESTRUCT)lParam;
 
-    Toolbox* tbox   = (Toolbox*)cs->lpCreateParams;
-    tbox->hwnd        = hwnd;
-    SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)tbox);
+        Toolbox* tbox   = (Toolbox*)cs->lpCreateParams;
+        tbox->hwnd        = hwnd;
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)tbox);
 
-    Toolbox_Init(tbox);
-  } break;
-  case WM_PAINT:
-  {
-    Toolbox* tbox = (Toolbox*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-    if (tbox) {
-      Toolbox_OnPaint(tbox);
+        Toolbox_Init(tbox);
+      }
+      break;
+
+    case WM_PAINT:
+      {
+        Toolbox* tbox = (Toolbox*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
+        if (tbox) {
+          Toolbox_OnPaint(tbox);
+        }
+      }
+      break;
+
+    case WM_LBUTTONUP:
+      {
+        Toolbox_OnLButtonUp(hwnd, wParam, lParam);
+      }
+      break;
+
+    case WM_CONTEXTMENU:
+      Toolbox_OnContextMenu(hwnd, wParam, lParam);
+      break;
+
+    case WM_COMMAND:
+      switch (LOWORD(wParam))
+      {
+        case IDM_TOOLBOXSETTINGS:
+          if (HIWORD(wParam) == BN_CLICKED)
+            Toolbox_OpenSettings(hwnd);
+          break;
+      }
+      break;
+
+    default:
+      return DefWindowProc(hwnd, msg, wParam, lParam);
     }
-  } break;
-  case WM_LBUTTONUP:
-  {
-    Toolbox_OnLButtonUp(hwnd, wParam, lParam);
-  } break;
-  default:
-    return DefWindowProc(hwnd, msg, wParam, lParam);
-  }
 
   return 0;
 }
@@ -1094,4 +1137,78 @@ void ToolBrush_Init()
   g_tool_brush.onlbuttondown = ToolBrush_OnLButtonDown;
   g_tool_brush.onlbuttonup = ToolBrush_OnLButtonUp;
   g_tool_brush.onmousemove = ToolBrush_OnMouseMove;
+}
+
+typedef struct _tagTOOLBOXSETTINGS {
+  int nIconTheme;
+} TOOLBOXSETTINGS, *PTOOLBOXSETTINGS;
+
+INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
+    WPARAM wParam, LPARAM lParam)
+{
+  switch (message)
+  {
+    case WM_INITDIALOG:
+      {
+        PNTSETTINGS *settings;
+
+        PTOOLBOXSETTINGS pTempSettings = calloc(1, sizeof(TOOLBOXSETTINGS));
+        assert(pTempSettings);
+        if (!pTempSettings)
+          EndDialog(hDlg, 0);
+
+        SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)pTempSettings);
+
+        settings = Panitent_GetSettings();
+        int iSelTheme = settings->iToolbarIconTheme;
+
+        SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_ADDSTRING,
+            0, (LPARAM)L"Modern Colorized");
+
+        SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_ADDSTRING,
+            0, (LPARAM)L"Modern Flat");
+
+        SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_ADDSTRING,
+            0, (LPARAM)L"Classic");
+
+        SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_SETCURSEL,
+            (LPARAM)iSelTheme, (LPARAM)0);
+      }
+
+      return TRUE;
+
+    case WM_COMMAND:
+      {
+        PTOOLBOXSETTINGS pTempSettings =
+          (PTOOLBOXSETTINGS) GetWindowLongPtr(hDlg, DWLP_USER);
+
+        switch (LOWORD(wParam))
+        {
+          case IDC_TOOLBARICONTHEME:
+            if (HIWORD(wParam) == CBN_SELCHANGE)
+            {
+
+              int iCurSel = (int)SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_GETCURSEL, 0, 0);
+
+              pTempSettings->nIconTheme = iCurSel;
+            }
+            break;
+          case IDOK:
+            {
+              PNTSETTINGS *pSettings;
+              pSettings = Panitent_GetSettings();
+
+              pSettings->iToolbarIconTheme = pTempSettings->nIconTheme;
+            }
+            /* fall through */
+          case IDCANCEL:
+            free(pTempSettings);
+            EndDialog(hDlg, wParam);
+            break;
+        }
+        return TRUE;
+      }
+  }
+
+  return FALSE;
 }

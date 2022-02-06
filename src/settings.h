@@ -14,6 +14,7 @@ typedef struct _tagPNTSETTINGS {
   BOOL bRememberWindowPos;
   BOOL bLegacyFileDialogs;
   BOOL bEnablePenTablet;
+  int iToolbarIconTheme;
 } PNTSETTINGS;
 
 #endif /* PANITENT_SETTINGS_H_ */
