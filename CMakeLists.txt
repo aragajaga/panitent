@@ -42,6 +42,8 @@ set(C_SOURCES
     src/flexible.c
     src/settings_dialog.c
     src/util.c
+    src/log.c
+    src/log_window.c
     )
 
 set(SOURCE_EXE ${C_SOURCES} res/panitent.rc)

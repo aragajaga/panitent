@@ -6,6 +6,7 @@
 #endif
 
 #define IDI_ICON 1101
+#define IDI_LOG 1102
 
 #define IDB_TOOLS 1201
 #define IDB_TOOLS24 1202

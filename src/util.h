@@ -16,23 +16,42 @@ struct { \
   size_t size; \
 } 
 
-#define PNTVECTOR_init(vec) ({ \
-  typedef typeof(vec) vec_t; \
-  ((vec_t)vec)->data = malloc(sizeof(((vec_t)vec)->data[0]) * DEFAULT_CAPACITY); \
-  ((vec_t)vec)->capacity = DEFAULT_CAPACITY; \
-  ((vec_t)vec)->size = 0; \
-})
+#define PNTVECTOR_init(vec) \
+{\
+  typedef typeof(vec) vec_t;\
+  ((vec_t *)(&(vec)))->data = malloc(sizeof(((vec_t *)(&(vec)))->data[0]) * DEFAULT_CAPACITY);\
+  ((vec_t *)(&(vec)))->capacity = DEFAULT_CAPACITY;\
+  ((vec_t *)(&(vec)))->size = 0;\
+}
 
-#define PNTVECTOR_add(vec, el) ({ \
-  typedef typeof(vec) vec_t; \
-  if (((vec_t)vec)->size >= ((vec_t)vec)->capacity) \
-  { \
-    size_t newcap = ((((vec_t)vec)->capacity) / DEFAULT_CAPACITY + 1) * DEFAULT_CAPACITY; \
-    ((vec_t)vec)->data = realloc(((vec_t)vec)->data, newcap * sizeof(((vec_t)vec)->data[0])); \
-    ((vec_t)vec)->capacity = newcap; \
-  } \
-  ((vec_t)vec)->data[((vec_t)vec)->size++] = el; \
-})
+#define PNTVECTOR_add(vec, el) \
+{\
+  typedef typeof(vec) vec_t;\
+  if (((vec_t *)(&(vec)))->size >= ((vec_t *)(&(vec)))->capacity)\
+  {\
+    size_t newcap = (((vec_t *)(&(vec)))->capacity / DEFAULT_CAPACITY + 1) * DEFAULT_CAPACITY;\
+    ((vec_t *)(&(vec)))->data = realloc(((vec_t *)(&(vec)))->data, newcap * sizeof(((vec_t *)(&(vec)))->data[0]));\
+    ((vec_t *)(&(vec)))->capacity = newcap;\
+  }\
+  ((vec_t *)(&(vec)))->data[((vec_t *)(&(vec)))->size++] = el;\
+}
+
+
+#define PNTVECTOR_remove(vec, pos) \
+{\
+  typedef typeof(vec) vec_t;\
+  typedef typeof(((vec_t *)&(vec))->data[0]) el_t;\
+  size_t size = ((vec_t *)(&(vec)))->size;\
+  el_t *data = ((vec_t *)(&(vec)))->data;\
+  if ((size_t) pos < size) {\
+    size_t remain = size - pos - 1;\
+    memmove(&data[pos], &data[pos+1], remain);\
+    ((vec_t *)(&(vec)))->size--;\
+  }\
+}
+
+#define PNTVECTOR_at(vec, pos) (((typeof(vec) *)(&(vec)))->data[(pos)])
+#define PNTVECTOR_size(vec) (((typeof(vec) *)(&(vec)))->size)
 
 #define PNTPAIR(T1, T2) \
 struct { \

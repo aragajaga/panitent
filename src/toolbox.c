@@ -18,6 +18,7 @@
 #include "history.h"
 #include "panitent.h"
 #include "util.h"
+#include "log.h"
 
 #ifdef FLOODFILL_USE_VIRTUAL_QUEUE
 #include "crefptr.h"
@@ -329,6 +330,10 @@ void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
         g_tool = g_tool_pointer;
         break;
       }
+
+      WCHAR szLogMessage[80] = L"";
+      StringCchPrintf(szLogMessage, 80, L"Selected tool: %s", g_tool.label);
+      LogMessage(LOGENTRY_TYPE_DEBUG, L"Toolbox", szLogMessage);
 
 #ifdef HAS_DISCORDSDK
       WCHAR szStatus[80] = L"";

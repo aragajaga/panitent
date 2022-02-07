@@ -2,6 +2,7 @@
 #include <winres.h>
 
 IDI_ICON ICON "panitent.ico"
+IDI_LOG ICON "log.ico"
 #ifdef __MINGW32__
 1 RT_MANIFEST "panitent.exe.manifest"
 #endif

@@ -20,6 +20,8 @@
 #include "settings.h"
 #include "pentablet.h"
 #include "settings_dialog.h"
+#include "log_window.h"
+#include "log.h"
 
 #include "resource.h"
 
@@ -72,6 +74,7 @@ enum {
   IDM_OPTIONS_SETTINGS,
 
   IDM_HELP_TOPICS,
+  IDM_HELP_LOG,
   IDM_HELP_ABOUT
 };
 
@@ -323,6 +326,7 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
       switch (LOWORD(wParam))
       {
         case IDM_FILE_NEW:
+          LogMessage(LOGENTRY_TYPE_INFO, L"MAIN", L"New File menu issued");
           NewFileDialog(hWnd);
           break;
 
@@ -364,6 +368,10 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
         case IDM_OPTIONS_SETTINGS:
           ShowSettingsWindow(hWnd);
+          break;
+
+        case IDM_HELP_LOG:
+          LogWindow_Create(hWnd);
           break;
 
         case IDM_HELP_ABOUT:
@@ -459,6 +467,9 @@ BOOL Panitent_RegisterClasses(HINSTANCE hInstance)
 
   bStatus = bStatus && AssertClassRegistration(hInstance, L"BrushSel",
       BrushSel_RegisterClass);
+
+  bStatus = bStatus && AssertClassRegistration(hInstance, L"Logwindow",
+      LogWindow_Register);
 
   return bStatus;
 }
@@ -651,6 +662,7 @@ HMENU CreateMainMenu()
 
   hSubMenu = CreatePopupMenu();
   AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
+  AppendMenu(hSubMenu, MF_STRING, IDM_HELP_LOG, L"&Log");
   AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
   AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
 
