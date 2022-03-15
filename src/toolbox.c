@@ -83,7 +83,10 @@ Tool g_tool_brush;
 static BOOL fDraw = FALSE;
 static POINT prev;
 
-PNTVECTOR(TOOLBOXICONTHEME) g_tBoxIconThemes;
+PNTQUEUE_DECLARE_TYPE(POINT)
+PNTVECTOR_DECLARE_TYPE(TOOLBOXICONTHEME)
+
+pntvector(TOOLBOXICONTHEME) g_tBoxIconThemes;
 PTOOLBOXICONTHEME g_tBoxSelectedIconTheme;
 
 void Toolbox_AddTool(Toolbox* tbox, Tool tool)
@@ -348,6 +351,9 @@ void Toolbox_OnLButtonUp(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 void Toolbox_OnContextMenu(HWND hWnd, WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(wParam);
+  UNREFERENCED_PARAMETER(lParam);
+
   int x = GET_X_LPARAM(lParam);
   int y = GET_Y_LPARAM(lParam);
 
@@ -760,152 +766,6 @@ void ToolRectangle_Init()
   g_tool_rectangle.onlbuttondown = ToolRectangle_OnLButtonDown;
 }
 
-#define CAPACITY_GROW 32
-
-#define DECLARE_TYPED_QUEUE(T)                                                 \
-struct _tqueue$$##T {                                                          \
-  size_t capacity;                                                             \
-  size_t length;                                                               \
-  T* data;                                                                     \
-};                                                                             \
-                                                                               \
-typedef struct _tqueue$$##T tqueue$$##T_t;                                     \
-                                                                               \
-tqueue$$##T_t* tqueue$$##T_new()                                               \
-{                                                                              \
-  tqueue$$##T_t* q = calloc(1, sizeof(tqueue##$$T_t));                         \
-  assert(q);                                                                   \
-                                                                               \
-  return q;                                                                    \
-}                                                                              \
-                                                                               \
-void tqueue$$##T_push(tqueue$$##T_t* q, T data)                                \
-{                                                                              \
-  assert(q);                                                                   \
-  if (!q)                                                                      \
-    return;                                                                    \
-                                                                               \
-  assert(q->data);                                                             \
-  if (!q->data)                                                                \
-    return;                                                                    \
-                                                                               \
-  if (q->capacity <= q->length)                                                \
-  {                                                                            \
-    T* pData = NULL;                                                           \
-    pData = realloc(q->data, (q->capacity + CAPACITY_GROW) * sizeof(T));       \
-    assert(pData && L"Unable to reallocate memory");                           \
-    if (pData)                                                                 \
-      q->data = pData;                                                         \
-    else                                                                       \
-      return;                                                                  \
-    q->capacity += CAPACITY_GROW;                                              \
-  }                                                                            \
-                                                                               \
-  q->data[q->length++] = data;                                                 \
-}                                                                              \
-                                                                               \
-T tqueue$$##T_pop(tqueue$$##T_t* q)                                            \
-{                                                                              \
-  assert(q);                                                                   \
-  assert(q->length);                                                           \
-                                                                               \
-  return q->data[--q->length];                                                 \
-}                                                                              \
-                                                                               \
-void tqueue$$##T_delete(tqueue$$##T_t* q)                                      \
-{                                                                              \
-  assert(q);                                                                   \
-  if (!q)                                                                      \
-    return;                                                                    \
-                                                                               \
-  free(q);                                                                     \
-}
-
-#define tqueue_t(T) tqueue$$##T_t
-#define tqueue_new(T) tqueue$$##T_new
-#define tqueue_push(T) tqueue$$##T_push
-#define tqueue_pop(T) tqueue$$##T_pop
-#define tqueue_delete(T) tqueue$$##T_delete
-
-DECLARE_TYPED_QUEUE(POINT)
-
-typedef unsigned char byte_t;
-
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-struct _queue {
-  size_t capacity;
-  size_t length;
-  size_t elSize;
-  void* data;
-};
-
-typedef struct _queue queue_t;
-
-queue_t* queue_new(size_t elSize)
-{
-  queue_t* q = malloc(sizeof(queue_t));
-  q->elSize = elSize;
-  q->length = 0;
-  q->capacity = CAPACITY_GROW;
-  q->data = malloc(q->elSize * CAPACITY_GROW);
-  assert(q->data);
-
-  return q;
-}
-
-void queue_push(queue_t* q, void* data)
-{
-  assert(q);
-  if (!q)
-    return;
-
-  if (q->capacity <= q->length)
-  {
-    q->data = realloc(q->data, (q->capacity + CAPACITY_GROW) * q->elSize);
-    q->capacity += CAPACITY_GROW;
-  }
-
-  memcpy((byte_t*)q->data + (q->length * q->elSize), data, q->elSize);
-  q->length++;
-}
-
-crefptr_t* queue_pop(queue_t* q)
-{
-  assert(q);
-  if (!q)
-    return NULL;
-
-  assert(q->length);
-  if (!q->length)
-    return NULL;
-
-  /*
-  TODO: Shrink unused memory
-  if (q->capacity > q->length + CAPACITY_GROW) {
-    size_t newcap = CAPACITY_GROW + ((q->length - 1) / CAPACITY_GROW) * CAPACITY_GROW;
-    q->data = realloc(q->data, newcap * q->elSize);
-    q->capacity = newcap;
-  }
-  */
-
-  char* el = malloc(q->elSize);
-  memcpy(el, (byte_t*)q->data + (q->length - 1) * q->elSize, q->elSize);
-  crefptr_t* ptr = crefptr_new(el, NULL);
-  q->length--;
-  return ptr;
-}
-
-void queue_delete(queue_t* q)
-{
-  assert(q);
-  if (!q)
-    return;
-
-  free(q->data);
-  free(q);
-}
-#endif
-
 void ToolPicker_OnLButtonUp(HWND hViewport, WPARAM wParam, LPARAM lParam)
 {
   UNREFERENCED_PARAMETER(wParam);
@@ -948,36 +808,23 @@ void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
   uint32_t oldColor = Canvas_GetPixel(canvas, x, y);
   POINT nextpt = {x, y};
 
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-  queue_t* q = queue_new(sizeof(POINT));
-  queue_push(q, &nextpt);
-#else
-  tqueue_t(POINT)* q = tqueue_new(POINT)();
-  tqueue_push(POINT)(q, nextpt);
-#endif
+  pntqueue(POINT) q;
+  pntqueue_init(POINT)(&q);
+  pntqueue_push(POINT)(&q, nextpt);
 
-  while (q->length)
+  while (q.length)
   {
     LPPOINT ppt = NULL;
 
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-    crefptr_t* ptr = queue_pop(q);
-    ppt = crefptr_get(ptr);
-#else
-    POINT pt = tqueue_pop(POINT)(q);
+    POINT pt = pntqueue_pop(POINT)(&q);
     ppt = &pt;
-#endif
 
     if (Canvas_GetPixel(canvas, ppt->x + 1, ppt->y) == oldColor)
     {
       Canvas_SetPixel(canvas, ppt->x + 1, ppt->y, newColor);
       nextpt.x = ppt->x + 1;
       nextpt.y = ppt->y;
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-      queue_push(q, &nextpt);
-#else
-      tqueue_push(POINT)(q, nextpt);
-#endif
+      pntqueue_push(POINT)(&q, nextpt);
     }
 
     if (Canvas_GetPixel(canvas, ppt->x - 1, ppt->y) == oldColor)
@@ -985,11 +832,7 @@ void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
       Canvas_SetPixel(canvas, ppt->x - 1, ppt->y, newColor);
       nextpt.x = ppt->x - 1;
       nextpt.y = ppt->y;
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-      queue_push(q, &nextpt);
-#else
-      tqueue_push(POINT)(q, nextpt);
-#endif
+      pntqueue_push(POINT)(&q, nextpt);
     }
 
     if (Canvas_GetPixel(canvas, ppt->x, ppt->y + 1) == oldColor)
@@ -997,11 +840,7 @@ void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
       Canvas_SetPixel(canvas, ppt->x, ppt->y + 1, newColor);
       nextpt.x = ppt->x;
       nextpt.y = ppt->y + 1;
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-      queue_push(q, &nextpt);
-#else
-      tqueue_push(POINT)(q, nextpt);
-#endif
+      pntqueue_push(POINT)(&q, nextpt);
     }
 
     if (Canvas_GetPixel(canvas, ppt->x, ppt->y - 1) == oldColor)
@@ -1009,25 +848,13 @@ void ToolFill_DoFloodFill(Viewport* viewport, signed short x, signed short y,
       Canvas_SetPixel(canvas, ppt->x, ppt->y - 1, newColor);
       nextpt.x = ppt->x;
       nextpt.y = ppt->y - 1;
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-      queue_push(q, &nextpt);
-#else
-      tqueue_push(POINT)(q, nextpt);
-#endif
+      pntqueue_push(POINT)(&q, nextpt);
     }
 
     Viewport_Invalidate(Panitent_GetActiveViewport());
-
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-    crefptr_deref(ptr);
-#endif
   }
 
-#ifdef FLOODFILL_USE_VIRTUAL_QUEUE
-  queue_delete(q);
-#else
-  tqueue_delete(POINT)(q);
-#endif
+  pntqueue_delete(POINT)(&q);
   History_FinalizeDifferentiation(Panitent_GetActiveDocument());
 }
 
@@ -1151,6 +978,8 @@ typedef struct _tagTOOLBOXSETTINGS {
 INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
     WPARAM wParam, LPARAM lParam)
 {
+  UNREFERENCED_PARAMETER(lParam);
+
   switch (message)
   {
     case WM_INITDIALOG:

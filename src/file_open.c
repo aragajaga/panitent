@@ -85,13 +85,15 @@ void FileOpenPng(LPWSTR pszPath)
 }
 */
 
+PNTMAP_DECLARE_TYPE(ExtensionMap, PWSTR, PWSTR)
+
 typedef struct _tagPNTSAVEPARAMS {
-  PNTMAP(pntwstr_t, pntwstr_t) m_extensionMap;
-  LPWSTR pszPath;
+  pntmap(ExtensionMap) m_extensionMap;
+  PWSTR pszPath;
 } PNTSAVEPARAMS, *PPNTSAVEPARAMS;
 
 typedef struct _tagPNGOPENPARAMS {
-  PNTMAP(pntwstr_t, pntwstr_t) m_extensionMap;
+  pntmap(ExtensionMap) m_extensionMap;
 } PNTOPENPARAMS, *PPNTOPENPARAMS;
 
 COMDLG_FILTERSPEC c_rgReadTypes[2] = {

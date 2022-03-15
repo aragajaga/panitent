@@ -94,6 +94,8 @@ LRESULT CALLBACK LogWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
 
 BOOL LogWindow_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
 {
+  UNREFERENCED_PARAMETER(lpcs);
+
   LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) calloc(1, sizeof(LOGWINDOWDATA));
   assert(wndData);
   SetWindowLongPtr(hWnd, 0, (LONG_PTR) wndData);
@@ -157,6 +159,10 @@ BOOL LogWindow_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
 
 void LogWindow_OnSize(HWND hWnd, UINT state, int cx, int cy)
 {
+  UNREFERENCED_PARAMETER(state);
+  UNREFERENCED_PARAMETER(cx);
+  UNREFERENCED_PARAMETER(cy);
+
   LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) GetWindowLongPtr(hWnd, 0);
   assert(wndData);
 
@@ -188,6 +194,8 @@ void PopupError(DWORD dwError)
 
 LRESULT LogWindow_OnNotify(HWND hwnd, int idCtrl, NMHDR *pnm)
 {
+  UNREFERENCED_PARAMETER(hwnd);
+
   if (idCtrl == IDC_LOGVIEW) {
     switch (pnm->code)
     {

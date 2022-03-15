@@ -1,17 +1,21 @@
 #include "precomp.h"
-
 #include "log.h"
 #include "util.h"
 
-typedef struct _tagLOGEVENTOBSERVER {
+typedef struct _tagLOGEVENTOBSERVER LOGEVENTOBSERVER, *LPLOGEVENTOBSERVER;
+
+PNTVECTOR_DECLARE_TYPE(LPLOGENTRY)
+PNTVECTOR_DECLARE_TYPE(LPLOGEVENTOBSERVER)
+
+struct _tagLOGEVENTOBSERVER {
   LogObserverCallback callback;
   LPVOID userData;
   int id;
-} LOGEVENTOBSERVER, *LPLOGEVENTOBSERVER;
+};
 
 typedef struct _tagLOGGER {
-  PNTVECTOR(LPLOGENTRY) entries;
-  PNTVECTOR(LPLOGEVENTOBSERVER) observers;
+  pntvector(LPLOGENTRY) entries;
+  pntvector(LPLOGEVENTOBSERVER) observers;
   int obsIDCounter;
 } LOGGER, *LPLOGGER;
 
@@ -39,8 +43,8 @@ LPLOGGER GetLogger()
 
   if (!s_lpLogger) {
     s_lpLogger = calloc(1, sizeof(LOGGER));
-    PNTVECTOR_init(s_lpLogger->entries);
-    PNTVECTOR_init(s_lpLogger->observers);
+    pntvector_init(LPLOGENTRY)(&s_lpLogger->entries);
+    pntvector_init(LPLOGEVENTOBSERVER)(&s_lpLogger->observers);
   }
 
   return s_lpLogger;
@@ -57,7 +61,7 @@ int LogRegisterObserver(LogObserverCallback callback, LPVOID userData)
   lpLogObserver->userData = userData;
   lpLogObserver->id = lpLogger->obsIDCounter;
 
-  PNTVECTOR_add(lpLogger->observers, lpLogObserver);
+  pntvector_add(LPLOGEVENTOBSERVER)(&lpLogger->observers, lpLogObserver);
 
   return lpLogger->obsIDCounter++;
 }
@@ -67,15 +71,15 @@ void Logger_PushMessage(LPLOGGER lpLogger, LPLOGENTRY lpEntry)
   LPLOGENTRY pMemEntry = calloc(1, sizeof(LOGENTRY));
 
   memcpy(pMemEntry, lpEntry, sizeof(LOGENTRY));
-  PNTVECTOR_add(lpLogger->entries, pMemEntry);
+  pntvector_add(LPLOGENTRY)(&lpLogger->entries, pMemEntry);
 
   LOGEVENT logEvent;
   logEvent.iType = LOGALTEREVENT_ADD;
-  logEvent.extra = PNTVECTOR_size(lpLogger->entries);
+  logEvent.extra = (int) pntvector_size(LPLOGENTRY)(&lpLogger->entries);
 
-  for (size_t i = 0; i < PNTVECTOR_size(lpLogger->observers); ++i) {
-    logEvent.userData = PNTVECTOR_at(lpLogger->observers, i)->userData;
-    LogObserverCallback callback = PNTVECTOR_at(lpLogger->observers, i)->callback;
+  for (size_t i = 0; i < pntvector_size(LPLOGEVENTOBSERVER)(&lpLogger->observers); ++i) {
+    logEvent.userData = pntvector_at(LPLOGEVENTOBSERVER)(&lpLogger->observers, i)->userData;
+    LogObserverCallback callback = pntvector_at(LPLOGEVENTOBSERVER)(&lpLogger->observers, i)->callback;
     (*callback)(&logEvent);
   }
 }
@@ -84,14 +88,14 @@ void LogUnregisterObserver(int nID)
 {
   LPLOGGER lpLogger = GetLogger();
 
-  for (size_t i = 0; i < PNTVECTOR_size(lpLogger->observers); ++i) {
+  for (size_t i = 0; i < pntvector_size(LPLOGEVENTOBSERVER)(&lpLogger->observers); ++i) {
 
-    if (PNTVECTOR_at(lpLogger->observers, i)->id == nID) {
-      LPLOGEVENTOBSERVER lpObserver = PNTVECTOR_at(lpLogger->observers, i);
+    if (pntvector_at(LPLOGEVENTOBSERVER)(&lpLogger->observers, i)->id == nID) {
+      LPLOGEVENTOBSERVER lpObserver = pntvector_at(LPLOGEVENTOBSERVER)(&lpLogger->observers, i);
 
       free(lpObserver);
-      PNTVECTOR_at(lpLogger->observers, i) = NULL;
-      PNTVECTOR_remove(lpLogger->observers, i);
+      pntvector_set(LPLOGEVENTOBSERVER)(&lpLogger->observers, i, NULL);
+      pntvector_remove(LPLOGEVENTOBSERVER)(&lpLogger->observers, i);
     }
   }
 }
@@ -100,10 +104,10 @@ LPLOGENTRY RetrieveLogEntry(int i)
 {
   LPLOGGER logger = GetLogger();
 
-  if (i < 0 || i >= (int) PNTVECTOR_size(logger->entries))
+  if (i < 0 || i >= (int) pntvector_size(LPLOGENTRY)(&logger->entries))
     return NULL;
 
-  return PNTVECTOR_at(logger->entries, i);
+  return pntvector_at(LPLOGENTRY)(&logger->entries, i);
 }
 
 int LogGetSize()
@@ -111,5 +115,5 @@ int LogGetSize()
   LPLOGGER logger = GetLogger();
   assert(logger);
 
-  return PNTVECTOR_size(logger->entries);
+  return (int) pntvector_size(LPLOGENTRY)(&logger->entries);
 }

@@ -733,7 +733,7 @@ Viewport* Panitent_CreateViewport()
 
 void Panitent_ClipboardExport() {
   HWND hWndPanitent;
-  HGLOBAL hglbCopy;
+  /* HGLOBAL hglbCopy; */
 
   hWndPanitent = Panitent_GetHWND();
 
