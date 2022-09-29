@@ -38,7 +38,7 @@ void DockHost_OnLButtonDown(PDOCKHOSTDATA, BOOL, int, int, UINT);
 void DockHost_OnLButtonUp(PDOCKHOSTDATA, int, int, UINT);
 
 BOOL DockHost_OnCreate(PDOCKHOSTDATA pDat, LPCREATESTRUCT lpcs) {
-  UNREFERENCED_PARAMETER(lpcs)
+  UNREFERENCED_PARAMETER(lpcs);
 
   pDat->hCaptionBrush_ = CreateSolidBrush(RGB(0x22, 0x22, 0x22));
 
@@ -60,7 +60,7 @@ void DockHost_OnPaint(PDOCKHOSTDATA pDat) {
 }
 
 void DockHost_OnSize(PDOCKHOSTDATA pDat, UINT state, int cx, int cy) {
-  UNREFERENCED_PARAMETER(state)
+  UNREFERENCED_PARAMETER(state);
 
   if (pDat->pRoot_) {
     RECT rcRoot = { 0, 0, cx, cy };
@@ -79,16 +79,16 @@ void DockHost_OnDestroy(PDOCKHOSTDATA pDat) {
 }
 
 void DockHost_OnMouseMove(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
-  UNREFERENCED_PARAMETER(pDat)
-  UNREFERENCED_PARAMETER(x)
-  UNREFERENCED_PARAMETER(y)
-  UNREFERENCED_PARAMETER(keyFlags)
+  UNREFERENCED_PARAMETER(pDat);
+  UNREFERENCED_PARAMETER(x);
+  UNREFERENCED_PARAMETER(y);
+  UNREFERENCED_PARAMETER(keyFlags);
 }
 
 void DockHost_OnLButtonDown(PDOCKHOSTDATA pDat, BOOL fDoubleClick, int x, int y,
     UINT keyFlags) {
-  UNREFERENCED_PARAMETER(fDoubleClick)
-  UNREFERENCED_PARAMETER(keyFlags)
+  UNREFERENCED_PARAMETER(fDoubleClick);
+  UNREFERENCED_PARAMETER(keyFlags);
 
   RECT rc = g_dock_window.rc;
 
@@ -105,7 +105,7 @@ void DockHost_OnLButtonDown(PDOCKHOSTDATA pDat, BOOL fDoubleClick, int x, int y,
 }
 
 void DockHost_OnLButtonUp(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
-  UNREFERENCED_PARAMETER(keyFlags)
+  UNREFERENCED_PARAMETER(keyFlags);
 
   if (pDat->pRoot_) {
     binary_tree_t* t = Dock_CloseButtonHitTest(pDat->pRoot_, x, y);
