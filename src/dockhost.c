@@ -652,7 +652,6 @@ void DockHost_Init(PDOCKHOSTDATA pDat) {
 
 BOOL DockHost_RegisterClass(PDOCKHOSTDATA pDat) {
 
-  HINSTANCE hInstance;
   WNDCLASSEX wcex = { 0 };
 
   if (GetClassInfoEx(pDat->hInstance_, pDat->wcex_.lpszClassName, &wcex)) {
