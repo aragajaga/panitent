@@ -13,7 +13,7 @@
 extern const WCHAR szAppName[];
 
 extern binary_tree_t* viewportNode;
-extern binary_tree_t* g_pRoot;
+extern DOCKHOSTDATA g_dockHost;
 
 BOOL Document_IsFilePathSet(Document* doc)
 {
@@ -151,7 +151,7 @@ Document* Document_New(int width, int height)
     Panitent_SetActiveViewport(viewport);
 
     viewportNode->hwnd = hViewport;
-    DockNode_arrange(g_pRoot);
+    DockNode_arrange(g_dockHost.pRoot_);
   }
 
   Document* doc = calloc(1, sizeof(Document));

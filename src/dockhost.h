@@ -61,12 +61,27 @@ struct _binary_tree {
 
 typedef struct _binary_tree binary_tree_t;
 
+struct _tagDOCKHOSTDATA {
+  HWND hWnd_;
+  HINSTANCE hInstance_;
+  CREATESTRUCT cs_;
+  WNDCLASSEX wcex_;
+
+  HBRUSH hCaptionBrush_;
+  binary_tree_t* pRoot_;
+  POINT ptDragPos_;
+  BOOL fDrag_;
+};
+
+typedef struct _tagDOCKHOSTDATA DOCKHOSTDATA, *PDOCKHOSTDATA;
+
 extern dock_side_e g_dock_side;
 extern dock_side_e eSuggest;
 extern binary_tree_t* g_pRoot;
 
-BOOL DockHost_RegisterClass(HINSTANCE hInstance);
-HWND DockHost_Create(HWND hParent);
+void DockHost_Init(PDOCKHOSTDATA);
+BOOL DockHost_RegisterClass(PDOCKHOSTDATA);
+void DockHost_Create(PDOCKHOSTDATA, HWND);
 void DockNode_arrange(binary_tree_t*);
 
 #endif /* DOCK_DOCKHOST_H_ */

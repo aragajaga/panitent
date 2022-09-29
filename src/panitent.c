@@ -25,6 +25,8 @@
 
 #include "resource.h"
 
+DOCKHOSTDATA g_dockHost;
+
 static HINSTANCE g_hInstance;
 
 Panitent g_panitent;
@@ -281,24 +283,25 @@ void Panitent_OnClose(HWND hWnd)
     fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
     fclose(fp);
   }
-  
+
   PostQuitMessage(0);
 }
 
 void Panitent_OnCreate(HWND hWnd) {
 
-  hwndDockHost = DockHost_Create(hWnd);
+  DockHost_Init(&g_dockHost);
+  DockHost_Create(&g_dockHost, hWnd);
 
   RECT rcDockHost = {0};
-  GetClientRect(hwndDockHost, &rcDockHost);
-  g_pRoot = calloc(1, sizeof(binary_tree_t));
-  if (!g_pRoot)
+  GetClientRect(g_dockHost.hWnd_, &rcDockHost);
+  g_dockHost.pRoot_ = calloc(1, sizeof(binary_tree_t));
+  if (!g_dockHost.pRoot_)
     return;
 
-  g_pRoot->lpszCaption = L"Root";
-  g_pRoot->rc = rcDockHost;
+  g_dockHost.pRoot_->lpszCaption = L"Root";
+  g_dockHost.pRoot_->rc = rcDockHost;
 
-  Panitent_DockHostInit(hwndDockHost, g_pRoot);
+  Panitent_DockHostInit(g_dockHost.hWnd_, g_dockHost.pRoot_);
 }
 
 /* Main window message handling procedure */
@@ -317,7 +320,7 @@ LRESULT CALLBACK PanitentWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
         WORD height = HIWORD(lParam);
 
         /* Adjust dock host control to new window size */
-        SetWindowPos(hwndDockHost, NULL, 0, 0, width, height,
+        SetWindowPos(g_dockHost.hWnd_, NULL, 0, 0, width, height,
             SWP_NOACTIVATE | SWP_NOZORDER);
       }
       return 0;
@@ -447,8 +450,10 @@ BOOL Panitent_RegisterClasses(HINSTANCE hInstance)
   bStatus = bStatus && AssertClassRegistration(hInstance, L"Viewport",
       Viewport_RegisterClass);
 
+  /*
   bStatus = bStatus && AssertClassRegistration(hInstance, L"DockHost",
       DockHost_RegisterClass);
+      */
 
   bStatus = bStatus && AssertClassRegistration(hInstance, L"ToolBox",
       Toolbox_RegisterClass);
@@ -725,7 +730,7 @@ Viewport* Panitent_CreateViewport()
     Panitent_SetActiveViewport(pViewport);
 
     viewportNode->hwnd = hWndViewport;
-    DockNode_arrange(g_pRoot);
+    DockNode_arrange(g_dockHost.pRoot_);
   }
 
   return pViewport;
