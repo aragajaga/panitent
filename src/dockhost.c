@@ -12,9 +12,6 @@
 dockhost_t g_dockhost;
 
 POINT captionPos;
-POINT dragPos;
-BOOL fDrag;
-HBRUSH hCaptionBrush;
 
 BOOL fSuggestTop;
 
@@ -25,7 +22,136 @@ dock_window_t g_dock_window;
 
 dock_side_e g_dock_side;
 dock_side_e eSuggest;
-binary_tree_t* g_pRoot;
+
+binary_tree_t* Dock_CaptionHitTest(binary_tree_t*, int, int);
+binary_tree_t* Dock_CloseButtonHitTest(binary_tree_t*, int, int);
+void Dock_DestroyInclusive(binary_tree_t*, binary_tree_t*);
+void DockNode_paint(binary_tree_t*, HDC, HBRUSH);
+
+/* Window message handlers */
+BOOL DockHost_OnCreate(PDOCKHOSTDATA, LPCREATESTRUCT);
+void DockHost_OnSize(PDOCKHOSTDATA, UINT, int, int);
+void DockHost_OnDestroy(PDOCKHOSTDATA);
+void DockHost_OnPaint(PDOCKHOSTDATA);
+void DockHost_OnMouseMove(PDOCKHOSTDATA, int, int, UINT);
+void DockHost_OnLButtonDown(PDOCKHOSTDATA, BOOL, int, int, UINT);
+void DockHost_OnLButtonUp(PDOCKHOSTDATA, int, int, UINT);
+
+BOOL DockHost_OnCreate(PDOCKHOSTDATA pDat, LPCREATESTRUCT lpcs) {
+  UNREFERENCED_PARAMETER(lpcs);
+
+  pDat->hCaptionBrush_ = CreateSolidBrush(RGB(0x22, 0x22, 0x22));
+
+  return TRUE;
+}
+
+void DockHost_OnPaint(PDOCKHOSTDATA pDat) {
+
+  PAINTSTRUCT ps = {0};
+  HDC hDC = BeginPaint(pDat->hWnd_, &ps);
+
+  /* RECT rc = g_dock_window.rc; */
+
+  if (pDat->pRoot_) {
+    DockNode_paint(pDat->pRoot_, hDC, pDat->hCaptionBrush_);
+  }
+
+  EndPaint(pDat->hWnd_, &ps);
+}
+
+void DockHost_OnSize(PDOCKHOSTDATA pDat, UINT state, int cx, int cy) {
+  UNREFERENCED_PARAMETER(state);
+
+  if (pDat->pRoot_) {
+    RECT rcRoot = { 0, 0, cx, cy };
+    pDat->pRoot_->rc    = rcRoot;
+
+    DockNode_arrange(pDat->pRoot_);
+  }
+
+  if (g_dock_window.fDock) {
+    g_dock_window.rc.right = cx;
+  }
+}
+
+void DockHost_OnDestroy(PDOCKHOSTDATA pDat) {
+  DeleteObject(pDat->hCaptionBrush_);
+}
+
+void DockHost_OnMouseMove(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
+  UNREFERENCED_PARAMETER(pDat);
+  UNREFERENCED_PARAMETER(x);
+  UNREFERENCED_PARAMETER(y);
+  UNREFERENCED_PARAMETER(keyFlags);
+}
+
+void DockHost_OnLButtonDown(PDOCKHOSTDATA pDat, BOOL fDoubleClick, int x, int y,
+    UINT keyFlags) {
+  UNREFERENCED_PARAMETER(fDoubleClick);
+  UNREFERENCED_PARAMETER(keyFlags);
+
+  RECT rc = g_dock_window.rc;
+
+  /* If cursor in caption */
+  if (x >= rc.left + 2 && y >= rc.top + 2 && x < rc.left + rc.right - 2 &&
+      y < rc.top + 2 + 24) {
+
+    SetCapture(pDat->hWnd_);
+    /* Save click position */
+    pDat->ptDragPos_.x = x - (rc.left + 2);
+    pDat->ptDragPos_.y = y - (rc.top + 2);
+    pDat->fDrag_ = TRUE;
+  }
+}
+
+void DockHost_OnLButtonUp(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
+  UNREFERENCED_PARAMETER(keyFlags);
+
+  if (pDat->pRoot_) {
+    binary_tree_t* t = Dock_CloseButtonHitTest(pDat->pRoot_, x, y);
+
+    if (t) {
+      Dock_DestroyInclusive(pDat->pRoot_, t);
+      InvalidateRect(pDat->hWnd_, NULL, TRUE);
+    }
+  }
+
+  /*
+  if (pDat->fDrag_ && eSuggest) {
+    g_dock_window.undockedRc = g_dock_window.rc;
+
+    RECT rc = {0};
+    GetClientRect(hWnd, &rc);
+
+    switch (eSuggest) {
+    case DOCK_RIGHT:
+      rc.left     = rc.right - g_dock_window.rc.right;
+      g_dock_side = DOCK_RIGHT;
+      break;
+    case DOCK_TOP:
+      rc.bottom   = g_dock_window.rc.bottom;
+      g_dock_side = DOCK_TOP;
+      break;
+    case DOCK_LEFT:
+      rc.right    = g_dock_window.rc.right;
+      g_dock_side = DOCK_LEFT;
+      break;
+    case DOCK_BOTTOM:
+      rc.top      = rc.bottom - g_dock_window.rc.bottom;
+      g_dock_side = DOCK_BOTTOM;
+      break;
+    }
+    g_dock_window.rc    = rc;
+    g_dock_window.fDock = TRUE;
+
+    unsuggest();
+    InvalidateRect(hWnd, NULL, TRUE);
+  }
+  */
+
+  pDat->fDrag_ = FALSE;
+  ReleaseCapture();
+}
 
 void Dock_DestroyInner(binary_tree_t* node)
 {
@@ -72,18 +198,8 @@ BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
 
 binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
 {
-  HWND hButton = CreateWindowEx(0,
-                                WC_BUTTON,
-                                L"Button",
-                                WS_CHILD | WS_VISIBLE,
-                                0,
-                                0,
-                                0,
-                                0,
-                                hWnd,
-                                NULL,
-                                GetModuleHandle(NULL),
-                                NULL);
+  HWND hButton = CreateWindowEx(0, WC_BUTTON, L"Button", WS_CHILD | WS_VISIBLE,
+      0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
 
   parent->posFixedGrip = 128;
   parent->gripAlign    = GRIP_ALIGN_END;
@@ -139,8 +255,6 @@ BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
 
   return TRUE;
 }
-
-binary_tree_t* Dock_CaptionHitTest(binary_tree_t*, int, int);
 
 binary_tree_t* Dock_CloseButtonHitTest(binary_tree_t* root, int x, int y)
 {
@@ -206,7 +320,7 @@ binary_tree_t* BT_HitTest(binary_tree_t* root, int x, int y)
   return NULL;
 }
 
-void DockNode_paint(binary_tree_t* parent, HDC hDC)
+void DockNode_paint(binary_tree_t* parent, HDC hDC, HBRUSH hCaptionBrush)
 {
   if (!parent)
     return;
@@ -260,11 +374,11 @@ void DockNode_paint(binary_tree_t* parent, HDC hDC)
   }
 
   if (parent->node1) {
-    DockNode_paint(parent->node1, hDC);
+    DockNode_paint(parent->node1, hDC, hCaptionBrush);
   }
 
   if (parent->node2) {
-    DockNode_paint(parent->node2, hDC);
+    DockNode_paint(parent->node2, hDC, hCaptionBrush);
   }
 }
 
@@ -464,245 +578,118 @@ void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
   DockNode_arrange(root);
 }
 
-LRESULT CALLBACK DockHost_WndProc(HWND hWnd,
-                                  UINT message,
-                                  WPARAM wParam,
-                                  LPARAM lParam)
-{
-  switch (message) {
-  case WM_CREATE:
-  {
-    hCaptionBrush = CreateSolidBrush(RGB(0x22, 0x22, 0x22));
+LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
 
-    /*
-    RECT rc = {10, 10, 200, 200};
-    g_dock_window.rc = rc;
-    */
-  } break;
-  case WM_SIZE:
-  {
-    int width  = LOWORD(lParam);
-    int height = HIWORD(lParam);
+  PDOCKHOSTDATA pDat = NULL;
 
-    if (g_pRoot) {
-      RECT rcRoot = {0, 0, width, height};
-      g_pRoot->rc    = rcRoot;
+  if (message == WM_CREATE || message == WM_NCCREATE) {
+    LPCREATESTRUCT lpcs = (LPCREATESTRUCT) lParam;
+    pDat = (PDOCKHOSTDATA) lpcs->lpCreateParams;
 
-      DockNode_arrange(g_pRoot);
-    }
-
-    if (g_dock_window.fDock) {
-      g_dock_window.rc.right = width;
-    }
-  } break;
-  case WM_PAINT:
-  {
-    PAINTSTRUCT ps = {0};
-    HDC hDC        = BeginPaint(hWnd, &ps);
-
-    /* RECT rc = g_dock_window.rc; */
-
-    if (g_pRoot) {
-      DockNode_paint(g_pRoot, hDC);
-    }
-
-    /*
-    \/\* Fill window border \*\/
-        Rectangle(hDC, rc.left, rc.top, rc.left + rc.right, rc.top + rc.bottom);
-
-    \/\* Fill caption \*\/
-    RECT rcCapt = {rc.left + 2,
-                   rc.top + 2,
-                   rc.left + rc.right - 2,
-                   rc.top + 2 + 24};
-    FillRect(hDC, &rcCapt, hCaptionBrush);
-
-    \/\* Print caption text \*\/ SetBkColor(hDC, RGB(0xFF, 0x00, 0x00));
-    SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
-    TextOut(hDC, rc.left + 6, rc.top + 6, L"Main window", 11);
-
-    if (eSuggest) {
-      RECT rc;
-      GetClientRect(hWnd, &rc);
-
-      switch (eSuggest) {
-      case DOCK_RIGHT:
-        rc.left = rc.right - 24;
-        FillRect(hDC, &rc, hCaptionBrush);
-        break;
-      case DOCK_TOP:
-        rc.bottom = 24;
-        FillRect(hDC, &rc, hCaptionBrush);
-        break;
-      case DOCK_LEFT:
-        rc.right = 24;
-        FillRect(hDC, &rc, hCaptionBrush);
-        break;
-      case DOCK_BOTTOM:
-        rc.top = rc.bottom - 24;
-        FillRect(hDC, &rc, hCaptionBrush);
-        break;
-      }
-      \/\* SIZE resSize;
-      GetTextExtentPoint32(hDC, L"Dock top", 8, &resSize);
-
-      TextOut(hDC, (sugRc.right - resSize.cx) / 2, 4, L"Dock top", 8);
-      \*\/
-    }
-    */
-
-    EndPaint(hWnd, &ps);
-  } break;
-  case WM_DESTROY:
-    DeleteObject(hCaptionBrush);
-    break;
-  case WM_LBUTTONDOWN:
-  {
-    signed short x = GET_X_LPARAM(lParam);
-    signed short y = GET_Y_LPARAM(lParam);
-
-    RECT rc = g_dock_window.rc;
-
-    /* If cursor in caption */
-    if (x >= rc.left + 2 && y >= rc.top + 2 && x < rc.left + rc.right - 2 &&
-        y < rc.top + 2 + 24) {
-
-      SetCapture(hWnd);
-      /* Save click position */
-      dragPos.x = x - (rc.left + 2);
-      dragPos.y = y - (rc.top + 2);
-      fDrag     = TRUE;
-    }
-  } break;
-
-  case WM_MOUSEMOVE:
-  {
-    /*
-    if (fDrag) {
-      signed short x = GET_X_LPARAM(lParam);
-      signed short y = GET_Y_LPARAM(lParam);
-
-      if (g_dock_window.fDock) {
-        g_dock_window.rc    = g_dock_window.undockedRc;
-        g_dock_window.fDock = FALSE;
-      }
-
-      g_dock_window.rc.left = x - dragPos.x;
-      g_dock_window.rc.top  = y - dragPos.y;
-
-      RECT hostRc = {0};
-      GetClientRect(hWnd, &hostRc);
-
-      if (y < 10) {
-        suggest(DOCK_TOP);
-      } else if (x >= hostRc.right - 10) {
-        suggest(DOCK_RIGHT);
-      } else if (y >= hostRc.bottom - 10) {
-        suggest(DOCK_BOTTOM);
-      } else if (x < 10) {
-        suggest(DOCK_LEFT);
-      } else {
-        unsuggest();
-      }
-
-      InvalidateRect(hWnd, NULL, TRUE);
-    }
-    */
-  } break;
-  case WM_LBUTTONUP:
-  {
-    signed short x = GET_X_LPARAM(lParam);
-    signed short y = GET_Y_LPARAM(lParam);
-
-    if (g_pRoot) {
-      binary_tree_t* t = Dock_CloseButtonHitTest(g_pRoot, x, y);
-      if (t) {
-        Dock_DestroyInclusive(g_pRoot, t);
-        InvalidateRect(hWnd, NULL, TRUE);
-      }
-    }
-
-    /*
-    if (fDrag && eSuggest) {
-      g_dock_window.undockedRc = g_dock_window.rc;
-
-      RECT rc = {0};
-      GetClientRect(hWnd, &rc);
-
-      switch (eSuggest) {
-      case DOCK_RIGHT:
-        rc.left     = rc.right - g_dock_window.rc.right;
-        g_dock_side = DOCK_RIGHT;
-        break;
-      case DOCK_TOP:
-        rc.bottom   = g_dock_window.rc.bottom;
-        g_dock_side = DOCK_TOP;
-        break;
-      case DOCK_LEFT:
-        rc.right    = g_dock_window.rc.right;
-        g_dock_side = DOCK_LEFT;
-        break;
-      case DOCK_BOTTOM:
-        rc.top      = rc.bottom - g_dock_window.rc.bottom;
-        g_dock_side = DOCK_BOTTOM;
-        break;
-      }
-      g_dock_window.rc    = rc;
-      g_dock_window.fDock = TRUE;
-
-      unsuggest();
-      InvalidateRect(hWnd, NULL, TRUE);
-    }
-    */
-
-    fDrag = FALSE;
-    ReleaseCapture();
-  } break;
-  default:
-    return DefWindowProc(hWnd, message, wParam, lParam);
-    break;
+    pDat->hWnd_ = hWnd;
+    SetWindowLongPtr(hWnd, 0, (LONG_PTR) pDat);
+  }
+  else {
+    pDat = (PDOCKHOSTDATA) GetWindowLongPtr(hWnd, 0);
   }
 
-  return 0;
+  switch (message) {
+
+    case WM_CREATE:
+      return DockHost_OnCreate(pDat, (LPCREATESTRUCT)lParam);
+      break;
+
+    case WM_SIZE:
+      DockHost_OnSize(pDat, (UINT)wParam, (int)(short)LOWORD(lParam),
+          (int)(short)HIWORD(lParam));
+      return 0;
+      break;
+
+    case WM_PAINT:
+      DockHost_OnPaint(pDat);
+      return 0;
+      break;
+
+    case WM_DESTROY:
+      DockHost_OnDestroy(pDat);
+      return 0;
+      break;
+
+    case WM_LBUTTONDOWN:
+      DockHost_OnLButtonDown(pDat, FALSE, (int)(short)LOWORD(lParam),
+          (int)(short)HIWORD(lParam), (UINT)wParam);
+      return 0;
+      break;
+
+    case WM_MOUSEMOVE:
+      DockHost_OnMouseMove(pDat, (int)(short)LOWORD(lParam),
+          (int)(short)HIWORD(lParam), (UINT)wParam);
+      return 0;
+      break;
+
+    case WM_LBUTTONUP:
+      DockHost_OnLButtonUp(pDat, (int)(short)LOWORD(lParam),
+          (int)(short)HIWORD(lParam), (UINT)wParam);
+      return 0;
+      break;
+  }
+
+  return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-BOOL DockHost_RegisterClass(HINSTANCE hInstance)
-{
-  WNDCLASSEX wcex;
+void DockHost_Init(PDOCKHOSTDATA pDat) {
+  ZeroMemory(pDat, sizeof(DOCKHOSTDATA));
 
-  ZeroMemory(&wcex, sizeof(wcex));
+  pDat->hInstance_ = GetModuleHandle(NULL);
 
-  wcex.cbSize = sizeof(wcex);
-  wcex.style = CS_HREDRAW | CS_VREDRAW;
-  wcex.lpfnWndProc = (WNDPROC)DockHost_WndProc;
-  wcex.hInstance = hInstance;
-  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-  wcex.lpszClassName = L"Win32Class_DockHost";
-
-  ATOM atom = RegisterClassEx(&wcex);
-
-  assert(atom);
-  g_dockhost.wndClass = atom;
-
-  return (BOOL) atom;
+  pDat->cs_.style = WS_BORDER | WS_VISIBLE | WS_CHILD | WS_CLIPCHILDREN;
+  pDat->cs_.x = 0;
+  pDat->cs_.y = 0;
+  pDat->cs_.cx = 640;
+  pDat->cs_.cy = 480;
+  pDat->cs_.hInstance = pDat->hInstance_;
 }
 
-HWND DockHost_Create(HWND hParent)
-{
-  HWND hWnd = CreateWindowEx(0,
-                             MAKEINTATOM(g_dockhost.wndClass),
-                             L"DockHost",
-                             WS_CHILD | WS_CLIPCHILDREN | WS_VISIBLE,
-                             0,
-                             0,
-                             320,
-                             240,
-                             hParent,
-                             (HMENU)NULL,
-                             GetModuleHandle(NULL),
-                             NULL);
-  assert(hWnd);
+BOOL DockHost_RegisterClass(PDOCKHOSTDATA pDat) {
 
-  return hWnd;
+  WNDCLASSEX wcex = { 0 };
+
+  if (GetClassInfoEx(pDat->hInstance_, pDat->wcex_.lpszClassName, &wcex)) {
+    memcpy(&pDat->wcex_, &wcex, sizeof(WNDCLASSEX));
+    return TRUE;
+  }
+
+  pDat->wcex_.cbSize = sizeof(wcex);
+  pDat->wcex_.style = CS_HREDRAW | CS_VREDRAW;
+  pDat->wcex_.lpfnWndProc = (WNDPROC) DockHost_WndProc;
+  pDat->wcex_.cbWndExtra = sizeof(PDOCKHOSTDATA);
+  pDat->wcex_.hInstance = pDat->hInstance_;
+  pDat->wcex_.hCursor = LoadCursor(NULL, IDC_ARROW);
+  pDat->wcex_.hbrBackground = (HBRUSH) (COLOR_BTNFACE + 1);
+  pDat->wcex_.lpszClassName = L"Panitent_DockHost3_";
+
+  return (BOOL) RegisterClassEx(&pDat->wcex_);
+}
+
+void DockHost_Create(PDOCKHOSTDATA pDat, HWND hParent) {
+  DockHost_RegisterClass(pDat);
+
+  pDat->cs_.lpszClass = pDat->wcex_.lpszClassName;
+
+  if (IsWindow(hParent)) {
+    RECT rcClient = { 0 };
+    GetClientRect(hParent, &rcClient);
+
+    pDat->cs_.cx = rcClient.right;
+    pDat->cs_.cy = rcClient.bottom;
+  }
+
+  pDat->hWnd_ = CreateWindowEx(pDat->cs_.dwExStyle, pDat->cs_.lpszClass,
+      L"DockHost",
+      pDat->cs_.style,
+      pDat->cs_.x, pDat->cs_.y, pDat->cs_.cx, pDat->cs_.cy,
+      hParent,
+      (HMENU) NULL,
+      pDat->hInstance_,
+      (LPVOID) pDat);
 }
