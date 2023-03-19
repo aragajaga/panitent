@@ -1,19 +1,14 @@
 #ifndef PANITENT_PALETTE_H_
 #define PANITENT_PALETTE_H_
 
-#include "precomp.h"
+#include "kvec.h"
 
-#include <stdint.h>
+typedef kvec_t(uint32_t) Palette;
 
-typedef struct _palette_dialog {
-  HWND win_handle;
-} palette_dialog_t;
+Palette* Palette_Create();
+size_t Palette_GetSize(Palette* palette);
+uint32_t Palette_At(Palette*, size_t);
+void Palette_Add(Palette* palette, uint32_t);
+void Palette_InitDefault(Palette* palette);
 
-extern palette_dialog_t g_palette_dialog;
-
-uint32_t abgr_to_argb(uint32_t abgr);
-
-BOOL PaletteWindow_RegisterClass(HINSTANCE hInstance);
-void PaletteWindow_Create(HWND parent);
-
-#endif /* PANITENT_PALETTE_H_ */
+#endif  /* PANITENT_PALETTE_H_ */

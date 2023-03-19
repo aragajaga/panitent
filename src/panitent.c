@@ -2,6 +2,8 @@
 
 #include "panitent.h"
 
+#include "win32/application.h"
+
 #include "bresenham.h"
 #include "brush.h"
 #include "canvas.h"
@@ -22,8 +24,12 @@
 #include "settings_dialog.h"
 #include "log_window.h"
 #include "log.h"
+#include "palette.h"
+#include "palette_window.h"
 
 #include "resource.h"
+
+#include <DbgHelp.h>
 
 DOCKHOSTDATA g_dockHost;
 
@@ -80,6 +86,35 @@ enum {
   IDM_HELP_ABOUT
 };
 
+void CreateDump(EXCEPTION_POINTERS* exceptionPointers)
+{
+  SYSTEMTIME st;
+  GetSystemTime(&st);
+
+  WCHAR szDumpFileName[MAX_PATH];
+  StringCchPrintf(szDumpFileName, MAX_PATH, L"panitent_%04d%02d%02d_%02d%02d%02d.dmp", st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+
+
+  HANDLE dumpFile = CreateFile(szDumpFileName, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+
+  if (dumpFile != INVALID_HANDLE_VALUE)
+  {
+    MINIDUMP_EXCEPTION_INFORMATION exceptionInfo = { 0 };
+    exceptionInfo.ThreadId = GetCurrentThreadId();
+    exceptionInfo.ExceptionPointers = exceptionPointers;
+    exceptionInfo.ClientPointers = TRUE;
+
+    MiniDumpWriteDump(GetCurrentProcess(), GetCurrentProcessId(), dumpFile, MiniDumpWithFullMemory, &exceptionInfo, NULL, NULL);
+    CloseHandle(dumpFile);
+  }
+}
+
+LONG WINAPI PanitentUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionPointers)
+{
+  CreateDump(exceptionPointers);
+  return EXCEPTION_EXECUTE_HANDLER;
+}
+
 #ifdef _MSC_VER
 #pragma warning( push )
 #pragma warning( disable : 28251 )
@@ -98,7 +133,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   WCHAR szModulePath[MAX_PATH];
   WCHAR szWorkDir[MAX_PATH];
   WCHAR szAppData[MAX_PATH];
+  MSG msg;
 
+  struct PanitentApplication* app = PanitentApplication_Create();
+
+  Window_CreateWindow((struct Window*)app->paletteWindow, NULL);
+
+  AddVectoredExceptionHandler(TRUE, PanitentUnhandledExceptionFilter);
 
   pszArgFile = NULL;
 
@@ -148,7 +189,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   /* Request Common Controls v6 */
   INITCOMMONCONTROLSEX icex;
   icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  icex.dwICC  = ICC_TAB_CLASSES;
+  icex.dwICC = ICC_TAB_CLASSES;
   InitCommonControlsEx(&icex);
 
   FetchSystemFont();
@@ -158,7 +199,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   bResult = Panitent_RegisterClasses(hInstance);
   assert(bResult);
   if (!bResult)
+  {
     return -1;
+  }
 
   bresenham_init();
   wu_init();
@@ -175,14 +218,14 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
   /* Regiser application window class and create it */
   PanitentWindow_RegisterClass(hInstance);
 
-  PNTSETTINGS *pSettings;
+  PNTSETTINGS* pSettings;
   pSettings = Panitent_GetSettings();
 
   WCHAR szSettingsPath[MAX_PATH];
   StringCchCopy(szSettingsPath, MAX_PATH, szAppData);
   PathAppend(szSettingsPath, L"\\settings.dat");
 
-  FILE *fp;
+  FILE* fp;
   errno_t result = _wfopen_s(&fp, szSettingsPath, L"rb");
   assert(result);
   if (result && fp)
@@ -221,12 +264,13 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
     */
 
   if (pszArgFile)
+  {
     Panitent_OpenFile(pszArgFile);
+  }
 
   /* Application message loop.
    * Just pump inbound window messages and forward them to associated window
      procedure */
-  MSG msg;
   ZeroMemory(&msg, sizeof(MSG));
   while (GetMessage(&msg, NULL, 0, 0)) {
     DispatchMessage(&msg);
@@ -458,9 +502,6 @@ BOOL Panitent_RegisterClasses(HINSTANCE hInstance)
   bStatus = bStatus && AssertClassRegistration(hInstance, L"ToolBox",
       Toolbox_RegisterClass);
 
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"PaletteWindow",
-      PaletteWindow_RegisterClass);
-
   bStatus = bStatus && AssertClassRegistration(hInstance, L"OptonBar",
       OptionBar_RegisterClass);
 
@@ -542,6 +583,8 @@ void Panitent_DockHostInit(HWND hWnd, binary_tree_t* parent)
       WS_CHILD | WS_VISIBLE,
       0, 0, 128, 128,
       hWnd, NULL, GetModuleHandle(NULL), NULL);
+
+  hwndPalette = NULL;
 
   nodePalette->lpszCaption  = L"Palette";
   nodePalette->bShowCaption = TRUE;
@@ -787,4 +830,24 @@ void Panitent_ClipboardExport() {
 
   SetClipboardData(CF_BITMAP, hBitmap);
   CloseClipboard();
+}
+
+struct PanitentApplication* PanitentApplication_Create()
+{
+  struct PanitentApplication* app = calloc(1, sizeof(struct PanitentApplication));
+
+  if (app)
+  {
+    PanitentApplication_Init(app);
+  }
+
+  return app;
+}
+
+void PanitentApplication_Init(struct PanitentApplication* app)
+{
+  Application_Init(&app->base);
+
+  app->palette = Palette_Create();
+  app->paletteWindow = PaletteWindow_Create(app, app->palette);
 }

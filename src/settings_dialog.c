@@ -1,8 +1,9 @@
-#include "precomp.h"
+﻿#include "precomp.h"
 
 #include "panitent.h"
 #include "flexible.h"
 #include "settings_dialog.h"
+#include "win32util.h"
 
 typedef struct _tagSETTINGSDIALOGDATA {
   PLAYOUTBOX pRootBox;
@@ -89,7 +90,7 @@ void BuildInputSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
 
   hCheckEnablePen = CreateWindowEx(0, WC_BUTTON, L"Enable pen tablet",
       WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-      0, 0, 100, 21,
+      0, 0, 50, 21,
       hParent, NULL, hInstance, NULL);
   assert(hCheckEnablePen);
   SetGuiFont(hCheckEnablePen);
@@ -136,7 +137,7 @@ void BuildMaintenanceSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
   (*ppLayoutBox)->spaceBetween = 7;
   (*ppLayoutBox)->stretch = TRUE;
 
-  LayoutBox_SetSize(*ppLayoutBox, 400, 100);
+  LayoutBox_SetSize(*ppLayoutBox, 1000, 100);
   LayoutBox_Update(*ppLayoutBox);
 }
 
@@ -305,7 +306,7 @@ BOOL SettingsDialog_RegisterClass(HINSTANCE hInstance)
   wcex.lpfnWndProc = (WNDPROC) SettingsDialog_WndProc;
   wcex.hInstance = hInstance;
   wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH) (COLOR_BTNFACE + 1);
+  wcex.hbrBackground = (HBRUSH) CreateSolidBrush(HSVtoCOLORREF(30.0f, 0.05f, 1.0f));
   wcex.lpszClassName = L"SettingsDialogClass";
 
   return RegisterClassEx(&wcex);

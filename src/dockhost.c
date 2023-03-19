@@ -198,9 +198,6 @@ BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
 
 binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
 {
-  HWND hButton = CreateWindowEx(0, WC_BUTTON, L"Button", WS_CHILD | WS_VISIBLE,
-      0, 0, 0, 0, hWnd, NULL, GetModuleHandle(NULL), NULL);
-
   parent->posFixedGrip = 128;
   parent->gripAlign    = GRIP_ALIGN_END;
   /* TODO Use significant bit */
@@ -226,7 +223,6 @@ binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
     {
       subnode1->bShowCaption = TRUE;
       subnode1->lpszCaption = L"Tools";
-      subnode1->hwnd = hButton;
       subnode2->bShowCaption = TRUE;
       subnode2->lpszCaption = L"Untitled-1";
       node1->node1 = subnode1;

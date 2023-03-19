@@ -1,6 +1,19 @@
 #ifndef PANITENT_PANITENT_H
 #define PANITENT_PANITENT_H
 
+#include "win32/application.h"
+#include "palette.h"
+#include "palette_window.h"
+
+struct PanitentApplication {
+  struct Application base;
+  Palette* palette;
+  struct PaletteWindow* paletteWindow;
+};
+
+void PanitentApplication_Init(struct PanitentApplication*);
+struct PanitentApplication* PanitentApplication_Create();
+
 #ifdef HAS_DISCORDSDK
 #include "discordsdk.h"
 #endif /* HAS_DISCORDSDK */

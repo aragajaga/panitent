@@ -123,5 +123,5 @@ if (MSVC)
 endif(MSVC)
 
 target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme
-    windowscodecs)
+    windowscodecs dbghelp)
 

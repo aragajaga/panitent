@@ -67,8 +67,118 @@ void LayoutBox_SetPosition(LAYOUTBOX *pLayoutBox, UINT x, UINT y)
 
 void LayoutBox_SetSize(PLAYOUTBOX pLayoutBox, UINT uWidth, UINT uHeight)
 {
-  pLayoutBox->rc.right = pLayoutBox->rc.left + uWidth > pLayoutBox->minWidth ? uWidth : pLayoutBox->minWidth;
-  pLayoutBox->rc.bottom = pLayoutBox->rc.top + uHeight;
+  // pLayoutBox->rc.right = pLayoutBox->rc.left + (uWidth > pLayoutBox->minWidth) ? uWidth : pLayoutBox->minWidth;
+  // pLayoutBox->rc.bottom = pLayoutBox->rc.top + uHeight;
+    UNREFERENCED_PARAMETER(uWidth);
+    UNREFERENCED_PARAMETER(uHeight);
+
+    PRECT prc = &pLayoutBox->rc;
+
+    // prc->left = 0;
+    prc->right = prc->left + uWidth;
+    prc->bottom = prc->top + uHeight;
+}
+
+#define FONT_LIGHT 0x1
+#define FONT_BOLD 0x2
+#define FONT_BLACK 0x4
+#define FONT_ITALIC 0x8
+
+HFONT LoadFont(PWSTR szFaceName, LONG lHeight, DWORD dwFlags)
+{
+  HFONT hSysFont = GetStockObject(DEFAULT_GUI_FONT);
+
+  LOGFONT fontAttrib = { 0 };
+  GetObject(hSysFont, sizeof(fontAttrib), &fontAttrib);
+  fontAttrib.lfHeight = lHeight;
+
+  LONG lWeight = FW_NORMAL;
+  BYTE bItalic = FALSE;
+
+  int mutuallyExcluded = 0;
+  if (dwFlags & FONT_LIGHT) ++mutuallyExcluded;
+  if (dwFlags & FONT_BOLD) ++mutuallyExcluded;
+  if (dwFlags & FONT_BLACK) ++mutuallyExcluded;
+
+  if (mutuallyExcluded > 1)
+  {
+      RaiseException(1337, 0, 0, NULL);
+  }
+
+  if (dwFlags & FONT_LIGHT)
+  {
+    lWeight = FW_LIGHT;
+  }
+  else if (dwFlags & FONT_BOLD)
+  {
+      lWeight = FW_BOLD;
+  }
+  else if (dwFlags & FONT_BLACK)
+  {
+    lWeight = FW_BLACK;
+  }
+
+  if (dwFlags & FONT_ITALIC)
+  {
+    bItalic = TRUE;
+  }
+
+  fontAttrib.lfWeight = lWeight;
+  fontAttrib.lfItalic = bItalic;
+
+  StringCchCopy(fontAttrib.lfFaceName, LF_FACESIZE, szFaceName);
+
+  HFONT hFont = CreateFontIndirect(&fontAttrib);
+
+  return hFont;
+}
+
+#define HEX_TO_COLORREF(hexColor) ((COLORREF) ((hexColor & 0xFF) << 16) | (hexColor & 0xFF00) | ((hexColor & 0xFF0000) >> 16))
+
+inline COLORREF HSVtoCOLORREF(float h, float s, float v)
+{
+    float c = v * s;
+    float x = c * (1 - fabsf(fmodf(h / 60.0f, 2) - 1));
+    float m = v - c;
+
+    float r, g, b;
+
+    if (h >= 0 && h < 60) {
+        r = c;
+        g = x;
+        b = 0;
+    }
+    else if (h >= 60 && h < 120) {
+        r = x;
+        g = c;
+        b = 0;
+    }
+    else if (h >= 120 && h < 180) {
+        r = 0;
+        g = c;
+        b = x;
+    }
+    else if (h >= 180 && h < 240) {
+        r = 0;
+        g = x;
+        b = c;
+    }
+    else if (h >= 240 && h < 300) {
+        r = x;
+        g = 0;
+        b = c;
+    }
+    else {
+        r = c;
+        g = 0;
+        b = x;
+    }
+
+    int red = (int)((r + m) * 255.0f);
+    int green = (int)((g + m) * 255.0f);
+    int blue = (int)((b + m) * 255.0f);
+
+    return RGB(red, green, blue);
 }
 
 PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
@@ -78,21 +188,20 @@ PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
 
   if (!s_bLoaded)
   {
-    HFONT hSysFont = GetStockObject(DEFAULT_GUI_FONT);
+    HFONT hFont = NULL;
 
-    LOGFONT fontAttrib = { 0 };
-    GetObject(hSysFont, sizeof(fontAttrib), &fontAttrib);
-    fontAttrib.lfHeight = 20;
-    fontAttrib.lfWeight = FW_BOLD;
-    StringCchCopy(fontAttrib.lfFaceName, LF_FACESIZE, L"Trebuchet MS\0");
-
-    HFONT hFont = CreateFontIndirect(&fontAttrib);
+    //__try {
+      hFont = LoadFont(L"Rubik\0", 20, FONT_ITALIC);
+    //}
+    //__except (EXCEPTION_CONTINUE_SEARCH) {
+      //MessageBox(NULL, L"Invalid Argument", NULL, MB_OK | MB_ICONERROR);
+    //}
 
     CAPTIONFILLSTYLE captionFill;
 
     captionFill.uType = FILL_STYLE_GRADIENT;
-    captionFill.data.gradient.dwColorStart = RGB(127, 0, 0);
-    captionFill.data.gradient.dwColorEnd = RGB(255, 0, 0);
+    captionFill.data.gradient.dwColorStart = HEX_TO_COLORREF(0xFF8000);
+    captionFill.data.gradient.dwColorEnd = HSVtoCOLORREF(30.0f, 0.5f, 1.0f);
     captionFill.data.gradient.uDirection = GRADIENT_FILL_RECT_H;
 
     s_captionStyle.hFont = hFont;
@@ -156,8 +265,8 @@ void GroupBox_Update(PGROUPBOX pGroupBox)
     assert(FALSE);
   }
 
-  unsigned int insWidth = rcElement.right - rcElement.left;
-  unsigned int insHeight = rcElement.bottom - rcElement.top;
+  unsigned int insWidth = rcContainer.right - rcContainer.left - 14;
+  unsigned int insHeight = rcContainer.bottom - rcContainer.top - 32 - 14;
 
   if (pContent->type == LAYOUTBOX_TYPE_CONTROL)
   {
@@ -280,7 +389,7 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
     {
       HWND hWnd = pContent->data.hWnd;
 
-      GetClientRect(hWnd, &rcElement);
+      GetWindowRect(hWnd, &rcElement);
       // MapWindowPoints(hWnd, GetParent(hWnd), (LPPOINT)&rcElement, 2);
     }
     else if (pContent->type == LAYOUTBOX_TYPE_BOX)
@@ -308,10 +417,10 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
       if (horiz)
       {
         insWidth = nWidth;
-        insHeight = rcContainer.bottom - rcContainer.top - padding * 2;
+        insHeight = (rcContainer.bottom - rcContainer.top) - padding * 2;
       }
       else {
-        insWidth = rcContainer.right - rcContainer.left - padding * 2;
+        insWidth = (rcContainer.right - rcContainer.left) - padding * 2;
         insHeight = nHeight;
       }
     }
@@ -346,6 +455,79 @@ void LayoutBox_Update(PLAYOUTBOX pLayoutBox)
     prevWidth += pLayoutBox->spaceBetween + thisWidth;
   }
 }
+
+void HsvToRgb(double h, double s, double v, int* r, int* g, int* b) {
+    int i;
+    double f, p, q, t;
+
+    if (s == 0) {
+        *r = *g = *b = (int)(v * 255.0);
+        return;
+    }
+
+    h /= 60.0;
+    i = (int)floor(h);
+    f = h - i;
+    p = v * (1.0 - s);
+    q = v * (1.0 - s * f);
+    t = v * (1.0 - s * (1.0 - f));
+
+    switch (i) {
+    case 0:
+        *r = (int)(v * 255.0);
+        *g = (int)(t * 255.0);
+        *b = (int)(p * 255.0);
+        break;
+    case 1:
+        *r = (int)(q * 255.0);
+        *g = (int)(v * 255.0);
+        *b = (int)(p * 255.0);
+        break;
+    case 2:
+        *r = (int)(p * 255.0);
+        *g = (int)(v * 255.0);
+        *b = (int)(t * 255.0);
+        break;
+    case 3:
+        *r = (int)(p * 255.0);
+        *g = (int)(q * 255.0);
+        *b = (int)(v * 255.0);
+        break;
+    case 4:
+        *r = (int)(t * 255.0);
+        *g = (int)(p * 255.0);
+        *b = (int)(v * 255.0);
+        break;
+    default:
+        *r = (int)(v * 255.0);
+        *g = (int)(p * 255.0);
+        *b = (int)(q * 255.0);
+        break;
+    }
+}
+
+double g_hue = 0.0;
+
+void DrawRect(HDC hDC, PRECT rc)
+{
+  int r;
+  int g;
+  int b;
+
+  HsvToRgb(g_hue, 1.0, 1.0, &r, &g, &b);
+  HPEN hPen = CreatePen(PS_SOLID, 1, RGB(r, g, b));
+  HPEN hOldPen = SelectObject(hDC, hPen);
+  HBRUSH hOldBrush = SelectObject(hDC, GetStockObject(HOLLOW_BRUSH));
+
+  Rectangle(hDC, rc->left, rc->top, rc->right, rc->bottom);
+
+  SelectObject(hDC, hOldPen);
+  SelectObject(hDC, hOldBrush);
+  DeleteObject(hPen);
+
+  g_hue = fmod(g_hue + 30.0, 360.0);
+}
+
 
 void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
 {
@@ -428,6 +610,8 @@ void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
 
     SelectObject(hDC, hOldFont);
   }
+
+  // DrawRect(hDC, &pGroupBox->rc);
 }
 
 void DrawLayoutBox(HDC hDC, PLAYOUTBOX pLayoutBox)
@@ -445,5 +629,7 @@ void DrawLayoutBox(HDC hDC, PLAYOUTBOX pLayoutBox)
     else if (pContent->type == LAYOUTBOX_TYPE_GROUP) {
       DrawGroupBox(hDC, pContent->data.pGroup);
     }
+
+    // DrawRect(hDC, &pLayoutBox->rc);
   }
 }
