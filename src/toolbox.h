@@ -1,24 +1,38 @@
-#ifndef PANITENT_TOOLBOX_H
-#define PANITENT_TOOLBOX_H
+#pragma once
 
-#include "precomp.h"
-#include "panitent.h"
-#include "tool.h"
+typedef struct PointerTool PointerTool;
+typedef struct PencilTool PencilTool;
+typedef struct CircleTool CircleTool;
+typedef struct LineTool LineTool;
+typedef struct RectangleTool RectangleTool;
+typedef struct TextTool TextTool;
+typedef struct FillTool FillTool;
+typedef struct PickerTool PickerTool;
+typedef struct BrushTool BrushTool;
+typedef struct EraserTool EraserTool;
 
-#define TOOLBOX_WC L"ToolBoxClass"
+typedef struct ToolboxWindow ToolboxWindow;
+struct ToolboxWindow {
+	Window base;
 
-typedef struct _Toolbox {
-  Tool* tools;
-  unsigned int tool_count;
-  HWND hwnd;
-} Toolbox;
+	Tool** tools;
+	unsigned int tool_count;
+
+	PointerTool* m_pPointerTool;
+	PencilTool* m_pPencilTool;
+	CircleTool* m_pCircleTool;
+	LineTool* m_pLineTool;
+	RectangleTool* m_pRectangleTool;
+	TextTool* m_pTextTool;
+	FillTool* m_pFillTool;
+	PickerTool* m_pPickerTool;
+	BrushTool* m_pBrushTool;
+	EraserTool* m_pEraserTool;
+};
 
 typedef struct _tagTOOLBOXICONTHEME {
   LPWSTR lpszName;
   LPWSTR lpszResource;
 } TOOLBOXICONTHEME, *PTOOLBOXICONTHEME;
 
-BOOL Toolbox_RegisterClass(HINSTANCE);
-void Toolbox_UnregisterClass();
-
-#endif /* PANITENT_TOOLBOX_H */
+ToolboxWindow* ToolboxWindow_Create(struct Application* app);

@@ -22,7 +22,7 @@ LPARAM TreeViewCtl_GetItemData(TreeViewCtl*, HTREEITEM);
 HTREEITEM TreeViewCtl_GetNextItem(TreeViewCtl*, HTREEITEM, UINT);
 HTREEITEM TreeViewCtl_GetSelection(TreeViewCtl*);
 HTREEITEM TreeViewCtl_HitTest(TreeViewCtl*, LPTVHITTESTINFO, BOOL);
-HTREEITEM TreeViewCtl_InsertItem(TreeViewCtl*, PCWSTR, int, LPARAM, HTREEITEM, HTREEITEM);
+HTREEITEM TreeViewCtl_InsertItem(TreeViewCtl* pTreeViewCtl, PCWSTR pcszText, int nImage, LPARAM lParam, HTREEITEM htiParent, HTREEITEM htiInsertAfter);
 BOOL TreeViewCtl_SelectItem(TreeViewCtl*, HTREEITEM);
 UINT TreeViewCtl_SetCheckState(TreeViewCtl*, HTREEITEM, BOOL);
 HIMAGELIST TreeViewCtl_SetImageList(TreeViewCtl*, HIMAGELIST, INT);

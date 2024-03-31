@@ -1,10 +1,7 @@
-#ifndef PANITENT_DOCUMENT_H_
-#define PANITENT_DOCUMENT_H_
-
-#include "precomp.h"
-#include "canvas.h"
+#pragma once
 
 typedef struct _History History;
+typedef struct _Canvas Canvas;
 
 typedef struct _Document {
   char* location;
@@ -22,5 +19,3 @@ Document* Document_New(int width, int height);
 BOOL Document_IsFilePathSet(Document* doc);
 History* Document_GetHistory(Document* doc);
 Canvas* Document_GetCanvas(Document* doc);
-
-#endif /* PANITENT_DOCUMENT_H_ */

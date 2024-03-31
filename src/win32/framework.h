@@ -1,0 +1,6 @@
+#ifndef _WIN32_FRAMEWORK_H_INCLUDED
+#define _WIN32_FRAMEWORK_H_INCLUDED
+
+void WindowingInit();
+
+#endif  // _WIN32_FRAMEWORK_H_INCLUDED

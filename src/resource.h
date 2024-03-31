@@ -11,6 +11,14 @@
 #define IDB_TOOLS 1201
 #define IDB_TOOLS24 1202
 #define IDB_CLOSEBTN 1203
+#define IDB_FLOATINGGLYPHS 1024
+#define IDB_DOCK_ICONS 1025
+#define IDB_DOCK_BTNFRAME 1026
+#define IDB_DOCK_SUGGEST 1027
+
+
+#define IDC_PICKER 1601
+#define IDC_BRUSH 1602
 
 #define IDD_ABOUTBOX 100
 
@@ -47,6 +55,10 @@
 #define IDC_DOCUMENTRAMLABEL            1020
 #define IDC_DOCUMENTRAM                 1021
 #define IDC_WHNOLIMIT                   1022
+
+#define IDD_DOCKINSPECTOR   134
+#define IDC_TREE1                       1023
+#define IDC_LIST1                       1024
 
 #define CBS_CDCLRSEL_SWATCHBIAS 128
 

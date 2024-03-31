@@ -19,19 +19,27 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\aboutbox.c" />
     <ClCompile Include="src\bresenham.c" />
     <ClCompile Include="src\brush.c" />
     <ClCompile Include="src\brush_context.c" />
     <ClCompile Include="src\canvas.c" />
     <ClCompile Include="src\checker.c" />
     <ClCompile Include="src\color_context.c" />
+    <ClCompile Include="src\controllibrary.c" />
+    <ClCompile Include="src\crashhandler.c" />
     <ClCompile Include="src\crefptr.c" />
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\dockhost.c" />
+    <ClCompile Include="src\dockinspectordialog.c" />
     <ClCompile Include="src\document.c" />
     <ClCompile Include="src\file_open.c" />
     <ClCompile Include="src\flexible.c" />
+    <ClCompile Include="src\floatingwindowcontainer.c" />
+    <ClCompile Include="src\glwindow.c" />
     <ClCompile Include="src\history.c" />
+    <ClCompile Include="src\layeredwindow.c" />
+    <ClCompile Include="src\layerswindow.c" />
     <ClCompile Include="src\log.c" />
     <ClCompile Include="src\log_window.c" />
     <ClCompile Include="src\new.c" />
@@ -40,34 +48,60 @@
     <ClCompile Include="src\palette_settings_dlg.c" />
     <ClCompile Include="src\palette_window.c" />
     <ClCompile Include="src\panitent.c" />
+    <ClCompile Include="src\panitentwindow.c" />
     <ClCompile Include="src\pentablet.c" />
     <ClCompile Include="src\primitives_context.c" />
+    <ClCompile Include="src\queue.c" />
     <ClCompile Include="src\settings.c" />
     <ClCompile Include="src\settings_dialog.c" />
+    <ClCompile Include="src\splittercontainer.c" />
+    <ClCompile Include="src\stack.c" />
     <ClCompile Include="src\swatch.c" />
     <ClCompile Include="src\swatch2.c" />
     <ClCompile Include="src\toolbox.c" />
+    <ClCompile Include="src\tools\brushtool.c" />
+    <ClCompile Include="src\tools\circletool.c" />
+    <ClCompile Include="src\tools\erasertool.c" />
+    <ClCompile Include="src\tools\filltool.c" />
+    <ClCompile Include="src\tools\linetool.c" />
+    <ClCompile Include="src\tools\penciltool.c" />
+    <ClCompile Include="src\tools\pickertool.c" />
+    <ClCompile Include="src\tools\pointertool.c" />
+    <ClCompile Include="src\tools\rectangletool.c" />
+    <ClCompile Include="src\tools\texttool.c" />
+    <ClCompile Include="src\tree.c" />
     <ClCompile Include="src\util.c" />
     <ClCompile Include="src\viewport.c" />
     <ClCompile Include="src\wic.c" />
+    <ClCompile Include="src\windowstub.c" />
+    <ClCompile Include="src\workspacecontainer.c" />
     <ClCompile Include="src\wu_primitives.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="res\resource.h" />
+    <ClInclude Include="src\aboutbox.h" />
     <ClInclude Include="src\bresenham.h" />
     <ClInclude Include="src\brush.h" />
     <ClInclude Include="src\brush_context.h" />
     <ClInclude Include="src\canvas.h" />
     <ClInclude Include="src\checker.h" />
     <ClInclude Include="src\color_context.h" />
+    <ClInclude Include="src\controllibrary.h" />
+    <ClInclude Include="src\crashhandler.h" />
     <ClInclude Include="src\crefptr.h" />
     <ClInclude Include="src\debug.h" />
     <ClInclude Include="src\discordsdk.h" />
     <ClInclude Include="src\dockhost.h" />
+    <ClInclude Include="src\dockinspectordialog.h" />
     <ClInclude Include="src\document.h" />
     <ClInclude Include="src\file_open.h" />
     <ClInclude Include="src\flexible.h" />
+    <ClInclude Include="src\floatingwindowcontainer.h" />
+    <ClInclude Include="src\glwindow.h" />
     <ClInclude Include="src\history.h" />
     <ClInclude Include="src\kvec.h" />
+    <ClInclude Include="src\layeredwindow.h" />
+    <ClInclude Include="src\layerswindow.h" />
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\log_window.h" />
     <ClInclude Include="src\new.h" />
@@ -76,26 +110,47 @@
     <ClInclude Include="src\palette_settings_dlg.h" />
     <ClInclude Include="src\palette_window.h" />
     <ClInclude Include="src\panitent.h" />
+    <ClInclude Include="src\panitentwindow.h" />
     <ClInclude Include="src\pencil_tool.h" />
     <ClInclude Include="src\pentablet.h" />
     <ClInclude Include="src\precomp.h" />
     <ClInclude Include="src\primitives_context.h" />
+    <ClInclude Include="src\queue.h" />
     <ClInclude Include="src\resource.h" />
     <ClInclude Include="src\settings.h" />
     <ClInclude Include="src\settings_dialog.h" />
+    <ClInclude Include="src\splittercontainer.h" />
+    <ClInclude Include="src\stack.h" />
     <ClInclude Include="src\swatch.h" />
     <ClInclude Include="src\swatch2.h" />
     <ClInclude Include="src\test.h" />
     <ClInclude Include="src\tool.h" />
     <ClInclude Include="src\toolbox.h" />
+    <ClInclude Include="src\tools\brushtool.h" />
+    <ClInclude Include="src\tools\circletool.h" />
+    <ClInclude Include="src\tools\common.h" />
+    <ClInclude Include="src\tools\erasertool.h" />
+    <ClInclude Include="src\tools\filltool.h" />
+    <ClInclude Include="src\tools\linetool.h" />
+    <ClInclude Include="src\tools\penciltool.h" />
+    <ClInclude Include="src\tools\pickertool.h" />
+    <ClInclude Include="src\tools\pointertool.h" />
+    <ClInclude Include="src\tools\rectangletool.h" />
+    <ClInclude Include="src\tools\texttool.h" />
+    <ClInclude Include="src\tree.h" />
     <ClInclude Include="src\util.h" />
     <ClInclude Include="src\viewport.h" />
     <ClInclude Include="src\wic.h" />
     <ClInclude Include="src\win32util.h" />
+    <ClInclude Include="src\win32\dialog.h" />
+    <ClInclude Include="src\windowstub.h" />
+    <ClInclude Include="src\workspacecontainer.h" />
     <ClInclude Include="src\wu_primitives.h" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="floatingglyphs.bmp" />
     <Image Include="res\close.bmp" />
+    <Image Include="res\floatingglyphs.bmp" />
     <Image Include="res\log.ico" />
     <Image Include="res\newdocstrip.bmp" />
     <Image Include="res\panitent.ico" />
@@ -108,6 +163,8 @@
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="res\panitent.rc" />
+    <ResourceCompile Include="res\panitent2.rc" />
+    <ResourceCompile Include="src\res2.rc" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="win32fw.vcxproj">
@@ -176,7 +233,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -193,7 +250,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -206,7 +263,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -223,7 +280,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

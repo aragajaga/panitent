@@ -1,7 +1,9 @@
-#include "precomp.h"
+﻿#include "precomp.h"
 
 #include <math.h>
 #include <stdbool.h>
+
+#include "win32/window.h"
 
 #include "canvas.h"
 #include "viewport.h"
@@ -172,71 +174,120 @@ void Canvas_PasteBits(Canvas* canvas, void* bits, int x, int y, int width,
     pSource -= width;
   }
 
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+  Window_Invalidate((Window *)Panitent_GetActiveViewport());
 }
 
-void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width,
-    int height, uint32_t color)
+typedef struct Rect Rect;
+struct Rect {
+    int x;
+    int y;
+    int width;
+    int height;
+};
+
+BOOL IsIntersects(Rect* rc1, Rect* rc2)
 {
-  if (x >= canvas->width ||
-      y >= canvas->height ||
-      x + canvas->width < 0 ||
-      y + canvas->height < 0)
-    return;
+    return
+        rc1->x <= (rc2->x + rc2->width) && (rc1->x + rc1->width) >= rc2->x &&
+        rc1->y <= (rc2->y + rc2->height) && (rc1->y + rc1->height) >= rc2->y;
+}
 
-  uint32_t* pTarget = (uint32_t*)canvas->buffer;
-  uint32_t* pSource = (uint32_t*)bits + (size_t)width * ((size_t)height - 1);
-
-  int width_ = width;
-  int height_ = height;
-
-  pTarget += (size_t)max(0, y) * (size_t)canvas->width + (size_t)max(0, x);
-
-  if (x + width > canvas->width)
-  {
-    width_ = canvas->width - x;
-  }
-
-  if (y + height > canvas->height)
-  {
-    height_ = canvas->height - y;
-  }
-
-  if (x < 0)
-  {
-    int x_ = abs(x);
-    width -= x_;
-    pSource += x_;
-  }
-
-  if (y < 0)
-  {
-    int y_ = abs(y);
-    height -= y_;
-    pSource += (size_t)y_ * (size_t)width;
-  }
-
-  for (int i = height_; i; --i)
-  {
-    for (int j = 0; j < width_; j++)
-    { 
-      float channelB = ((*(pSource + j) >> 16) & 0xFF) / 255.f;
-      float channelG = ((*(pSource + j) >> 8 ) & 0xFF) / 255.f;
-      float channelR =  (*(pSource + j)        & 0xFF) / 255.f;
-
-      float srcAlpha = (channelB + channelG + channelR) / 3.f;
-      float colorAlpha = (color >> 24) / 255.f;
-
-      *(pTarget + j) = mix(*(pTarget + j),
-          (uint32_t)(roundf(lerp(0.f, srcAlpha, colorAlpha) * 255.f)) << 24 |
-          (color & 0x00FFFFFF));
+BOOL GetIntersection(Rect* rc1, Rect* rc2, Rect* rcOut)
+{
+    if (!IsIntersects(rc1, rc2))
+    {
+        return FALSE;
     }
 
-    pTarget += canvas->width;
-    pSource -= width;
-  }
+    int leftmostX = max(rc1->x, rc2->x);
+    int topmostY = max(rc1->y, rc2->y);
+    int rightmostX = min(rc1->x + rc1->width, rc2->x + rc2->width);
+    int bottommostY = min(rc1->y + rc1->height, rc2->y + rc2->height);
+    
+    rcOut->x = leftmostX;
+    rcOut->y = topmostY;
+    rcOut->width = rightmostX - leftmostX;
+    rcOut->height = bottommostY - topmostY;
+    
+    return TRUE;
+}
 
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width, int height, uint32_t color)
+{
+    if (x >= canvas->width ||
+        y >= canvas->height ||
+        x + width < 0 ||
+        y + height < 0)
+    {
+        return;
+    }
+
+    // Windows bitmaps are in bottom-top order, so get the pointer of last stip and then go upwards
+    uint32_t* pSource = (uint32_t*)bits + (size_t)width * ((size_t)height - 1);
+    uint32_t* pTarget = (uint32_t*)canvas->buffer;
+
+    /* Get starting pixel pointer */
+    pTarget += (size_t)max(0, y) * (size_t)canvas->width  + (size_t)max(0, x);
+
+    /* Get intersection */
+    Rect rectCanvas = { 0 };
+    rectCanvas.width = canvas->width;
+    rectCanvas.height = canvas->height;
+
+    Rect rectImage = { 0 };
+    rectImage.x = x;
+    rectImage.y = y;
+    rectImage.width = width;
+    rectImage.height = height;
+
+    Rect rectIntersection = { 0 };
+    GetIntersection(&rectCanvas, &rectImage, &rectIntersection);
+    int x_ = rectIntersection.x;
+    int y_ = rectIntersection.y;
+    int width_ = rectIntersection.width;
+    int height_ = rectIntersection.height;
+
+    if (x < 0)
+    {
+        pSource += abs(x);
+    }
+
+    size_t sourceStride = (size_t)width;
+
+    if (y < 0)
+    {
+        pSource -= abs(y) * sourceStride;
+    }
+
+    for (int i = height_; i; --i)
+    {
+        for (int j = 0; j < width_; j++)
+        {
+            uint32_t sourcePixel = *(pSource + j);
+            uint32_t* pTargetPixel = pTarget + j;
+
+            BYTE uRed   = sourcePixel & 0xFF;
+            BYTE uGreen = sourcePixel >>  8 & 0xFF;
+            BYTE uBlue  = sourcePixel >> 16 & 0xFF;
+
+            float fRed   = uRed   / 255.0f;
+            float fGreen = uGreen / 255.0f;
+            float fBlue  = uBlue  / 255.0f;
+
+            float fForegroundAlpha = (color >> 24 & 0xFF) / 255.0f;
+
+            float fSrcAlpha = (fRed + fGreen + fBlue) / 3.0f;
+            float fMulAlpha = lerp(0.0f, fSrcAlpha, fForegroundAlpha);
+            BYTE uMulAlpha = roundf(fMulAlpha * 255.0f);
+
+            uint32_t val = uMulAlpha << 24 | color & 0x00FFFFFF;
+
+            *pTargetPixel = mix(*pTargetPixel, val);
+        }
+
+        pTarget += canvas->width;
+        pSource -= sourceStride;
+    }
 }
 
 Canvas* Canvas_Clone(Canvas* canvas)

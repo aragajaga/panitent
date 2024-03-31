@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DockNode posFixedGrip="192" gripAlign="end" gripPosType="absolute" showCaption="false">
+  <DockNode class="OptionBar" />
+  <DockNode>
+    <DockNode>
+      <DockNode class="Toolbar" />
+      <DockNode class="ViewportContainer" />
+    </DockNode>
+    <DockNode>
+      <DockNode class="Palette" />
+      <DockNode class="GLWindow" />
+    </DockNode>
+  </DockNode>
+</DockNode>

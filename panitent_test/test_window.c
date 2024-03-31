@@ -15,7 +15,7 @@ void TestWindow_PreCreate(LPCREATESTRUCT);
 BOOL TestWindow_OnCreate(TestWindow*, LPCREATESTRUCT);
 void TestWindow_OnSize(TestWindow*, UINT, int, int);
 void TestWindow_OnPaint(TestWindow*);
-LRESULT CALLBACK TestWindow_UserProc(struct Window*, UINT message, WPARAM wParam, LPARAM lParam);
+LRESULT CALLBACK TestWindow_UserProc(struct Window*, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 TestWindow* TestWindow_Create(struct Application* app)
 {
@@ -44,7 +44,7 @@ void TestWindow_Init(TestWindow* window, struct Application* app)
   window->paletteWindow = PaletteWindow_Create(window->base.app, ((struct TestApplication*)app)->palette);
 }
 
-LRESULT CALLBACK TestWindow_UserProc(struct Window* window, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK TestWindow_UserProc(struct Window* window, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   switch (message)
   {
@@ -54,7 +54,7 @@ LRESULT CALLBACK TestWindow_UserProc(struct Window* window, UINT message, WPARAM
     break;
   }
 
-  return DefWindowProc(window->hWnd, message, wParam, lParam);
+  return Window_UserProcDefault(window, hWnd, message, wParam, lParam);
 }
 
 void TestWindow_PreRegister(LPWNDCLASSEX lpwcex)

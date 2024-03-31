@@ -1,6 +1,10 @@
 #include "precomp.h"
 #include "palette.h"
 
+struct Palette {
+    void* _stub;
+};
+
 static uint32_t defaultPaletteColors[] = {
     0xFF000000, /* Black */
     0xFFFFFFFF, /* White */
@@ -89,24 +93,42 @@ void Palette_InitDefault(Palette*);
 Palette* Palette_Create()
 {
   Palette* palette = calloc(1, sizeof(Palette));
-  kv_init(*palette);
-  Palette_InitDefault(palette);
-  return palette;
+  if (palette)
+  {
+      kv_init(*palette);
+      Palette_InitDefault(palette);
+      return palette;
+  }
+  
+  return NULL;
 }
 
 size_t Palette_GetSize(Palette* palette)
 {
-  return kv_size(*palette);
+    if (palette)
+    {
+        return kv_size(*palette);
+    }
+
+    return 0;
 }
 
 uint32_t Palette_At(Palette* palette, size_t idx)
 {
-  return kv_a(uint32_t, *palette, idx);
+    if (palette)
+    {
+        return kv_a(uint32_t, *palette, idx);
+    }
+
+    return 0;
 }
 
 void Palette_Add(Palette* palette, uint32_t color)
 {
-  kv_push(uint32_t, *palette, color);
+    if (palette)
+    {
+        kv_push(uint32_t, *palette, color);
+    }
 }
 
 void Palette_InitDefault(Palette* palette)

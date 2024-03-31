@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <math.h>
 
+#include "win32/window.h"
+
 #include "panitent.h"
 #include "bresenham.h"
 #include "primitives_context.h"
@@ -59,7 +61,7 @@ void draw_rectangle(Canvas* canvas, int x0, int y0, int x1, int y1)
 
     free(p.userData);
 
-    Viewport_Invalidate(Panitent_GetActiveViewport());
+    Window_Invalidate((Window *)Panitent_GetActiveViewport());
   }
 
   if (g_primitives_context.fStroke)
@@ -106,7 +108,7 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 
     free(p.userData);
   }
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+  Window_Invalidate((Window *)Panitent_GetActiveViewport());
 }
 
 void draw_filled_circle_color(Canvas* canvas, int cx, int cy, int radius, uint32_t color)
@@ -145,7 +147,7 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
 
     free(p.userData);
 
-    Viewport_Invalidate(Panitent_GetActiveViewport());
+    Window_Invalidate((Window *)Panitent_GetActiveViewport());
     return;
   }
 
@@ -217,7 +219,7 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
 
   }
 
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+  Window_Invalidate((Window *)Panitent_GetActiveViewport());
 }
 
 void draw_line(Canvas* canvas, int x0, int y0, int x1, int y1)
