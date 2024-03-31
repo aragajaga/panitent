@@ -23,7 +23,7 @@ BOOL LBoxHelper_CreateLabeledEdit(LPCWSTR lpszLabel, HMENU nId,
   assert(hWndLabel);
   if (!hWndLabel)
     return FALSE;
-  SetGuiFont(hWndLabel);
+  Win32_ApplyUIFont(hWndLabel);
 
   hWndControl = CreateWindowEx(0, WC_EDIT, NULL,
       WS_CHILD | WS_BORDER | WS_VISIBLE,
@@ -31,7 +31,7 @@ BOOL LBoxHelper_CreateLabeledEdit(LPCWSTR lpszLabel, HMENU nId,
   assert(hWndControl);
   if (!hWndControl)
     return FALSE;
-  SetGuiFont(hWndControl);
+  Win32_ApplyUIFont(hWndControl);
 
   CreateLayoutBox(ppLayoutBox, hParent);
   LayoutBox_AddControl(*ppLayoutBox, hWndLabel);
@@ -93,7 +93,7 @@ void BuildInputSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
       0, 0, 50, 21,
       hParent, NULL, hInstance, NULL);
   assert(hCheckEnablePen);
-  SetGuiFont(hCheckEnablePen);
+  Win32_ApplyUIFont(hCheckEnablePen);
 
   LayoutBox_AddControl(*ppLayoutBox, hCheckEnablePen);
 
@@ -120,7 +120,7 @@ void BuildMaintenanceSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
       0, 0, 100, 30,
       hParent, NULL, hInstance, NULL);
   assert(hBtnResetAll);
-  SetGuiFont(hBtnResetAll);
+  Win32_ApplyUIFont(hBtnResetAll);
 
   LayoutBox_AddControl(*ppLayoutBox, hBtnResetAll);
 
@@ -129,7 +129,7 @@ void BuildMaintenanceSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
       0, 0, 100, 30,
       hParent, NULL, hInstance, NULL);
   assert(hBtnCheckUpdates);
-  SetGuiFont(hBtnCheckUpdates);
+  Win32_ApplyUIFont(hBtnCheckUpdates);
 
   LayoutBox_AddControl(*ppLayoutBox, hBtnCheckUpdates);
 

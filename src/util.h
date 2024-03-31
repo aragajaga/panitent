@@ -30,14 +30,14 @@ void pntqueue_push$$##T(pntqueue$$##T *q, T data) \
   if (!q) \
     return; \
  \
-  assert(q->data); \
+  /*assert(q->data);*/ \
   if (!q->data) \
     return; \
  \
   if (q->capacity <= q->length) { \
     T *pData = NULL; \
     pData = realloc(q->data, (q->capacity + DEFAULT_CAPACITY) * sizeof(T)); \
-    assert(pData && L"Unable to reallocate memory"); \
+    /*assert(pData && L"Unable to reallocate memory");*/ \
     if (pData) { \
       q->data = pData; \
       q->capacity += DEFAULT_CAPACITY; \
@@ -53,16 +53,15 @@ T pntqueue_pop$$##T(pntqueue$$##T *q) \
   assert(q); \
   assert(q->length); \
  \
-  T tmp = q->data[q->length]; \
+  T tmp = q->data[--q->length]; \
   if (q->pfn_deleter) { \
     q->pfn_deleter(&q->data[q->length]); \
   } \
   memset(&q->data[q->length], 0, sizeof(T)); \
-  --q->length; \
   if (q->capacity - q->length > DEFAULT_CAPACITY) { \
     T *pData = NULL; \
-    size_t newcap = (q->length / DEFAULT_CAPACITY + 1) * sizeof(T); \
-    pData = realloc(q->data, newcap); \
+    size_t newcap = ((q->length / DEFAULT_CAPACITY) + 1) * DEFAULT_CAPACITY; \
+    pData = realloc(q->data, newcap * sizeof(T)); \
     if (pData) { \
       q->data = pData; \
       q->capacity = newcap; \
@@ -217,5 +216,7 @@ inline int float2int_s(int* i, float val)
   *i = bsafe ? (int)val : 0;
   return bsafe;
 }
+
+uint32_t ABGRToARGB(uint32_t abgr);
 
 #endif  /* PANITENT_UTIL_H_ */

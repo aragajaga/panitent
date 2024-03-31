@@ -1,14 +1,33 @@
-#ifndef PANITENT_PANITENT_H
-#define PANITENT_PANITENT_H
+#pragma once
 
 #include "win32/application.h"
 #include "palette.h"
-#include "palette_window.h"
+
+typedef struct PanitentApplication PanitentApplication;
+typedef struct PanitentWindow PanitentWindow;
+typedef struct GLWindow GLWindow;
+typedef struct ToolboxWindow ToolboxWindow;
+typedef struct OptionBarWindow OptionBarWindow;
+typedef struct Tool Tool;
+typedef struct TreeNode TreeNode;
+typedef struct ViewportWindow ViewportWindow;
+typedef struct WorkspaceContainer WorkspaceContainer;
 
 struct PanitentApplication {
   struct Application base;
+
   Palette* palette;
+
+  PanitentWindow* m_pPanitentWindow;
+
   struct PaletteWindow* paletteWindow;
+  GLWindow* glWindow;
+  ToolboxWindow* m_pToolboxWindow;
+  OptionBarWindow* m_pOptionBarWindow;
+  WorkspaceContainer* m_pWorkspaceContainer;
+  ViewportWindow* m_pViewportWindow;
+
+  Tool* m_pTool;
 };
 
 void PanitentApplication_Init(struct PanitentApplication*);
@@ -26,7 +45,6 @@ typedef struct _Viewport Viewport;
 typedef struct _Panitent {
   HINSTANCE hInstance;
   HWND hwnd;
-  Viewport* activeViewport;
 #ifdef HAS_DISCORDSDK
   DiscordSDKInstance *discord;
 #endif /* USE_DISCORDSDK */
@@ -36,17 +54,27 @@ typedef struct _Panitent {
 
 extern Panitent g_panitent;
 
-void SetGuiFont(HWND hwnd);
+void Win32_ApplyUIFont(HWND hwnd);
 HFONT GetGuiFont();
 
+typedef struct ViewportWindow ViewportWindow;
+typedef struct DockHostWindow DockHostWindow;
+
 Document* Panitent_GetActiveDocument();
-void Panitent_SetActiveViewport(Viewport* viewport);
-Viewport* Panitent_GetActiveViewport();
+void Panitent_SetActiveViewport(ViewportWindow* pViewportWindow);
+ViewportWindow* Panitent_GetActiveViewport();
 HWND Panitent_GetHWND();
 PNTSETTINGS* Panitent_GetSettings();
 void Panitent_Open();
 void Panitent_OpenFile(LPWSTR);
-Viewport* Panitent_CreateViewport();
+ViewportWindow* Panitent_CreateViewport();
 void Panitent_ClipboardExport();
+void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNode);
 
-#endif /* PANITENT_PANITENT_H */
+void Panitent_CmdSaveFile(struct PanitentApplication* app);
+void Panitent_CmdClearCanvas(struct PanitentApplication* app);
+PanitentApplication* Panitent_GetApp();
+
+WorkspaceContainer* Panitent_GetWorkspaceContainer();
+
+Tool* Panitent_GetTool();

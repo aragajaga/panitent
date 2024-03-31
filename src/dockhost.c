@@ -1,691 +1,817 @@
 #include "precomp.h"
 
+#include "win32/window.h"
+#include "win32/dialog.h"
+#include "win32/util.h"
+
 #include <windowsx.h>
 #include <commctrl.h>
 #include <strsafe.h>
 #include <assert.h>
 
+#include "stack.h"
+#include "tree.h"
 #include "dockhost.h"
 #include "panitent.h"
 #include "resource.h"
+#include "floatingwindowcontainer.h"
+#include "dockinspectordialog.h"
 
-dockhost_t g_dockhost;
+static const WCHAR szClassName[] = L"__DockHostWindow";
 
 POINT captionPos;
 
 BOOL fSuggestTop;
 
-int iCaptionHeight = 16;
-int iBorderWidth   = 2;
+int iCaptionHeight = 24;
+int iBorderWidth = 4;
 
-dock_window_t g_dock_window;
+BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
+BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
+void Dock_DestroyInclusive(TreeNode*, TreeNode*);
+void DockNode_Paint(TreeNode*, HDC, HBRUSH);
 
-dock_side_e g_dock_side;
-dock_side_e eSuggest;
+BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
+void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
 
-binary_tree_t* Dock_CaptionHitTest(binary_tree_t*, int, int);
-binary_tree_t* Dock_CloseButtonHitTest(binary_tree_t*, int, int);
-void Dock_DestroyInclusive(binary_tree_t*, binary_tree_t*);
-void DockNode_paint(binary_tree_t*, HDC, HBRUSH);
-
-/* Window message handlers */
-BOOL DockHost_OnCreate(PDOCKHOSTDATA, LPCREATESTRUCT);
-void DockHost_OnSize(PDOCKHOSTDATA, UINT, int, int);
-void DockHost_OnDestroy(PDOCKHOSTDATA);
-void DockHost_OnPaint(PDOCKHOSTDATA);
-void DockHost_OnMouseMove(PDOCKHOSTDATA, int, int, UINT);
-void DockHost_OnLButtonDown(PDOCKHOSTDATA, BOOL, int, int, UINT);
-void DockHost_OnLButtonUp(PDOCKHOSTDATA, int, int, UINT);
-
-BOOL DockHost_OnCreate(PDOCKHOSTDATA pDat, LPCREATESTRUCT lpcs) {
-  UNREFERENCED_PARAMETER(lpcs);
-
-  pDat->hCaptionBrush_ = CreateSolidBrush(RGB(0x22, 0x22, 0x22));
-
-  return TRUE;
-}
-
-void DockHost_OnPaint(PDOCKHOSTDATA pDat) {
-
-  PAINTSTRUCT ps = {0};
-  HDC hDC = BeginPaint(pDat->hWnd_, &ps);
-
-  /* RECT rc = g_dock_window.rc; */
-
-  if (pDat->pRoot_) {
-    DockNode_paint(pDat->pRoot_, hDC, pDat->hCaptionBrush_);
-  }
-
-  EndPaint(pDat->hWnd_, &ps);
-}
-
-void DockHost_OnSize(PDOCKHOSTDATA pDat, UINT state, int cx, int cy) {
-  UNREFERENCED_PARAMETER(state);
-
-  if (pDat->pRoot_) {
-    RECT rcRoot = { 0, 0, cx, cy };
-    pDat->pRoot_->rc    = rcRoot;
-
-    DockNode_arrange(pDat->pRoot_);
-  }
-
-  if (g_dock_window.fDock) {
-    g_dock_window.rc.right = cx;
-  }
-}
-
-void DockHost_OnDestroy(PDOCKHOSTDATA pDat) {
-  DeleteObject(pDat->hCaptionBrush_);
-}
-
-void DockHost_OnMouseMove(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
-  UNREFERENCED_PARAMETER(pDat);
-  UNREFERENCED_PARAMETER(x);
-  UNREFERENCED_PARAMETER(y);
-  UNREFERENCED_PARAMETER(keyFlags);
-}
-
-void DockHost_OnLButtonDown(PDOCKHOSTDATA pDat, BOOL fDoubleClick, int x, int y,
-    UINT keyFlags) {
-  UNREFERENCED_PARAMETER(fDoubleClick);
-  UNREFERENCED_PARAMETER(keyFlags);
-
-  RECT rc = g_dock_window.rc;
-
-  /* If cursor in caption */
-  if (x >= rc.left + 2 && y >= rc.top + 2 && x < rc.left + rc.right - 2 &&
-      y < rc.top + 2 + 24) {
-
-    SetCapture(pDat->hWnd_);
-    /* Save click position */
-    pDat->ptDragPos_.x = x - (rc.left + 2);
-    pDat->ptDragPos_.y = y - (rc.top + 2);
-    pDat->fDrag_ = TRUE;
-  }
-}
-
-void DockHost_OnLButtonUp(PDOCKHOSTDATA pDat, int x, int y, UINT keyFlags) {
-  UNREFERENCED_PARAMETER(keyFlags);
-
-  if (pDat->pRoot_) {
-    binary_tree_t* t = Dock_CloseButtonHitTest(pDat->pRoot_, x, y);
-
-    if (t) {
-      Dock_DestroyInclusive(pDat->pRoot_, t);
-      InvalidateRect(pDat->hWnd_, NULL, TRUE);
-    }
-  }
-
-  /*
-  if (pDat->fDrag_ && eSuggest) {
-    g_dock_window.undockedRc = g_dock_window.rc;
-
-    RECT rc = {0};
-    GetClientRect(hWnd, &rc);
-
-    switch (eSuggest) {
-    case DOCK_RIGHT:
-      rc.left     = rc.right - g_dock_window.rc.right;
-      g_dock_side = DOCK_RIGHT;
-      break;
-    case DOCK_TOP:
-      rc.bottom   = g_dock_window.rc.bottom;
-      g_dock_side = DOCK_TOP;
-      break;
-    case DOCK_LEFT:
-      rc.right    = g_dock_window.rc.right;
-      g_dock_side = DOCK_LEFT;
-      break;
-    case DOCK_BOTTOM:
-      rc.top      = rc.bottom - g_dock_window.rc.bottom;
-      g_dock_side = DOCK_BOTTOM;
-      break;
-    }
-    g_dock_window.rc    = rc;
-    g_dock_window.fDock = TRUE;
-
-    unsuggest();
-    InvalidateRect(hWnd, NULL, TRUE);
-  }
-  */
-
-  pDat->fDrag_ = FALSE;
-  ReleaseCapture();
-}
-
-void Dock_DestroyInner(binary_tree_t* node)
+BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 {
-  if (!node)
-    return;
+	if (!pDockData)
+	{
+		return FALSE;
+	}
 
-  if (node->node1) {
-    DestroyWindow(node->node1->hwnd);
-    Dock_DestroyInner(node->node1);
-    free(node->node1);
-    node->node1 = NULL;
-  }
+	RECT rcClient = pDockData->rc;
 
-  if (node->node2) {
-    DestroyWindow(node->node2->hwnd);
-    Dock_DestroyInner(node->node2);
-    free(node->node2);
-    node->node2 = NULL;
-  }
+	if (pDockData->bShowCaption)
+	{
+		rcClient.top += iCaptionHeight + 1;
+	}
+
+	/* TODO: memcpy? */
+	*rc = rcClient;
+
+	return TRUE;
 }
 
-BOOL Dock_GetClientRect(binary_tree_t* root, RECT* rc)
+DockData* DockData_Create();
+void DockData_Init(DockData* pDockData);
+
+DockData* DockData_Create()
 {
-  if (!root)
-    return FALSE;
+	DockData* pDockData = (DockData*)calloc(1, sizeof(DockData));
+	if (pDockData)
+	{
+		DockData_Init(pDockData);
+	}
 
-  RECT rcClient = root->rc;
-
-  /* clang-format off */
-  rcClient.left   += iBorderWidth;
-  rcClient.top    += iBorderWidth;
-  rcClient.right  -= iBorderWidth;
-  rcClient.bottom -= iBorderWidth;
-  /* clang-format on */
-
-  if (root->bShowCaption)
-    rcClient.top += iCaptionHeight + 1;
-
-  /* TODO: memcpy? */
-  *rc = rcClient;
-
-  return TRUE;
+	return pDockData;
 }
 
-binary_tree_t* DockNode_Create(HWND hWnd, binary_tree_t* parent)
+void DockData_Init(DockData* pDockData)
 {
-  parent->posFixedGrip = 128;
-  parent->gripAlign    = GRIP_ALIGN_END;
-  /* TODO Use significant bit */
-  parent->gripPosType  = GRIP_POS_ABSOLUTE;
-  parent->bShowCaption = FALSE;
-
-  binary_tree_t* node1 = calloc(1, sizeof(binary_tree_t));
-  binary_tree_t* node2 = calloc(1, sizeof(binary_tree_t));
-  if (node1 && node2)
-  {
-    node2->bShowCaption = TRUE;
-    node2->lpszCaption = L"Palette";
-
-    node1->posFixedGrip = 64;
-    node1->gripAlign = GRIP_ALIGN_START;
-    /* TODO Use significant bit */
-    node1->gripPosType = GRIP_POS_ABSOLUTE;
-    node1->lpszCaption = L"Working Area";
-
-    binary_tree_t* subnode1 = calloc(1, sizeof(binary_tree_t));
-    binary_tree_t* subnode2 = calloc(1, sizeof(binary_tree_t));
-    if (subnode1 && subnode2)
-    {
-      subnode1->bShowCaption = TRUE;
-      subnode1->lpszCaption = L"Tools";
-      subnode2->bShowCaption = TRUE;
-      subnode2->lpszCaption = L"Untitled-1";
-      node1->node1 = subnode1;
-      node1->node2 = subnode2;
-
-      parent->node1 = node1;
-      parent->node2 = node2;
-    }
-  }
-
-  return NULL;
+	pDockData->iGripPos = 64;
+	pDockData->dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
+	pDockData->bShowCaption = FALSE;
 }
 
-BOOL Dock_GetCaptionRect(binary_tree_t* node, RECT* rc)
+BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 {
-  if (!node->bShowCaption)
-    return FALSE;
+	if (!pDockData->bShowCaption)
+	{
+		return FALSE;
+	}
 
-  RECT rcCaption = node->rc;
-  rcCaption.top += iBorderWidth;
-  rcCaption.left += iBorderWidth;
-  rcCaption.right -= iBorderWidth;
-  rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
+	RECT rcCaption = pDockData->rc;
+	rcCaption.top += iBorderWidth;
+	rcCaption.left += iBorderWidth;
+	rcCaption.right -= iBorderWidth;
+	rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
 
-  *rc = rcCaption;
+	*rc = rcCaption;
 
-  return TRUE;
+	return TRUE;
 }
 
-binary_tree_t* Dock_CloseButtonHitTest(binary_tree_t* root, int x, int y)
+#define DHT_UNKNOWN 0
+#define DHT_CAPTION 1
+#define DHT_CLOSEBTN 2
+
+#define WINDOWBUTTONSIZE 14
+
+BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y)
 {
-  if (!root)
-    return NULL;
+	RECT rcCaption = { 0 };
+	DockData_GetCaptionRect(pDockData, &rcCaption);
 
-  RECT rcCaption = {0};
-  Dock_GetCaptionRect(root, &rcCaption);
-
-  if (x >= (rcCaption.right - 16)
-      && y >= rcCaption.top && x < rcCaption.right &&
-      y < rcCaption.bottom) {
-    return root;
-  }
-
-  binary_tree_t* found = NULL;
-  if (root->node1) {
-    found = Dock_CloseButtonHitTest(root->node1, x, y);
-  }
-
-  if (!found && root->node2) {
-    found = Dock_CloseButtonHitTest(root->node2, x, y);
-  }
-
-  return found;
+	POINT pt = { 0 };
+	pt.x = x;
+	pt.y = y;
+	return PtInRect(&rcCaption, pt);
 }
 
-binary_tree_t* Dock_CaptionHitTest(binary_tree_t* root, int x, int y)
+BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y)
 {
-  if (!root)
-    return NULL;
+	RECT rcCaption = { 0 };
+	DockData_GetCaptionRect(pDockData, &rcCaption);
+	rcCaption.left = rcCaption.right - WINDOWBUTTONSIZE;
 
-  RECT rcCaption = {0};
-  Dock_GetCaptionRect(root, &rcCaption);
-
-  if (x >= rcCaption.left && y >= rcCaption.top && x < rcCaption.right &&
-      y < rcCaption.bottom) {
-    return root;
-  }
-
-  binary_tree_t* found = NULL;
-  if (root->node1) {
-    found = Dock_CaptionHitTest(root->node1, x, y);
-  }
-
-  if (!found && root->node2) {
-    found = Dock_CaptionHitTest(root->node2, x, y);
-  }
-
-  return found;
+	POINT pt = { 0 };
+	pt.x = x;
+	pt.y = y;
+	return PtInRect(&rcCaption, pt);
 }
 
-binary_tree_t* BT_HitTest(binary_tree_t* root, int x, int y)
+int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
 {
-  if (root->node1) {
-    return BT_HitTest(root->node1, x, y);
-  }
+	if (!pDockHostWindow->pRoot_)
+	{
+		return 0;
+	}
 
-  if (root->node2) {
-    return BT_HitTest(root->node2, x, y);
-  }
+	TreeTraversalRLOT traversal = { 0 };
+	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
+	
+	TreeNode* pCurrentNode = NULL;
+	TreeNode* pHittedNode = NULL;
+	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
+	{
+		DockData* pDockData = (DockData*)pCurrentNode->data;
 
-  return NULL;
+		POINT pt = { 0 };
+		pt.x = x;
+		pt.y = y;
+		if (PtInRect(&pDockData->rc, pt))
+		{
+			pHittedNode = (DockData*)pCurrentNode;
+			break;
+		}
+	}
+	TreeTraversalRLOT_Destroy(&traversal);
+
+	/*
+	int localX = x - pHittedDock->rc.left;
+	int localY = y - pHittedDock->rc.top;
+	*/
+
+	*ppTreeNode = pHittedNode;
+
+	if (pHittedNode && pHittedNode->data)
+	{
+		if (Dock_CloseButtonHitTest((DockData*)pHittedNode->data, x, y))
+		{
+			return DHT_CLOSEBTN;
+		}
+		else if (Dock_CaptionHitTest((DockData*)pHittedNode->data, x, y))
+		{
+			return DHT_CAPTION;
+		}
+	}
+
+	return DHT_UNKNOWN;
 }
 
-void DockNode_paint(binary_tree_t* parent, HDC hDC, HBRUSH hCaptionBrush)
+void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 {
-  if (!parent)
-    return;
+	/* Break if node is invalid */
+	if (!pNodeParent)
+	{
+		return;
+	}
 
-  RECT* rc = &parent->rc;
-  Rectangle(hDC, rc->left, rc->top, rc->right, rc->bottom);
+	TreeTraversalRLOT dockNodeTraversal;
+	TreeTraversalRLOT_Init(&dockNodeTraversal, pNodeParent);
 
-  if (parent->bShowCaption) {
-    /* Fill caption */
-    RECT rcCapt = {
-        rc->left + iBorderWidth,
-        rc->top + iBorderWidth,
-        rc->right - iBorderWidth,
-        rc->top + iBorderWidth + iCaptionHeight,
-    };
-    FillRect(hDC, &rcCapt, hCaptionBrush);
+	TreeNode* pCurrentNode = NULL;
+	while (pCurrentNode = TreeTraversalRLOT_GetNext(&dockNodeTraversal))
+	{
+		DockData* pDockData = (DockData*)pCurrentNode->data;
 
-    /* Print caption text */
+		if (!pDockData)
+		{
+			continue;
+		}
 
-    SetBkColor(hDC, RGB(0x22, 0x22, 0x22));
-    SetTextColor(hDC, RGB(0xFF, 0xFF, 0xFF));
-
-    size_t chCount = 0;
-    HRESULT hr = StringCchLength(parent->lpszCaption, STRSAFE_MAX_CCH, &chCount);
-    assert(SUCCEEDED(hr));
-    if (FAILED(hr))
-    {
-      return;
-    }
-
-    HBITMAP hbmCloseBtn = LoadBitmap(GetModuleHandle(NULL),
-        MAKEINTRESOURCE(IDB_CLOSEBTN));
-    HDC hBmDC = CreateCompatibleDC(hDC);
-    HGDIOBJ hGdiPrevObj = SelectObject(hBmDC, hbmCloseBtn);
-    BitBlt(hDC, rc->left + (rc->right - rc->left) - 14 - 3, rc->top + 3, 14, 14, hBmDC, 0, 0, SRCCOPY);
-    SelectObject(hBmDC, hGdiPrevObj);
-
-    HFONT guiFont = GetGuiFont();
-    hGdiPrevObj = SelectObject(hDC, guiFont);
-
-    TextOut(hDC,
-            rc->left + iBorderWidth + 4,
-            rc->top + iBorderWidth,
-            parent->lpszCaption,
-            (int)chCount);
-
-    SelectObject(hDC, hGdiPrevObj);
-
-    if (parent->hwnd)
-      InvalidateRect(parent->hwnd, NULL, FALSE);
-  }
-
-  if (parent->node1) {
-    DockNode_paint(parent->node1, hDC, hCaptionBrush);
-  }
-
-  if (parent->node2) {
-    DockNode_paint(parent->node2, hDC, hCaptionBrush);
-  }
+		RECT* rc = &pDockData->rc;
+	
+		if (pDockData->bShowCaption)
+		{
+			/* Draw pinned window background */
+			SelectObject(hdc, hCaptionBrush);
+			SelectObject(hdc, GetStockObject(DC_PEN));
+			SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+			Rectangle(hdc, rc->left, rc->top, rc->right, rc->bottom);
+	
+			/* Window title rect */
+			RECT rcCaption = { 0 };
+			rcCaption.left = rc->left + iBorderWidth;
+			rcCaption.top = rc->top + iBorderWidth;
+			rcCaption.right = rc->right - iBorderWidth;
+			rcCaption.bottom = rc->top + iBorderWidth + iCaptionHeight;
+	
+			/* ================================================================================ */
+	
+			/* Draw window caption text */
+			
+			RECT rcCaptionText = { 0 };
+			memcpy(&rcCaptionText, rc, sizeof(RECT));
+			Win32_ContractRect(&rcCaptionText, 4, 4);
+	
+			HFONT guiFont = GetGuiFont();
+			HFONT hOldFont = SelectObject(hdc, guiFont);
+	
+			SetBkMode(hdc, TRANSPARENT);
+			SetTextColor(hdc, COLORREF_WHITE);
+	
+			size_t chCount = wcsnlen_s(pDockData->lpszCaption, MAX_PATH);
+			DrawText(hdc, pDockData->lpszCaption, (int)chCount, &rcCaptionText, 0);
+	
+			SelectObject(hdc, hOldFont);
+	
+			/* ================================================================================ */
+	
+			/* Draw close button */
+			HDC hdcCloseBtn = CreateCompatibleDC(hdc);
+			HBITMAP hbmCloseBtn = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_CLOSEBTN));
+			HBITMAP hOldBm = SelectObject(hdcCloseBtn, hbmCloseBtn);
+	
+			/*
+				Calculate right-align of title bar buttons sex
+				rc->left is the offset of current dock area
+	
+				[ RectWidth             ]*
+								 *[ <-  ]   Button width
+			*/
+			
+			BitBlt(hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth, WINDOWBUTTONSIZE, WINDOWBUTTONSIZE, hdcCloseBtn, 0, 0, SRCCOPY);
+	
+			SelectObject(hdcCloseBtn, hOldBm);
+			DeleteObject(hbmCloseBtn);
+			DeleteDC(hdcCloseBtn);
+	
+			/* ================================================================================ */
+	
+			/* Redraw window */
+	
+			if (pNodeParent->data && ((DockData*)pNodeParent->data)->hWnd)
+			{
+				HWND hWnd = ((DockData*)pNodeParent->data)->hWnd;
+				InvalidateRect(hWnd, NULL, FALSE);
+			}
+		}
+	}
+	
+	TreeTraversalRLOT_Destroy(&dockNodeTraversal);
 }
 
-void DockNode_arrange(binary_tree_t* parent)
+void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 {
-  if (!parent)
-    return;
+	TreeNode* pRoot = pDockHostWindow->pRoot_;
 
-  binary_tree_t* node1 = parent->node1;
-  binary_tree_t* node2 = parent->node2;
+	if (!pRoot)
+	{
+		return;
+	}
+ 
+	PostOrderTreeTraversal traversal = { 0 };
+	PostOrderTreeTraversal_Init(&traversal, pRoot);
 
-  if (node1 && node2) {
-    RECT rcClient = {0};
-    Dock_GetClientRect(parent, &rcClient);
+	TreeNode* pCurrentNode = NULL;
+	while (pCurrentNode = PostOrderTreeTraversal_GetNext(&traversal))
+	{
+		DockData* pDockData = (DockData*)pCurrentNode->data;
 
-    RECT rcNode1 = rcClient;
-    if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
-      if (parent->gripAlign == GRIP_ALIGN_START) {
-        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
-        {
-          rcNode1.bottom = rcNode1.top + parent->posFixedGrip - iBorderWidth / 2;
-        }
-        else {
-          rcNode1.right = rcNode1.left + parent->posFixedGrip - iBorderWidth / 2;
-        }
-      }
-      else {
-        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
-        {
-          rcNode1.bottom = rcNode1.bottom - parent->posFixedGrip - iBorderWidth / 2;
-        }
-        else {
-          rcNode1.right = rcNode1.right - parent->posFixedGrip - iBorderWidth / 2;
-        }
-      }
+		TreeNode* pChildNode1 = pCurrentNode->node1;
+		TreeNode* pChildNode2 = pCurrentNode->node2;
 
-    } else {
-      rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth / 2;
-    }
-    node1->rc = rcNode1;
+		/* Draw split if both children present */
+		if (pChildNode1 && pChildNode2)
+		{
+			RECT rcClient = { 0 };
+			DockData_GetClientRect(pDockData, &rcClient);
 
-    /* Second part */
-    RECT rcNode2 = rcClient;
-    if (parent->gripPosType == GRIP_POS_ABSOLUTE) {
-      if (parent->gripAlign == GRIP_ALIGN_START) {
-        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
-        {
-          rcNode2.top = rcNode2.top + parent->posFixedGrip + iBorderWidth / 2;
-        }
-        else {
-          rcNode2.left = rcNode2.left + parent->posFixedGrip + iBorderWidth / 2;
-        }
-      } else {
-        if (parent->splitDirection == SPLIT_DIRECTION_VERTICAL)
-        {
-          rcNode2.top = rcNode2.bottom - parent->posFixedGrip + iBorderWidth / 2;
-        }
-        else {
-          rcNode2.left = rcNode2.right - parent->posFixedGrip + iBorderWidth / 2;
-        }
-      }
-    } else {
-      rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth / 2;
-    }
-    node2->rc = rcNode2;
-  } else if (node1 || node2) {
-    binary_tree_t* child = node1 ? node1 : node2;
+			RECT rcNode1 = rcClient;
 
-    RECT rcClient = {0};
-    Dock_GetClientRect(parent, &rcClient);
+			DWORD dwStyle = pDockData->dwStyle;
 
-    child->rc = rcClient;
-  }
+			if (dwStyle & DGP_RELATIVE)
+			{
+				rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth / 2;
+			}
+			else {
+				if (dwStyle & DGA_END)
+				{
+					if (dwStyle & DGD_VERTICAL)
+					{
+						rcNode1.bottom = rcNode1.bottom - pDockData->iGripPos - iBorderWidth / 2;
+					}
+					else {
+						rcNode1.right = rcNode1.right - pDockData->iGripPos - iBorderWidth / 2;
+					}
+				}
+				else {
+					if (dwStyle & DGD_VERTICAL)
+					{
+						rcNode1.bottom = rcNode1.top + pDockData->iGripPos - iBorderWidth / 2;
+					}
+					else {
+						rcNode1.right = rcNode1.left + pDockData->iGripPos - iBorderWidth / 2;
+					}
+				}
+			}
 
-  if (parent->hwnd) {
-    RECT rc = {0};
-    Dock_GetClientRect(parent, &rc);
+			if (pChildNode1 && pChildNode1->data)
+			{
+				DockData* pDockData = (DockData*)pChildNode1->data;
+				pDockData->rc = rcNode1;
+			}
 
-    SetWindowPos(parent->hwnd,
-                 NULL,
-                 rc.left,
-                 rc.top,
-                 rc.right - rc.left,
-                 rc.bottom - rc.top,
-                 0);
-    UpdateWindow(parent->hwnd);
-  }
+			/* Second part */
+			RECT rcNode2 = rcClient;
+			if (dwStyle & DGP_RELATIVE)
+			{
+				rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth / 2;
+			}
+			else {
+				if (dwStyle & DGA_END)
+				{
+					if (dwStyle & DGD_VERTICAL)
+					{
+						rcNode2.top = rcNode2.bottom - pDockData->iGripPos + iBorderWidth / 2;
+					}
+					else {
+						rcNode2.left = rcNode2.right - pDockData->iGripPos + iBorderWidth / 2;
+					}
+				}
+				else {
+					if (dwStyle & DGD_VERTICAL)
+					{
+						rcNode2.top = rcNode2.top + pDockData->iGripPos + iBorderWidth / 2;
+					}
+					else {
+						rcNode2.left = rcNode2.left + pDockData->iGripPos + iBorderWidth / 2;
+					}
+				}
+			}
 
-  if (parent->node1) {
-    DockNode_arrange(parent->node1);
-  }
+			if (pChildNode2 && pChildNode2->data)
+			{
+				DockData* pDockData = (DockData*)pChildNode2->data;
+				pDockData->rc = rcNode2;
+			}
+		}
+		else if (pChildNode1 || pChildNode2) {
+			TreeNode* child = pChildNode1 ? pChildNode1 : pChildNode2;
 
-  if (parent->node2) {
-    DockNode_arrange(parent->node2);
-  }
+			RECT rcClient = { 0 };
+			DockData_GetClientRect(pDockData, &rcClient);
+
+			((DockData*)child->data)->rc = rcClient;
+		}
+
+		if (pDockData && pDockData->hWnd)
+		{
+			RECT rc = { 0 };
+			DockData_GetClientRect(pDockData, &rc);
+
+			Win32_ContractRect(&rc, 4, 4);
+
+			SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, 0);
+			UpdateWindow(pDockData->hWnd);
+		}
+	}
+
+	PostOrderTreeTraversal_Destroy(&traversal);
+
+	Window_Invalidate((Window *)pDockHostWindow);
+
+	DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_);
 }
 
 WCHAR szSampleText[] = L"SampleText";
 
-binary_tree_t* Dock_FindParent(binary_tree_t* root, binary_tree_t* node)
+TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node)
 {
-  if (!(root && node))
-    return NULL;
+	if (!root || !node)
+	{
+		return NULL;
+	}
 
-  binary_tree_t* found = NULL;
+	TreeNode* pFoundNode = NULL;
 
-  if (root->node1) {
-    if (root->node1 == node) {
-      return root;
-    } else {
-      found = Dock_FindParent(root->node1, node);
-    }
-  }
+	if (root->node1)
+	{
+		if (root->node1 == node)
+		{
+			return root;
+		}
+		else {
+			pFoundNode = DockNode_FindParent(root->node1, node);
+		}
+	}
 
-  if (!found && root->node2) {
-    if (root->node2 == node) {
-      return root;
-    } else {
-      found = Dock_FindParent(root->node2, node);
-    }
-  }
+	if (!pFoundNode && root->node2)
+	{
+		if (root->node2 == node)
+		{
+			return root;
+		}
+		else {
+			pFoundNode = DockNode_FindParent(root->node2, node);
+		}
+	}
 
-  return found;
+	return pFoundNode;
 }
 
-void Dock_DestroyInclusive(binary_tree_t* root, binary_tree_t* node)
+void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
-  Dock_DestroyInner(node);
+	TreeNode* pRoot = pDockHostWindow->pRoot_;
 
-  DestroyWindow(node->hwnd);
-  binary_tree_t* parent = Dock_FindParent(root, node);
+	DestroyWindow(((DockData*)pTargetNode->data)->hWnd);
+	TreeNode* pParentOfTarget = DockNode_FindParent(pRoot, pTargetNode);
 
-  binary_tree_t* detached = NULL;
-  if (parent) {
-    if (node == parent->node1) {
-      free(parent->node1);
-      parent->node1 = NULL;
+	TreeNode* pDetachedNode = NULL;
+	if (pParentOfTarget)
+	{
+		if (pTargetNode == pParentOfTarget->node1)
+		{
+			free(pParentOfTarget->node1);
+			pParentOfTarget->node1 = NULL;
 
-      detached = parent->node2;
-    } else if (node == parent->node2) {
-      free(parent->node2);
-      parent->node2 = NULL;
+			pDetachedNode = pParentOfTarget->node2;
+		}
+		else if (pTargetNode == pParentOfTarget->node2) {
+			free(pParentOfTarget->node2);
+			pParentOfTarget->node2 = NULL;
 
-      detached = parent->node1;
-    }
+			pDetachedNode = pParentOfTarget->node1;
+		}
 
-    binary_tree_t* grandparent = Dock_FindParent(root, parent);
-    if (grandparent) {
-      if (parent == grandparent->node1) {
-        grandparent->node1 = detached;
-        free(parent);
-        parent = NULL;
-      } else if (parent == grandparent->node2) {
-        grandparent->node2 = detached;
-        free(parent);
-        parent = NULL;
-      }
-    }
+		TreeNode* pGrandparentOfTarget = DockNode_FindParent(pRoot, pParentOfTarget);
+		if (pGrandparentOfTarget)
+		{
+			if (pParentOfTarget == pGrandparentOfTarget->node1)
+			{
+				pGrandparentOfTarget->node1 = pDetachedNode;
+				free(pParentOfTarget);
+				pParentOfTarget = NULL;
+			}
+			else if (pParentOfTarget == pGrandparentOfTarget->node2) {
+				pGrandparentOfTarget->node2 = pDetachedNode;
+				free(pParentOfTarget);
+				pParentOfTarget = NULL;
+			}
+		}
 
-  } else {
-    free(node);
-  }
+	}
+	else {
+		free(pTargetNode);
+	}
 
-  DockNode_arrange(root);
+	DockHostWindow_Rearrange(pDockHostWindow);
 }
 
-void Dock_Undock(binary_tree_t* root, binary_tree_t* node)
+void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
-  binary_tree_t* parent = Dock_FindParent(root, node);
-  DestroyWindow(node->hwnd);
+	TreeNode* pRoot = pDockHostWindow->pRoot_;
 
-  if (!parent)
-    return;
+	if (!pRoot || !pTargetNode)
+	{
+		return;
+	}
 
-  binary_tree_t* detached = NULL;
-  if (node == parent->node1) {
-    detached = parent->node1;
+	TreeNode* pParentOfTarget = DockNode_FindParent(pRoot, pTargetNode);
+	if (!pParentOfTarget)
+	{
+		return;
+	}
 
-    parent->node1 = NULL;
-  } else if (node == parent->node2) {
-    detached = parent->node2;
+	TreeNode* pNodeSibling = NULL;
+	TreeNode* pNodeDetached = NULL;
+	if (pTargetNode == pParentOfTarget->node1)
+	{
+		pNodeDetached = pParentOfTarget->node1;
+		pParentOfTarget->node1 = NULL;
 
-    parent->node2 = NULL;
-  }
+		pNodeSibling = pParentOfTarget->node2;
+		
+	}
+	else if (pTargetNode == pParentOfTarget->node2) {
+		pNodeDetached = pParentOfTarget->node2;
+		pParentOfTarget->node2 = NULL;
 
-  binary_tree_t* grandparent = Dock_FindParent(root, parent);
-  if (grandparent) {
-    if (grandparent->node1 == parent) {
-      grandparent->node1 = detached;
-      free(parent);
-    } else if (grandparent->node2 == parent) {
-      grandparent->node2 = detached;
-      free(parent);
-    }
-  }
+		pNodeSibling = pParentOfTarget->node1;
+	}
 
-  DockNode_arrange(root);
+	TreeNode* pGrandparentOfTarget = DockNode_FindParent(pRoot, pParentOfTarget);
+	if (pGrandparentOfTarget)
+	{
+		if (pGrandparentOfTarget->node1 == pParentOfTarget)
+		{
+			pGrandparentOfTarget->node1 = pNodeSibling;
+			free(pParentOfTarget);
+		}
+		else if (pGrandparentOfTarget->node2 == pParentOfTarget) {
+			pGrandparentOfTarget->node2 = pNodeSibling;
+			free(pParentOfTarget);
+		}
+	}
+
+	DockHostWindow_Rearrange(pDockHostWindow);
 }
 
-LRESULT CALLBACK DockHost_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
+BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs)
+{
+	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be"));
 
-  PDOCKHOSTDATA pDat = NULL;
-
-  if (message == WM_CREATE || message == WM_NCCREATE) {
-    LPCREATESTRUCT lpcs = (LPCREATESTRUCT) lParam;
-    pDat = (PDOCKHOSTDATA) lpcs->lpCreateParams;
-
-    pDat->hWnd_ = hWnd;
-    SetWindowLongPtr(hWnd, 0, (LONG_PTR) pDat);
-  }
-  else {
-    pDat = (PDOCKHOSTDATA) GetWindowLongPtr(hWnd, 0);
-  }
-
-  switch (message) {
-
-    case WM_CREATE:
-      return DockHost_OnCreate(pDat, (LPCREATESTRUCT)lParam);
-      break;
-
-    case WM_SIZE:
-      DockHost_OnSize(pDat, (UINT)wParam, (int)(short)LOWORD(lParam),
-          (int)(short)HIWORD(lParam));
-      return 0;
-      break;
-
-    case WM_PAINT:
-      DockHost_OnPaint(pDat);
-      return 0;
-      break;
-
-    case WM_DESTROY:
-      DockHost_OnDestroy(pDat);
-      return 0;
-      break;
-
-    case WM_LBUTTONDOWN:
-      DockHost_OnLButtonDown(pDat, FALSE, (int)(short)LOWORD(lParam),
-          (int)(short)HIWORD(lParam), (UINT)wParam);
-      return 0;
-      break;
-
-    case WM_MOUSEMOVE:
-      DockHost_OnMouseMove(pDat, (int)(short)LOWORD(lParam),
-          (int)(short)HIWORD(lParam), (UINT)wParam);
-      return 0;
-      break;
-
-    case WM_LBUTTONUP:
-      DockHost_OnLButtonUp(pDat, (int)(short)LOWORD(lParam),
-          (int)(short)HIWORD(lParam), (UINT)wParam);
-      return 0;
-      break;
-  }
-
-  return DefWindowProc(hWnd, message, wParam, lParam);
+	return TRUE;
 }
 
-void DockHost_Init(PDOCKHOSTDATA pDat) {
-  ZeroMemory(pDat, sizeof(DOCKHOSTDATA));
-
-  pDat->hInstance_ = GetModuleHandle(NULL);
-
-  pDat->cs_.style = WS_BORDER | WS_VISIBLE | WS_CHILD | WS_CLIPCHILDREN;
-  pDat->cs_.x = 0;
-  pDat->cs_.y = 0;
-  pDat->cs_.cx = 640;
-  pDat->cs_.cy = 480;
-  pDat->cs_.hInstance = pDat->hInstance_;
+void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
+{
+	DeleteObject(pDockHostWindow->hCaptionBrush_);
 }
 
-BOOL DockHost_RegisterClass(PDOCKHOSTDATA pDat) {
+void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
+{
+	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
 
-  WNDCLASSEX wcex = { 0 };
+	PAINTSTRUCT ps = { 0 };
+	HDC hdc = BeginPaint(hWnd, &ps);
 
-  if (GetClassInfoEx(pDat->hInstance_, pDat->wcex_.lpszClassName, &wcex)) {
-    memcpy(&pDat->wcex_, &wcex, sizeof(WNDCLASSEX));
-    return TRUE;
-  }
+	if (pDockHostWindow->pRoot_) {
+		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+	}
 
-  pDat->wcex_.cbSize = sizeof(wcex);
-  pDat->wcex_.style = CS_HREDRAW | CS_VREDRAW;
-  pDat->wcex_.lpfnWndProc = (WNDPROC) DockHost_WndProc;
-  pDat->wcex_.cbWndExtra = sizeof(PDOCKHOSTDATA);
-  pDat->wcex_.hInstance = pDat->hInstance_;
-  pDat->wcex_.hCursor = LoadCursor(NULL, IDC_ARROW);
-  pDat->wcex_.hbrBackground = (HBRUSH) (COLOR_BTNFACE + 1);
-  pDat->wcex_.lpszClassName = L"Panitent_DockHost3_";
-
-  return (BOOL) RegisterClassEx(&pDat->wcex_);
+	EndPaint(hWnd, &ps);
 }
 
-void DockHost_Create(PDOCKHOSTDATA pDat, HWND hParent) {
-  DockHost_RegisterClass(pDat);
+void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy)
+{
+	UNREFERENCED_PARAMETER(state);
 
-  pDat->cs_.lpszClass = pDat->wcex_.lpszClassName;
+	if (pDockHostWindow->pRoot_ && pDockHostWindow->pRoot_->data)
+	{
+		RECT rcRoot = { 0 };
+		rcRoot.right = cx;
+		rcRoot.bottom = cy;
+		((DockData*)pDockHostWindow->pRoot_->data)->rc = rcRoot;
 
-  if (IsWindow(hParent)) {
-    RECT rcClient = { 0 };
-    GetClientRect(hParent, &rcClient);
+		DockHostWindow_Rearrange(pDockHostWindow);
+	}
+}
 
-    pDat->cs_.cx = rcClient.right;
-    pDat->cs_.cy = rcClient.bottom;
-  }
+void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode)
+{
+	TreeNode* pRoot = pDockHostWindow->pRoot_;
+	DockHostWindow_Undock(pDockHostWindow, pNode);
 
-  pDat->hWnd_ = CreateWindowEx(pDat->cs_.dwExStyle, pDat->cs_.lpszClass,
-      L"DockHost",
-      pDat->cs_.style,
-      pDat->cs_.x, pDat->cs_.y, pDat->cs_.cx, pDat->cs_.cy,
-      hParent,
-      (HMENU) NULL,
-      pDat->hInstance_,
-      (LPVOID) pDat);
+	FloatingWindowContainer* floatingWindowContainer = FloatingWindowContainer_Create(Panitent_GetApp());
+	Window_CreateWindow((Window*)floatingWindowContainer, NULL);
+	FloatingWindowContainer_PinWindow(floatingWindowContainer, ((DockData*)pNode->data)->hWnd);
+
+	DockHostWindow_Rearrange(pDockHostWindow, pNode);
+}
+
+void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
+{
+	if (pDockHostWindow->fCaptionDrag)
+	{
+		DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode);
+		pDockHostWindow->fCaptionDrag = FALSE;
+	}
+}
+
+void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)
+{
+	UNREFERENCED_PARAMETER(fDoubleClick);
+	UNREFERENCED_PARAMETER(keyFlags);
+
+	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
+
+	/* Get whole dock window client rect */
+	RECT rcClient = { 0 };
+	GetClientRect(hWnd, &rcClient);
+
+	TreeNode* pTreeNode = NULL;
+	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
+
+	switch (htType)
+	{
+	case DHT_CLOSEBTN:
+	{
+		/* Do nothing. */
+	}
+	break;
+
+	case DHT_CAPTION:
+	{
+		pDockHostWindow->fCaptionDrag = TRUE;
+		pDockHostWindow->m_pSubjectNode = pTreeNode;
+
+		SetCapture(hWnd);
+
+		/* Save click position */
+		pDockHostWindow->ptDragPos_.x = x - (rcClient.left + 2);
+		pDockHostWindow->ptDragPos_.y = y - (rcClient.top + 2);
+		pDockHostWindow->fDrag_ = TRUE;
+	}
+	break;
+	}
+}
+
+void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
+{
+	HWND hWndDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
+	if (hWndDialog && IsWindow(hWndDialog))
+	{
+		/* Important. Idk why */
+		ShowWindow(hWndDialog, SW_SHOW);
+	}
+}
+
+void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) {
+	UNREFERENCED_PARAMETER(keyFlags);
+
+	TreeNode* pTreeNode = NULL;
+	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
+
+	switch (htType)
+	{
+	case DHT_CLOSEBTN:
+	{
+		DockHostWindow_DestroyInclusive(pDockHostWindow, pTreeNode);
+		Window_Invalidate((Window*)pDockHostWindow);
+	}
+	break;
+
+	case DHT_CAPTION:
+	{
+		/* Do nothing. */
+	}
+	break;
+	}
+
+	pDockHostWindow->fDrag_ = FALSE;
+	ReleaseCapture();
+}
+
+#define IDM_DOCKINSPECTOR 101
+
+void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndContext, int x, int y)
+{
+	POINT pt = { 0 };
+	pt.x = x;
+	pt.y = y;
+	ScreenToClient(Window_GetHWND((Window*)pDockHostWindow), &pt);
+
+	TreeNode* pTreeNode = NULL;
+	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, pt.x, pt.y);
+
+	switch (htType)
+	{
+	case DHT_CLOSEBTN:
+		{
+			/* Do nothing. */
+		}
+		break;
+
+	case DHT_CAPTION:
+		{
+			/* Do nothing. */
+		}
+		break;
+
+	case DHT_UNKNOWN:
+		{
+			HMENU hMenu = CreatePopupMenu();
+			if (hMenu)
+			{
+				InsertMenu(hMenu, -1, MF_BYPOSITION, IDM_DOCKINSPECTOR, L"Inspect Element...");
+				TrackPopupMenu(hMenu, 0, x, y, 0, Window_GetHWND((Window*)pDockHostWindow), NULL);
+			}
+		}
+		break;
+	}
+}
+
+BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam)
+{
+	switch (LOWORD(wParam))
+	{
+	case IDM_DOCKINSPECTOR:
+		DockHostWindow_InvokeDockInspectorDialog(pDockHostWindow);
+		break;
+	}
+}
+
+LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_MOUSEMOVE:
+		DockHostWindow_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		return 0;
+		break;
+
+	case WM_LBUTTONDOWN:
+		DockHostWindow_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		return 0;
+		break;
+
+	case WM_LBUTTONUP:
+		DockHostWindow_OnLButtonUp(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		return 0;
+		break;
+
+	case WM_CONTEXTMENU:
+		DockHostWindow_OnContextMenu(pDockHostWindow, (HWND)wParam, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam));
+		return 0;
+		break;
+	}
+
+	return Window_UserProcDefault((Window *)pDockHostWindow, hWnd, message, wParam, lParam);
+}
+
+void DockHostWindow_PreRegister(LPWNDCLASSEX lpwcex)
+{
+	lpwcex->style = CS_VREDRAW | CS_HREDRAW;
+	lpwcex->hCursor = LoadCursor(NULL, IDC_ARROW);
+	lpwcex->hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+	lpwcex->lpszClassName = szClassName;
+}
+
+void DockHostWindow_PreCreate(LPCREATESTRUCT lpcs)
+{
+	lpcs->dwExStyle = 0;
+	lpcs->lpszClass = szClassName;
+	lpcs->lpszName = L"DockHost";
+	lpcs->style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN;
+	lpcs->x = 0;
+	lpcs->y = 0;
+	lpcs->cx = 0;
+	lpcs->cy = 0;
+}
+
+void DockHostWindow_Init(DockHostWindow* pDockHostWindow, struct Application* app)
+{
+	Window_Init(&pDockHostWindow->base, app);
+
+	pDockHostWindow->base.szClassName = szClassName;
+
+	pDockHostWindow->base.OnCreate = (FnWindowOnCreate)DockHostWindow_OnCreate;
+	pDockHostWindow->base.OnDestroy = (FnWindowOnDestroy)DockHostWindow_OnDestroy;
+	pDockHostWindow->base.OnPaint = (FnWindowOnPaint)DockHostWindow_OnPaint;
+	pDockHostWindow->base.OnSize = (FnWindowOnSize)DockHostWindow_OnSize;
+	pDockHostWindow->base.OnCommand = (FnWindowOnCommand)DockHostWindow_OnCommand;
+
+	_WindowInitHelper_SetPreRegisterRoutine((Window *)pDockHostWindow, (FnWindowPreRegister)DockHostWindow_PreRegister);
+	_WindowInitHelper_SetPreCreateRoutine((Window *)pDockHostWindow, (FnWindowPreCreate)DockHostWindow_PreCreate);
+	_WindowInitHelper_SetUserProcRoutine((Window *)pDockHostWindow, (FnWindowUserProc)DockHostWindow_UserProc);
+
+	pDockHostWindow->pRoot_ = NULL;
+
+	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
+}
+
+DockHostWindow* DockHostWindow_Create(struct Application* app)
+{
+	DockHostWindow* pDockHostWindow = (DockHostWindow*)calloc(1, sizeof(DockHostWindow));
+
+	if (pDockHostWindow)
+	{
+		DockHostWindow_Init(pDockHostWindow, app);
+	}
+
+	return pDockHostWindow;
+}
+
+TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot)
+{
+	TreeNode* pOldRoot = pDockHostWindow->pRoot_;
+	pDockHostWindow->pRoot_ = pNewRoot;
+	return pOldRoot;
+}
+
+TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
+{
+	return pDockHostWindow->pRoot_;
+}
+
+void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)
+{
+	HWND hWnd = Window_GetHWND(window);
+
+	GetWindowText(hWnd, pDockData->lpszCaption, MAX_PATH);
+
+	SetParent(hWnd, pDockHostWindow->base.hWnd);
+
+	DWORD dwStyle = Window_GetStyle(window);
+	dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
+	dwStyle |= WS_CHILD;
+	Window_SetStyle(window, dwStyle);
+
+	pDockData->bShowCaption = TRUE;
+	pDockData->hWnd = hWnd;
 }

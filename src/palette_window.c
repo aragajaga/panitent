@@ -14,13 +14,6 @@ static const WCHAR szClassName[] = L"PaletteWindowClass";
 
 static int swatch_margin = 2;
 
-uint32_t abgr_to_argb(uint32_t abgr)
-{
-  uint32_t b = (abgr >> 16) & 0xFF;
-  uint32_t r = abgr & 0xFF;
-  return (abgr & 0xFF00FF00) | (r << 16) | b;
-}
-
 /* Private forward declarations */
 PaletteWindow* PaletteWindow_Create(struct Application*, Palette*);
 void PaletteWindow_Init(PaletteWindow*, struct Application*, Palette*);
@@ -34,7 +27,7 @@ void PaletteWindow_OnLButtonUp(PaletteWindow*, int, int);
 void PaletteWindow_OnRButtonUp(PaletteWindow*, int, int);
 void PaletteWindow_OnContextMenu(PaletteWindow*, int, int);
 void PaletteWindow_OnDestroy(PaletteWindow*);
-LRESULT CALLBACK PaletteWindow_UserProc(PaletteWindow*, UINT, WPARAM, LPARAM);
+LRESULT CALLBACK PaletteWindow_UserProc(PaletteWindow*, HWND hWnd, UINT, WPARAM, LPARAM);
 
 void PaletteWindow_DrawSwatch(PaletteWindow*, HDC, int, int, uint32_t);
 int PaletteWindow_PosToSwatchIndex(PaletteWindow*, int, int);
@@ -54,20 +47,20 @@ PaletteWindow* PaletteWindow_Create(struct Application* app, Palette* palette)
   return window;
 }
 
-void PaletteWindow_Init(PaletteWindow* window, struct Application* app, Palette* palette)
+void PaletteWindow_Init(PaletteWindow* pPaletteWindow, struct Application* app, Palette* palette)
 {
-  Window_Init(&window->base, app);
+  Window_Init(&pPaletteWindow->base, app);
 
-  window->base.szClassName = szClassName;
+  pPaletteWindow->base.szClassName = szClassName;
 
-  window->base.OnCreate = PaletteWindow_OnCreate;
-  window->base.OnDestroy = PaletteWindow_OnDestroy;
-  window->base.OnPaint = PaletteWindow_OnPaint;
-  window->base.PreRegister = PaletteWindow_PreRegister;
-  window->base.PreCreate = PaletteWindow_PreCreate;
-  window->base.UserProc = PaletteWindow_UserProc;
+  pPaletteWindow->base.OnCreate = (FnWindowOnCreate)PaletteWindow_OnCreate;
+  pPaletteWindow->base.OnDestroy = (FnWindowOnDestroy)PaletteWindow_OnDestroy;
+  pPaletteWindow->base.OnPaint = (FnWindowOnPaint)PaletteWindow_OnPaint;
+  pPaletteWindow->base.PreRegister = (FnWindowPreRegister)PaletteWindow_PreRegister;
+  pPaletteWindow->base.PreCreate = (FnWindowPreCreate)PaletteWindow_PreCreate;
+  pPaletteWindow->base.UserProc = (FnWindowUserProc)PaletteWindow_UserProc;
 
-  window->palette = palette;
+  pPaletteWindow->palette = palette;
 }
 
 void PaletteWindow_PreRegister(LPWNDCLASSEX lpwcex)
@@ -94,9 +87,9 @@ BOOL PaletteWindow_OnCreate(PaletteWindow* window, LPCREATESTRUCT lpcs)
   // RegisterColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
 }
 
-void PaletteWindow_OnPaint(PaletteWindow* window)
+void PaletteWindow_OnPaint(PaletteWindow* pPaletteWindow)
 {
-  HWND hwnd = window->base.hWnd;
+  HWND hwnd = pPaletteWindow->base.hWnd;
   PAINTSTRUCT ps;
   HDC hdc;
 
@@ -105,7 +98,7 @@ void PaletteWindow_OnPaint(PaletteWindow* window)
 
   /* Calculate the number of swatches that can fit in a row */
   RECT rc = { 0 };
-  GetClientRect(window->base.hWnd, &rc);
+  GetClientRect(pPaletteWindow->base.hWnd, &rc);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
 
   /* Ensure there is at least one swatch per row*/
@@ -118,16 +111,16 @@ void PaletteWindow_OnPaint(PaletteWindow* window)
   hdc = BeginPaint(hwnd, &ps);
 
   /* Draw the foregroud and background color swatches */
-  PaletteWindow_DrawSwatch(window, hdc, 10, 10, (COLORREF)abgr_to_argb(g_color_context.fg_color));
-  PaletteWindow_DrawSwatch(window, hdc, 40, 10, (COLORREF)abgr_to_argb(g_color_context.bg_color));
+  PaletteWindow_DrawSwatch(pPaletteWindow, hdc, 10, 10, (COLORREF)ABGRToARGB(g_color_context.bg_color));
+  PaletteWindow_DrawSwatch(pPaletteWindow, hdc, 16, 16, (COLORREF)ABGRToARGB(g_color_context.fg_color));
 
   /* Draw the palette swatches */
-  for (size_t i = 0; i < Palette_GetSize(window->palette); ++i)
+  for (size_t i = 0; i < Palette_GetSize(pPaletteWindow->palette); ++i)
   {
-    PaletteWindow_DrawSwatch(window, hdc,
+    PaletteWindow_DrawSwatch(pPaletteWindow, hdc,
       10 + ((int)i % width_indices) * (swatch_size + swatch_margin),
       40 + ((int)i / width_indices) * (swatch_size + swatch_margin),
-      Palette_At(window->palette, i), i);
+      Palette_At(pPaletteWindow->palette, i));
   }
 
   /* End painting the window */
@@ -140,7 +133,7 @@ void PaletteWindow_OnLButtonUp(PaletteWindow* window, int x, int y)
 
   RECT rc = { 0 };
   GetClientRect(window->base.hWnd, &rc);
-  int swatch_count = Palette_GetSize(window->palette);
+  int swatch_count = (int)Palette_GetSize(window->palette);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
   int height_indices = swatch_count / width_indices + 1;
 
@@ -150,34 +143,34 @@ void PaletteWindow_OnLButtonUp(PaletteWindow* window, int x, int y)
     if (index < 0 || index >= swatch_count)
       return;
 
-    g_color_context.fg_color = abgr_to_argb(Palette_At(window->palette, index));
+    g_color_context.fg_color = ABGRToARGB(Palette_At(window->palette, index));
 
     RECT rcInvalidate = { 10, 10, 34, 34 };
     InvalidateRect(window->base.hWnd, &rcInvalidate, FALSE);
   }
 }
 
-void PaletteWindow_OnRButtonUp(PaletteWindow* window, int x, int y)
+void PaletteWindow_OnRButtonUp(PaletteWindow* pPaletteWindow, int x, int y)
 {
   int swatch_size = g_paletteSettings.swatchSize;
-  Palette* palette = ((struct PanitentApplication*)(window->base.app))->palette;
+  Palette* palette = ((struct PanitentApplication*)(pPaletteWindow->base.app))->palette;
 
   RECT rc = { 0 };
-  GetClientRect(window->base.hWnd, &rc);
-  int swatch_count = Palette_GetSize(palette);
+  GetClientRect(pPaletteWindow->base.hWnd, &rc);
+  int swatch_count = (int)Palette_GetSize(palette);
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
   int height_indices = swatch_count / width_indices + 1;
 
   if (((x - 10) < ((swatch_size + swatch_margin) * width_indices)) &&
     ((y - 40) < ((swatch_size + swatch_margin) * height_indices))) {
-    int index = PaletteWindow_PosToSwatchIndex(window, x, y);
+    int index = PaletteWindow_PosToSwatchIndex(pPaletteWindow, x, y);
     if (index < 0 || index >= swatch_count)
       return;
 
-    g_color_context.bg_color = abgr_to_argb(Palette_At(palette, index));
+    g_color_context.bg_color = ABGRToARGB(Palette_At(palette, index));
 
     RECT rcInvalidate = { 40, 10, 64, 34 };
-    InvalidateRect(window->base.hWnd, &rcInvalidate, FALSE);
+    InvalidateRect(pPaletteWindow->base.hWnd, &rcInvalidate, FALSE);
   }
 }
 
@@ -208,26 +201,26 @@ void PaletteWindow_OnDestroy(PaletteWindow* window)
   // RemoveColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
 }
 
-LRESULT CALLBACK PaletteWindow_UserProc(PaletteWindow* window, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT CALLBACK PaletteWindow_UserProc(PaletteWindow* pPaletteWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   switch (message) {
 
   case WM_RBUTTONUP:
-    PaletteWindow_OnRButtonUp(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    PaletteWindow_OnRButtonUp(pPaletteWindow, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     return TRUE;
     break;
 
   case WM_LBUTTONUP:
-    PaletteWindow_OnLButtonUp(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    PaletteWindow_OnLButtonUp(pPaletteWindow, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     return TRUE;
     break;
 
   case WM_CONTEXTMENU:
-    PaletteWindow_OnContextMenu(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
+    PaletteWindow_OnContextMenu(pPaletteWindow, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
     break;
   }
 
-  return DefWindowProc(window->base.hWnd, message, wParam, lParam);
+  return Window_UserProcDefault(pPaletteWindow, hWnd, message, wParam, lParam);
 }
 
 void PaletteWindow_DrawSwatch(PaletteWindow* window, HDC hdc, int x, int y, uint32_t color)
@@ -270,6 +263,9 @@ void PaletteWindow_DrawSwatch(PaletteWindow* window, HDC hdc, int x, int y, uint
   FrameRect(hdc, &frameRc, GetStockObject(BLACK_BRUSH));
 }
 
+static const int swatchListXOffset = 10;
+static const int swatchListYOffset = 40;
+
 int PaletteWindow_PosToSwatchIndex(PaletteWindow* window, int x, int y)
 {
   int swatch_size = g_paletteSettings.swatchSize;
@@ -279,8 +275,8 @@ int PaletteWindow_PosToSwatchIndex(PaletteWindow* window, int x, int y)
   int width_indices = (rc.right - 20) / (swatch_size + swatch_margin);
   int swatch_outer  = swatch_size + swatch_margin;
 
-  x -= 10;
-  y -= 40;
+  x -= swatchListXOffset;
+  y -= swatchListYOffset;
 
   int index = y / swatch_outer * width_indices + x / swatch_outer;
   printf("Index: %d\n", index);

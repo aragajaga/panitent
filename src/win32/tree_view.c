@@ -98,26 +98,26 @@ HTREEITEM TreeViewCtl_HitTest(TreeViewCtl* window, LPTVHITTESTINFO hti, BOOL bGe
   return TreeView_HitTest(window->base.hWnd, hti);
 }
 
-HTREEITEM TreeViewCtl_InsertItem(TreeViewCtl* window, PCWSTR text, int image, LPARAM lParam, HTREEITEM parent, HTREEITEM insertAfter)
+HTREEITEM TreeViewCtl_InsertItem(TreeViewCtl* pTreeViewCtl, PCWSTR pcszText, int nImage, LPARAM lParam, HTREEITEM htiParent, HTREEITEM htiInsertAfter)
 {
   TVITEM tvi = { 0 };
   tvi.mask = TVIF_TEXT | TVIF_PARAM;
-  tvi.pszText = (PWSTR)text;
+  tvi.pszText = (PWSTR)pcszText;
   tvi.lParam = lParam;
 
-  if (image > -1)
+  if (nImage > -1)
   {
     tvi.mask |= TVIF_IMAGE | TVIF_SELECTEDIMAGE;
-    tvi.iImage = image;
-    tvi.iSelectedImage = image;
+    tvi.iImage = nImage;
+    tvi.iSelectedImage = nImage;
   }
 
   TVINSERTSTRUCT tvis = { 0 };
   tvis.item = tvi;
-  tvis.hInsertAfter = insertAfter;
-  tvis.hParent = parent;
+  tvis.hInsertAfter = htiInsertAfter;
+  tvis.hParent = htiParent;
 
-  return TreeView_InsertItem(window->base.hWnd, &tvis);
+  return TreeView_InsertItem(Window_GetHWND((Window*)pTreeViewCtl), &tvis);
 }
 
 BOOL TreeViewCtl_SelectItem(TreeViewCtl* window, HTREEITEM item)

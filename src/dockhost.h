@@ -1,87 +1,46 @@
-#ifndef DOCK_DOCKHOST_H_
-#define DOCK_DOCKHOST_H_
+#pragma once
 
 #include "precomp.h"
 
-typedef struct _dockhost {
-  ATOM wndClass;
-  HWND hWnd;
+#include "tree.h"
 
-} dockhost_t;
+#define DGA_START 0
+#define DGA_END 1
 
-extern dockhost_t g_dockhost;
+#define DGP_ABSOLUTE 0
+#define DGP_RELATIVE 2
 
-typedef enum {
-  DOCK_RIGHT = 1,
-  DOCK_TOP,
-  DOCK_LEFT,
-  DOCK_BOTTOM,
-} dock_side_e;
+#define DGD_HORIZONTAL 0
+#define DGD_VERTICAL 4
 
-/* TODO Use significant bit */
-typedef enum {
-  GRIP_ALIGN_START,
-  GRIP_ALIGN_END,
-} grip_align_e;
-
-typedef enum {
-  GRIP_POS_UNIFORM,
-  GRIP_POS_ABSOLUTE,
-  GRIP_POS_RELATIVE
-} grip_pos_type_e;
-
-typedef enum {
-  SPLIT_DIRECTION_HORIZONTAL,
-  SPLIT_DIRECTION_VERTICAL
-} split_direction_e;
-
-typedef struct _dock_window {
-  RECT rc;
-  RECT pins;
-  RECT undockedRc;
-  HWND hwnd;
-  LPWSTR caption;
-  BOOL fDock;
-} dock_window_t;
-
-struct _binary_tree {
-  struct _binary_tree* node1;
-  struct _binary_tree* node2;
-  int delimPos;
-  RECT rc;
-  LPWSTR lpszCaption;
-  grip_pos_type_e gripPosType;
-  float fGrip;
-  grip_align_e gripAlign;
-  int posFixedGrip;
-  BOOL bShowCaption;
-  HWND hwnd;
-  split_direction_e splitDirection;
+typedef struct DockData DockData;
+struct DockData {
+	HWND hWnd;
+	DWORD dwStyle;
+	WCHAR lpszCaption[MAX_PATH];
+	WCHAR lpszName[MAX_PATH];
+	RECT rc;
+	float fGripPos;
+	short iGripPos;
+	BOOL bShowCaption;
 };
 
-typedef struct _binary_tree binary_tree_t;
+typedef struct DockInspectorDialog DockInspectorDialog;
 
-struct _tagDOCKHOSTDATA {
-  HWND hWnd_;
-  HINSTANCE hInstance_;
-  CREATESTRUCT cs_;
-  WNDCLASSEX wcex_;
+typedef struct DockHostWindow DockHostWindow;
+struct DockHostWindow {
+	Window base;
 
-  HBRUSH hCaptionBrush_;
-  binary_tree_t* pRoot_;
-  POINT ptDragPos_;
-  BOOL fDrag_;
+	BOOL fCaptionDrag;
+	DockData* m_pSubjectNode;
+	HBRUSH hCaptionBrush_;
+	TreeNode* pRoot_;
+	POINT ptDragPos_;
+	BOOL fDrag_;
+	DockInspectorDialog* m_pDockInspectorDialog;
 };
 
-typedef struct _tagDOCKHOSTDATA DOCKHOSTDATA, *PDOCKHOSTDATA;
+extern TreeNode* g_pRoot;
 
-extern dock_side_e g_dock_side;
-extern dock_side_e eSuggest;
-extern binary_tree_t* g_pRoot;
-
-void DockHost_Init(PDOCKHOSTDATA);
-BOOL DockHost_RegisterClass(PDOCKHOSTDATA);
-void DockHost_Create(PDOCKHOSTDATA, HWND);
-void DockNode_arrange(binary_tree_t*);
-
-#endif /* DOCK_DOCKHOST_H_ */
+DockHostWindow* DockHostWindow_Create(struct Application* app);
+void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);

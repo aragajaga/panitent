@@ -1,31 +1,22 @@
-#ifndef VIEWPORT_H
-#define VIEWPORT_H
+#pragma once
 
-#include "precomp.h"
+#include "win32/window.h"
 
-#include "panitent.h"
+typedef struct _Document Document;
 
-#include "document.h"
-#include "tool.h"
-#include "canvas.h"
+typedef struct ViewportWindow ViewportWindow;
+struct ViewportWindow {
+	Window base;
 
-#define VIEWPORTCTL_ID 100
-#define WC_VIEWPORT L"Win32Class_Viewport"
+	Document* document;
+	POINT ptOffset;
+	POINT ptDrag;
+	BOOL bDrag;
+	float fZoom;
+	HBRUSH hbrChecker;
+};
 
-typedef struct _Viewport {
-  Document* document;
-  HWND hwnd;
-  POINT ptOffset;
-  POINT ptDrag;
-  BOOL bDrag;
-  float fZoom;
-  HBRUSH hbrChecker;
-} Viewport;
-
-void Viewport_Invalidate(Viewport* viewport);
-
-BOOL Viewport_RegisterClass(HINSTANCE hInstance);
-void Viewport_SetDocument(Viewport* viewport, Document* document);
-Document* Viewport_GetDocument(Viewport* viewport);
-
-#endif /* VIEWPORT_H */
+ViewportWindow* ViewportWindow_Create(struct Application* app);
+Document* ViewportWindow_GetDocument(ViewportWindow* pViewportWindow);
+void ViewportWindow_SetDocument(ViewportWindow* pViewportWindow, Document* document);
+void ViewportWindow_ClientToCanvas(ViewportWindow* pViewportWindow, int x, int y, LPPOINT lpPt);

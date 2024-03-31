@@ -153,14 +153,24 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\win32\application.c" />
+    <ClCompile Include="src\win32\dialog.c" />
+    <ClCompile Include="src\win32\framework.c" />
+    <ClCompile Include="src\win32\listbox.c" />
     <ClCompile Include="src\win32\tree_view.c" />
+    <ClCompile Include="src\win32\util.c" />
     <ClCompile Include="src\win32\window.c" />
+    <ClCompile Include="src\win32\windowmap.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\win32\application.h" />
     <ClInclude Include="src\win32\common.h" />
+    <ClInclude Include="src\win32\dialog.h" />
+    <ClInclude Include="src\win32\framework.h" />
+    <ClInclude Include="src\win32\listbox.h" />
     <ClInclude Include="src\win32\tree_view.h" />
+    <ClInclude Include="src\win32\util.h" />
     <ClInclude Include="src\win32\window.h" />
+    <ClInclude Include="src\win32\windowmap.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

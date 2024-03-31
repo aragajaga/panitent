@@ -1,16 +1,13 @@
-#ifndef PANITENT_TOOL_H
-#define PANITENT_TOOL_H
+#pragma once
 
-#include "precomp.h"
-#include "panitent.h"
+typedef struct ViewportWindow ViewportWindow;
 
-typedef struct _Tool {
-  wchar_t* label;
+typedef struct Tool Tool;
+struct Tool {
+  wchar_t* pszLabel;
   int img;
-  void (*onlbuttonup)(HWND hwnd, WPARAM wParam, LPARAM lParam);
-  void (*onlbuttondown)(HWND hwnd, WPARAM wParam, LPARAM lParam);
-  void (*onrbuttonup)(HWND hwnd, WPARAM wParam, LPARAM lParam);
-  void (*onmousemove)(HWND hwnd, WPARAM wParam, LPARAM lParam);
-} Tool;
-
-#endif /* PANITENT_TOOL_H */
+  void (*OnLButtonUp)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+  void (*OnLButtonDown)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+  void (*OnRButtonUp)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+  void (*OnMouseMove)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+};

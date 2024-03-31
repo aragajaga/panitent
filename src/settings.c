@@ -332,7 +332,7 @@ static void InitSettingsWindow(HWND hwnd)
       10, 10, 620, 180, hwnd, NULL,
       (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
 
-  SetGuiFont(hTabControl);
+  Win32_ApplyUIFont(hTabControl);
 
   TCITEM tab_main  = {0};
   tab_main.mask    = TCIF_TEXT;
@@ -370,13 +370,13 @@ static void InitSettingsWindow(HWND hwnd)
   hButtonCancel = CreateWindow(L"BUTTON", L"Cancel", WS_CHILD | WS_VISIBLE,
       420, 440, 100, 30, hwnd, (HMENU)IDCANCEL, GetModuleHandle(NULL), NULL);
 
-  SetGuiFont(hButtonCancel);
+  Win32_ApplyUIFont(hButtonCancel);
 
   hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE,
       530, 440, 100, 30,
       hwnd, (HMENU)IDOK, GetModuleHandle(NULL), NULL);
 
-  SetGuiFont(hButtonOk);
+  Win32_ApplyUIFont(hButtonOk);
 }
 
 static void HideActiveTab()
@@ -417,7 +417,7 @@ HWND CreateCheckbox(HWND parent, const wchar_t* label, unsigned int posX,
   HWND hWnd = CreateWindow(L"BUTTON", label, WS_CHILD | WS_VISIBLE |
       BS_CHECKBOX, posX, posY, 250, 20, parent, (HMENU)id,
       GetModuleHandle(NULL), NULL);
-  SetGuiFont(hWnd);
+  Win32_ApplyUIFont(hWnd);
 
   return hWnd;
 }
@@ -528,7 +528,7 @@ HWND CreateComboGroup(int x, int y, HWND hParent, LPWSTR pszLabel, HMENU uId) {
       x, y, 100, 20,
       hParent, NULL,
       (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE), NULL);
-  SetGuiFont(hWnd);
+  Win32_ApplyUIFont(hWnd);
 
   /* Control */
   hWnd = CreateWindowEx(0, WC_COMBOBOX, NULL,
@@ -536,7 +536,7 @@ HWND CreateComboGroup(int x, int y, HWND hParent, LPWSTR pszLabel, HMENU uId) {
       x + 100, y, 100, 20,
       hParent, uId,
       (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE), NULL);
-  SetGuiFont(hWnd);
+  Win32_ApplyUIFont(hWnd);
 
   return hWnd;
 }
@@ -560,7 +560,7 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
 
       hWndGrpAppFrame = CreateWindowEx(0, WC_BUTTON, L"Application Frame", WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
           10, 10, 300, 200, hWnd, NULL, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
-      SetGuiFont(hWndGrpAppFrame);
+      Win32_ApplyUIFont(hWndGrpAppFrame);
 
       int y = 10;
 
@@ -579,15 +579,15 @@ LRESULT CALLBACK SettingsTabPageMainProc(HWND hWnd, UINT msg, WPARAM wParam,
 
       HWND hCheckRememberWindowPos = CreateWindowEx(0, WC_BUTTON, L"Overwrite by current state on close", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
           20, 170, 300, 20, hWnd, (HMENU)ID_REMEMBERWINDOWPOS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
-      SetGuiFont(hCheckRememberWindowPos);
+      Win32_ApplyUIFont(hCheckRememberWindowPos);
 
       HWND hLegacyFileDialogs = CreateWindowEx(0, WC_BUTTON, L"Use legacy file dialogs", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
           20, 240, 300, 20, hWnd, (HMENU)ID_LEGACYFILEDIALOGS, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
-      SetGuiFont(hLegacyFileDialogs);
+      Win32_ApplyUIFont(hLegacyFileDialogs);
 
       HWND hCheckUseTablet = CreateWindowEx(0, WC_BUTTON, L"Enable pen tablet", WS_CHILD | WS_VISIBLE | BS_CHECKBOX,
           20, 270, 300, 20, hWnd, (HMENU)ID_ENABLEPENTABLET, (HINSTANCE)GetWindowLongPtr(hWnd, GWLP_HINSTANCE), NULL);
-      SetGuiFont(hCheckUseTablet);
+      Win32_ApplyUIFont(hCheckUseTablet);
 
       PNTSETTINGS *pSettings = Panitent_GetSettings();
 
@@ -745,7 +745,7 @@ LRESULT CALLBACK SettingsTabPageDebugProc(HWND hwnd, UINT msg, WPARAM wParam,
           WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
           10, 10, 100, 20,
           hwnd, NULL, (HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE), NULL);
-      SetGuiFont(hCheckBox);
+      Win32_ApplyUIFont(hCheckBox);
     } break;
     default:
       return DefWindowProc(hwnd, msg, wParam, lParam);

@@ -6,4 +6,6 @@
 #include <Uxtheme.h>
 #include <strsafe.h>
 
+#include <stddef.h>
+
 #endif  /* _WIN32_COMMON_H */

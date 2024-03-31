@@ -1,5 +1,7 @@
 #include "precomp.h"
 
+#include "win32/window.h"
+
 #include <assert.h>
 #include <strsafe.h>
 #include "history.h"
@@ -31,7 +33,7 @@ void History_Undo(Document* document)
   }
 
   history->peak = history->peak->previous;
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+  Window_Invalidate((Window *)Panitent_GetActiveViewport());
 }
 
 void History_Redo(Document* document)
@@ -55,7 +57,7 @@ void History_Redo(Document* document)
   }
 
   history->peak = history->peak->next;
-  Viewport_Invalidate(Panitent_GetActiveViewport());
+  Window_Invalidate((Window *)Panitent_GetActiveViewport());
 }
 
 void History_PushRecord(Document* document, HistoryRecord record)
@@ -63,11 +65,14 @@ void History_PushRecord(Document* document, HistoryRecord record)
   History *history = Document_GetHistory(document);
 
   HistoryRecord *sharedRecord = calloc(1, sizeof(HistoryRecord));
-  memcpy(sharedRecord, &record, sizeof(HistoryRecord));
+  if (sharedRecord)
+  {
+      memcpy(sharedRecord, &record, sizeof(HistoryRecord));
 
-  sharedRecord->previous = history->peak;
-  history->peak->next = sharedRecord;
-  history->peak = sharedRecord;
+      sharedRecord->previous = history->peak;
+      history->peak->next = sharedRecord;
+      history->peak = sharedRecord;
+  }
 }
 
 void History_DestroyFollowingRedoes(HistoryRecord* record)
