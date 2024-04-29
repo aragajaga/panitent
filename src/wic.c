@@ -291,6 +291,7 @@ ImageBuffer ImageFileReader(LPWSTR szFilePath)
   nStride = DIB_WIDTHBYTES(nWidth * 32);
   nImage = nStride * nHeight;
   imageBits = malloc(nImage);
+  memset(imageBits, 0, nImage);
 
   hr = pConverter->lpVtbl->CopyPixels(pConverter, NULL, nStride, nImage,
       (LPVOID)imageBits);

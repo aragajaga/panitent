@@ -12,7 +12,8 @@ static void OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
 {
   UNREFERENCED_PARAMETER(lpcs);
 
-  SwatchControlData *data = calloc(1, sizeof(SwatchControlData));
+  SwatchControlData *data = (SwatchControlData*)malloc(sizeof(SwatchControlData));
+  memset(data, 0, sizeof(SwatchControlData));
   assert(data);
 
   SetWindowLongPtr(hwnd, GWLP_USERDATA, (LONG_PTR)data);

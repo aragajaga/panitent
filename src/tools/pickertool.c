@@ -15,7 +15,8 @@ void PickerTool_OnRButtonUp(PickerTool* pPickerTool, ViewportWindow* pViewportWi
 
 PickerTool* PickerTool_Create()
 {
-    PickerTool* pPickerTool = (PickerTool*)calloc(1, sizeof(PickerTool));
+    PickerTool* pPickerTool = (PickerTool*)malloc(sizeof(PickerTool));
+    memset(pPickerTool, 0, sizeof(PickerTool));
     PickerTool_Init(pPickerTool);
     return pPickerTool;
 }

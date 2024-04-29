@@ -6,10 +6,11 @@
 
 #include "palette.h"
 
+typedef struct TestApplication TestApplication;
 struct TestApplication {
-  struct Application base;
+  Application base;
 
-  struct TestWindow* mainWindow;
+  TestWindow* mainWindow;
   Palette* palette;
 };
 

@@ -9,13 +9,14 @@
 #include <strsafe.h>
 #include <assert.h>
 
-#include "stack.h"
-#include "tree.h"
+#include "util/stack.h"
+#include "util/tree.h"
 #include "dockhost.h"
 #include "panitent.h"
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
+#include "toolwndframe.h"
 
 static const WCHAR szClassName[] = L"__DockHostWindow";
 
@@ -54,19 +55,7 @@ BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 	return TRUE;
 }
 
-DockData* DockData_Create();
 void DockData_Init(DockData* pDockData);
-
-DockData* DockData_Create()
-{
-	DockData* pDockData = (DockData*)calloc(1, sizeof(DockData));
-	if (pDockData)
-	{
-		DockData_Init(pDockData);
-	}
-
-	return pDockData;
-}
 
 void DockData_Init(DockData* pDockData)
 {
@@ -230,24 +219,20 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 	
 			/* ================================================================================ */
 	
-			/* Draw close button */
-			HDC hdcCloseBtn = CreateCompatibleDC(hdc);
-			HBITMAP hbmCloseBtn = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_CLOSEBTN));
-			HBITMAP hOldBm = SelectObject(hdcCloseBtn, hbmCloseBtn);
-	
 			/*
+                Draw close button
+
 				Calculate right-align of title bar buttons sex
 				rc->left is the offset of current dock area
 	
 				[ RectWidth             ]*
 								 *[ <-  ]   Button width
 			*/
-			
-			BitBlt(hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth, WINDOWBUTTONSIZE, WINDOWBUTTONSIZE, hdcCloseBtn, 0, 0, SRCCOPY);
 	
-			SelectObject(hdcCloseBtn, hOldBm);
-			DeleteObject(hbmCloseBtn);
-			DeleteDC(hdcCloseBtn);
+			CaptionButton button = { 0 };
+			button.glyph = GLYPH_CLOSE;
+			button.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
+			DrawCaptionButton(&button, hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth);
 	
 			/* ================================================================================ */
 	
@@ -387,8 +372,6 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 
 	DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_);
 }
-
-WCHAR szSampleText[] = L"SampleText";
 
 TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node)
 {
@@ -533,6 +516,8 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 	DeleteObject(pDockHostWindow->hCaptionBrush_);
 }
 
+#define DOCKHOSTBGMARGIN 16
+
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 {
 	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
@@ -542,6 +527,36 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 
 	if (pDockHostWindow->pRoot_) {
 		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+	}
+	else {
+		HDC hdcLogo = CreateCompatibleDC(hdc);
+		HBITMAP hBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_DOCKHOSTBG));
+
+		BITMAP bm;
+		GetObject(hBitmap, sizeof(BITMAP), &bm);
+		int width = bm.bmWidth;
+		int height = bm.bmHeight;
+
+		HBITMAP hOldBitmap = SelectObject(hdcLogo, hBitmap);
+
+		BLENDFUNCTION blendFunc;
+		blendFunc.BlendOp = AC_SRC_OVER;
+		blendFunc.BlendFlags = 0;
+		blendFunc.SourceConstantAlpha = 0xFF;
+		blendFunc.AlphaFormat = AC_SRC_ALPHA;
+
+		RECT rcClient;
+		Window_GetClientRect(pDockHostWindow, &rcClient);
+
+		int clientWidth = rcClient.right - rcClient.left;
+		int clientHeight = rcClient.bottom - rcClient.top;
+
+		int x = clientWidth - width - DOCKHOSTBGMARGIN;
+		int y = clientHeight - height - DOCKHOSTBGMARGIN;
+		AlphaBlend(hdc, x, y, width, height, hdcLogo, 0, 0, width, height, blendFunc);
+
+		SelectObject(hdcLogo, hOldBitmap);
+		DeleteDC(hdcLogo);
 	}
 
 	EndPaint(hWnd, &ps);
@@ -777,7 +792,8 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, struct Application* ap
 
 DockHostWindow* DockHostWindow_Create(struct Application* app)
 {
-	DockHostWindow* pDockHostWindow = (DockHostWindow*)calloc(1, sizeof(DockHostWindow));
+	DockHostWindow* pDockHostWindow = (DockHostWindow*)malloc(sizeof(DockHostWindow));
+	memset(pDockHostWindow, 0, sizeof(DockHostWindow));
 
 	if (pDockHostWindow)
 	{
@@ -814,4 +830,32 @@ void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Wi
 
 	pDockData->bShowCaption = TRUE;
 	pDockData->hWnd = hWnd;
+}
+
+DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
+{
+	DockData* pDockData = (DockData*)malloc(sizeof(DockData));
+
+	if (pDockData)
+	{
+		memset(pDockData, 0, sizeof(DockData));
+
+		pDockData->dwStyle = dwStyle;
+		pDockData->iGripPos = iGripPos;
+		pDockData->bShowCaption = bShowCaption;
+
+		return pDockData;
+	}
+
+	return NULL;
+}
+
+TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
+{
+	TreeNode* pTreeNode = BinaryTree_AllocEmptyNode();
+	DockData* pDockData = DockData_Create(iGripPos, dwStyle, bShowCaption);
+
+	pTreeNode->data = pDockData;
+
+	return pTreeNode;
 }

@@ -34,8 +34,14 @@
 #include "panitentwindow.h"
 #include "crashhandler.h"
 #include "workspacecontainer.h"
-#include "tree.h"
+#include "util/tree.h"
 #include "layerswindow.h"
+#include "sharing/activitysharingmanager.h"
+#include "sharing/activitystubdialog.h"
+#include "propgriddialog.h"
+#include "pntxml.h"
+#include "experimental/docklib.h"
+#include "util/assert.h"
 
 #include "resource.h"
 
@@ -60,29 +66,7 @@ const WCHAR szAppName[] = L"Panit.ent";
 const WCHAR szPanitentWndClass[] = L"Win32Class_PanitentWindow";
 
 BOOL Panitent_RegisterClasses(HINSTANCE hInstance);
-HMENU CreateMainMenu();
 void FetchSystemFont();
-
-/* Menu ID values */
-enum {
-  IDM_FILE_NEW = 1001,
-  IDM_FILE_OPEN,
-  IDM_FILE_SAVE,
-  IDM_FILE_CLIPBOARD_EXPORT,
-  IDM_FILE_CLOSE,
-
-  IDM_EDIT_UNDO,
-  IDM_EDIT_REDO,
-  IDM_EDIT_CLRCANVAS,
-
-  IDM_WINDOW_TOOLS,
-
-  IDM_OPTIONS_SETTINGS,
-
-  IDM_HELP_TOPICS,
-  IDM_HELP_LOG,
-  IDM_HELP_ABOUT
-};
 
 struct PanitentApplication* g_app;
 
@@ -93,280 +77,261 @@ struct PanitentApplication* g_app;
 
 /* Entry point for application */
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
-  LPWSTR lpCmdLine, int nCmdShow)
+    LPWSTR lpCmdLine, int nCmdShow)
 {
-  UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(hPrevInstance);
 
-  BOOL bResult;
-  LPWSTR *pszArgList;
-  int nArgs;
-  LPWSTR pszArgFile;
-  WCHAR szModulePath[MAX_PATH];
-  WCHAR szWorkDir[MAX_PATH];
-  WCHAR szAppData[MAX_PATH];
-  MSG msg;
+    BOOL bResult;
+    LPWSTR* pszArgList;
+    int nArgs;
+    LPWSTR pszArgFile;
+    WCHAR szModulePath[MAX_PATH];
+    WCHAR szWorkDir[MAX_PATH];
+    WCHAR szAppData[MAX_PATH];
 
-  /* Request Common Controls v6 */
-  INITCOMMONCONTROLSEX icex = { 0 };
-  icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  icex.dwICC = ICC_WIN95_CLASSES;
-  InitCommonControlsEx(&icex);
+    /* Request Common Controls v6 */
+    INITCOMMONCONTROLSEX icex = { 0 };
+    icex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    icex.dwICC = ICC_WIN95_CLASSES;
+    InitCommonControlsEx(&icex);
 
-  struct PanitentApplication* app = PanitentApplication_Create();
-  g_app = app;
+    struct PanitentApplication* app = PanitentApplication_Create();
+    g_app = app;
 
-  AddVectoredExceptionHandler(TRUE, PanitentUnhandledExceptionFilter);
+    AddVectoredExceptionHandler(TRUE, PanitentUnhandledExceptionFilter);
 
-  WindowingInit();
+    WindowingInit();
 
-  // Window_CreateWindow((struct Window*)app->m_pLayeredWindow, NULL);
+    pszArgFile = NULL;
 
-  pszArgFile = NULL;
+    /*  Get command line arguments
+     *
+     *  If lpCmdLine is empty, the CommandLineToArgvW will return the
+     *  executable path
+     */
+    if (lpCmdLine && *lpCmdLine != L'\0')
+    {
+        pszArgList = CommandLineToArgvW(lpCmdLine, &nArgs);
 
-  /*  Get command line arguments
-   *
-   *  If lpCmdLine is empty, the CommandLineToArgvW will return the
-   *  executable path
-   */
-  if (lpCmdLine && *lpCmdLine != L'\0')
-  {
-    pszArgList = CommandLineToArgvW(lpCmdLine, &nArgs);
+        if (nArgs > 0)
+        {
+            pszArgFile = pszArgList[0];
+        }
+    }
 
-    if (nArgs > 0)
-      pszArgFile = pszArgList[0];
-  }
+    ZeroMemory(szModulePath, sizeof(szModulePath));
+    GetModuleFileName(GetModuleHandle(NULL), szModulePath, MAX_PATH);
 
-  ZeroMemory(szModulePath, sizeof(szModulePath));
-  GetModuleFileName(GetModuleHandle(NULL), szModulePath, MAX_PATH);
+    ZeroMemory(szWorkDir, sizeof(szWorkDir));
+    GetCurrentDirectory(MAX_PATH, szWorkDir);
 
-  ZeroMemory(szWorkDir, sizeof(szWorkDir));
-  GetCurrentDirectory(MAX_PATH, szWorkDir);
+    PWSTR lpszAppData;
+    ZeroMemory(szAppData, sizeof(szAppData));
+    SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &lpszAppData);
+    StringCchCopy(szAppData, MAX_PATH, lpszAppData);
+    CoTaskMemFree(lpszAppData);
+    PathAppend(szAppData, L"\\Aragajaga\\Panit.ent");
 
-  PWSTR lpszAppData;
-  ZeroMemory(szAppData, sizeof(szAppData));
-  SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &lpszAppData);
-  StringCchCopy(szAppData, MAX_PATH, lpszAppData);
-  CoTaskMemFree(lpszAppData);
-  PathAppend(szAppData, L"\\Aragajaga\\Panit.ent");
+    /*  Create %APPDATA% application folder
+     *
+     *  This function is available through XP SP2 and Server 2003.
+     *  It might be altered or unavailable in subsequent versions of OS.
+     */
+    SHCreateDirectoryEx(NULL, szAppData, NULL);
 
-  /*  Create %APPDATA% application folder
-   *
-   *  This function is available through XP SP2 and Server 2003.
-   *  It might be altered or unavailable in subsequent versions of OS.
-   */
-  SHCreateDirectoryEx(NULL, szAppData, NULL);
+    Panitent_SetActivityStatus(Panitent_GetApp(), L"Idle");
 
-#ifdef HAS_DISCORDSDK
-  /* Initialize Discord SDK and set initial activity message */
+    /* Share application instance */
+    g_panitent.hInstance = hInstance;
 
-  g_panitent.discord = DiscordSDKInit();
-  Discord_SetActivityStatus(g_panitent.discord, L"Idle");
-#endif /* HAS_DISCORDSDK */
+    FetchSystemFont();
+    InitColorContext();
 
-  /* Share application instance */
-  g_panitent.hInstance = hInstance;
+    /* Register custom controls and windows classes */
+    bResult = Panitent_RegisterClasses(hInstance);
+    assert(bResult);
+    if (!bResult)
+    {
+        return -1;
+    }
 
-  FetchSystemFont();
-  InitColorContext();
+    bresenham_init();
+    wu_init();
+    g_primitives_context = g_bresenham_primitives;
+    g_primitives_context.fStroke = TRUE;
+    g_primitives_context.fFill = TRUE;
 
-  /* Register custom controls and windows classes */
-  bResult = Panitent_RegisterClasses(hInstance);
-  assert(bResult);
-  if (!bResult)
-  {
-    return -1;
-  }
+    InitializeBrushList();
+    g_pBrush = &g_brushList[0];
+    g_brushSize = 24;
 
-  bresenham_init();
-  wu_init();
-  g_primitives_context = g_bresenham_primitives;
-  g_primitives_context.fStroke = TRUE;
-  g_primitives_context.fFill = TRUE;
+    PNTSETTINGS* pSettings;
+    pSettings = Panitent_GetSettings();
 
-  InitializeBrushList();
-  g_pBrush = &g_brushList[0];
-  g_brushSize = 24;
+    WCHAR szSettingsPath[MAX_PATH];
+    StringCchCopy(szSettingsPath, MAX_PATH, szAppData);
+    PathAppend(szSettingsPath, L"\\settings.dat");
 
-  HMENU hMenu = CreateMainMenu();
+    FILE* fp;
+    errno_t result = _wfopen_s(&fp, szSettingsPath, L"rb");
+    assert(result);
+    if (result && fp)
+    {
+        fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
+        fclose(fp);
+    }
 
-  PNTSETTINGS* pSettings;
-  pSettings = Panitent_GetSettings();
+    int windowX = CW_USEDEFAULT;
+    int windowY = 0;
+    int windowWidth = CW_USEDEFAULT;
+    int windowHeight = 0;
 
-  WCHAR szSettingsPath[MAX_PATH];
-  StringCchCopy(szSettingsPath, MAX_PATH, szAppData);
-  PathAppend(szSettingsPath, L"\\settings.dat");
+    if (pSettings->bRememberWindowPos)
+    {
+        windowX = pSettings->x;
+        windowY = pSettings->y;
+        windowWidth = pSettings->width;
+        windowHeight = pSettings->height;
+    }
 
-  FILE* fp;
-  errno_t result = _wfopen_s(&fp, szSettingsPath, L"rb");
-  assert(result);
-  if (result && fp)
-  {
-    fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
-    fclose(fp);
-  }
+    HWND hWnd = Window_CreateWindow((struct Window*)app->m_pPanitentWindow, NULL);
+    g_panitent.hwnd = hWnd;
+    Window_Show((Window*)app->m_pPanitentWindow, nCmdShow);
 
-  int windowX = CW_USEDEFAULT;
-  int windowY = 0;
-  int windowWidth = CW_USEDEFAULT;
-  int windowHeight = 0;
+    if (pszArgFile)
+    {
+        Panitent_OpenFile(pszArgFile);
+    }
 
-  if (pSettings->bRememberWindowPos)
-  {
-    windowX = pSettings->x;
-    windowY = pSettings->y;
-    windowWidth = pSettings->width;
-    windowHeight = pSettings->height;
-  }
+    DockPanel_RegisterClass(hInstance);
 
-  HWND hWnd = Window_CreateWindow((struct Window*)app->m_pPanitentWindow, NULL);
+    /* Experimental DockWindow */
+    {
+        DockHostWindow2* pDockHostWindow2 = NULL;
+        pDockHostWindow2 = DockHostWindow2_Create(app);
+        Window_CreateWindow(pDockHostWindow2, NULL);
+        Window_Show(&pDockHostWindow2, SW_SHOW);
+    }
 
-  g_panitent.hwnd = hWnd;
+    /* Application message loop.
+     * Just pump inbound window messages and forward them to associated window
+       procedure */
+    MSG msg = {0};
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        DispatchMessage(&msg);
+        TranslateMessage(&msg);
+    }
 
-  ShowWindow(hWnd, nCmdShow);
-  SetMenu(hWnd, hMenu);
-
-  /* Initialize Wintab API */
-  /*
-  if (pSettings->bEnablePenTablet)
-    LoadWintab();
-    */
-
-  if (pszArgFile)
-  {
-    Panitent_OpenFile(pszArgFile);
-  }
-
-  /* Application message loop.
-   * Just pump inbound window messages and forward them to associated window
-     procedure */
-  ZeroMemory(&msg, sizeof(MSG));
-  while (GetMessage(&msg, NULL, 0, 0)) {
-    DispatchMessage(&msg);
-    TranslateMessage(&msg);
-  }
-
-  return (int)msg.wParam;
+    return (int)msg.wParam;
 }
 
 #ifdef _MSCVER
 #pragma warning( pop )
 #endif  /* _MSC_VER */
 
+void Panitent_SaveSettingsFile(PNTSETTINGS* pPanitentSettings)
+{
+    FILE* fp = NULL;
+    errno_t result = _wfopen_s(&fp, L"settings.dat", L"wb");
+    assert(result == 0 && fp);
+    if (result == 0 && fp)
+    {
+        fwrite(pPanitentSettings, sizeof(PNTSETTINGS), 1, fp);
+        fclose(fp);
+    }
+}
+
 void Panitent_OnClose(HWND hWnd)
 {
-  PNTSETTINGS* pSettings = NULL;
-  RECT rc = { 0 };
+    PNTSETTINGS* pSettings = NULL;
+    RECT rc = { 0 };
 
-  pSettings = Panitent_GetSettings();
-  assert(pSettings);
+    pSettings = Panitent_GetSettings();
+    assert(pSettings);
 
-  GetWindowRect(hWnd, &rc);
+    GetWindowRect(hWnd, &rc);
 
-  if (pSettings->bRememberWindowPos)
-  {
-    if (pSettings->x == CW_USEDEFAULT ||
-      pSettings->y == CW_USEDEFAULT)
+    if (pSettings->bRememberWindowPos)
     {
-      pSettings->x = CW_USEDEFAULT;
-      pSettings->y = 0;
-    }
-    else {
-      pSettings->x = rc.left;
-      pSettings->y = rc.top;
+        if (pSettings->x == CW_USEDEFAULT ||
+            pSettings->y == CW_USEDEFAULT)
+        {
+            pSettings->x = CW_USEDEFAULT;
+            pSettings->y = 0;
+        }
+        else {
+            pSettings->x = rc.left;
+            pSettings->y = rc.top;
+        }
+
+        if (pSettings->width == CW_USEDEFAULT ||
+            pSettings->height == CW_USEDEFAULT)
+        {
+            pSettings->width = CW_USEDEFAULT;
+            pSettings->height = 0;
+        }
+        else {
+            pSettings->width = rc.right - rc.left;
+            pSettings->height = rc.bottom - rc.top;
+        }
     }
 
-    if (pSettings->width == CW_USEDEFAULT ||
-      pSettings->height == CW_USEDEFAULT)
-    {
-      pSettings->width = CW_USEDEFAULT;
-      pSettings->height = 0;
-    }
-    else {
-      pSettings->width = rc.right - rc.left;
-      pSettings->height = rc.bottom - rc.top;
-    }
-  }
+    Panitent_SaveSettingsFile(pSettings);
 
-  FILE* fp = NULL;
-  errno_t result = _wfopen_s(&fp, L"settings.dat", L"wb");
-  assert(result == 0 && fp);
-  if (result == 0 && fp)
-  {
-    fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
-    fclose(fp);
-  }
-
-  PostQuitMessage(0);
+    PostQuitMessage(0);
 }
 
 static inline void PopupClassRegistrationFail(LPWSTR lpszTip)
 {
-  WCHAR szMessage[256];
-  ZeroMemory(szMessage, sizeof(szMessage));
+    WCHAR szMessage[256];
+    ZeroMemory(szMessage, sizeof(szMessage));
 
-  StringCchPrintf(szMessage, 256, L"Failed to register %s class", lpszTip);
+    StringCchPrintf(szMessage, 256, L"Failed to register %s class", lpszTip);
 
-  MessageBox(NULL, szMessage, NULL, MB_OK | MB_ICONERROR);
+    MessageBox(NULL, szMessage, NULL, MB_OK | MB_ICONERROR);
 }
 
 static inline BOOL AssertClassRegistration(
     HINSTANCE hInstance,
     LPWSTR lpszClassName,
-    BOOL (*lpfnClassRegisterer)(HINSTANCE))
+    BOOL(*lpfnClassRegisterer)(HINSTANCE))
 {
-  BOOL bResult;
+    BOOL bResult;
 
-  bResult = (*lpfnClassRegisterer)(hInstance);
-  assert(bResult);
-  if (!bResult)
-  {
-    PopupClassRegistrationFail(lpszClassName);
-  }
+    bResult = (*lpfnClassRegisterer)(hInstance);
+    assert(bResult);
+    if (!bResult)
+    {
+        PopupClassRegistrationFail(lpszClassName);
+    }
 
-  return TRUE;
+    return TRUE;
 }
 
 BOOL Panitent_RegisterClasses(HINSTANCE hInstance)
 {
-  BOOL bStatus;
+    BOOL bStatus;
 
-  bStatus = TRUE;
+    bStatus = TRUE;
 
-  bStatus = bStatus && AssertClassRegistration( hInstance, L"SettingsDialog",
-      SettingsDialog_RegisterClass);
+    bStatus = bStatus && AssertClassRegistration(hInstance, L"SettingsDialog", SettingsDialog_RegisterClass);
+    bStatus = bStatus && AssertClassRegistration(hInstance, L"SettingsWindow", SettingsWindow_Register);
+    bStatus = bStatus && AssertClassRegistration(hInstance, L"SwatchControl2", SwatchControl2_RegisterClass);
+    bStatus = bStatus && AssertClassRegistration(hInstance, L"BrushSel", BrushSel_RegisterClass);
 
-  /*
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"DockHost",
-      DockHost_RegisterClass);
-      */
-
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"SettingsWindow",
-      SettingsWindow_Register);
-
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"SwatchControl2",
-      SwatchControl2_RegisterClass);
-
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"BrushSel",
-      BrushSel_RegisterClass);
-
-  bStatus = bStatus && AssertClassRegistration(hInstance, L"Logwindow",
-      LogWindow_Register);
-
-  return bStatus;
+    return bStatus;
 }
 
 void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent)
 {
-
-    DockData* pDockDataParent = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataParent = DockData_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
     pNodeParent->data = (void*)pDockDataParent;
-    pDockDataParent->dwStyle = DGA_END | DGP_ABSOLUTE | DGD_VERTICAL;
-    pDockDataParent->iGripPos = 64;
-    pDockDataParent->bShowCaption = FALSE;
     wcscpy_s(pDockDataParent->lpszName, MAX_PATH, L"Root");
 
     TreeNode* pNodeOptionBar = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataOptionBar = (DockData*)calloc(1, sizeof(DockData));
+
+    DockData* pDockDataOptionBar = DockData_Create(0, DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, FALSE);
     pNodeOptionBar->data = (void*)pDockDataOptionBar;
     wcscpy_s(pDockDataOptionBar->lpszName, MAX_PATH, L"OptionBar");
     OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)g_app);
@@ -375,7 +340,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Main node */
     TreeNode* pNodeZ = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataZ = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataZ = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataOptionBar, 0, sizeof(DockData));
     pNodeZ->data = (void*)pDockDataZ;
     pDockDataZ->dwStyle = DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL;
     pDockDataZ->iGripPos = 192;
@@ -386,7 +352,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Toolbox node */
     TreeNode* pNodeToolbox = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataToolbox = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataToolbox = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataToolbox, 0, sizeof(DockData));
     pNodeToolbox->data = (void*)pDockDataToolbox;
     wcscpy_s(pDockDataToolbox->lpszName, MAX_PATH, L"Toolbox");
     ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((struct Application*)g_app);
@@ -395,7 +362,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Viewport node */
     TreeNode* pNodeViewport = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataViewport = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataViewport = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataViewport, 0, sizeof(DockData));
     pNodeViewport->data = (void*)pDockDataViewport;
     wcscpy_s(pDockDataViewport->lpszName, MAX_PATH, L"WorkspaceContainer");
     WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)g_app);
@@ -405,7 +373,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Toolbox/Viewport node */
     TreeNode* pNodeY = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataY = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataY = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataY, 0, sizeof(DockData));
     pNodeY->data = (void*)pDockDataY;
     wcscpy_s(pDockDataY->lpszName, MAX_PATH, L"Toolbox/Viewport");
     pDockDataY->dwStyle = DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL;
@@ -419,7 +388,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* GLWindow node */
     TreeNode* pNodeGLWindow = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataGLWindow = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataGLWindow = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataGLWindow, 0, sizeof(DockData));
     pNodeGLWindow->data = (void*)pDockDataGLWindow;
     wcscpy_s(pDockDataGLWindow->lpszName, MAX_PATH, L"GLWindow");
     GLWindow* pGLWindow = GLWindow_Create((struct Application*)g_app);
@@ -428,7 +398,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Create and pin palette window */
     TreeNode* pNodePalette = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataPalette = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataPalette = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataPalette, 0, sizeof(DockData));
     pNodePalette->data = (void*)pDockDataPalette;
     wcscpy_s(pDockDataPalette->lpszName, MAX_PATH, L"Palette");
     PaletteWindow* pPaletteWindow = PaletteWindow_Create((Application*)g_app, g_app->palette);
@@ -437,7 +408,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Create and pin layers window */
     TreeNode* pNodeLayers = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataLayers = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataLayers = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataLayers, 0, sizeof(DockData));
     pNodeLayers->data = (void*)pDockDataLayers;
     wcscpy_s(pDockDataLayers->lpszName, MAX_PATH, L"Layers");
     LayersWindow* pLayersWindow = LayersWindow_Create((Application*)g_app);
@@ -446,7 +418,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* Palette/Layers node */
     TreeNode* pNodeB = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataB = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataB = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataB, 0, sizeof(DockData));
     pNodeB->data = (void*)pDockDataB;
     wcscpy_s(pDockDataB->lpszName, MAX_PATH, L"Palette/Layers");
     pDockDataB->dwStyle = DGA_START | DGP_ABSOLUTE | DGD_VERTICAL;
@@ -461,7 +434,8 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
 
     /* right bar node */
     TreeNode* pNodeA = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataA = (DockData*)calloc(1, sizeof(DockData));
+    DockData* pDockDataA = (DockData*)malloc(sizeof(DockData));
+    memset(pDockDataA, 0, sizeof(DockData));
     pNodeA->data = (void*)pDockDataA;
     wcscpy_s(pDockDataA->lpszName, MAX_PATH, L"Right bar");
     pDockDataA->dwStyle = DGA_START | DGP_ABSOLUTE | DGD_VERTICAL;
@@ -483,86 +457,89 @@ void Panitent_DockHostInit(DockHostWindow* pDockHostWindow, TreeNode* pNodeParen
     /* OptionBar / Other */
     pNodeParent->node1 = pNodeZ;
     pNodeParent->node2 = pNodeOptionBar;
+
+    WCHAR pszSource[] = L""
+        L"<Root>"
+        L"<Hello>World</Hello>"
+        L"<This>"
+        L"<Is>:-)</Is>"
+        L"<An>:-0</An>"
+        L"<Example>:-D</Example>"
+        L"</This>"
+        L"</Root>"
+        ;
+
+    struct XMLDocument* pXMLDocument = XML_ParseDocument(pszSource, wcslen(pszSource));
+
+    if (!pXMLDocument)
+    {
+        Panitent_RaiseException(L"Could not parse pXMLDocument\n");
+    }
+    XMLNode* root = XMLDocument_GetRoot(pXMLDocument);
+
+    /* Say Hello World :-) */
+    XMLNode* pRootHello = XMLNode_GetChild(root, 0);
+    XMLString* pxsHello = XMLNode_GetName(pRootHello);
+    XMLString* pxsWorld = XMLNode_GetContent(pRootHello);
+
+    /* Watch out: `xml_string_copy` will not 0-ternimate your `calloc` will :-) */
+    PWSTR hello_0 = calloc(XMLString_Length(pxsHello) + 1, sizeof(WCHAR));
+    PWSTR world_0 = calloc(XMLString_Length(pxsHello) + 1, sizeof(WCHAR));
+    XMLString_Copy(pxsHello, hello_0, XMLString_Length(pxsHello));
+    XMLString_Copy(pxsWorld, world_0, XMLString_Length(pxsWorld));
+
+    wprintf_s(L"%s %s\n", hello_0, world_0);
+    free(hello_0);
+    free(world_0);
+
+    /* Extract amout of Root/This children */
+    XMLNode* pRootThis = XMLNode_GetChild(root, 1);
+    wprintf_s(L"Root/This has %lu ppChildren\n", (unsigned long)XMLNode_GetChildrenCount(pRootThis));
+
+    /* Remember to free the document or you'ss risk a memory leak */
+    XMLDocument_Free(pXMLDocument, FALSE);
 }
 
 void FetchSystemFont()
 {
-  NONCLIENTMETRICS ncm = {0};
-  ncm.cbSize           = sizeof(NONCLIENTMETRICS);
+    NONCLIENTMETRICS ncm = { 0 };
+    ncm.cbSize = sizeof(NONCLIENTMETRICS);
 
-  BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS,
-                                      sizeof(NONCLIENTMETRICS),
-                                      &ncm,
-                                      0);
-  if (!bResult) {
-    return;
-  }
+    BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0);
+    if (!bResult)
+    {
+        return;
+    }
 
-  HFONT hFontNew = CreateFontIndirect(&ncm.lfMessageFont);
-  if (!hFontNew) {
-    return;
-  }
+    HFONT hFontNew = CreateFontIndirect(&ncm.lfMessageFont);
+    if (!hFontNew)
+    {
+        return;
+    }
 
-  DeleteObject(hFontSys);
-  hFontSys = hFontNew;
+    DeleteObject(hFontSys);
+    hFontSys = hFontNew;
 }
 
 HFONT GetGuiFont()
 {
-  if (!hFontSys)
-    FetchSystemFont();
+    if (!hFontSys)
+    {
+        FetchSystemFont();
+    }
 
-  return hFontSys;
+    return hFontSys;
 }
 
 void SetGuiFont(HWND hwnd)
 {
-  SendMessage(hwnd, WM_SETFONT, (WPARAM)hFontSys, MAKELPARAM(FALSE, 0));
-}
-
-HMENU CreateMainMenu()
-{
-  HMENU hMenu;
-  HMENU hSubMenu;
-
-  hMenu = CreateMenu();
-
-  hSubMenu = CreatePopupMenu();
-  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New\tCtrl+N");
-  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open\tCtrl+O");
-  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save\tCtrl+S");
-  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLIPBOARD_EXPORT, L"Export image to clipboard");
-  AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
-  AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
-
-  hSubMenu = CreatePopupMenu();
-  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
-  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
-  AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
-  AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
-
-  hSubMenu = CreatePopupMenu();
-  AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
-  AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
-  CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
-
-  hSubMenu = CreatePopupMenu();
-  AppendMenu(hSubMenu, MF_STRING, IDM_OPTIONS_SETTINGS, L"&Settings");
-  AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Options");
-
-  hSubMenu = CreatePopupMenu();
-  AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
-  AppendMenu(hSubMenu, MF_STRING, IDM_HELP_LOG, L"&Log");
-  AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
-  AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
-
-  return hMenu;
+    SendMessage(hwnd, WM_SETFONT, (WPARAM)hFontSys, MAKELPARAM(FALSE, 0));
 }
 
 Document* Panitent_GetActiveDocument()
 {
-  ViewportWindow* pViewportWindow = Panitent_GetActiveViewport();
-  return ViewportWindow_GetDocument(pViewportWindow);
+    ViewportWindow* pViewportWindow = Panitent_GetActiveViewport();
+    return ViewportWindow_GetDocument(pViewportWindow);
 }
 
 void Panitent_SetActiveViewport(ViewportWindow* pViewportWindow)
@@ -577,110 +554,112 @@ ViewportWindow* Panitent_GetActiveViewport()
 
 HWND Panitent_GetHWND()
 {
-  return g_panitent.hwnd;
+    return g_panitent.hwnd;
 }
 
-PNTSETTINGS *Panitent_GetSettings()
+PNTSETTINGS* Panitent_GetSettings()
 {
-  return &g_panitent.settings;
+    return &g_panitent.settings;
 }
 
 void Panitent_Open()
 {
-  Document_Open(NULL);
+    Document_Open(NULL);
 }
 
 void Panitent_OpenFile(LPWSTR pszPath)
 {
-  Document_OpenFile(pszPath);
+    Document_OpenFile(pszPath);
 }
 
 ViewportWindow* Panitent_CreateViewport()
 {
-  ViewportWindow* pViewportWindow = Panitent_GetActiveViewport();
+    ViewportWindow* pViewportWindow = Panitent_GetActiveViewport();
 
-  if (!pViewportWindow)
-  {
-    Panitent_SetActiveViewport(NULL);
-  }
+    if (!pViewportWindow)
+    {
+        Panitent_SetActiveViewport(NULL);
+    }
 
-  return pViewportWindow;
+    return pViewportWindow;
 }
 
 void Panitent_ClipboardExport() {
-  HWND hWndPanitent;
-  /* HGLOBAL hglbCopy; */
+    HWND hWndPanitent;
+    /* HGLOBAL hglbCopy; */
 
-  hWndPanitent = Panitent_GetHWND();
+    hWndPanitent = Panitent_GetHWND();
 
-  if (!OpenClipboard(hWndPanitent)) {
-    return;
-  }
-  EmptyClipboard();
-
-  Document *doc = Panitent_GetActiveDocument();
-  if (!doc)
-    return;
-
-  Canvas *canvas = Document_GetCanvas(doc);
-  if (!canvas)
-    return;
-
-  unsigned char *pData = malloc(canvas->buffer_size);
-  if (!pData)
-  {
-      return;
-  }
-
-  ZeroMemory(pData, canvas->buffer_size);
-  memcpy(pData, canvas->buffer, canvas->buffer_size);
-
-  for (size_t y = 0; y < (size_t) canvas->height; y++) {
-    for (size_t x = 0; x < (size_t) canvas->width; x++) {
-      uint8_t *pixel = pData + (x + y * canvas->width) * 4;
-
-      float factor = (float)(pixel[3]) / 255.f;
-
-      pixel[0] *= (uint8_t)factor;
-      pixel[1] *= (uint8_t)factor;
-      pixel[2] *= (uint8_t)factor;
+    if (!OpenClipboard(hWndPanitent)) {
+        return;
     }
-  }
+    EmptyClipboard();
 
-  HBITMAP hBitmap = CreateBitmap(canvas->width,
-      canvas->height, 1, sizeof(uint32_t) * 8, pData);
+    Document* doc = Panitent_GetActiveDocument();
+    if (!doc)
+        return;
 
-  /*
-  hglbCopy = GlobalAlloc(GMEM_MOVEABLE, sizeof(HBITMAP));
-  if (!hglbCopy) {
+    Canvas* canvas = Document_GetCanvas(doc);
+    if (!canvas)
+        return;
+
+    unsigned char* pData = malloc(canvas->buffer_size);
+    memset(pData, 0, canvas->buffer_size);
+    if (!pData)
+    {
+        return;
+    }
+
+    ZeroMemory(pData, canvas->buffer_size);
+    memcpy(pData, canvas->buffer, canvas->buffer_size);
+
+    for (size_t y = 0; y < (size_t)canvas->height; y++) {
+        for (size_t x = 0; x < (size_t)canvas->width; x++) {
+            uint8_t* pixel = pData + (x + y * canvas->width) * 4;
+
+            float factor = (float)(pixel[3]) / 255.f;
+
+            pixel[0] *= (uint8_t)factor;
+            pixel[1] *= (uint8_t)factor;
+            pixel[2] *= (uint8_t)factor;
+        }
+    }
+
+    HBITMAP hBitmap = CreateBitmap(canvas->width,
+        canvas->height, 1, sizeof(uint32_t) * 8, pData);
+
+    /*
+    hglbCopy = GlobalAlloc(GMEM_MOVEABLE, sizeof(HBITMAP));
+    if (!hglbCopy) {
+      CloseClipboard();
+      return;
+    }
+    */
+
+    SetClipboardData(CF_BITMAP, hBitmap);
     CloseClipboard();
-    return;
-  }
-  */
-
-  SetClipboardData(CF_BITMAP, hBitmap);
-  CloseClipboard();
 }
 
-struct PanitentApplication* PanitentApplication_Create()
+PanitentApplication* PanitentApplication_Create()
 {
-  struct PanitentApplication* app = calloc(1, sizeof(struct PanitentApplication));
+    PanitentApplication* pPanitentApplication = (PanitentApplication*)malloc(sizeof(PanitentApplication));
 
-  if (app)
-  {
-    PanitentApplication_Init(app);
-  }
+    if (pPanitentApplication)
+    {
+        memset(pPanitentApplication, 0, sizeof(PanitentApplication));
+        PanitentApplication_Init(pPanitentApplication);
+    }
 
-  return app;
+    return pPanitentApplication;
 }
 
 void PanitentApplication_Init(struct PanitentApplication* app)
 {
-  Application_Init(&app->base);
+    Application_Init(&app->base);
 
-  app->m_pPanitentWindow = PanitentWindow_Create((Application *)app);
-
-  app->palette = Palette_Create();
+    app->m_pPanitentWindow = PanitentWindow_Create((Application*)app);
+    app->palette = Palette_Create();
+    app->m_pActivitySharingManager = ActivitySharingManager_Create();
 }
 
 void Panitent_CmdClearCanvas(struct PanitentApplication* app)
@@ -688,7 +667,7 @@ void Panitent_CmdClearCanvas(struct PanitentApplication* app)
     Document* pDocument = Panitent_GetActiveDocument();
     Canvas* pCanvas = Document_GetCanvas(pDocument);
     Canvas_Clear(pCanvas);
-    Window_Invalidate((Window *)Panitent_GetActiveViewport());
+    Window_Invalidate((Window*)Panitent_GetActiveViewport());
 }
 
 void Panitent_CmdSaveFile(struct PanitentApplication* app)
@@ -706,7 +685,45 @@ WorkspaceContainer* Panitent_GetWorkspaceContainer()
     return g_app->m_pWorkspaceContainer;
 }
 
-Tool* Panitent_GetTool()
+Tool* Panitent_GetSelectedTool()
 {
     return g_app->m_pTool;
+}
+
+void Panitent_CmdShowActivityDialog(PanitentApplication* pApp)
+{
+    ActivityStubDialog* pActivityStubDialog = ActivityStubDialog_Create(pApp);
+    ActivitySharingManager_AddClient(pApp->m_pActivitySharingManager, &pActivityStubDialog->m_activitySharingClient);
+    HWND hWnd = Dialog_CreateWindow(pActivityStubDialog, IDD_ACTIVITYSTUB, NULL, FALSE);
+    ShowWindow(hWnd, SW_SHOW);
+}
+
+void Panitent_SetActivityStatus(PanitentApplication* pApp, PCWSTR pszStatusMessage)
+{
+    ActivitySharingManager_SetStatus(pApp->m_pActivitySharingManager, pszStatusMessage);
+}
+
+void Panitent_SetActivityStatusF(PanitentApplication* pApp, PCWSTR pszFormat, ...)
+{
+    va_list argp;
+    va_start(argp, pszFormat);
+
+    WCHAR szMessage[256];
+    vswprintf_s(szMessage, 256, pszFormat, argp);
+
+    va_end(argp);
+
+    Panitent_SetActivityStatus(pApp, szMessage);
+}
+
+void Panitent_RaiseException(PCWSTR pszExceptionMessage)
+{
+    MessageBox(NULL, pszExceptionMessage, NULL, MB_ICONERROR);
+}
+
+void Panitent_CmdShowPropertyGridDialog(PanitentApplication* pApp)
+{
+    PropertyGridDialog* pPropertyGridDialog = PropertyGridDialog_Create(pApp);
+    HWND hDlg = Dialog_CreateWindow(pPropertyGridDialog, IDD_PROPERTYGRIDDLG, NULL, FALSE);
+    ShowWindow(hDlg, SW_SHOW);
 }

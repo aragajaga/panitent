@@ -15,13 +15,14 @@ void TreeViewCtl_Init(TreeViewCtl* window, struct Application* app)
 
 TreeViewCtl* TreeViewCtl_Create(struct Application* app)
 {
-  TreeViewCtl* window = calloc(1, sizeof(TreeViewCtl));
-  if (window)
+  TreeViewCtl* pTreeViewCtl = (TreeViewCtl*)malloc(sizeof(TreeViewCtl));
+  memset(pTreeViewCtl, 0, sizeof(TreeViewCtl));
+  if (pTreeViewCtl)
   {
-    TreeViewCtl_Init(window, app);
+    TreeViewCtl_Init(pTreeViewCtl, app);
   }
 
-  return window;
+  return pTreeViewCtl;
 }
 
 void TreeViewCtl_PreCreate(LPCREATESTRUCT lpcs)

@@ -31,6 +31,7 @@ void crefptr_deref(crefptr_t* ptr)
 crefptr_t* crefptr_new(void* ptr, void (*dtor)(void* ptr))
 {
   crefptr_t* s = malloc(sizeof(crefptr_t));
+  memset(s, 0, sizeof(crefptr_t));
   s->refCount = 1;
   s->data = ptr;
   s->dtor = dtor;

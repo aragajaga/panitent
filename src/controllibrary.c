@@ -21,7 +21,8 @@ LRESULT CALLBACK ControlLibrary_UserProc(ControlLibrary*, HWND hWnd, UINT, WPARA
 
 ControlLibrary* ControlLibrary_Create(struct Application* app)
 {
-    ControlLibrary* window = calloc(1, sizeof(ControlLibrary));
+    ControlLibrary* window = (ControlLibrary*)malloc(sizeof(ControlLibrary));
+    memset(window, 0, sizeof(ControlLibrary));
 
     if (window)
     {

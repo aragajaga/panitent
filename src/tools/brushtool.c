@@ -20,7 +20,8 @@ void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindo
 
 BrushTool* BrushTool_Create()
 {
-    BrushTool* pBrushTool = (BrushTool*)calloc(1, sizeof(BrushTool));
+    BrushTool* pBrushTool = (BrushTool*)malloc(sizeof(BrushTool));
+    memset(pBrushTool, 0, sizeof(BrushTool));
     BrushTool_Init(pBrushTool);
     return pBrushTool;
 }

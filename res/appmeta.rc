@@ -1,0 +1,29 @@
+#include <winres.h>
+
+2 VERSIONINFO
+FILEVERSION     1, 0, 0, 0
+PRODUCTVERSION  1, 0, 0, 0
+FILEOS          VOS_NT
+FILETYPE        VFT_APP
+FILEFLAGS       VS_FF_PRERELEASE
+BEGIN
+BLOCK "StringFileInfo"
+BEGIN
+BLOCK "000004b0"
+BEGIN
+VALUE "CompanyName", "Aragajaga"
+VALUE "FileDescription", "Panit.ent Graphics Editor"
+VALUE "FileVersion", "1.0.0.0"
+VALUE "InternalName", "panitent"
+VALUE "LegalCopyright", "Copyright 2017-2021 Aragajaga"
+VALUE "OriginalFilename", "panitent.exe"
+VALUE "ProductName", "Panit.ent"
+VALUE "ProductVersion", "1.0.0.0"
+END
+END
+
+BLOCK "VarFileInfo"
+BEGIN
+VALUE "Translation", 0x00, 1200
+END
+END

@@ -156,6 +156,8 @@
     <ClCompile Include="src\win32\dialog.c" />
     <ClCompile Include="src\win32\framework.c" />
     <ClCompile Include="src\win32\listbox.c" />
+    <ClCompile Include="src\win32\propertygrid.c" />
+    <ClCompile Include="src\win32\propertygridimpl.c" />
     <ClCompile Include="src\win32\tree_view.c" />
     <ClCompile Include="src\win32\util.c" />
     <ClCompile Include="src\win32\window.c" />
@@ -167,6 +169,8 @@
     <ClInclude Include="src\win32\dialog.h" />
     <ClInclude Include="src\win32\framework.h" />
     <ClInclude Include="src\win32\listbox.h" />
+    <ClInclude Include="src\win32\propertygrid.h" />
+    <ClInclude Include="src\win32\propertygridimpl.h" />
     <ClInclude Include="src\win32\tree_view.h" />
     <ClInclude Include="src\win32\util.h" />
     <ClInclude Include="src\win32\window.h" />

@@ -23,14 +23,15 @@ LRESULT CALLBACK SplitterContainer_UserProc(SplitterContainer* pSplitterContaine
 
 SplitterContainer* SplitterContainer_Create(struct Application* app)
 {
-    SplitterContainer* window = calloc(1, sizeof(SplitterContainer));
+    SplitterContainer* pWindow = (SplitterContainer*)malloc(sizeof(SplitterContainer));
+    memset(pWindow, 0, sizeof(SplitterContainer));
 
-    if (window)
+    if (pWindow)
     {
-        SplitterContainer_Init(window, app);
+        SplitterContainer_Init(pWindow, app);
     }
 
-    return window;
+    return pWindow;
 }
 
 void SplitterContainer_Init(SplitterContainer* window, struct Application* app)
@@ -87,6 +88,7 @@ struct HashMap2 {
 void InitHashMap2(struct HashMap2* map, size_t capacity)
 {
     map->pairs = (struct KeyValuePair*)malloc(capacity * sizeof(KeyValuePair));
+    memset(map->pairs, 0, capacity * sizeof(KeyValuePair));
     map->capacity = capacity;
     map->size = 0;
 }

@@ -5,6 +5,7 @@
 #include "FloatingWindowContainer.h"
 #include "resource.h"
 #include "panitent.h"
+#include "toolwndframe.h"
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
@@ -92,54 +93,9 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
     return 0;
 }
 
-enum {
-    GLYPH_MORE = 0,
-    GLYPH_PIN,
-    GLYPH_MINIMIZE,
-    GLYPH_MAXIMIZE,
-    GLYPH_CLOSE
-};
-
-typedef struct CaptionButton CaptionButton;
-
-struct CaptionButton {
-    SIZE size;
-    int glyph;
-};
-
 LRESULT CaptionRightContainerHitTest()
 {
 
-}
-
-void DrawCaptionGlyph(HDC hdc, int x, int y, int iGlyph)
-{
-    HBITMAP hbmGlyphs = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_FLOATINGGLYPHS));
-    HDC hdcGlyphs = CreateCompatibleDC(hdc);
-    HBITMAP hPrevBm = SelectObject(hdcGlyphs, hbmGlyphs);
-
-    TransparentBlt(hdc, x, y, 8, 8, hdcGlyphs, iGlyph * 8, 0, 8, 8, RGB(255, 0, 255));
-
-    SelectObject(hdcGlyphs, hPrevBm);
-    DeleteObject(hbmGlyphs);
-}
-
-void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y)
-{
-    RECT rcButton = { 0 };
-    rcButton.left = x;
-    rcButton.top = y;
-    rcButton.right = x + pCaptionButton->size.cx;
-    rcButton.bottom = y + pCaptionButton->size.cy;
-
-    SetDCPenColor(hdc, RGB(0xFF, 0xFF, 0xFF));
-    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
-    SelectObject(hdc, GetStockObject(DC_PEN));
-    SelectObject(hdc, GetStockObject(DC_BRUSH));
-
-    Rectangle(hdc, rcButton.left, rcButton.top, rcButton.right, rcButton.bottom);
-
-    DrawCaptionGlyph(hdc, rcButton.left + (rcButton.right - rcButton.left - 8) / 2, rcButton.top + (rcButton.bottom - rcButton.top - 8) / 2, pCaptionButton->glyph);
 }
 
 CaptionButton g_captionButtons[] = {
@@ -285,20 +241,21 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
         }
     }
     
-
     return HTCLIENT;
 }
 
 FloatingWindowContainer* FloatingWindowContainer_Create(struct Application* app)
 {
-    FloatingWindowContainer* window = calloc(1, sizeof(FloatingWindowContainer));
+    FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)malloc(sizeof(FloatingWindowContainer));
 
-    if (window)
+    if (pFloatingWindowContainer)
     {
-        FloatingWindowContainer_Init(window, app);
+        memset(pFloatingWindowContainer, 0, sizeof(FloatingWindowContainer));
+
+        FloatingWindowContainer_Init(pFloatingWindowContainer, app);
     }
 
-    return window;
+    return pFloatingWindowContainer;
 }
 
 void FloatingWindowContainer_Init(FloatingWindowContainer* window, struct Application* app)
@@ -423,7 +380,29 @@ LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloating
         const int xStart = pFloatingWindowContainer->ptCaptionUnpinStartingPoint.x;
         const int yStart = pFloatingWindowContainer->ptCaptionUnpinStartingPoint.y;
 
-        if (sqrt(pow(x - xStart, 2) + pow(y - yStart, 2)) >= 20)
+        HWND hWnd = Window_GetHWND(pFloatingWindowContainer);
+
+        HDC hdcDesktop = GetDC(NULL);
+        HDC hdcScreenshot = CreateCompatibleDC(hdcDesktop);
+
+        RECT rcWindow;
+        GetWindowRect(hWnd, &rcWindow);
+        int width = Win32_Rect_GetWidth(&rcWindow);
+        int height = Win32_Rect_GetHeight(&rcWindow);
+        HBITMAP hbmScreenshot = CreateCompatibleBitmap(hdcDesktop, width, height);
+
+        SelectObject(hdcScreenshot, hbmScreenshot);
+        BOOL bResult = PrintWindow(hWnd, hdcScreenshot, 0);
+
+        POINT pt;
+        pt.x = x;
+        pt.y = y;
+        MapWindowPoints(NULL, hWnd, &pt, 1);
+
+        BitBlt(hdcDesktop, x - pt.x, y + pt.y, width, height, hdcScreenshot, 0, 0, SRCCOPY);
+
+
+        if (sqrt(pow(x - xStart, 2) + pow(y - yStart, 2)) >= 100)
         {
             // ReleaseCapture();
             FloatingWindowContainer_OnUnpinCommand(pFloatingWindowContainer);
@@ -440,7 +419,7 @@ LRESULT FloatingWindowContainer_OnNCLButtonUp(FloatingWindowContainer* pFloating
 {
     if (pFloatingWindowContainer->fCaptionUnpinStarted)
     {
-        // ReleaseCapture();
+        ReleaseCapture();
         pFloatingWindowContainer->fCaptionUnpinStarted = FALSE;
     }
 

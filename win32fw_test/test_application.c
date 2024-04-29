@@ -13,14 +13,15 @@ void TestApplication_Init(TestApplication* app)
 
 TestApplication* TestApplication_Create()
 {
-  TestApplication* app = calloc(1, sizeof(TestApplication));
+  TestApplication* pTestApplication = (TestApplication*)malloc(sizeof(TestApplication));
+  memset(pTestApplication, 0, sizeof(TestApplication));
 
-  if (app)
+  if (pTestApplication)
   {
-    TestApplication_Init(app);
+    TestApplication_Init(pTestApplication);
   }
 
-  return app;
+  return pTestApplication;
 }
 
 int TestApplication_Run(TestApplication* app)

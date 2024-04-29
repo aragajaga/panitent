@@ -26,28 +26,29 @@ LRESULT CALLBACK GLWindow_UserProc(GLWindow*, HWND hWnd, UINT, WPARAM, LPARAM);
 
 GLWindow* GLWindow_Create(struct Application* app)
 {
-    GLWindow* window = calloc(1, sizeof(GLWindow));
+    GLWindow* pGLWindow = (GLWindow*)malloc(sizeof(GLWindow));
+    memset(pGLWindow, 0, sizeof(GLWindow));
 
-    if (window)
+    if (pGLWindow)
     {
-        GLWindow_Init(window, app);
+        GLWindow_Init(pGLWindow, app);
     }
 
-    return window;
+    return pGLWindow;
 }
 
-void GLWindow_Init(GLWindow* window, struct Application* app)
+void GLWindow_Init(GLWindow* pGLWindow, struct Application* app)
 {
-    Window_Init(&window->base, app);
+    Window_Init(&pGLWindow->base, app);
 
-    window->base.szClassName = szClassName;
+    pGLWindow->base.szClassName = szClassName;
 
-    window->base.OnCreate = (FnWindowOnCreate)GLWindow_OnCreate;
-    window->base.OnDestroy = (FnWindowOnDestroy)GLWindow_OnDestroy;
-    window->base.OnPaint = (FnWindowOnPaint)GLWindow_OnPaint;
-    window->base.PreRegister = (FnWindowPreRegister)GLWindow_PreRegister;
-    window->base.PreCreate = (FnWindowPreCreate)GLWindow_PreCreate;
-    window->base.UserProc = (FnWindowUserProc)GLWindow_UserProc;
+    pGLWindow->base.OnCreate = (FnWindowOnCreate)GLWindow_OnCreate;
+    pGLWindow->base.OnDestroy = (FnWindowOnDestroy)GLWindow_OnDestroy;
+    pGLWindow->base.OnPaint = (FnWindowOnPaint)GLWindow_OnPaint;
+    pGLWindow->base.PreRegister = (FnWindowPreRegister)GLWindow_PreRegister;
+    pGLWindow->base.PreCreate = (FnWindowPreCreate)GLWindow_PreCreate;
+    pGLWindow->base.UserProc = (FnWindowUserProc)GLWindow_UserProc;
 }
 
 void GLWindow_PreRegister(LPWNDCLASSEX lpwcex)
@@ -58,9 +59,9 @@ void GLWindow_PreRegister(LPWNDCLASSEX lpwcex)
     lpwcex->lpszClassName = szClassName;
 }
 
-BOOL GLWindow_OnCreate(GLWindow* window, LPCREATESTRUCT lpcs)
+BOOL GLWindow_OnCreate(GLWindow* pGLWindow, LPCREATESTRUCT lpcs)
 {
-    UNREFERENCED_PARAMETER(window);
+    UNREFERENCED_PARAMETER(pGLWindow);
     UNREFERENCED_PARAMETER(lpcs);
 
     PIXELFORMATDESCRIPTOR pfd;
@@ -91,7 +92,7 @@ BOOL GLWindow_OnCreate(GLWindow* window, LPCREATESTRUCT lpcs)
     pfd.dwVisibleMask = 0;
     pfd.dwDamageMask = 0;
 
-    HDC ourWindowHandleToDeviceContext = GetDC(window->base.hWnd);
+    HDC ourWindowHandleToDeviceContext = GetDC(pGLWindow->base.hWnd);
 
     int letWindowsChooseThisPixelFormat;
     letWindowsChooseThisPixelFormat = ChoosePixelFormat(ourWindowHandleToDeviceContext, &pfd);

@@ -7,7 +7,8 @@ void PointerTool_Init(PointerTool* pPointerTool);
 
 PointerTool* PointerTool_Create()
 {
-    PointerTool* pPointerTool = (PointerTool*)calloc(1, sizeof(PointerTool));
+    PointerTool* pPointerTool = (PointerTool*)malloc(sizeof(PointerTool));
+    memset(pPointerTool, 0, sizeof(PointerTool));
     PointerTool_Init(pPointerTool);
     return pPointerTool;
 }

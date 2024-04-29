@@ -1,10 +1,11 @@
-#include "precomp.h"
+#include "../precomp.h"
 
 #include "stack.h"
 
 Stack* CreateStack()
 {
 	Stack* stack = (Stack*)malloc(sizeof(Stack));
+	memset(stack, 0, sizeof(Stack));
 	if (!stack)
 	{
 		return NULL;
@@ -16,6 +17,7 @@ Stack* CreateStack()
 void Stack_Push(Stack* stack, void* node)
 {
 	StackNode* newNode = (StackNode*)malloc(sizeof(StackNode));
+	memset(newNode, 0, sizeof(StackNode));
 	if (newNode)
 	{
 		newNode->node = node;

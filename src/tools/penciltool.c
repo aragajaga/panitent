@@ -16,7 +16,8 @@ void PencilTool_OnMouseMove(PencilTool* pPencilTool, ViewportWindow* pViewportWi
 
 PencilTool* PencilTool_Create()
 {
-    PencilTool* pPencilTool = (PencilTool*)calloc(1, sizeof(PencilTool));
+    PencilTool* pPencilTool = (PencilTool*)malloc(sizeof(PencilTool));
+    memset(pPencilTool, 0, sizeof(PencilTool));
     PencilTool_Init(pPencilTool);
     return pPencilTool;
 }

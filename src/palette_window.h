@@ -9,11 +9,11 @@
 typedef struct PaletteWindow PaletteWindow;
 
 struct PaletteWindow {
-  Window base;
-  HBRUSH hbrChecker;
-  Palette* palette;
+    Window base;
+    HBRUSH hbrChecker;
+    Palette* palette;
 };
 
 PaletteWindow* PaletteWindow_Create(Application*, Palette*);
 
-#endif /* PANITENT_PALETTE_WINDOW_H_ */
+#endif  /* PANITENT_PALETTE_WINDOW_H_ */

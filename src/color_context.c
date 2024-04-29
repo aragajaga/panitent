@@ -18,10 +18,12 @@ typedef struct tlist$$##T {                                                    \
                                                                                \
 tlist$$##T_t* tlist$$##T_new(int (*cmp)(T, T))                                 \
 {                                                                              \
-  tlist$$##T_t* l = calloc(1, sizeof(tlist$$##T_t));                           \
+  tlist$$##T_t* l = malloc(sizeof(tlist$$##T_t));                              \
+  memset(l, 0, sizeof(tlist$$##T_t));                                          \
   l->capacity = 0;                                                             \
   l->length = 0;                                                               \
-  l->data = calloc(16, sizeof(T));                                             \
+  l->data = malloc(16 * sizeof(T));                                            \
+  memset(l->data, 0, 16 * sizeof(T));                                          \
   l->cmp = cmp;                                                                \
                                                                                \
   return l;                                                                    \

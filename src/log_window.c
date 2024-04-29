@@ -1,4 +1,5 @@
 #include "precomp.h"
+
 #include <assert.h>
 #include <uxtheme.h>
 
@@ -9,289 +10,341 @@
 #define IDC_LOGVIEW 1701
 
 typedef struct _tagLOGWINDOWDATA {
-  HWND hList;
-  int nIDLogObserver;
-} LOGWINDOWDATA, *LPLOGWINDOWDATA;
+    HWND hList;
+    int nIDLogObserver;
+} LOGWINDOWDATA, * LPLOGWINDOWDATA;
 
-LRESULT CALLBACK LogWindow_WndProc(HWND, UINT, WPARAM, LPARAM);
-BOOL LogWindow_OnCreate(HWND, LPCREATESTRUCT);
-void LogWindow_OnSize(HWND, UINT, int, int);
-LRESULT LogWindow_OnNotify(HWND, int, NMHDR *);
-void LogWindow_OnDestroy(HWND);
-void PopupError(DWORD);
+static const WCHAR szClassName[] = L"Win32Class_LogWindow";
 
-#define LOGWINDOW_WIDTH 360
-#define LOGWINDOW_HEIGHT 480
+/* Private forward declarations */
+LogWindow* LogWindow_Create(Application* pApplication);
+void LogWindow_Init(LogWindow* pLogWindow, Application* pApplication);
 
-const WCHAR szLogWindowClassName[] = L"Win32Class_LogWindow";
+void LogWindow_PreRegister(LPWNDCLASSEX lpwcex);
+void LogWindow_PreCreate(LPCREATESTRUCT lpcs);
 
-BOOL LogWindow_Register(HINSTANCE hInstance)
+BOOL LogWindow_OnCreate(LogWindow* pLogWindow, LPCREATESTRUCT lpcs);
+void LogWindow_PostCreate(LogWindow* pLogWindow);
+void LogWindow_OnSize(LogWindow* pLogWindow, UINT state, int x, int y);
+LRESULT LogWindow_OnNotify(LogWindow* pLogWindow, int idCtrl, NMHDR* pnm);
+void LogWindow_OnPaint(LogWindow* pLogWindow);
+void LogWindow_OnDestroy(LogWindow* pLogWindow);
+LRESULT LogWindow_UserProc(LogWindow* pLogWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+void LogWindow_LogEventObserverCallback(LPLOGEVENT lEvent);
+
+LogWindow* LogWindow_Create(Application* pApplication)
 {
-  WNDCLASSEX wcex = { 0 };
-  wcex.cbSize = sizeof(wcex);
-  wcex.style = CS_VREDRAW | CS_HREDRAW;
-  wcex.lpfnWndProc = (WNDPROC) LogWindow_WndProc;
-  wcex.cbWndExtra = sizeof(LPLOGWINDOWDATA);
-  wcex.hInstance = hInstance;
-  wcex.hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_LOG));
-  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH) (COLOR_BTNFACE + 1);
-  wcex.lpszClassName = szLogWindowClassName;
+    LogWindow* pLogWindow = (LogWindow*)malloc(sizeof(LogWindow));
 
-  return RegisterClassEx(&wcex);
+    if (pLogWindow)
+    {
+        memset(pLogWindow, 0, sizeof(LogWindow));
+        LogWindow_Init(pLogWindow, pApplication);
+    }
+}
+
+void LogWindow_Init(LogWindow* pLogWindow, Application* pApplication)
+{
+    Window_Init(&pLogWindow->base, pApplication);
+
+    pLogWindow->base.OnCreate = (FnWindowOnCreate)LogWindow_OnCreate;
+    pLogWindow->base.OnSize = (FnWindowOnSize)LogWindow_OnSize;
+    pLogWindow->base.PostCreate = (FnWindowPostCreate)LogWindow_PostCreate;
+    pLogWindow->base.OnDestroy = (FnWindowOnDestroy)LogWindow_OnDestroy;
+    pLogWindow->base.OnPaint = (FnWindowOnPaint)LogWindow_OnPaint;
+    
+    pLogWindow->base.PreRegister = (FnWindowPreRegister)LogWindow_PreRegister;
+    pLogWindow->base.PreCreate = (FnWindowPreCreate)LogWindow_PreCreate;
+
+    pLogWindow->base.UserProc = (FnWindowUserProc)LogWindow_UserProc;
+}
+
+void LogWindow_PreRegister(LPWNDCLASSEX lpwcex)
+{
+    lpwcex->style = CS_HREDRAW | CS_VREDRAW;
+    lpwcex->hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_LOG));
+    lpwcex->hCursor = LoadCursor(NULL, IDC_ARROW);
+    lpwcex->hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    lpwcex->lpszClassName = szClassName;
+}
+
+void LogWindow_PreCreate(LPCREATESTRUCT lpcs)
+{
+    lpcs->dwExStyle = 0;
+    lpcs->lpszClass = szClassName;
+    lpcs->lpszName = L"Log";
+    lpcs->style = WS_OVERLAPPEDWINDOW;
+    lpcs->x = CW_USEDEFAULT;
+    lpcs->y = CW_USEDEFAULT;
+    lpcs->cx = 640;
+    lpcs->cy = 480;
+}
+
+BOOL LogWindow_OnCreate(LogWindow* pLogWindow, LPCREATESTRUCT lpcs)
+{
+
+}
+
+HIMAGELIST g_hImageList = NULL;
+
+#define numButtons 3
+
+#define IDM_NEW  1433
+#define IDM_OPEN 1434
+#define IDM_SAVE 1435
+
+HWND CreateSimpleToolbar(HWND hWndParent)
+{
+    const int ImageListID = 0;
+    const int bitmapSize = 16;
+
+    const DWORD buttonStyles = BTNS_AUTOSIZE;
+
+    // Create the toolbar
+    HWND hWndToolbar = CreateWindowEx(0, TOOLBARCLASSNAME, NULL, WS_CHILD | TBSTYLE_WRAPABLE, 0, 0, 0, 0, hWndParent, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!hWndToolbar)
+    {
+        return NULL;
+    }
+
+    // Create the image list.
+    g_hImageList = ImageList_Create(bitmapSize, bitmapSize, ILC_COLOR16 | ILC_MASK, numButtons, 0);
+
+    // Set the image list.
+    SendMessage(hWndToolbar, TB_SETIMAGELIST, (WPARAM)ImageListID, (LPARAM)g_hImageList);
+
+    // Load the button images.
+    SendMessage(hWndToolbar, TB_LOADIMAGES, (WPARAM)IDB_STD_SMALL_COLOR, (LPARAM)HINST_COMMCTRL);
+
+    // Initialize button info
+    // IDM_NEW, IDM_OPEN, and IDM_SAVE are application-defined command constants
+
+
+    TBBUTTON tbButtons[numButtons] =
+    {
+        { MAKELONG(STD_FILENEW,  ImageListID), IDM_NEW,  TBSTATE_ENABLED, buttonStyles, {0}, 0, (INT_PTR)L"New" },
+        { MAKELONG(STD_FILEOPEN, ImageListID), IDM_OPEN, TBSTATE_ENABLED, buttonStyles, {0}, 0, (INT_PTR)L"Open"},
+        { MAKELONG(STD_FILESAVE, ImageListID), IDM_SAVE, 0,               buttonStyles, {0}, 0, (INT_PTR)L"Save"}
+    };
+
+    // Add buttons.
+    SendMessage(hWndToolbar, TB_BUTTONSTRUCTSIZE, (WPARAM)sizeof(TBBUTTON), 0);
+    SendMessage(hWndToolbar, TB_ADDBUTTONS, (WPARAM)numButtons, (LPARAM)&tbButtons);
+
+    // Resize the toolbar, and the show it.
+    SendMessage(hWndToolbar, TB_AUTOSIZE, 0, 0);
+    ShowWindow(hWndToolbar, TRUE);
+
+    return hWndToolbar;
+}
+
+void LogWindow_PostCreate(LogWindow* pLogWindow)
+{
+    HWND hWnd = Window_GetHWND((Window*)pLogWindow);
+
+    HWND hToolbar = CreateSimpleToolbar(hWnd);
+    pLogWindow->hToolbar = hToolbar;
+
+    DWORD dwError;
+
+    HWND hList = CreateWindowEx(0, WC_LISTVIEW, L"", WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA, 0, 0, 0, 0, hWnd, (HMENU)IDC_LOGVIEW, GetModuleHandle(NULL), NULL);
+    dwError = GetLastError();
+
+    if (!hList) {
+        assert(hList);
+    }
+
+    ListView_SetExtendedListViewStyle(hList, LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | LVS_EX_HEADERDRAGDROP | LVS_EX_JUSTIFYCOLUMNS);
+    SetWindowTheme(hList, L"Explorer", NULL);
+
+    WCHAR szText[256];
+    LVCOLUMN lvc;
+    int iCol = 0;
+
+    lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
+
+    lvc.pszText = szText;
+    lvc.fmt = LVCFMT_LEFT;
+
+    lvc.cx = 100;
+    lvc.iSubItem = iCol;
+    StringCchCopy(szText, 256, L"Time");
+    ListView_InsertColumn(hList, iCol++, &lvc);
+
+    lvc.cx = 70;
+    lvc.iSubItem = iCol;
+    StringCchCopy(szText, 256, L"Type");
+    ListView_InsertColumn(hList, iCol++, &lvc);
+
+    lvc.iSubItem = iCol;
+    StringCchCopy(szText, 256, L"Module");
+    ListView_InsertColumn(hList, iCol++, &lvc);
+
+    lvc.cx = 200;
+    lvc.iSubItem = iCol;
+    StringCchCopy(szText, 256, L"Message");
+    ListView_InsertColumn(hList, iCol++, &lvc);
+
+    pLogWindow->hList = hList;
+
+    pLogWindow->nIDLogObserver = LogRegisterObserver(LogWindow_LogEventObserverCallback, (LPVOID)pLogWindow);
+
+    int nEntries = LogGetSize();
+    ListView_SetItemCount(hList, nEntries);
+}
+
+void LogWindow_OnSize(LogWindow* pLogWindow, UINT state, int x, int y)
+{
+    RECT rcClient = { 0 };
+    Window_GetClientRect(pLogWindow, &rcClient);
+
+    RECT rcToolbar = { 0 };
+    GetWindowRect(pLogWindow->hToolbar, &rcToolbar);
+
+    int toolbarHeight = rcToolbar.bottom - rcToolbar.top;
+
+    SetWindowPos(pLogWindow->hToolbar, NULL, 0, 0, rcClient.right - rcClient.left, toolbarHeight, 0);
+    SetWindowPos(pLogWindow->hList, NULL, 0, toolbarHeight, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top - toolbarHeight, 0);
+}
+
+LRESULT LogWindow_OnNotify(LogWindow* pLogWindow, int idCtrl, NMHDR* pnm)
+{
+    if (idCtrl == IDC_LOGVIEW)
+    {
+        switch (pnm->code)
+        {
+        case LVN_GETDISPINFO:
+        {
+            LOGENTRY logEntry;
+            NMLVDISPINFO* plvdi = (NMLVDISPINFO*)pnm; /* ??? */
+
+            if (plvdi->item.iItem == -1)
+            {
+                OutputDebugString(L"LVOWNER: Request for -1 item?\n");
+                DebugBreak();
+            }
+
+            LPLOGENTRY pEntry;
+            pEntry = RetrieveLogEntry(plvdi->item.iItem);
+            if (!pEntry)
+            {
+                assert(FALSE);
+            }
+
+            memcpy(&logEntry, pEntry, sizeof(LOGENTRY));
+
+            if (plvdi->item.mask & LVIF_TEXT)
+            {
+                switch (plvdi->item.iSubItem)
+                {
+                case 0:
+                {
+                    DWORD dwError;
+                    int cchCount;
+                    WCHAR szTimeString[256] = { 0 };
+
+                    cchCount = GetTimeFormatEx(LOCALE_NAME_INVARIANT,
+                        TIME_FORCE24HOURFORMAT,
+                        &logEntry.timestamp,
+                        NULL,
+                        szTimeString,
+                        256);
+
+                    if (!cchCount)
+                    {
+                        dwError = GetLastError();
+                        assert(FALSE);
+                    }
+
+                    StringCchCopy(plvdi->item.pszText, 80, szTimeString);
+                }
+                break;
+
+                case 1:
+                {
+                    switch (logEntry.iType)
+                    {
+                    case LOGENTRY_TYPE_DEBUG:
+                        StringCchCopy(plvdi->item.pszText, 80, L"Debug");
+                        break;
+
+                    case LOGENTRY_TYPE_INFO:
+                        StringCchCopy(plvdi->item.pszText, 80, L"Info");
+                        break;
+
+                    case LOGENTRY_TYPE_WARNING:
+                        StringCchCopy(plvdi->item.pszText, 80, L"Warning");
+                        break;
+
+                    case LOGENTRY_TYPE_ERROR:
+                        StringCchCopy(plvdi->item.pszText, 80, L"Error");
+                        break;
+                    }
+                }
+                break;
+
+                case 2:
+                    StringCchCopy(plvdi->item.pszText, 80, logEntry.pszModule);
+                    break;
+
+                case 3:
+                    StringCchCopy(plvdi->item.pszText, 80, logEntry.pszMessage);
+                    break;
+
+                default:
+                    break;
+                }
+            }
+            return FALSE;
+        }
+        break;
+
+        case LVN_ODCACHEHINT:
+            // NMLVCACHEHINT *pCacheHint = (NMLVCACHEHINT *) pnm;
+            break;
+        }
+    }
+
+    return FALSE;
+}
+
+void LogWindow_OnPaint(LogWindow* pLogWindow)
+{
+
+}
+
+void LogWindow_OnDestroy(LogWindow* pLogWindow)
+{
+    LogUnregisterObserver(pLogWindow->nIDLogObserver);
+}
+
+LRESULT LogWindow_UserProc(LogWindow* pLogWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_NOTIFY:
+    {
+        return LogWindow_OnNotify(pLogWindow, (int)(wParam), (NMHDR*)(lParam));
+    }
+        break;
+    }
+
+    return Window_UserProcDefault(pLogWindow, hWnd, message, wParam, lParam);
 }
 
 void LogWindow_LogEventObserverCallback(LPLOGEVENT lEvent)
 {
-  switch (lEvent->iType)
-  {
-    case LOGALTEREVENT_ADD:
-      {
-        LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) lEvent->userData;
-        assert(wndData);
-
-        ListView_SetItemCount(wndData->hList, lEvent->extra);
-      }
-      break;
-  }
-}
-
-HWND LogWindow_Create(HWND hParent)
-{
-  RECT rc = { 0 };
-  rc.right = LOGWINDOW_WIDTH;
-  rc.bottom = LOGWINDOW_HEIGHT;
-  AdjustWindowRectEx(&rc, WS_OVERLAPPEDWINDOW, FALSE, 0);
-
-  HWND hLogWindow = CreateWindowEx(0, szLogWindowClassName,
-      L"Log", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, 0,
-      rc.right - rc.left,
-      rc.bottom - rc.top,
-      hParent,
-      NULL,
-      GetModuleHandle(NULL), NULL);
-  assert(hLogWindow);
-
-  ShowWindow(hLogWindow, SW_SHOWNORMAL);
-  UpdateWindow(hLogWindow);
-
-  return hLogWindow;
-}
-
-LRESULT CALLBACK LogWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam,
-    LPARAM lParam)
-{
-  switch (message)
-  {
-    HANDLE_MSG(hWnd, WM_CREATE, LogWindow_OnCreate);
-    HANDLE_MSG(hWnd, WM_SIZE, LogWindow_OnSize);
-    HANDLE_MSG(hWnd, WM_DESTROY, LogWindow_OnDestroy);
-    HANDLE_MSG(hWnd, WM_NOTIFY, LogWindow_OnNotify);
-  }
-
-  return DefWindowProc(hWnd, message, wParam, lParam);
-}
-
-BOOL LogWindow_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
-{
-  UNREFERENCED_PARAMETER(lpcs);
-
-  LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) calloc(1, sizeof(LOGWINDOWDATA));
-  assert(wndData);
-  SetWindowLongPtr(hWnd, 0, (LONG_PTR) wndData);
-
-  DWORD dwError;
-
-  HWND hList = CreateWindowEx(0, WC_LISTVIEW, L"",
-      WS_CHILD | WS_VISIBLE | LVS_REPORT | LVS_OWNERDATA,
-      0, 0, 0, 0,
-      hWnd, (HMENU) IDC_LOGVIEW, GetModuleHandle(NULL), NULL);
-  dwError = GetLastError();
-
-  if (!hList) {
-    PopupError(dwError);
-    assert(hList);
-  }
-
-  ListView_SetExtendedListViewStyle(hList,
-      LVS_EX_DOUBLEBUFFER | LVS_EX_FULLROWSELECT | 
-      LVS_EX_HEADERDRAGDROP | LVS_EX_JUSTIFYCOLUMNS);
-  SetWindowTheme(hList, L"Explorer", NULL);
-
-  WCHAR szText[256];
-  LVCOLUMN lvc;
-  int iCol = 0;
-
-  lvc.mask = LVCF_FMT | LVCF_WIDTH | LVCF_TEXT | LVCF_SUBITEM;
-
-  lvc.pszText = szText;
-  lvc.fmt = LVCFMT_LEFT;
-
-  lvc.cx = 100;
-  lvc.iSubItem = iCol;
-  StringCchCopy(szText, 256, L"Time");
-  ListView_InsertColumn(hList, iCol++, &lvc);
-
-  lvc.cx = 70;
-  lvc.iSubItem = iCol;
-  StringCchCopy(szText, 256, L"Type");
-  ListView_InsertColumn(hList, iCol++, &lvc);
-
-  lvc.iSubItem = iCol;
-  StringCchCopy(szText, 256, L"Module");
-  ListView_InsertColumn(hList, iCol++, &lvc);
-
-  lvc.cx = 200;
-  lvc.iSubItem = iCol;
-  StringCchCopy(szText, 256, L"Message");
-  ListView_InsertColumn(hList, iCol++, &lvc);
-
-  wndData->hList = hList;
-
-  wndData->nIDLogObserver =
-      LogRegisterObserver(LogWindow_LogEventObserverCallback, (LPVOID)wndData);
-
-  int nEntries = LogGetSize();
-  ListView_SetItemCount(hList, nEntries);
-
-  return TRUE;
-}
-
-void LogWindow_OnSize(HWND hWnd, UINT state, int cx, int cy)
-{
-  UNREFERENCED_PARAMETER(state);
-  UNREFERENCED_PARAMETER(cx);
-  UNREFERENCED_PARAMETER(cy);
-
-  LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) GetWindowLongPtr(hWnd, 0);
-  assert(wndData);
-
-  RECT rcClient = { 0 };
-  GetClientRect(hWnd, &rcClient);
-
-  SetWindowPos(wndData->hList, NULL, 0, 0,
-      rcClient.right - rcClient.left,
-      rcClient.bottom - rcClient.top,
-      SWP_NOMOVE);
-}
-
-void PopupError(DWORD dwError)
-{
-  DWORD dwFormatError;
-  WCHAR errMsg[256] = { 0 };
-  const DWORD dwFlags = FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS;
-  dwFormatError = FormatMessage(dwFlags, 0, dwError, 0, errMsg, 256, NULL); 
-  if (!dwFormatError) {
-    /* Ooops, we got a serious problem */
-    StringCchPrintf(errMsg, 256, L"Unbelievable. Can't format "
-        L"error message in human-readable format. "
-        L"FormatMessage error code: %d\r\n\r\n"
-        L"Originally reported error code: %d\r\n");
-  }
-
-  MessageBox(NULL, errMsg, NULL, MB_OK | MB_ICONERROR);
-}
-
-LRESULT LogWindow_OnNotify(HWND hwnd, int idCtrl, NMHDR *pnm)
-{
-  UNREFERENCED_PARAMETER(hwnd);
-
-  if (idCtrl == IDC_LOGVIEW) {
-    switch (pnm->code)
+    switch (lEvent->iType)
     {
-      case LVN_GETDISPINFO:
-        {
-          LOGENTRY logEntry;
-          NMLVDISPINFO *plvdi = (NMLVDISPINFO *) pnm; /* ??? */
+    case LOGALTEREVENT_ADD:
+    {
+        LogWindow* pLogWindow = (LogWindow*)lEvent->userData;
+        assert(pLogWindow);
 
-          if (plvdi->item.iItem == -1) {
-            OutputDebugString(L"LVOWNER: Request for -1 item?\n");
-            DebugBreak();
-          }
-
-          LPLOGENTRY pEntry;
-          pEntry = RetrieveLogEntry(plvdi->item.iItem);
-          if (!pEntry) {
-            assert(FALSE);
-          }
-
-          memcpy(&logEntry, pEntry, sizeof(LOGENTRY));
-
-          if (plvdi->item.mask & LVIF_TEXT) {
-            switch (plvdi->item.iSubItem) {
-              case 0:
-                {
-                  DWORD dwError;
-                  int cchCount;
-                  WCHAR szTimeString[256] = { 0 };
-
-                  cchCount = GetTimeFormatEx(LOCALE_NAME_INVARIANT,
-                      TIME_FORCE24HOURFORMAT,
-                      &logEntry.timestamp,
-                      NULL,
-                      szTimeString,
-                      256);
-
-                  if (!cchCount) {
-                    dwError = GetLastError();
-                    assert(FALSE);
-                    PopupError(dwError);
-                  }
-
-                  StringCchCopy(plvdi->item.pszText, 80, szTimeString);
-                }
-                break;
-
-              case 1:
-                {
-                  switch (logEntry.iType) {
-                    case LOGENTRY_TYPE_DEBUG: 
-                      StringCchCopy(plvdi->item.pszText, 80, L"Debug");
-                      break;
-                    case LOGENTRY_TYPE_INFO: 
-                      StringCchCopy(plvdi->item.pszText, 80, L"Info");
-                      break;
-                    case LOGENTRY_TYPE_WARNING:
-                      StringCchCopy(plvdi->item.pszText, 80, L"Warning");
-                      break;
-                    case LOGENTRY_TYPE_ERROR:
-                      StringCchCopy(plvdi->item.pszText, 80, L"Error");
-                      break;
-                  }
-                }
-                break;
-
-              case 2:
-                StringCchCopy(plvdi->item.pszText, 80, logEntry.szModule);
-                break;
-
-              case 3:
-                StringCchCopy(plvdi->item.pszText, 80, logEntry.szMessage);
-                break;
-
-              default:
-                break;
-            }
-          }
-          return FALSE;
-        }
-        break;
-
-      case LVN_ODCACHEHINT:
-        // NMLVCACHEHINT *pCacheHint = (NMLVCACHEHINT *) pnm;
-        break;
+        ListView_SetItemCount(pLogWindow->hList, lEvent->extra);
     }
-  }
-
-  return FALSE;
-}
-
-void LogWindow_OnDestroy(HWND hWnd)
-{
-  LPLOGWINDOWDATA wndData = (LPLOGWINDOWDATA) GetWindowLongPtr(hWnd, 0);
-  assert(wndData);
-
-  LogUnregisterObserver(wndData->nIDLogObserver);
-
-  free(wndData);
+    break;
+    }
 }

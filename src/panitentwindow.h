@@ -13,6 +13,8 @@ struct PanitentWindow
 	HWND m_hWndPalette;
 	HWND m_hWndToolbox;
 	TreeNode* m_viewportNode;
+	BOOL fCallDWP;
+	BOOL bCustomFrame;
 };
 
 PanitentWindow* PanitentWindow_Create(struct Application*);

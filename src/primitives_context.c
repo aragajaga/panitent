@@ -45,7 +45,8 @@ void draw_rectangle(Canvas* canvas, int x0, int y0, int x1, int y1)
   if (g_primitives_context.fFill)
   {
     Plotter p;
-    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+    memset(pdat, 0, sizeof(PlotterData));
     if (!pdat)
       return;
 
@@ -78,7 +79,8 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
   if (g_primitives_context.fFill)
   {
     Plotter p;
-    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+    memset(pdat, 0, sizeof(PlotterData));
     if (!pdat)
       return;
 
@@ -95,7 +97,8 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
   if (g_primitives_context.fStroke)
   {
     Plotter p;
-    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+    memset(pdat, 0, sizeof(PlotterData));
     if (!pdat)
       return;
 
@@ -114,7 +117,8 @@ void draw_circle(Canvas* canvas, int cx, int cy, int radius)
 void draw_filled_circle_color(Canvas* canvas, int cx, int cy, int radius, uint32_t color)
 {
   Plotter p;
-  PlotterData *pdat = calloc(1, sizeof(PlotterData));
+  PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+  memset(pdat, 0, sizeof(PlotterData));
   if (!pdat)
     return;
 
@@ -134,7 +138,8 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
   if (g_thickness < 2)
   {
     Plotter p;
-    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+    memset(pdat, 0, sizeof(PlotterData));
     if (!pdat)
       return;
 
@@ -202,7 +207,8 @@ void draw_line_color(Canvas* canvas, int x0, int y0, int x1, int y1,
     free(poly);
 
     Plotter p;
-    PlotterData *pdat = calloc(1, sizeof(PlotterData));
+    PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+    memset(pdat, 0, sizeof(PlotterData));
     if (!pdat)
       return;
 
@@ -234,7 +240,8 @@ void SetThickness(unsigned int thickness)
 
 PolygonPath* PolygonPath_Create()
 {
-  PolygonPath* poly = calloc(1, sizeof(PolygonPath));
+  PolygonPath* poly = (PlotterData*)malloc(sizeof(PolygonPath));
+  memset(poly, 0, sizeof(PolygonPath));
   return poly;
 }
 
@@ -252,7 +259,8 @@ void PolygonPath_Enclose(PolygonPath* poly)
 void PolygonPath_Fill(Canvas* canvas, PolygonPath* poly)
 {
   Plotter p;
-  PlotterData *pdat = calloc(1, sizeof(PlotterData));
+  PlotterData *pdat = (PlotterData*)malloc(sizeof(PlotterData));
+  memset(pdat, 0, sizeof(PlotterData));
   if (!pdat)
     return;
 

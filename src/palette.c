@@ -92,7 +92,8 @@ void Palette_InitDefault(Palette*);
 
 Palette* Palette_Create()
 {
-  Palette* palette = calloc(1, sizeof(Palette));
+  Palette* palette = (Palette*)malloc(sizeof(Palette));
+  memset(palette, 0, sizeof(Palette));
   if (palette)
   {
       kv_init(*palette);

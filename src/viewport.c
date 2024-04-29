@@ -74,14 +74,15 @@ LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT
 
 ViewportWindow* ViewportWindow_Create(struct Application* app)
 {
-    ViewportWindow* window = calloc(1, sizeof(ViewportWindow));
+    ViewportWindow* pViewportWindow = (ViewportWindow*)malloc(sizeof(ViewportWindow));
+    memset(pViewportWindow, 0, sizeof(ViewportWindow));
 
-    if (window)
+    if (pViewportWindow)
     {
-        ViewportWindow_Init(window, app);
+        ViewportWindow_Init(pViewportWindow, app);
     }
 
-    return window;
+    return pViewportWindow;
 }
 
 void ViewportWindow_Init(ViewportWindow* pViewportWindow, struct Application* app)
@@ -198,7 +199,7 @@ static inline void ViewportWindow_DrawDebugText(ViewportWindow* pViewportWindow,
         L"Offset x: %d, y: %d\n"
         L"Scale: %f\n"
         L"Document set: %s\n"
-        L"Document dimensions width: %d, height %d";
+        L"Document dimensions width: %d, AVLNode_Height %d";
 
     hFont = GetGuiFont();
 
@@ -297,6 +298,7 @@ BOOL Viewport_BlitCanvas(HDC hDC, LPRECT prcView, Canvas* canvas)
     HDC hBmDC = CreateCompatibleDC(hDC);
 
     unsigned char* pData = malloc(canvas->buffer_size);
+    memset(pData, 0, canvas->buffer_size);
     if (!pData)
         return FALSE;
 
@@ -540,7 +542,7 @@ void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool *pTool = Panitent_GetTool();
+    Tool *pTool = Panitent_GetSelectedTool();
 
     if (pViewportWindow->bDrag)
     {
@@ -592,7 +594,7 @@ void ViewportWindow_OnLButtonDown(ViewportWindow* pViewportWindow, int x, int y,
     /* Receive keyboard messages */
     SetFocus(hWnd);
 
-    Tool* pTool = Panitent_GetTool();
+    Tool* pTool = Panitent_GetSelectedTool();
     if (pTool && pTool->OnLButtonDown)
     {
         POINT ptCanvas;
@@ -606,7 +608,7 @@ void ViewportWindow_OnLButtonUp(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool* pTool = Panitent_GetTool();
+    Tool* pTool = Panitent_GetSelectedTool();
 
     if (pTool && pTool->OnLButtonUp)
     {
@@ -624,7 +626,7 @@ void ViewportWindow_OnRButtonUp(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool* pTool = Panitent_GetTool();
+    Tool* pTool = Panitent_GetSelectedTool();
 
     if (pTool && pTool->OnRButtonUp)
     {

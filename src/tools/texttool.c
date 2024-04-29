@@ -15,7 +15,8 @@ void TextTool_OnLButtonUp(TextTool* pTextTool, ViewportWindow* pViewportWindow, 
 
 TextTool* TextTool_Create()
 {
-    TextTool* pTextTool = (TextTool*)calloc(1, sizeof(TextTool));
+    TextTool* pTextTool = (TextTool*)malloc(sizeof(TextTool));
+    memset(pTextTool, 0, sizeof(TextTool));
     TextTool_Init(pTextTool);
     return pTextTool;
 }

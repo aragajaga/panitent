@@ -34,7 +34,8 @@ static inline LAYOUTBOXCONTENT LayoutBoxContentFromGroup(GROUPBOX *pGroupBox)
 
 void CreateLayoutBox(PLAYOUTBOX* pLayoutBox, HWND hWnd)
 {
-  *pLayoutBox = (PLAYOUTBOX) malloc(sizeof(LAYOUTBOX));
+  *pLayoutBox = (PLAYOUTBOX)malloc(sizeof(LAYOUTBOX));
+  memset(pLayoutBox, 0, sizeof(LAYOUTBOX));
   if (!*pLayoutBox)
     return;
 
@@ -217,7 +218,8 @@ PGROUPBOXCAPTIONSTYLE GroupBox_GetGlobalStyle()
 
 void CreateGroupBox(PGROUPBOX *pGroupBox)
 {
-  *pGroupBox = (PGROUPBOX) malloc(sizeof(GROUPBOX));
+  *pGroupBox = (PGROUPBOX)malloc(sizeof(GROUPBOX));
+  memset(pGroupBox, 0, sizeof(GROUPBOX));
   if (!*pGroupBox)
     return;
 
@@ -601,7 +603,7 @@ void DrawGroupBox(HDC hDC, GROUPBOX *pGroupBox)
     SetBkMode(hDC, TRANSPARENT);
     SetTextColor(hDC, pCaptionStyle->dwTextColor);
 
-    /* Temporary buffer for overflow ellipsis */
+    /* Temporary pszBuffer for overflow ellipsis */
     WCHAR szCaption[80] = { 0 };
     StringCchCopy(szCaption, 80, pGroupBox->lpszCaption);
 

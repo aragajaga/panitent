@@ -1,11 +1,12 @@
-#include "precomp.h"
+#include "../precomp.h"
 
 #include "queue.h"
 
 /* Function to create a new queue */
 Queue* CreateQueue()
 {
-    Queue* pQueue = (Queue*)calloc(1, sizeof(Queue));
+    Queue* pQueue = (Queue*)malloc(sizeof(Queue));
+    memset(pQueue, 0, sizeof(Queue));
 
     if (!pQueue)
     {
@@ -27,7 +28,8 @@ BOOL Queue_IsEmpty(Queue* pQueue)
 void Queue_Enqueue(Queue* pQueue, void* pData)
 {
     /* Create a new node */
-    QueueNode* pNode = (QueueNode*)calloc(1, sizeof(QueueNode));
+    QueueNode* pNode = (QueueNode*)malloc(sizeof(QueueNode));
+    memset(pNode, 0, sizeof(QueueNode));
 
     if (!pNode)
     {
