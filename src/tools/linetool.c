@@ -15,7 +15,8 @@ void LineTool_OnLButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, 
 
 LineTool* LineTool_Create()
 {
-    LineTool* pLineTool = (LineTool*)calloc(1, sizeof(LineTool));
+    LineTool* pLineTool = (LineTool*)malloc(sizeof(LineTool));
+    memset(pLineTool, 0, sizeof(LineTool));
     LineTool_Init(pLineTool);
     return pLineTool;
 }

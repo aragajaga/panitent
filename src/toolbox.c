@@ -5,9 +5,12 @@
 #include <vssym32.h>
 
 #include "win32/window.h"
+#include "win32/util.h"
 #include "viewport.h"
 #include "tool.h"
 #include "tools/common.h"
+
+#include "panitent.h"
 
 #include "toolbox.h"
 
@@ -19,8 +22,8 @@
 #include "primitives_context.h"
 #include "util.h"
 #include "brush.h"
-#include "panitent.h"
 #include "history.h"
+#include "sharing/activitysharingmanager.h"
 
 const WCHAR szClassName[] = L"__ToolboxWindow";
 
@@ -53,6 +56,7 @@ void ToolboxWindow_RemoveTool(ToolboxWindow* pToolboxWindow)
 
 HBITMAP img_layout;
 
+unsigned int g_uToolPrevious;
 unsigned int g_uToolSelected;
 
 HTHEME hTheme = NULL;
@@ -63,6 +67,8 @@ enum {
     NORMAL,
     PUSHED
 };
+
+const BOOL bOrange = TRUE;
 
 void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 {
@@ -77,11 +83,30 @@ void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
     rc.right = x + btnSize;
     rc.bottom = y + btnSize;
 
-    if (hTheme)
+    if (bOrange)
     {
-        int iStateId = PBS_NORMAL;
+        HPEN hOldPen = SelectObject(hdc, GetStockObject(DC_PEN));
+        HBRUSH hOldBrush = SelectObject(hdc, GetStockObject(DC_BRUSH));
+
         if (state == PUSHED)
-            iStateId = PBS_PRESSED;
+        {
+            SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+            SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
+            
+        }
+        else {
+            SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#aaaaaa"));
+            SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#eeeeee"));
+        }
+
+        RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 3, 3);
+
+        SelectObject(hdc, hOldPen);
+        SelectObject(hdc, hOldBrush);
+    }
+    else if (hTheme)
+    {
+        int iStateId = state == PUSHED ? PBS_PRESSED : PBS_NORMAL;
 
         if (IsThemeBackgroundPartiallyTransparent(hTheme, BP_PUSHBUTTON, iStateId))
         {
@@ -102,7 +127,9 @@ void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
     else {
         DWORD edge = EDGE_RAISED;
         if (state == PUSHED)
+        {
             edge = EDGE_SUNKEN;
+        }
 
         DrawEdge(hdc, &rc, edge, BF_RECT);
     }
@@ -133,13 +160,7 @@ void ToolboxWindow_DrawButtons(ToolboxWindow* pToolboxWindow, HDC hdc)
         int x = btnOffset + (i % rowCount) * extSize;
         int y = btnOffset + (i / rowCount) * extSize;
 
-        /* Rectangle(hdc, x, y, x+btnSize, y+btnSize); */
-
-        unsigned int uState = NORMAL;
-        if ((unsigned int)i == g_uToolSelected)
-        {
-            uState = PUSHED;
-        }
+        unsigned int uState = (unsigned int)i == g_uToolSelected ? PUSHED : NORMAL;
 
         Toolbox_ButtonDraw(hdc, x, y, uState);
 
@@ -162,21 +183,78 @@ void ToolboxWindow_DrawButtons(ToolboxWindow* pToolboxWindow, HDC hdc)
     DeleteDC(hdcMem);
 }
 
+#define ANIMATION_DURATION 200
+
 void ToolboxWindow_OnPaint(ToolboxWindow* pToolboxWindow)
 {
-    PAINTSTRUCT ps = { 0 };
     HWND hWnd = Window_GetHWND((Window*)pToolboxWindow);
+
+    PAINTSTRUCT ps = { 0 };
     HDC hdc = BeginPaint(hWnd, &ps);
-    ToolboxWindow_DrawButtons(pToolboxWindow, hdc);
-    EndPaint(hWnd, &ps);
+
+    if (hdc)
+    {
+        RECT rcClient;
+        GetClientRect(hWnd, &rcClient);
+
+        // Rectangle(hdc, rcClient.left, rcClient.top, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top);
+
+        if (!BufferedPaintRenderAnimation(hWnd, hdc))
+        {
+            BP_ANIMATIONPARAMS bpap;
+            memset(&bpap, 0, sizeof(BP_ANIMATIONPARAMS));
+            bpap.cbSize = sizeof(BP_ANIMATIONPARAMS);
+            bpap.style = BPAS_CUBIC;
+
+            /* Check if animation is needed. If not set dwDuration to 0 */
+            bpap.dwDuration = (g_uToolSelected != g_uToolPrevious ? ANIMATION_DURATION : 0);
+
+            HDC hdcFrom;
+            HDC hdcTo;
+            HANIMATIONBUFFER hbpAnimation = BeginBufferedAnimation(hWnd, hdc, &rcClient, BPBF_COMPATIBLEBITMAP, NULL, &bpap, &hdcFrom, &hdcTo);
+            if (hbpAnimation)
+            {
+                /* Hack */
+                HBRUSH hbrBackground = GetClassLongPtr(hWnd, GCLP_HBRBACKGROUND);
+                if (hdcFrom)
+                {
+                    /* Hack */
+                    FillRect(hdcFrom, &rcClient, hbrBackground);
+
+                    unsigned int temp = g_uToolSelected;
+                    g_uToolSelected = g_uToolPrevious;
+                    ToolboxWindow_DrawButtons(pToolboxWindow, hdcFrom);
+                    g_uToolSelected = temp;
+                }
+
+                if (hdcTo)
+                {
+                    /* Hack */
+                    FillRect(hdcTo, &rcClient, hbrBackground);
+
+                    ToolboxWindow_DrawButtons(pToolboxWindow, hdcTo);
+                }
+
+                g_uToolPrevious = g_uToolSelected;
+                EndBufferedAnimation(hbpAnimation, TRUE);
+            }
+            /* If animation unavailable just draw buttons */
+            else
+            {
+                ToolboxWindow_DrawButtons(pToolboxWindow, hdc);
+            }
+        }
+
+        EndPaint(hWnd, &ps);
+    }
 }
 
 void ToolboxWindow_OnLButtonUp(ToolboxWindow* pToolboxWindow, int x, int y)
 {
     int btnHot = btnSize + 5;
 
-    if (x >= 0 && y >= 0 && x < btnHot * 2 &&
-        y < (int)pToolboxWindow->tool_count * btnHot) {
+    if (x >= 0 && y >= 0 && x < btnHot * 2 && y < (int)pToolboxWindow->tool_count * btnHot)
+    {
         size_t extSize = (size_t)btnSize + (size_t)btnOffset;
 
         RECT rcClient = { 0 };
@@ -189,57 +267,34 @@ void ToolboxWindow_OnLButtonUp(ToolboxWindow* pToolboxWindow, int x, int y)
 
         unsigned int pressed = (y - btnOffset) / (int)extSize * (int)rowCount + (x - btnOffset) / (int)extSize;
 
+        g_uToolPrevious = g_uToolSelected;
         g_uToolSelected = pressed;
 
         Tool* pTool = NULL;
 
+        Tool* tools[] = {
+            (Tool*)pToolboxWindow->m_pPointerTool,
+            (Tool*)pToolboxWindow->m_pPencilTool,
+            (Tool*)pToolboxWindow->m_pCircleTool,
+            (Tool*)pToolboxWindow->m_pLineTool,
+            (Tool*)pToolboxWindow->m_pRectangleTool,
+            (Tool*)pToolboxWindow->m_pTextTool,
+            (Tool*)pToolboxWindow->m_pFillTool,
+            (Tool*)pToolboxWindow->m_pPickerTool,
+            (Tool*)pToolboxWindow->m_pBrushTool,
+            (Tool*)pToolboxWindow->m_pEraserTool
+        };
+
         if (pressed <= pToolboxWindow->tool_count)
         {
-            switch (pressed) {
-            case 1:
-                pTool = (Tool*)pToolboxWindow->m_pPencilTool;
-                break;
-            case 2:
-                pTool = (Tool*)pToolboxWindow->m_pCircleTool;
-                break;
-            case 3:
-                pTool = (Tool*)pToolboxWindow->m_pLineTool;
-                break;
-            case 4:
-                pTool = (Tool*)pToolboxWindow->m_pRectangleTool;
-                break;
-            case 5:
-                pTool = (Tool*)pToolboxWindow->m_pTextTool;
-                break;
-            case 6:
-                pTool = (Tool*)pToolboxWindow->m_pFillTool;
-                break;
-            case 7:
-                pTool = (Tool*)pToolboxWindow->m_pPickerTool;
-                break;
-            case 8:
-                pTool = (Tool*)pToolboxWindow->m_pBrushTool;
-                break;
-            case 9:
-                pTool = (Tool*)pToolboxWindow->m_pEraserTool;
-                break;
-            default:
-                pTool = (Tool*)pToolboxWindow->m_pPointerTool;
-                break;
-            }
+            pTool = (Tool*)tools[pressed];
 
-            WCHAR szLogMessage[80] = L"";
-            StringCchPrintf(szLogMessage, 80, L"Selected tool: %s", pTool->pszLabel);
-            LogMessage(LOGENTRY_TYPE_DEBUG, L"Toolbox", szLogMessage);
+            LogMessageF(LOGENTRY_TYPE_DEBUG, L"Toolbox", L"Selected tool: %s", pTool->pszLabel);
 
             PanitentApplication* pPanitentApplication = Panitent_GetApp();
             pPanitentApplication->m_pTool = (Tool*)pTool;
 
-#ifdef HAS_DISCORDSDK
-            WCHAR szStatus[80] = L"";
-            StringCchPrintf(szStatus, 80, L"Drawing with %s", pTool->pszLabel);
-            Discord_SetActivityStatus(g_panitent.discord, szStatus);
-#endif /* HAS_DISCORDSDK */
+            Panitent_SetActivityStatusF(pPanitentApplication, L"Drawing with %s", pTool->pszLabel);
         }
     }
 
@@ -257,15 +312,13 @@ void Toolbox_OnContextMenu(HWND hWnd, WPARAM wParam, LPARAM lParam)
     HMENU hMenu;
 
     hMenu = CreatePopupMenu();
-    InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING, IDM_TOOLBOXSETTINGS,
-        L"Settings");
+    InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING, IDM_TOOLBOXSETTINGS, L"Settings");
     TrackPopupMenu(hMenu, TPM_TOPALIGN | TPM_LEFTALIGN, x, y, 0, hWnd, NULL);
 }
 
 static inline void Toolbox_OpenSettings(HWND hParent)
 {
-    DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_TOOLBOXSETTINGS),
-        hParent, (DLGPROC)ToolboxSettingsDlgProc);
+    DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_TOOLBOXSETTINGS), hParent, (DLGPROC)ToolboxSettingsDlgProc);
 }
 
 BOOL ToolboxWindow_OnCreate(ToolboxWindow* pToolboxWindow, LPCREATESTRUCT lpcs)
@@ -314,10 +367,13 @@ INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
     {
         PNTSETTINGS* settings;
 
-        PTOOLBOXSETTINGS pTempSettings = calloc(1, sizeof(TOOLBOXSETTINGS));
+        PTOOLBOXSETTINGS pTempSettings = (PTOOLBOXSETTINGS)malloc(sizeof(TOOLBOXSETTINGS));
+        memset(pTempSettings, 0, sizeof(TOOLBOXSETTINGS));
         assert(pTempSettings);
         if (!pTempSettings)
+        {
             EndDialog(hDlg, 0);
+        }
 
         SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)pTempSettings);
 
@@ -379,9 +435,9 @@ void ToolboxWindow_PreRegister(LPWNDCLASSEX lpwcex);
 void ToolboxWindow_PreCreate(LPCREATESTRUCT lpcs);
 LRESULT ToolboxWindow_UserProc(ToolboxWindow* pToolboxWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow, struct Application* app)
+void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow, PanitentApplication* pPanitentApplication)
 {
-    Window_Init(&pToolboxWindow->base, app);
+    Window_Init(&pToolboxWindow->base, pPanitentApplication);
 
     pToolboxWindow->base.szClassName = szClassName;
 
@@ -403,15 +459,16 @@ void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow, struct Application* app)
     pToolboxWindow->m_pBrushTool = BrushTool_Create();
     pToolboxWindow->m_pEraserTool = EraserTool_Create();
 
-    PanitentApplication* pPanitentApplication = Panitent_GetApp();
     pPanitentApplication->m_pTool = (Tool*)pToolboxWindow->m_pPointerTool;
 
+    g_uToolPrevious = 0;
     g_uToolSelected = 0;
 
     img_layout = (HBITMAP)LoadBitmap(GetModuleHandle(NULL),
         MAKEINTRESOURCE(IDB_TOOLS24));
 
-    pToolboxWindow->tools = (Tool**)calloc(16, sizeof(Tool*));
+    pToolboxWindow->tools = (Tool**)malloc(16 * sizeof(Tool*));
+    memset(pToolboxWindow, 0, 16 * sizeof(Tool*));
     pToolboxWindow->tool_count = 0;
 
     ToolboxWindow_AddTool(pToolboxWindow, (Tool*)pToolboxWindow->m_pPointerTool);
@@ -446,13 +503,14 @@ void ToolboxWindow_PreCreate(LPCREATESTRUCT lpcs)
     lpcs->cy = 200;
 }
 
-ToolboxWindow* ToolboxWindow_Create(struct Application* app)
+ToolboxWindow* ToolboxWindow_Create(PanitentApplication* pPanitentApplication)
 {
-    ToolboxWindow* pToolboxWindow = calloc(1, sizeof(ToolboxWindow));
-
+    ToolboxWindow* pToolboxWindow = (ToolboxWindow*)malloc(sizeof(ToolboxWindow));
+    
     if (pToolboxWindow)
     {
-        ToolboxWindow_Init(pToolboxWindow, app);
+        memset(pToolboxWindow, 0, sizeof(ToolboxWindow));
+        ToolboxWindow_Init(pToolboxWindow, pPanitentApplication);
     }
 
     return pToolboxWindow;

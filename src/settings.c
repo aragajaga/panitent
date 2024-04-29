@@ -442,7 +442,8 @@ void register_event_handler(int id, void (*callback)(WPARAM wParam,
     *cap               = new_cap;
   }
 
-  struct callback_entry* e = calloc(1, sizeof(struct callback_entry));
+  struct callback_entry* e = (struct callback_entry*)malloc(sizeof(struct callback_entry));
+  memset(e, 0, sizeof(struct callback_entry));
   if (!e)
     return;
 
@@ -464,7 +465,8 @@ void process_event(WPARAM wParam, LPARAM lParam)
 
 void rlist_create(struct rlist* list, size_t capacity)
 {
-  list->array    = calloc(capacity, sizeof(HWND));
+  list->array    = malloc(capacity * sizeof(HWND));
+  memset(list->array, 0, capacity * sizeof(HWND));
   list->capacity = capacity;
   list->size     = 0;
 }
@@ -485,7 +487,8 @@ void rlist_add(struct rlist* list, HWND hWnd)
 
 void alloc_handlers_vault()
 {
-  g_handlers.entries  = calloc(2, sizeof(struct callback_entry));
+  g_handlers.entries  = malloc(2 * sizeof(struct callback_entry));
+  memset(g_handlers.entries, 0, sizeof(struct callback_entry));
   g_handlers.capacity = 2;
   g_handlers.size     = 0;
 }

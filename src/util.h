@@ -88,7 +88,8 @@ void pntqueue_init$$##T(pntqueue$$##T *q) \
   q->capacity = 0; \
   \
   T* pData = NULL; \
-  pData = calloc(DEFAULT_CAPACITY, sizeof(T)); \
+  pData = malloc(DEFAULT_CAPACITY * sizeof(T)); \
+  memset(pData, 0, DEFAULT_CAPACITY * sizeof(T)); \
   if (!pData) { \
     assert(FALSE); \
     return; \
@@ -191,6 +192,7 @@ struct __pntmap$$##NAME { \
 }; \
 void pntmap$$##NAME_init(pntmap$$##NAME* map) { \
   map->data = malloc(sizeof(map->data[0]) * DEFAULT_CAPACITY); \
+  memset(map->data, 0, sizeof(map->data[0]) * DEFAULT_CAPACITY); \
   map->capacity = DEFAULT_CAPACITY; \
   map->size = 0; \
 } \

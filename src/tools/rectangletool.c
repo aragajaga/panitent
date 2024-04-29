@@ -15,7 +15,8 @@ void RectangleTool_OnLButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pV
 
 RectangleTool* RectangleTool_Create()
 {
-    RectangleTool* pRectangleTool = (RectangleTool*)calloc(1, sizeof(RectangleTool));
+    RectangleTool* pRectangleTool = (RectangleTool*)malloc(sizeof(RectangleTool));
+    memset(pRectangleTool, 0, sizeof(pRectangleTool));
     RectangleTool_Init(pRectangleTool);
     return pRectangleTool;
 }

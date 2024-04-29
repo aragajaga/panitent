@@ -26,7 +26,8 @@ LRESULT LayersWindow_UserProc(LayersWindow* pLayersWindow, HWND hWnd, UINT messa
 
 LayersWindow* LayersWindow_Create(Application* pApp)
 {
-    LayersWindow* pLayersWindow = (LayersWindow *)calloc(1, sizeof(LayersWindow));
+    LayersWindow* pLayersWindow = (LayersWindow *)malloc(sizeof(LayersWindow));
+    memset(pLayersWindow, 0, sizeof(LayersWindow));
 
     if (pLayersWindow)
     {

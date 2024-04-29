@@ -2,8 +2,9 @@
 #include "win32/window.h"
 #include "test_application.h"
 #include "test_window.h"
+#include <string.h>
 
-void TestApplication_Init(struct TestApplication* app)
+void TestApplication_Init(TestApplication* app)
 {
   Application_Init(&app->base);
 
@@ -11,23 +12,24 @@ void TestApplication_Init(struct TestApplication* app)
   app->mainWindow = TestWindow_Create(app);
 }
 
-struct TestApplication* TestApplication_Create()
+TestApplication* TestApplication_Create()
 {
-  struct TestApplication* app = calloc(1, sizeof(struct TestApplication));
+  TestApplication* pTestApplication = (TestApplication*)malloc(sizeof(struct TestApplication));
+  memset(pTestApplication, 0, sizeof(TestApplication));
 
-  if (app)
+  if (pTestApplication)
   {
-    TestApplication_Init(app);
+    TestApplication_Init(pTestApplication);
   }
 
-  return app;
+  return pTestApplication;
 }
 
-int TestApplication_Run(struct TestApplication* app)
+int TestApplication_Run(TestApplication* pTestApplication)
 {
   // Application_Run(app);
 
-  Window_CreateWindow((Window*)app->mainWindow, NULL);
+  Window_CreateWindow((Window*)pTestApplication->mainWindow, NULL);
 
-  return Application_Run(app);
+  return Application_Run(pTestApplication);
 }

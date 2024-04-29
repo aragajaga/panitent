@@ -34,7 +34,8 @@ void ViewportVector_Init(ViewportVector* pViewportVector);
 
 ViewportVector* ViewportVector_Create()
 {
-    ViewportVector* pViewportVector = (ViewportVector *)calloc(1, sizeof(ViewportVector));
+    ViewportVector* pViewportVector = (ViewportVector *)malloc(sizeof(ViewportVector));
+    memset(pViewportVector, 0, sizeof(ViewportVector));
     ViewportVector_Init(pViewportVector);
     return pViewportVector;
 }
@@ -45,7 +46,8 @@ void ViewportVector_Init(ViewportVector* pViewportVector)
     pViewportVector->m_size = 0;
     pViewportVector->pData = NULL;
 
-    ViewportWindow** pVectorData = (ViewportWindow**)calloc(10, sizeof(ViewportWindow*));
+    ViewportWindow** pVectorData = (ViewportWindow**)malloc(10 * sizeof(ViewportWindow*));
+    memset(pVectorData, 0, 10 * sizeof(ViewportWindow*));
     if (pVectorData)
     {
         pViewportVector->pData = pVectorData;
@@ -78,7 +80,8 @@ ViewportWindow* ViewportVector_Get(ViewportVector* pViewportVector, int idx)
 
 WorkspaceContainer* WorkspaceContainer_Create(struct Application* app)
 {
-    WorkspaceContainer* pWorkspaceContainer = calloc(1, sizeof(WorkspaceContainer));
+    WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)malloc(sizeof(WorkspaceContainer));
+    memset(pWorkspaceContainer, 0, sizeof(WorkspaceContainer));
 
     if (pWorkspaceContainer)
     {

@@ -18,6 +18,7 @@
 #include "panitent.h"
 #include "checker.h"
 #include "util.h"
+#include "sharing/activitysharingmanager.h"
 
 #include "win32/util.h"
 
@@ -82,7 +83,7 @@ LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
             iWidth = StrToInt(szWidth);
             iHeight = StrToInt(szHeight);
 
-            printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
+            printf("[NewFile] width: %d, AVLNode_Height: %d\n", iWidth, iHeight);
 
             DestroyWindow(hwnd);
             Document* pDocument = Document_New(iWidth, iHeight);
@@ -273,6 +274,7 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
     case WM_INITDIALOG:
     {
         NewDocumentDlgData* data = (NewDocumentDlgData*)malloc(sizeof(NewDocumentDlgData));
+        memset(data, 0, sizeof(NewDocumentDlgData));
         if (!data)
         {
             return TRUE;
@@ -554,24 +556,22 @@ INT_PTR CALLBACK NewDocumentDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
 void NewFileDialog(HWND hwnd)
 {
-#ifdef HAS_DISCORDSDK
-    Discord_SetActivityStatus(g_panitent.discord, L"Creating a new document");
-#endif /* HAS_DISCORDSDK */
+    Panitent_SetActivityStatus(Panitent_GetApp(), L"Creating a new document");
 
 #ifdef LEGACYDIALOGNEW
     RegisterNewFileDialog();
 
     RECT rc = { 0 };
-    rc.right = 210;
+    rc.pRight = 210;
     rc.bottom = 170;
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
     CreateWindow(L"NewFileDialogClass",
         L"New",
         WS_VISIBLE | WS_OVERLAPPEDWINDOW,
-        (GetSystemMetrics(SM_CXSCREEN) - rc.right - rc.left) / 2,
+        (GetSystemMetrics(SM_CXSCREEN) - rc.pRight - rc.pLeft) / 2,
         (GetSystemMetrics(SM_CYSCREEN) - rc.bottom - rc.top) / 2,
-        rc.right - rc.left,
+        rc.pRight - rc.pLeft,
         rc.bottom - rc.top,
         hwnd,
         NULL,

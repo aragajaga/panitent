@@ -66,6 +66,7 @@ HWND Window_GetHWND(Window* pWindow);
 void Window_ApplyUIFont(Window* pWindow);
 void Window_GetClientRect(Window* pWindow, LPRECT lpcs);
 void Window_Invalidate(Window* pWindow);
+BOOL Window_Show(Window* pWindow, int nCmdShow);
 
 void _WindowInitHelper_SetPreRegisterRoutine(Window* pWindow, void(*pfnPreRegister)(LPWNDCLASSEX lpwcex));
 void _WindowInitHelper_SetPreCreateRoutine(Window* pWindow, void(*pfnPreCreate)(LPCREATESTRUCT lpcs));

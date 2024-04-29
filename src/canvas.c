@@ -57,7 +57,7 @@ void* Canvas_BufferAlloc(Canvas* canvas)
   size_t buffer_size = (size_t)canvas->width * (size_t)abs(canvas->height) * (size_t)canvas->color_depth;
 
   canvas->buffer_size = buffer_size;
-  canvas->buffer      = calloc(buffer_size, sizeof(uint8_t));
+  canvas->buffer      = malloc(buffer_size * sizeof(uint8_t));
 
   return canvas->buffer;
 }
@@ -227,7 +227,7 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
     uint32_t* pTarget = (uint32_t*)canvas->buffer;
 
     /* Get starting pixel pointer */
-    pTarget += (size_t)max(0, y) * (size_t)canvas->width  + (size_t)max(0, x);
+    pTarget += (size_t)max(0, y) * (size_t)canvas->width + (size_t)max(0, x);
 
     /* Get intersection */
     Rect rectCanvas = { 0 };
@@ -292,12 +292,13 @@ void Canvas_ColorStencilBits(Canvas* canvas, void* bits, int x, int y, int width
 
 Canvas* Canvas_Clone(Canvas* canvas)
 {
-  Canvas* clone = calloc(1, sizeof(Canvas));
+  Canvas* clone = (Canvas*)malloc(sizeof(Canvas));
+  memset(clone, 0, sizeof(Canvas));
   if (!clone)
     return NULL;
   memcpy(clone, canvas, sizeof(Canvas));
 
-  clone->buffer = calloc(1, canvas->buffer_size);
+  clone->buffer = (uint8_t*)malloc(canvas->buffer_size);
   if (!clone->buffer)
   {
     free(clone);
@@ -321,7 +322,8 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
   int subWidth = rc->right - rc->left;
   int subHeight = rc->bottom - rc->top;
 
-  Canvas* sub = calloc(1, sizeof(Canvas));
+  Canvas* sub = (Canvas*)malloc(sizeof(Canvas));
+  memset(sub, 0, sizeof(Canvas));
   if (!sub)
     return NULL;
 
@@ -329,7 +331,7 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
   sub->height = subHeight;
 
   sub->buffer_size = (size_t)subWidth * (size_t)subHeight * 4;
-  sub->buffer = calloc(1, sub->buffer_size);
+  sub->buffer = (uint8_t*)malloc(sub->buffer_size);
 
   size_t origStart = ((size_t)rc->top * (size_t)canvas->width + (size_t)rc->left) * 4;
   size_t originStride = (size_t)canvas->width * 4;
@@ -349,7 +351,7 @@ Canvas* Canvas_Substitute(Canvas* canvas, RECT *rc)
 
 Canvas* Canvas_Create(int width, int height)
 {
-  Canvas *canvas = calloc(1, sizeof(Canvas));
+  Canvas *canvas = (Canvas*)malloc(sizeof(Canvas));
   if (!canvas)
     return NULL;
 

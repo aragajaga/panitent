@@ -1,85 +1,51 @@
 #include "common.h"
 
 #include "window.h"
+#include "../util/hashmap.h"
 
-struct KeyValuePair {
-    void* key;
-    void* value;
-};
+HashMap* g_pHWNDMap;
 
-struct HashMap {
-    struct KeyValuePair* pairs;
-    size_t capacity;
-    size_t size;
-};
-
-void InitHashMap(struct HashMap* map, size_t capacity)
+void WindowMap_Insert(HWND hWnd, Window* pWindow)
 {
-    map->pairs = (struct KeyValuePair*)malloc(capacity * sizeof(struct KeyValuePair));
-    map->capacity = capacity;
-    map->size = 0;
-}
-
-void InsertIntoHashMap(struct HashMap* map, void* key, void* value)
-{
-    if (map->size < map->capacity)
+    if (g_pHWNDMap)
     {
-        size_t index = map->size;
-        map->pairs[index].key = key;
-        map->pairs[index].value = value;
-        map->size++;
+        HashMap_Put(g_pHWNDMap, (void*)hWnd, (void*)pWindow);
     }
     else {
+        MessageBox(NULL, L"WindowMap not initialized", NULL, MB_OK | MB_ICONERROR);
     }
 }
 
-void* GetFromHashMap(struct HashMap* map, void* key)
+Window* WindowMap_Get(HWND hWnd)
 {
-    for (size_t i = 0; i < map->size; ++i)
+    Window* pWindow = NULL;
+
+    if (g_pHWNDMap)
     {
-        if (map->pairs[i].key == key)
-        {
-            return map->pairs[i].value;
-        }
+        pWindow = HashMap_Get(g_pHWNDMap, (void*)hWnd);
     }
-    return NULL;
-}
-
-void RemoveFromHashMapByKey(struct HashMap* map, void* key)
-{
-    for (size_t i = 0; i < map->size; ++i)
-    {
-        if (map->pairs[i].key == key)
-        {
-            // Move the last element to the position being removed
-            map->pairs[i] = map->pairs[map->size - 1];
-            map->size--;
-            return;
-        }
+    else {
+        MessageBox(NULL, L"WindowMap not initialized", NULL, MB_OK | MB_ICONERROR);
     }
+    
+    return pWindow;
 }
 
-void RemoveFromHashMapByValue(struct HashMap* map, void* value)
+/**
+ * [PRIVATE]
+ * 
+ * Window system descriptor key comparison callback for global window hashmap
+ * 
+ * @return CMP_GREATER (1), CMP_LOWER (-1) or CMP_EQUAL (0)
+ */
+static int WindowMap_KeyCompare(void* pKey1, void* pKey2)
 {
-    for (size_t i = 0; i < map->size; ++i)
-    {
-        if (map->pairs[i].value == value)
-        {
-            // Move the last element to the position being removed
-            map->pairs[i] = map->pairs[map->size - 1];
-            map->size--;
-            return;
-        }
-    }
+    return (HWND)pKey1 > (HWND)pKey2 ? CMP_GREATER : (HWND)pKey1 < (HWND)pKey2 ? CMP_LOWER : CMP_EQUAL;
 }
 
-void FreeHashMap(struct HashMap* map)
+void WindowMap_GlobalInit()
 {
-    free(map->pairs);
-    map->capacity = 0;
-    map->size = 0;
+    g_pHWNDMap = HashMap_Create(16, &WindowMap_KeyCompare);
 }
-
-struct HashMap g_hWndMap;
 
 Window* pWndCreating;

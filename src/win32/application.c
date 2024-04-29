@@ -9,7 +9,8 @@ int Application_Run(Application*);
 
 Application* Application_Create()
 {
-  Application* app = calloc(1, sizeof(Application));
+  Application* app = (Application*)malloc(sizeof(Application));
+  memset(app, 0, sizeof(Application));
   Application_Init(app);
   return app;
 }

@@ -12,13 +12,14 @@ typedef void (*LogObserverCallback)(LPLOGEVENT);
 typedef struct _tagLOGENTRY {
   SYSTEMTIME timestamp;
   int iType;
-  WCHAR szModule[80];
-  WCHAR szMessage[80];
+  PWSTR pszModule;
+  PWSTR pszMessage;
 } LOGENTRY, *LPLOGENTRY;
 
 enum {
   LOGALTEREVENT_ADD = 1,
   LOGALTEREVENT_DELETE,
+  LOGALTEREVENT_CLEAR
 };
 
 enum {
@@ -28,7 +29,9 @@ enum {
   LOGENTRY_TYPE_ERROR
 };
 
-void LogMessage(int, LPWSTR, LPWSTR);
+void ClearLog();
+void LogMessage(int nLevel, PCWSTR pszModule, PCWSTR pszMessage);
+void LogMessageF(int nLevel, PCWSTR pszModule, PCWSTR pszFormat, ...);
 int LogRegisterObserver(LogObserverCallback, LPVOID);
 void LogUnregisterObserver(int);
 int LogGetSize();

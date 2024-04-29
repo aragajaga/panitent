@@ -1,13 +1,13 @@
 #include "precomp.h"
 
-#include "dockinspectordialog.h"
+#include "DockInspectorDialog.h"
 #include "panitent.h"
 #include "resource.h"
 #include "win32/util.h"
 
 #include "dockhost.h"
-#include "tree.h"
-#include "queue.h"
+#include "util/tree.h"
+#include "util/queue.h"
 
 DockInspectorDialog* DockInspectorDialog_Create();
 void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog, Application *pApp);
@@ -16,13 +16,15 @@ INT_PTR DockInspectorDialog_DlgUserProc(DockInspectorDialog* pDockInspectorDialo
 void DockInspectorDialog_OnInitDialog(DockInspectorDialog* pDockInspectorDialog);
 void DockInspectorDialog_OnOK(DockInspectorDialog* pDockInspectorDialog);
 void DockInspectorDialog_OnCancel(DockInspectorDialog* pDockInspectorDialog);
+void DockInspectorDialog_OnNCPaint(DockInspectorDialog* pDockInspectorDialog, HRGN hRegion);
 
 DockInspectorDialog* DockInspectorDialog_Create()
 {
-    DockInspectorDialog* pDockInspectorDialog = (DockInspectorDialog*)calloc(1, sizeof(DockInspectorDialog));
-
+    DockInspectorDialog* pDockInspectorDialog = (DockInspectorDialog*)malloc(sizeof(DockInspectorDialog));
+    
     if (pDockInspectorDialog)
     {
+        memset(pDockInspectorDialog, 0, sizeof(DockInspectorDialog));
         DockInspectorDialog_Init(pDockInspectorDialog, (Application*)Panitent_GetApp());
     }    
 
@@ -56,7 +58,8 @@ void DockInspectorDialog_Update(DockInspectorDialog* pDockInspectorDialog, TreeN
 
         Queue* pQueue = CreateQueue();
 
-        TreeViewNodePair* pPair = (TreeViewNodePair*)calloc(1, sizeof(TreeViewNodePair));
+        TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+        memset(pPair, 0, sizeof(TreeViewNodePair));
         pPair->pTreeNode = pTreeRoot;
         pPair->hti = TVI_ROOT;
         Queue_Enqueue(pQueue, pPair);
@@ -86,7 +89,8 @@ void DockInspectorDialog_Update(DockInspectorDialog* pDockInspectorDialog, TreeN
 
             if (pCurrentNode->node1)
             {
-                TreeViewNodePair* pPair = (TreeViewNodePair*)calloc(1, sizeof(TreeViewNodePair));
+                TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+                memset(pPair, 0, sizeof(TreeViewNodePair));
                 pPair->pTreeNode = pCurrentNode->node1;
                 pPair->hti = hItem;
                 Queue_Enqueue(pQueue, pPair);
@@ -94,7 +98,8 @@ void DockInspectorDialog_Update(DockInspectorDialog* pDockInspectorDialog, TreeN
 
             if (pCurrentNode->node2)
             {
-                TreeViewNodePair* pPair = (TreeViewNodePair*)calloc(1, sizeof(TreeViewNodePair));
+                TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+                memset(pPair, 0, sizeof(TreeViewNodePair));
                 pPair->pTreeNode = pCurrentNode->node2;
                 pPair->hti = hItem;
                 Queue_Enqueue(pQueue, pPair);
@@ -123,10 +128,38 @@ void DockInspectorDialog_OnCancel(DockInspectorDialog* pDockInspectorDialog)
     EndDialog(Window_GetHWND((Window*)pDockInspectorDialog), 0);
 }
 
+void DockInspectorDialog_OnNCPaint(DockInspectorDialog* pDockInspectorDialog, HRGN hRegion)
+{
+    HWND hWnd = Window_GetHWND((Window*)pDockInspectorDialog);
+    HDC hdc = GetWindowDC(hWnd);
+
+    DWORD dwStyle = GetWindowStyle(hWnd);
+
+    RECT rc = { 0 };
+    GetWindowRect(hWnd, &rc);
+    rc.right -= rc.left;
+    rc.bottom -= rc.top;
+    rc.top = rc.left = 0;
+
+    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
+    SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+    SelectObject(hdc, GetStockObject(DC_BRUSH));
+    SelectObject(hdc, GetStockObject(DC_PEN));
+    Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
+}
+
 INT_PTR DockInspectorDialog_DlgUserProc(DockInspectorDialog* pDockInspectorDialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WM_NCPAINT:
+        DockInspectorDialog_OnNCPaint(pDockInspectorDialog, (HRGN)wParam);
+        return 0;
+        break;
+
+    case WM_NCHITTEST:
+        return 0;
+        break;
     }
 
     return Dialog_DefaultDialogProc(pDockInspectorDialog, message, wParam, lParam);

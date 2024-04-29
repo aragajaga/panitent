@@ -21,7 +21,8 @@ void FillTool_OnLButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, 
 
 FillTool* FillTool_Create()
 {
-    FillTool* pFillTool = (FillTool*)calloc(1, sizeof(FillTool));
+    FillTool* pFillTool = (FillTool*)malloc(sizeof(FillTool));
+    memset(pFillTool, 0, sizeof(FillTool));
     FillTool_Init(pFillTool);
     return pFillTool;
 }

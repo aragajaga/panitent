@@ -62,8 +62,7 @@ void BrushSel_OnPaint(HWND hwnd)
 		uint32_t* buffer = NULL;
 
 		HDC hSampleDC = CreateCompatibleDC(hdc);
-		HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS,
-			(LPVOID*)&buffer, NULL, 0);
+		HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, (LPVOID*)&buffer, NULL, 0);
 		assert(hBitmap != NULL);
 		assert(buffer != NULL);
 
@@ -357,6 +356,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 	case WM_INITDIALOG:
 	{
 		BrushDlgData* data = malloc(sizeof(BrushDlgData));
+		memset(data, 0, sizeof(BrushDlgData));
 		if (!data)
 			return TRUE;
 
@@ -402,7 +402,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 
 		/*
 		 *  Preview would be drawn here but freezes for an unknown reason
-		 *  Perhaps GDI is cloning it internally if there any pixels in buffer
+		 *  Perhaps GDI is cloning it internally if there any pixels in pszBuffer
 		 *  I have read something like this on MSDN
 		 */
 		SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW), STM_SETIMAGE,
@@ -639,7 +639,8 @@ void OptionBarWindow_Init(OptionBarWindow* pOptionBarWindow, struct Application*
 
 OptionBarWindow* OptionBarWindow_Create(struct Application* app)
 {
-	OptionBarWindow* pOptionBarWindow = calloc(1, sizeof(OptionBarWindow));
+	OptionBarWindow* pOptionBarWindow = (OptionBarWindow*)malloc(sizeof(OptionBarWindow));
+	memset(pOptionBarWindow, 0, sizeof(OptionBarWindow));
 
 	if (pOptionBarWindow)
 	{

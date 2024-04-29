@@ -5,14 +5,14 @@ typedef struct Window Window;
 
 typedef struct HashMap HashMap;
 
-void InitHashMap(struct HashMap* map, size_t capacity);
-void InsertIntoHashMap(struct HashMap* map, void* key, void* value);
-void* GetFromHashMap(struct HashMap* map, void* key);
-void FreeHashMap(struct HashMap* map);
 void WindowingInit();
-void RemoveFromHashMapByKey(struct HashMap* map, void* key);
-void RemoveFromHashMapByValue(struct HashMap* map, void* value);
+
+void WindowMap_Insert(HWND hWnd, Window* pWindow);
+Window* WindowMap_Get(HWND hWnd);
+
+void WindowMap_GlobalInit();
 
 extern Window* pWndCreating;
+extern HashMap* g_pHWNDMap;
 
 #endif  // _WIN32_WINDOWMAP_H_INCLUDED

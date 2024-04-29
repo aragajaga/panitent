@@ -30,7 +30,8 @@ void Document_Init(Document* pDocument)
 
 Document* Document_Create()
 {
-    Document* pDocument = calloc(1, sizeof(Document));
+    Document* pDocument = (Document*)malloc(sizeof(Document));
+    memset(pDocument, 0, sizeof(Document));
 
     Document_Init(pDocument);
 
@@ -70,14 +71,16 @@ void Document_OpenFile(LPWSTR pszPath)
         return;
     }
 
-    pDocument->history = calloc(1, sizeof(History));
+    pDocument->history = (History*)malloc(sizeof(History));
+    memset(pDocument->history, 0, sizeof(History));
     if (!pDocument->history)
     {
         Document_Destroy(pDocument);
         return;
     }
 
-    HistoryRecord* initialRecord = calloc(1, sizeof(HistoryRecord));
+    HistoryRecord* initialRecord = (HistoryRecord*)malloc(sizeof(HistoryRecord));
+    memset(initialRecord, 0, sizeof(HistoryRecord));
     pDocument->history->peak = initialRecord;
 
     /* Create and set canvas */
@@ -187,14 +190,16 @@ Document* Document_New(int width, int height)
         return NULL;
     }
 
-    pDocument->history = calloc(1, sizeof(History));
+    pDocument->history = (History*)malloc(sizeof(History));
+    memset(pDocument->history, 0, sizeof(History));
     if (!pDocument->history)
     {
         Document_Destroy(pDocument);
         return NULL;
     }
 
-    HistoryRecord* initialRecord = calloc(1, sizeof(HistoryRecord));
+    HistoryRecord* initialRecord = (HistoryRecord*)malloc(sizeof(HistoryRecord));
+    memset(initialRecord, 0, sizeof(HistoryRecord));
     pDocument->history->peak = initialRecord;
 
     Canvas* pCanvas = Canvas_Create(width, height);

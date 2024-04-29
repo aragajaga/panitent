@@ -12,6 +12,8 @@ INT_PTR Dialog_DefaultDialogProc(Dialog* pDialog, UINT message, WPARAM wParam, L
 INT_PTR CALLBACK Dialog_DialogProcStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR Dialog_CreateWindow(Dialog* pDialog, UINT uResourceId, HWND hWndParent, BOOL bModal);
 
+Dialog* g_pCurrentDialog;
+
 BOOL Dialog_OnCommand(Dialog* pDialog, WPARAM wParam, LPARAM lParam)
 {
     return FALSE;
@@ -24,10 +26,12 @@ void Dialog_OnInitDialog(Dialog* pDialog)
 
 Dialog* Dialog_Create(Application* pApp)
 {
-    Dialog* pDialog = (Dialog*)calloc(1, sizeof(Dialog));
-
+    Dialog* pDialog = (Dialog*)malloc(sizeof(Dialog));
+    
     if (pDialog)
     {
+        memset(pDialog, 0, sizeof(Dialog));
+
         Dialog_Init(pDialog, pApp);
     }
 
@@ -91,15 +95,15 @@ INT_PTR Dialog_DefaultDialogProc(Dialog* pDialog, UINT message, WPARAM wParam, L
 INT_PTR CALLBACK Dialog_DialogProcStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     Dialog* pDialog = NULL;
-    pDialog = (Dialog*)GetFromHashMap(&g_hWndMap, hWnd);
+    pDialog = (Dialog*)WindowMap_Get(hWnd);
 
-    if (!pDialog && message == WM_INITDIALOG)
+    if (!pDialog)
     {
-        pDialog = (Dialog*)lParam;
+        pDialog = (Dialog*)g_pCurrentDialog;
         if (pDialog)
         {
             ((Window*)pDialog)->hWnd = hWnd;
-            InsertIntoHashMap(&g_hWndMap, hWnd, pDialog);
+            WindowMap_Insert(hWnd, pDialog);
         }
     }
 
@@ -111,15 +115,20 @@ INT_PTR CALLBACK Dialog_DialogProcStatic(HWND hWnd, UINT message, WPARAM wParam,
 
 INT_PTR Dialog_CreateWindow(Dialog* pDialog, UINT uResourceId, HWND hWndParent, BOOL bModal)
 {
+    g_pCurrentDialog = pDialog;
+
     if (bModal)
     {
         INT_PTR result = DialogBoxParam(GetModuleHandle(NULL), MAKEINTRESOURCE(uResourceId), hWndParent, Dialog_DialogProcStatic, (LPARAM)pDialog);
         pDialog->base.hWnd = NULL;
+        g_pCurrentDialog = NULL;
 
         return result;
     }
     else {
         HWND hWnd = CreateDialogParam(GetModuleHandle(NULL), MAKEINTRESOURCE(uResourceId), hWndParent, Dialog_DialogProcStatic, (LPARAM)pDialog);
+        g_pCurrentDialog = NULL;
+
         return (INT_PTR)hWnd;
     }
 }

@@ -151,7 +151,7 @@ void BuildWindowInitializationSettingsGroup(PGROUPBOX *ppGroupBox, HWND hParent)
   GroupBox_SetLayoutBox(*ppGroupBox, lbWindowInitialization);
 
   /* Set caption and size to group */
-  GroupBox_SetCaption(*ppGroupBox, L"Initial window position and size");
+  GroupBox_SetCaption(*ppGroupBox, L"Initial window nPosition and nSize");
   GroupBox_SetSize(*ppGroupBox, 400, 200);
   GroupBox_Update(*ppGroupBox);
 }
@@ -214,7 +214,8 @@ void SettingsDialog_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
   PSETTINGSDIALOGDATA pData;
   PLAYOUTBOX pLayoutBox;
  
-  pData = (PSETTINGSDIALOGDATA) malloc(sizeof(SETTINGSDIALOGDATA));
+  pData = (PSETTINGSDIALOGDATA)malloc(sizeof(SETTINGSDIALOGDATA));
+  memset(pData, 0, sizeof(SETTINGSDIALOGDATA));
   if (!pData)
     return;
 

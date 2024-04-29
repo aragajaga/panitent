@@ -84,7 +84,7 @@ COLORREF Win32_HexToCOLORREF(LPWSTR pszHexColor)
 		pszHexColor++;
 	}
 
-	// Conver the gxadecmal string to an integer
+	// Conver the hexadecmal string to an integer
 	DWORD dwHexValue = wcstoul(pszHexColor, NULL, 16);
 
 	// Extract the red, green, and blue components from the integer value
@@ -94,4 +94,26 @@ COLORREF Win32_HexToCOLORREF(LPWSTR pszHexColor)
 
 	// Create and return the COLORREF value
 	return RGB(red, green, blue);
+}
+
+ULONG64 Win32_GetSystemTimeAsUnixTime()
+{
+	const ULONG64 unixTimeStart = 0x019DB1DED53E8000;
+	const ULONG64 tps = 10000000;
+
+	FILETIME ft;
+	GetSystemTimeAsFileTime(&ft);
+
+	LARGE_INTEGER li;
+	li.LowPart = ft.dwLowDateTime;
+	li.HighPart = ft.dwHighDateTime;
+
+	return (li.QuadPart - unixTimeStart) / tps;
+}
+
+void Win32_FitChild(Window* pChildWindow, Window* pParentWindow)
+{
+	RECT rcClient = { 0 };
+	Window_GetClientRect(pParentWindow, &rcClient);
+	SetWindowPos(Window_GetHWND(pChildWindow), NULL, 0, 0, rcClient.right, rcClient.bottom, SWP_NOACTIVATE | SWP_NOZORDER);
 }

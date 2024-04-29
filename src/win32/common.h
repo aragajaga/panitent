@@ -1,9 +1,17 @@
 #ifndef _WIN32_COMMON_H
 #define _WIN32_COMMON_H
 
-#include <Windows.h>
-#include <CommCtrl.h>
-#include <Uxtheme.h>
+#include <windows.h>
+#include <windowsx.h>
+#include <commctrl.h>
+#include <commdlg.h>
+#include <shlobj.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <wchar.h>
+#include <wctype.h>
+#include <tchar.h>
+#include <uxtheme.h>
 #include <strsafe.h>
 
 #include <stddef.h>

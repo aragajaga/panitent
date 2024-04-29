@@ -20,7 +20,8 @@ void EraserTool_OnMouseMove(EraserTool* pEraserTool, ViewportWindow* pViewportWi
 
 EraserTool* EraserTool_Create()
 {
-    EraserTool* pEraserTool = (EraserTool*)calloc(1, sizeof(EraserTool));
+    EraserTool* pEraserTool = (EraserTool*)malloc(sizeof(EraserTool));
+    memset(pEraserTool, 0, sizeof(EraserTool));
     EraserTool_Init(pEraserTool);
     return pEraserTool;
 }

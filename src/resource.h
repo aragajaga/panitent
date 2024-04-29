@@ -15,6 +15,7 @@
 #define IDB_DOCK_ICONS 1025
 #define IDB_DOCK_BTNFRAME 1026
 #define IDB_DOCK_SUGGEST 1027
+#define IDB_DOCKHOSTBG 1028
 
 
 #define IDC_PICKER 1601
@@ -59,6 +60,12 @@
 #define IDD_DOCKINSPECTOR   134
 #define IDC_TREE1                       1023
 #define IDC_LIST1                       1024
+
+#define IDD_ACTIVITYSTUB    135
+#define IDS_ACTIVITYTEXT                1025
+
+#define IDD_PROPERTYGRIDDLG 136
+#define IDC_PROPERTYGRID                1026
 
 #define CBS_CDCLRSEL_SWATCHBIAS 128
 

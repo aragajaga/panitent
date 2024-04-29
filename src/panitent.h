@@ -12,6 +12,7 @@ typedef struct Tool Tool;
 typedef struct TreeNode TreeNode;
 typedef struct ViewportWindow ViewportWindow;
 typedef struct WorkspaceContainer WorkspaceContainer;
+typedef struct ActivitySharingManager ActivitySharingManager;
 
 struct PanitentApplication {
   struct Application base;
@@ -26,16 +27,13 @@ struct PanitentApplication {
   OptionBarWindow* m_pOptionBarWindow;
   WorkspaceContainer* m_pWorkspaceContainer;
   ViewportWindow* m_pViewportWindow;
+  ActivitySharingManager* m_pActivitySharingManager;
 
   Tool* m_pTool;
 };
 
 void PanitentApplication_Init(struct PanitentApplication*);
 struct PanitentApplication* PanitentApplication_Create();
-
-#ifdef HAS_DISCORDSDK
-#include "discordsdk.h"
-#endif /* HAS_DISCORDSDK */
 
 #include "settings.h"
 
@@ -77,4 +75,11 @@ PanitentApplication* Panitent_GetApp();
 
 WorkspaceContainer* Panitent_GetWorkspaceContainer();
 
-Tool* Panitent_GetTool();
+Tool* Panitent_GetSelectedTool();
+void Panitent_CmdShowActivityDialog(PanitentApplication* pApp);
+
+void Panitent_SetActivityStatus(PanitentApplication* pApp, PCWSTR pszStatusMessage);
+void Panitent_SetActivityStatusF(PanitentApplication* pApp, PCWSTR pszFormat, ...);
+
+void Panitent_RaiseException(PCWSTR pszExceptionMessage);
+void Panitent_CmdShowPropertyGridDialog(PanitentApplication* pApp);

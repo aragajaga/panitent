@@ -3,21 +3,26 @@
 #include "aboutbox.h"
 #include "resource.h"
 
-INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
-    LPARAM lParam)
+#include "panitent.h"
+#include "sharing/activitysharingmanager.h"
+
+INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
     UNREFERENCED_PARAMETER(lParam);
 
     switch (message)
     {
     case WM_INITDIALOG:
-#ifdef HAS_DISCORDSDK
-        Discord_SetActivityStatus(g_panitent.discord, L"Seeking About dialog 👀");
-#endif /* HAS_DISCORDSDK */
+    {
+        Panitent_SetActivityStatus(Panitent_GetApp(), L"Seeking About dialog 👀");
+    }
         return TRUE;
+        break;
+
     case WM_COMMAND:
         EndDialog(hwndDlg, wParam);
         return TRUE;
+        break;
     }
 
     return FALSE;

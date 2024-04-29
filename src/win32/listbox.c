@@ -9,6 +9,7 @@ void ListBoxCtl_PreCreate(LPCREATESTRUCT lpcs);
 ListBoxCtl* ListBoxCtl_Create(Application* pApplication)
 {
     ListBoxCtl* pListBoxCtl = (ListBoxCtl*)malloc(sizeof(ListBoxCtl));
+    memset(pListBoxCtl, 0, sizeof(ListBoxCtl));
     
     if (pListBoxCtl)
     {

@@ -16,7 +16,8 @@ void CircleTool_OnLButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWi
 
 CircleTool* CircleTool_Create()
 {
-    CircleTool* pCircleTool = (CircleTool*)calloc(1, sizeof(CircleTool));
+    CircleTool* pCircleTool = (CircleTool*)malloc(sizeof(CircleTool));
+    memset(pCircleTool, 0, sizeof(CircleTool));
     CircleTool_Init(pCircleTool);
     return pCircleTool;
 }

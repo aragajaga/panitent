@@ -1,11 +1,13 @@
-#include "precomp.h"
+#include "../precomp.h"
 
 #include "tree.h"
 #include "stack.h"
 
 TreeNode* BinaryTree_AllocEmptyNode()
 {
-	return (TreeNode*)calloc(1, sizeof(TreeNode));
+	TreeNode* pTreeNode = (TreeNode*)malloc(sizeof(TreeNode));
+	memset(pTreeNode, 0, sizeof(TreeNode));
+	return pTreeNode;
 }
 
 void TreeTraversalRLOT_Init(TreeTraversalRLOT* pTreeTraversalRLOT, TreeNode* pNode)

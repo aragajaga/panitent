@@ -22,7 +22,8 @@ LRESULT CALLBACK SwatchControl_WndProc(HWND hWnd,
   case WM_LBUTTONDOWN:
   {
     MessageBox(NULL, L"Created!", L"Info", MB_OK);
-    uint8_t* custColors = calloc(16, sizeof(uint32_t));
+    uint8_t* custColors = (uint8_t*)malloc(16 * sizeof(uint32_t));
+    memset(custColors, 0, 16 * sizeof(uint32_t));
 
     CHOOSECOLOR cc  = {0};
     cc.lStructSize  = sizeof(CHOOSECOLOR);

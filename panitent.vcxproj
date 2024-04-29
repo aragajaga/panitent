@@ -33,6 +33,11 @@
     <ClCompile Include="src\dockhost.c" />
     <ClCompile Include="src\dockinspectordialog.c" />
     <ClCompile Include="src\document.c" />
+    <ClCompile Include="src\experimental\bubble.c" />
+    <ClCompile Include="src\experimental\captionglyphs.c" />
+    <ClCompile Include="src\experimental\dockhostcomposite.c" />
+    <ClCompile Include="src\experimental\dockpanel.c" />
+    <ClCompile Include="src\experimental\dockwindow.c" />
     <ClCompile Include="src\file_open.c" />
     <ClCompile Include="src\flexible.c" />
     <ClCompile Include="src\floatingwindowcontainer.c" />
@@ -50,12 +55,16 @@
     <ClCompile Include="src\panitent.c" />
     <ClCompile Include="src\panitentwindow.c" />
     <ClCompile Include="src\pentablet.c" />
+    <ClCompile Include="src\pntxml.c" />
     <ClCompile Include="src\primitives_context.c" />
-    <ClCompile Include="src\queue.c" />
+    <ClCompile Include="src\propgriddialog.c" />
     <ClCompile Include="src\settings.c" />
     <ClCompile Include="src\settings_dialog.c" />
+    <ClCompile Include="src\sharing\activitysharingclient.c" />
+    <ClCompile Include="src\sharing\activitysharingmanager.c" />
+    <ClCompile Include="src\sharing\activitystubdialog.c" />
+    <ClCompile Include="src\sharing\discordasp.c" />
     <ClCompile Include="src\splittercontainer.c" />
-    <ClCompile Include="src\stack.c" />
     <ClCompile Include="src\swatch.c" />
     <ClCompile Include="src\swatch2.c" />
     <ClCompile Include="src\toolbox.c" />
@@ -69,8 +78,18 @@
     <ClCompile Include="src\tools\pointertool.c" />
     <ClCompile Include="src\tools\rectangletool.c" />
     <ClCompile Include="src\tools\texttool.c" />
-    <ClCompile Include="src\tree.c" />
+    <ClCompile Include="src\toolwndframe.c" />
     <ClCompile Include="src\util.c" />
+    <ClCompile Include="src\util\bytestream.c" />
+    <ClCompile Include="src\util\hashmap.c" />
+    <ClCompile Include="src\util\list.c" />
+    <ClCompile Include="src\util\pntrtti.c" />
+    <ClCompile Include="src\util\pntstring.c" />
+    <ClCompile Include="src\util\queue.c" />
+    <ClCompile Include="src\util\stack.c" />
+    <ClCompile Include="src\util\tree.c" />
+    <ClCompile Include="src\util\utf.c" />
+    <ClCompile Include="src\util\vector.c" />
     <ClCompile Include="src\viewport.c" />
     <ClCompile Include="src\wic.c" />
     <ClCompile Include="src\windowstub.c" />
@@ -90,15 +109,21 @@
     <ClInclude Include="src\crashhandler.h" />
     <ClInclude Include="src\crefptr.h" />
     <ClInclude Include="src\debug.h" />
-    <ClInclude Include="src\discordsdk.h" />
     <ClInclude Include="src\dockhost.h" />
     <ClInclude Include="src\dockinspectordialog.h" />
     <ClInclude Include="src\document.h" />
+    <ClInclude Include="src\experimental\bubble.h" />
+    <ClInclude Include="src\experimental\captionglyphs.h" />
+    <ClInclude Include="src\experimental\dockhostcomposite.h" />
+    <ClInclude Include="src\experimental\docklib.h" />
+    <ClInclude Include="src\experimental\dockpanel.h" />
+    <ClInclude Include="src\experimental\dockwindow.h" />
     <ClInclude Include="src\file_open.h" />
     <ClInclude Include="src\flexible.h" />
     <ClInclude Include="src\floatingwindowcontainer.h" />
     <ClInclude Include="src\glwindow.h" />
     <ClInclude Include="src\history.h" />
+    <ClInclude Include="src\iactivitysharingprovider.h" />
     <ClInclude Include="src\kvec.h" />
     <ClInclude Include="src\layeredwindow.h" />
     <ClInclude Include="src\layerswindow.h" />
@@ -113,14 +138,19 @@
     <ClInclude Include="src\panitentwindow.h" />
     <ClInclude Include="src\pencil_tool.h" />
     <ClInclude Include="src\pentablet.h" />
+    <ClInclude Include="src\pntxml.h" />
     <ClInclude Include="src\precomp.h" />
     <ClInclude Include="src\primitives_context.h" />
-    <ClInclude Include="src\queue.h" />
+    <ClInclude Include="src\propgriddialog.h" />
     <ClInclude Include="src\resource.h" />
     <ClInclude Include="src\settings.h" />
     <ClInclude Include="src\settings_dialog.h" />
+    <ClInclude Include="src\sharing\activitysharingmanager.h" />
+    <ClInclude Include="src\sharing\activitystubdialog.h" />
+    <ClInclude Include="src\sharing\discordasp.h" />
+    <ClInclude Include="src\sharing\discordsdk.h" />
+    <ClInclude Include="src\sharing\activitysharingclient.h" />
     <ClInclude Include="src\splittercontainer.h" />
-    <ClInclude Include="src\stack.h" />
     <ClInclude Include="src\swatch.h" />
     <ClInclude Include="src\swatch2.h" />
     <ClInclude Include="src\test.h" />
@@ -137,8 +167,19 @@
     <ClInclude Include="src\tools\pointertool.h" />
     <ClInclude Include="src\tools\rectangletool.h" />
     <ClInclude Include="src\tools\texttool.h" />
-    <ClInclude Include="src\tree.h" />
+    <ClInclude Include="src\toolwndframe.h" />
     <ClInclude Include="src\util.h" />
+    <ClInclude Include="src\util\assert.h" />
+    <ClInclude Include="src\util\bytestream.h" />
+    <ClInclude Include="src\util\hashmap.h" />
+    <ClInclude Include="src\util\list.h" />
+    <ClInclude Include="src\util\pntrtti.h" />
+    <ClInclude Include="src\util\pntstring.h" />
+    <ClInclude Include="src\util\queue.h" />
+    <ClInclude Include="src\util\stack.h" />
+    <ClInclude Include="src\util\tree.h" />
+    <ClInclude Include="src\util\utf.h" />
+    <ClInclude Include="src\util\vector.h" />
     <ClInclude Include="src\viewport.h" />
     <ClInclude Include="src\wic.h" />
     <ClInclude Include="src\win32util.h" />
@@ -162,6 +203,7 @@
     <Manifest Include="res\panitent.exe.manifest" />
   </ItemGroup>
   <ItemGroup>
+    <ResourceCompile Include="res\appmeta.rc" />
     <ResourceCompile Include="res\panitent.rc" />
     <ResourceCompile Include="res\panitent2.rc" />
     <ResourceCompile Include="src\res2.rc" />
@@ -233,7 +275,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -250,7 +292,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -263,7 +305,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -280,7 +322,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

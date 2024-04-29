@@ -1,4 +1,4 @@
-#include "precomp.h"
+#include "../precomp.h"
 
 #include "discordsdk.h"
 
@@ -9,24 +9,11 @@
 #include <stdint.h>
 #include <assert.h>
 
+#include "../win32/util.h"
+
 #define DISCORD_REQUIRE(x) assert(x == DiscordResult_Ok)
 
 #define DISCORD_APPLICATION_ID 861979642411483186
-
-uint64_t GetSystemTimeAsUnixTime()
-{
-  const uint64_t unixTimeStart = 0x019DB1DED53E8000;
-  const uint64_t tps = 10000000;
-
-  FILETIME ft;
-  GetSystemTimeAsFileTime(&ft);
-
-  LARGE_INTEGER li;
-  li.LowPart  = ft.dwLowDateTime;
-  li.HighPart = ft.dwHighDateTime;
-
-  return (li.QuadPart - unixTimeStart) / tps;
-}
 
 CRITICAL_SECTION g_csDiscord;
 
@@ -138,7 +125,7 @@ void Discord_SetActivityStatus(DiscordSDKInstance* discord, LPCWSTR lpszStatus)
       NULL);
   StringCchPrintfA(activity.assets.large_image, 80, "panitent");
 
-  activity.timestamps.start = GetSystemTimeAsUnixTime();
+  activity.timestamps.start = Win32_GetSystemTimeAsUnixTime();
 
   EnterCriticalSection(&g_csDiscord);
   discord->activities->update_activity(discord->activities,

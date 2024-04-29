@@ -19,14 +19,15 @@ LRESULT CALLBACK TestWindow_UserProc(struct Window*, HWND hWnd, UINT message, WP
 
 TestWindow* TestWindow_Create(struct Application* app)
 {
-  TestWindow* window = calloc(1, sizeof(TestWindow));
+  TestWindow* pTestWindow = (TestWindow*)malloc(sizeof(TestWindow));
+  memset(pTestWindow, 0, sizeof(TestApplication));
 
-  if (window)
+  if (pTestWindow)
   {
-    TestWindow_Init(window, app);
+    TestWindow_Init(pTestWindow, app);
   }
 
-  return window;
+  return pTestWindow;
 }
 
 void TestWindow_Init(TestWindow* window, struct Application* app)

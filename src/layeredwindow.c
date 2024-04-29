@@ -313,12 +313,13 @@ void LayeredWindow_Init(LayeredWindow* pLayeredWindow, struct Application* app)
 
 LayeredWindow* LayeredWindow_Create(struct Application* app)
 {
-    LayeredWindow* window = calloc(1, sizeof(LayeredWindow));
+    LayeredWindow* pLayeredWindow = (LayeredWindow*)malloc(sizeof(LayeredWindow));
+    memset(pLayeredWindow, 0, sizeof(LayeredWindow));
 
-    if (window)
+    if (pLayeredWindow)
     {
-        LayeredWindow_Init(window, app);
+        LayeredWindow_Init(pLayeredWindow, app);
     }
 
-    return window;
+    return pLayeredWindow;
 }

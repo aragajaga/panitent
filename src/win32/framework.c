@@ -1,9 +1,8 @@
 #include "common.h"
 
-typedef struct HashMap HashMap;
-extern HashMap g_hWndMap;
+#include "windowmap.h"
 
 void WindowingInit()
 {
-    InitHashMap(&g_hWndMap, 127);
+    WindowMap_GlobalInit();
 }
