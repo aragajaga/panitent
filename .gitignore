@@ -64,3 +64,4 @@ tags
 # Debug files
 *.idb
 *.pdb
+/res/floatingglyphs.psd
