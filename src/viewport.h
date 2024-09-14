@@ -16,7 +16,7 @@ struct ViewportWindow {
 	HBRUSH hbrChecker;
 };
 
-ViewportWindow* ViewportWindow_Create(struct Application* app);
+ViewportWindow* ViewportWindow_Create();
 Document* ViewportWindow_GetDocument(ViewportWindow* pViewportWindow);
 void ViewportWindow_SetDocument(ViewportWindow* pViewportWindow, Document* document);
 void ViewportWindow_ClientToCanvas(ViewportWindow* pViewportWindow, int x, int y, LPPOINT lpPt);

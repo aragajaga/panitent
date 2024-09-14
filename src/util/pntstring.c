@@ -1,6 +1,8 @@
 #include <stddef.h> /* size_t */
 #include <stdlib.h> /* malloc, realloc etc. memory functions */
 #include <string.h>
+#include <stdio.h>
+#include "assert.h"
 
 /* uint16_t defined in inclusion of "stdint.h" in pntstring.h */
 
@@ -309,4 +311,19 @@ void PntString_InitFromUTF16(PntString* pPntString, const uint16_t* pStr)
 
 error:
     ByteStream_Destroy(pByteStream);
+}
+
+void PntString_Resize(PntString* pPntString, size_t nSize)
+{
+    ASSERT(pPntString);
+
+    void* pNewData = realloc(pPntString->data, nSize);
+    ASSERT(pNewData);
+
+    pPntString->len = nSize;
+}
+
+void* PntString_GetBuffer(PntString* pPntString)
+{
+    return pPntString->data;
 }

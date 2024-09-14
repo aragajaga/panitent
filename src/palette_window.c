@@ -8,15 +8,14 @@
 #include "resource.h"
 #include "util.h"
 #include "palette.h"
-#include "panitent.h"
 
 static const WCHAR szClassName[] = L"PaletteWindowClass";
 
 static int swatch_margin = 2;
 
 /* Private forward declarations */
-PaletteWindow* PaletteWindow_Create(Application* pApplication, Palette* pPalette);
-void PaletteWindow_Init(PaletteWindow* pPaletteWindow, Application* pApplication, Palette* pPalette);
+PaletteWindow* PaletteWindow_Create(Palette* pPalette);
+void PaletteWindow_Init(PaletteWindow* pPaletteWindow, Palette* pPalette);
 
 void PaletteWindow_PreRegister(LPWNDCLASSEX lpwcex);
 void PaletteWindow_PreCreate(LPCREATESTRUCT lpcs);
@@ -35,22 +34,22 @@ void Palette_ColorChangeObserver(void*, uint32_t, uint32_t);
 
 INT_PTR CALLBACK PaletteSettingsDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
-PaletteWindow* PaletteWindow_Create(struct Application* app, Palette* palette)
+PaletteWindow* PaletteWindow_Create(Palette* palette)
 {
     PaletteWindow* pPaletteWindow = (PaletteWindow*)malloc(sizeof(PaletteWindow));
 
     if (pPaletteWindow)
     {
         memset(pPaletteWindow, 0, sizeof(PaletteWindow));
-        PaletteWindow_Init(pPaletteWindow, app, palette);
+        PaletteWindow_Init(pPaletteWindow, palette);
     }
 
     return pPaletteWindow;
 }
 
-void PaletteWindow_Init(PaletteWindow* pPaletteWindow, struct Application* app, Palette* palette)
+void PaletteWindow_Init(PaletteWindow* pPaletteWindow, Palette* palette)
 {
-    Window_Init(&pPaletteWindow->base, app);
+    Window_Init(&pPaletteWindow->base);
 
     pPaletteWindow->base.szClassName = szClassName;
 
@@ -154,7 +153,7 @@ void PaletteWindow_OnLButtonUp(PaletteWindow* window, int x, int y)
 void PaletteWindow_OnRButtonUp(PaletteWindow* pPaletteWindow, int x, int y)
 {
     int swatch_size = g_paletteSettings.swatchSize;
-    Palette* palette = ((struct PanitentApplication*)(pPaletteWindow->base.app))->palette;
+    Palette* palette = PanitentApp_GetPalette(PanitentApp_Instance());
 
     RECT rc = { 0 };
     GetClientRect(pPaletteWindow->base.hWnd, &rc);

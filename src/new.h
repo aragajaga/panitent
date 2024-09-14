@@ -5,12 +5,14 @@
 
 #define IDB_OK 1001
 
+typedef struct PanitentWindow PanitentWindow;
+
 void NewFileDialog(HWND hwnd);
 void RegisterNewFileDialog();
 LRESULT CALLBACK NewFileDialogWndProc(HWND hWnd,
                                       UINT uMsg,
                                       WPARAM wParam,
                                       LPARAM lParam);
-void NewFileDialog(HWND hwnd);
+void NewFileDialog(PanitentWindow* pPanitentWindow);
 
 #endif /* PANITENT_NEW_H_ */

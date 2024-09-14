@@ -282,6 +282,132 @@ void AVLNode_DestroyTree(AVLNode* pNodeRoot)
 }
 
 /**
+ * [PRIVATE]
+ *
+ * Function to find the minimum value node in the AVL tree
+ */
+AVLNode* AVLNode_FindMin(AVLNode* pNode)
+{
+    AVLNode* current = pNode;
+
+    while (current->pLeft != NULL)
+    {
+        current = current->pLeft;
+    }
+
+    return current;
+}
+
+/**
+ * [PRIVATE]
+ *
+ * Function to delete a node from the AVL tree
+ */
+AVLNode* AVLNode_Delete(AVLNode* pRoot, void* pKey, FnAVLNodeKeyCompare* pfnCompare)
+{
+    if (!pRoot)
+    {
+        return NULL;
+    }
+
+    if (CMP_LOWER == pfnCompare(pKey, pRoot->pKey))
+    {
+        pRoot->pLeft = AVLNode_Delete(pRoot->pLeft, pKey, pfnCompare);
+    }
+    else if (CMP_GREATER == pfnCompare(pKey, pRoot->pKey))
+    {
+        pRoot->pRight = AVLNode_Delete(pRoot->pRight, pKey, pfnCompare);
+    }
+    else
+    {
+        // Node to be deleted found
+        if ((pRoot->pLeft == NULL) || (pRoot->pRight == NULL))
+        {
+            // One or no children case
+            AVLNode* temp = pRoot->pLeft ? pRoot->pLeft : pRoot->pRight;
+
+            if (temp == NULL)
+            {
+                // No child case
+                temp = pRoot;
+                pRoot = NULL;
+            }
+            else
+            {
+                // One child case
+                *pRoot = *temp;
+            }
+
+            free(temp);
+        }
+        else
+        {
+            // Node with two children: Get the inorder successor (smallest in the right subtree)
+            AVLNode* temp = AVLNode_FindMin(pRoot->pRight);
+
+            // Copy the inorder successor's data to this node
+            pRoot->pKey = temp->pKey;
+            pRoot->pValue = temp->pValue;
+
+            // Delete the inorder successor
+            pRoot->pRight = AVLNode_Delete(pRoot->pRight, temp->pKey, pfnCompare);
+        }
+    }
+
+    // If the tree had only one node then return
+    if (!pRoot)
+    {
+        return pRoot;
+    }
+
+    // Update height of the current node
+    pRoot->nHeight = 1 + max(AVLNode_Height(pRoot->pLeft), AVLNode_Height(pRoot->pRight));
+
+    // Get the balance factor of this node
+    int balance = AVLNode_GetBalance(pRoot);
+
+    // Left Left Case
+    if (balance > 1 && AVLNode_GetBalance(pRoot->pLeft) >= 0)
+    {
+        return AVLNode_RightRotate(pRoot);
+    }
+
+    // Left Right Case
+    if (balance > 1 && AVLNode_GetBalance(pRoot->pLeft) < 0)
+    {
+        pRoot->pLeft = AVLNode_LeftRotate(pRoot->pLeft);
+        return AVLNode_RightRotate(pRoot);
+    }
+
+    // Right Right Case
+    if (balance < -1 && AVLNode_GetBalance(pRoot->pRight) <= 0)
+    {
+        return AVLNode_LeftRotate(pRoot);
+    }
+
+    // Right Left Case
+    if (balance < -1 && AVLNode_GetBalance(pRoot->pRight) > 0)
+    {
+        pRoot->pRight = AVLNode_RightRotate(pRoot->pRight);
+        return AVLNode_LeftRotate(pRoot);
+    }
+
+    return pRoot;
+}
+
+/**
+ * [PUBLIC]
+ *
+ * Function to remove a key-value pair from the hash map
+ */
+void HashMap_Remove(HashMap* pHashMap, void* pKey)
+{
+    int nIndex = BucketHash(pKey, pHashMap->nCapacity);
+    pHashMap->ppBuckets[nIndex] = AVLNode_Delete(pHashMap->ppBuckets[nIndex], pKey, pHashMap->pfnCompare);
+    pHashMap->nSize--;
+}
+
+/**
  * Function to destroy the hash map and free memory
  */
 void HashMap_Destroy(HashMap* pHashMap)

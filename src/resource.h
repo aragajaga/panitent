@@ -1,6 +1,8 @@
 #ifndef RESOURCE_H
 #define RESOURCE_H
 
+#define IDC_STATIC -1
+
 #ifndef RT_MANIFEST
 #define RT_MANIFEST 24
 #endif
@@ -66,6 +68,27 @@
 
 #define IDD_PROPERTYGRIDDLG 136
 #define IDC_PROPERTYGRID                1026
+
+#define IDD_RBTREEVIZ    137
+#define IDC_INSERTBTN                   1027
+
+#define IDD_BINVIEW                     138
+#define IDC_PICTURE1                    1001
+#define IDC_WIDTHSPIN                   1002
+#define IDC_HEIGHTSPIN                  1003
+#define IDC_OFFSETSPIN                  1004
+#define IDC_EDITOFFSET                  1005
+#define IDC_EDITOFFSETSTEP              1006
+#define IDC_PLAYBTN                     1007
+#define IDC_PAUSEBTN                    1008
+#define IDC_RESUMEBTN                   1009
+#define IDC_STOPBTN                     1010
+#define IDC_READASPICTUREBTN            1011
+
+#define IDD_VERIFYCHECK                 139
+#define IDC_PHONENUMBER                 1001
+#define IDC_CAPTCHA                     1002
+#define IDC_PHONECOUNTRY                1003
 
 #define CBS_CDCLRSEL_SWATCHBIAS 128
 

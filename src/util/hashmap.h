@@ -106,3 +106,8 @@ void AVLNode_DestroyTree(AVLNode* pNodeRoot);
  * Function to destroy the hash map and free memory
  */
 void HashMap_Destroy(HashMap* pHashMap);
+
+/**
+ * Function to erase all instances of specified key from the hashmap
+ */
+void HashMap_Remove(HashMap* pHashMap, void* pKey);

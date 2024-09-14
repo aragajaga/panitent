@@ -8,7 +8,7 @@
 #include "tool.h"
 #include "checker.h"
 #include "resource.h"
-#include "panitent.h"
+#include "panitentapp.h"
 
 #define IDM_VIEWPORTSETTINGS 100
 
@@ -36,8 +36,8 @@ struct _ViewportSettings g_viewportSettings = {
 
 INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
-ViewportWindow* ViewportWindow_Create(struct Application* app);
-void ViewportWindow_Init(ViewportWindow* window, struct Application* app);
+ViewportWindow* ViewportWindow_Create();
+void ViewportWindow_Init(ViewportWindow* window);
 
 static inline void ViewportWindow_DrawWindowOrdinates(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
 static inline void ViewportWindow_DrawCanvasOrdinates(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
@@ -72,22 +72,22 @@ BOOL ViewportWindow_OnEraseBkgnd(ViewportWindow* pViewportWindow, HDC hdc);
 void ViewportWindow_OnDestroy(ViewportWindow* window);
 LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-ViewportWindow* ViewportWindow_Create(struct Application* app)
+ViewportWindow* ViewportWindow_Create()
 {
     ViewportWindow* pViewportWindow = (ViewportWindow*)malloc(sizeof(ViewportWindow));
     memset(pViewportWindow, 0, sizeof(ViewportWindow));
 
     if (pViewportWindow)
     {
-        ViewportWindow_Init(pViewportWindow, app);
+        ViewportWindow_Init(pViewportWindow);
     }
 
     return pViewportWindow;
 }
 
-void ViewportWindow_Init(ViewportWindow* pViewportWindow, struct Application* app)
+void ViewportWindow_Init(ViewportWindow* pViewportWindow)
 {
-    Window_Init(&pViewportWindow->base, app);
+    Window_Init(&pViewportWindow->base);
 
     pViewportWindow->base.szClassName = szClassName;
 
@@ -106,7 +106,7 @@ static inline void ViewportWindow_DrawWindowOrdinates(ViewportWindow* pViewportW
     HGDIOBJ hOldObj;
     HFONT hFont;
 
-    hFont = GetGuiFont();
+    hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
 
     hPen = CreatePen(PS_DASH, 1, COLORREF_RED);
     hOldObj = SelectObject(hdc, hPen);
@@ -141,7 +141,7 @@ static inline void ViewportWindow_DrawCanvasOrdinates(ViewportWindow* pViewportW
 
     hPen = CreatePen(PS_DASH, 1, RGB(0, 255, 0));
     hOldObj = SelectObject(hdc, hPen);
-    hFont = GetGuiFont();
+    hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
 
     SetBkMode(hdc, TRANSPARENT);
 
@@ -201,7 +201,7 @@ static inline void ViewportWindow_DrawDebugText(ViewportWindow* pViewportWindow,
         L"Document set: %s\n"
         L"Document dimensions width: %d, AVLNode_Height %d";
 
-    hFont = GetGuiFont();
+    hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
 
 #ifdef _MSC_VER
 #pragma warning( push )
@@ -542,7 +542,7 @@ void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool *pTool = Panitent_GetSelectedTool();
+    Tool *pTool = PanitentApp_GetTool(PanitentApp_Instance());
 
     if (pViewportWindow->bDrag)
     {
@@ -594,7 +594,7 @@ void ViewportWindow_OnLButtonDown(ViewportWindow* pViewportWindow, int x, int y,
     /* Receive keyboard messages */
     SetFocus(hWnd);
 
-    Tool* pTool = Panitent_GetSelectedTool();
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
     if (pTool && pTool->OnLButtonDown)
     {
         POINT ptCanvas;
@@ -608,7 +608,7 @@ void ViewportWindow_OnLButtonUp(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool* pTool = Panitent_GetSelectedTool();
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
 
     if (pTool && pTool->OnLButtonUp)
     {
@@ -626,7 +626,7 @@ void ViewportWindow_OnRButtonUp(ViewportWindow* pViewportWindow, int x, int y, U
 {
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
-    Tool* pTool = Panitent_GetSelectedTool();
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
 
     if (pTool && pTool->OnRButtonUp)
     {
@@ -869,7 +869,7 @@ INT_PTR CALLBACK ViewportSettingsDlgProc(HWND hwndDlg, UINT message, WPARAM wPar
             }
         }
 
-        Window_Invalidate((Window *)Panitent_GetActiveViewport());
+        Window_Invalidate((Window*)PanitentApp_GetCurrentViewport(PanitentApp_Instance()));
         return TRUE;
     }
 

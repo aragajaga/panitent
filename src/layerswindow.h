@@ -11,5 +11,5 @@ struct LayersWindow {
     ListBoxCtl* m_pListBoxCtl;
 };
 
-LayersWindow* LayersWindow_Create(Application* app);
-void LayersWindow_Init(LayersWindow* pLayersWindow, Application* app);
+LayersWindow* LayersWindow_Create();
+void LayersWindow_Init(LayersWindow* pLayersWindow);

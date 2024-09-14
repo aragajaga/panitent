@@ -1,7 +1,6 @@
 #include "precomp.h"
 #include "log.h"
 #include "util.h"
-#include "panitent.h"
 
 typedef struct _tagLOGEVENTOBSERVER LOGEVENTOBSERVER, *LPLOGEVENTOBSERVER;
 

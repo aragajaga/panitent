@@ -10,4 +10,4 @@ struct GLWindow {
 	Window base;
 };
 
-GLWindow* GLWindow_Create(Application*);
+GLWindow* GLWindow_Create();

@@ -14,5 +14,5 @@ struct DockInspectorDialog {
 };
 
 DockInspectorDialog* DockInspectorDialog_Create();
-void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog, Application* pApp);
+void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog);
 void DockInspectorDialog_Update(DockInspectorDialog* pDockInspectorDialog, TreeNode* pTreeRoot);

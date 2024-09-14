@@ -35,4 +35,6 @@ typedef struct _tagTOOLBOXICONTHEME {
   LPWSTR lpszResource;
 } TOOLBOXICONTHEME, *PTOOLBOXICONTHEME;
 
-ToolboxWindow* ToolboxWindow_Create(PanitentApplication* pPanitentApplication);
+typedef struct PanitentApp PanitentApp;
+
+ToolboxWindow* ToolboxWindow_Create();

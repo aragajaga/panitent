@@ -9,4 +9,4 @@ struct OptionBarWindow {
 
 BOOL BrushSel_RegisterClass(HINSTANCE hInstance);
 
-OptionBarWindow* OptionBarWindow_Create(struct Application* app);
+OptionBarWindow* OptionBarWindow_Create();

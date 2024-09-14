@@ -52,5 +52,8 @@ Canvas* Canvas_CreateFromBuffer(int width, int height, void* data);
 void Canvas_Paste(Canvas* target, int x, int y, Canvas* source);
 void Canvas_Overlay(Canvas* target, int x, int y, Canvas* source);
 void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source, uint32_t color);
+int Canvas_GetWidth(const Canvas* pCanvas);
+int Canvas_GetHeight(const Canvas* pCanvas);
+void Canvas_DrawLine(const Canvas* pCanvas, int x1, int y1, int x2, int y2);
 
 #endif /* PANITENT_CANVAS_H_ */

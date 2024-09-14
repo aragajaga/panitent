@@ -6,7 +6,8 @@
 #include "../document.h"
 #include "../canvas.h"
 #include "../history.h"
-#include "../primitives_context.h"
+#include "../grimstroke/shapecontext.h"
+#include "../panitentapp.h"
 
 LineTool* LineTool_Create();
 void LineTool_Init(LineTool* pLineTool);
@@ -51,7 +52,9 @@ void LineTool_OnLButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, 
 
         Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
         Canvas* pCanvas = Document_GetCanvas(pDocument);
-        draw_line(pCanvas, pLineTool->prev.x, pLineTool->prev.y, ptCanvas.x, ptCanvas.y);
+
+        ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+        ShapeContext_DrawLine(pShapeContext, pLineTool->prev.x, pLineTool->prev.y, ptCanvas.x, ptCanvas.y);
     }
     pLineTool->fDraw = FALSE;
     ReleaseCapture();

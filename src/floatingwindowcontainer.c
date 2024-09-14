@@ -4,14 +4,18 @@
 #include "win32/util.h"
 #include "FloatingWindowContainer.h"
 #include "resource.h"
-#include "panitent.h"
 #include "toolwndframe.h"
+#include "panitentapp.h"
+#include "util/assert.h"
+
+#define HTPIN 22
+#define HTMORE 23
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
 /* Private forward declarations */
-FloatingWindowContainer* FloatingWindowContainer_Create(struct Application*);
-void FloatingWindowContainer_Init(FloatingWindowContainer*, struct Application*);
+FloatingWindowContainer* FloatingWindowContainer_Create();
+void FloatingWindowContainer_Init(FloatingWindowContainer*);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -101,15 +105,18 @@ LRESULT CaptionRightContainerHitTest()
 CaptionButton g_captionButtons[] = {
     {
         {14, 14},
-        GLYPH_CLOSE
+        GLYPH_CLOSE,
+        HTCLOSE
     },
     {
         {14, 14},
-        GLYPH_PIN
+        GLYPH_PIN,
+        HTPIN
     },
     {
-        { 14, 14 },
-        GLYPH_MORE
+        { 24, 14 },
+        GLYPH_MORE,
+        HTMORE
     }
 };
 
@@ -137,14 +144,23 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
     
     if (dwStyle & WS_CAPTION)
     {
-        HFONT guiFont = GetGuiFont();
+        HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
         HFONT hOldFont = SelectObject(hdc, guiFont);
 
-        WCHAR szTitle[MAX_PATH];
-        int chLen = GetWindowText(pFloatingWindowContainer->hWndChild, szTitle, MAX_PATH);
+        size_t nTextLen = GetWindowTextLength(pFloatingWindowContainer);
+        if (nTextLen)
+        {
+            PWSTR pszTitle = (PWSTR)malloc((nTextLen + 1) * sizeof(WCHAR));
+            ASSERT(pszTitle);
 
-        TextOut(hdc, g_borderSize, g_borderSize, szTitle, chLen);
-        SelectObject(hdc, hOldFont);
+            int chLen = GetWindowText(pFloatingWindowContainer->hWndChild, pszTitle, MAX_PATH);
+
+            pszTitle[nTextLen] = L'\0';
+
+            TextOut(hdc, g_borderSize, g_borderSize, pszTitle, chLen);
+            SelectObject(hdc, hOldFont);
+            free(pszTitle);
+        }
 
         int l = g_borderSize;
         for (int i = 0; i < ARRAYSIZE(g_captionButtons); ++i)
@@ -158,7 +174,7 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
         for (int i = ARRAYSIZE(g_captionButtons) - 1; i >= 0; --i)
         {
             CaptionButton* pCaptionButton = &g_captionButtons[i];
-            DrawCaptionButton(pCaptionButton, hdc, rc.right - l - g_borderSize + ix, g_borderSize);
+            DrawCaptionButton(pCaptionButton, hdc, rc.right - l - g_borderSize + ix, g_borderSize, pCaptionButton->size.cx, pCaptionButton->size.cy);
 
             ix += pCaptionButton->size.cx + 3;
         }
@@ -176,19 +192,17 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
 
     if (dwStyle & WS_CAPTION)
     {
-        if (x >= windowRect.right - 3 - 14 && x < windowRect.right - 3 && y >= windowRect.top + 3 && y < windowRect.top + 3 + 14)
+        int ix = g_borderSize;
+        for (int i = 0; i < ARRAYSIZE(g_captionButtons); i++)
         {
-            return HTCLOSE;
-        }
+            CaptionButton* pCaptionButton = &g_captionButtons[i];
 
-        if (x >= windowRect.right - 3 - 14 - 3 - 14 && x < windowRect.right - 3 - 14 - 3 && y >= windowRect.top + 3 && y < windowRect.top + 3 + 14)
-        {
-            return HTCLIENT;
-        }
+            if (x >= windowRect.right - ix - pCaptionButton->size.cx && x < windowRect.right - ix && y >= windowRect.top + 3 && y < windowRect.top + 3 + pCaptionButton->size.cy)
+            {
+                return pCaptionButton->htCommand;
+            }
 
-        if (x >= windowRect.right - 3 - 14 - 3 - 14 - 3 - 14 && x < windowRect.right - 3 - 14 - 3 - 14 - 3 && y >= windowRect.top + 3 && y < windowRect.top + 3 + 14)
-        {
-            return HTMINBUTTON;
+            ix += pCaptionButton->size.cx + 3;
         }
 
         if (x >= windowRect.left + g_borderSize && y >= windowRect.top + g_borderSize && x < windowRect.right - g_borderSize && y < windowRect.top + g_captionHeight + g_borderSize)
@@ -196,8 +210,6 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
             return HTCAPTION;
         }
     }
-
-
 
     if (dwStyle & WS_THICKFRAME)
     {
@@ -329,6 +341,7 @@ void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 
 
 #define IDM_UNPIN 1001
+#define IDM_CLOSE 1002
 
 LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
@@ -337,8 +350,19 @@ LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloati
 
     if (hitTestVal == HTCLOSE)
     {
+        Window_Destroy(pFloatingWindowContainer);
+        return TRUE;
+    }
+    else if (hitTestVal == HTPIN)
+    {
+        SendMessage(pFloatingWindowContainer->base.hWnd, WM_COMMAND, MAKEWPARAM(IDM_UNPIN, 0), NULL);
+        return TRUE;
+    }
+    else if (hitTestVal == HTMORE)
+    {
         HMENU hPopup = CreatePopupMenu();
-        InsertMenuW(hPopup, 0, 0, IDM_UNPIN, L"Unpin");
+        InsertMenu(hPopup, 0, 0, IDM_UNPIN, L"Unpin");
+        InsertMenu(hPopup, 0, 0, IDM_CLOSE, L"Close");
 
         TrackPopupMenu(hPopup, 0, x, y, 0, pFloatingWindowContainer->base.hWnd, NULL);
         return TRUE;
@@ -365,12 +389,34 @@ LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloati
 
 void FloatingWindowContainer_OnUnpinCommand(FloatingWindowContainer* pFloatingWindowContainer)
 {
-    SetParent(pFloatingWindowContainer->base.hWnd, NULL);
+    if (pFloatingWindowContainer->bPinned)
+    {
+        HWND hWndPrevParent = SetParent(pFloatingWindowContainer->base.hWnd, NULL);
+        pFloatingWindowContainer->hWndPrevParent = hWndPrevParent;
+        
+        DWORD dwStyle = Window_GetStyle((Window*)pFloatingWindowContainer);
+        dwStyle &= ~WS_CHILD;
+        dwStyle |= WS_OVERLAPPED | WS_THICKFRAME;
+        Window_SetStyle((Window*)pFloatingWindowContainer, dwStyle);
 
-    DWORD dwStyle = Window_GetStyle((Window *)pFloatingWindowContainer);
-    dwStyle &= ~WS_CHILD;
-    dwStyle |= WS_OVERLAPPED | WS_THICKFRAME;
-    Window_SetStyle((Window *)pFloatingWindowContainer, dwStyle);
+        pFloatingWindowContainer->bPinned = FALSE;
+        return;
+    }
+
+    ASSERT(pFloatingWindowContainer->hWndPrevParent);
+    SetParent(pFloatingWindowContainer->base.hWnd, pFloatingWindowContainer->hWndPrevParent);
+
+    DWORD dwStyle = Window_GetStyle((Window*)pFloatingWindowContainer);
+    dwStyle &= ~(WS_OVERLAPPED | WS_THICKFRAME);
+    dwStyle |= WS_CHILD;
+    Window_SetStyle((Window*)pFloatingWindowContainer, dwStyle);
+
+    pFloatingWindowContainer->bPinned = TRUE;    
+}
+
+void FloatingWindowContainer_OnCloseCommand(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    Window_Destroy(pFloatingWindowContainer);
 }
 
 LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
@@ -433,6 +479,13 @@ LRESULT FloatingWindowContainer_OnCommand(FloatingWindowContainer* pFloatingWind
     case IDM_UNPIN:
     {
         FloatingWindowContainer_OnUnpinCommand(pFloatingWindowContainer);
+    }
+        return 0;
+        break;
+
+    case IDM_CLOSE:
+    {
+        FloatingWindowContainer_OnCloseCommand(pFloatingWindowContainer);
     }
         return 0;
         break;
@@ -565,13 +618,16 @@ void FloatingWindowContainer_PinWindow(FloatingWindowContainer* pFloatingWindowC
         RECT rcClient;
         GetClientRect(hWnd, &rcClient);
 
-        SetParent(hWndChild, hWnd);
+        HWND hWndPrevParent = SetParent(hWndChild, hWnd);
+        pFloatingWindowContainer->hWndPrevParent = hWndPrevParent;
+
         DWORD dwStyle = GetWindowStyle(hWndChild);
         dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
         dwStyle |= WS_CHILD;
         SetWindowLongPtr(hWndChild, GWL_STYLE, dwStyle);
         
         pFloatingWindowContainer->hWndChild = hWndChild;
+        pFloatingWindowContainer->bPinned = TRUE;
 
         SetWindowPos(hWndChild, NULL, 0, 0, rcClient.right, rcClient.bottom, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
         UpdateWindow(hWnd);

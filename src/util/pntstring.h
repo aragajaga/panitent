@@ -81,9 +81,25 @@ int PntString_CompareWithAnother(const PntString* pPntString, const PntString* p
 
 /**
  * [PUBLIC]
+ * 
+ * Resize the string buffer
+ * 
+ * @param pPntString PntString instance
+ */
+void PntString_Resize(PntString* pPntString, size_t nSize);
+
+/**
+ * [PUBLIC]
  *
  * Destroy the PntString object and it's internal buffer
  *
  * @param pPntString PntString instance
  */
 void PntString_Destroy(PntString* pPntString);
+
+/**
+ * [PUBLIC]
+ * 
+ * @param pPntString PntString instance
+ */
+void* PntString_GetBuffer(PntString* pPntString);

@@ -4,12 +4,8 @@
 
 #include "win32/util.h"
 
-#include "panitent.h"
 #include <commctrl.h>
 #include <windowsx.h>
-#include "primitives_context.h"
-#include "wu_primitives.h"
-#include "bresenham.h"
 #include "swatch.h"
 #include "brush.h"
 #include <assert.h>
@@ -18,6 +14,8 @@
 #include "resource.h"
 #include <math.h>
 #include <strsafe.h>
+
+#include "panitentapp.h"
 
 static const WCHAR szClassName[] = L"__OptionBarWindow";
 
@@ -101,7 +99,7 @@ void BrushSel_OnPaint(HWND hwnd)
 	RECT clientRc = { 0 };
 	GetClientRect(hwnd, &clientRc);
 
-	HFONT hFont = GetGuiFont();
+	HFONT hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
 	hOldObj = SelectObject(hdc, hFont);
 
 	WCHAR szBrushSize[4];
@@ -188,15 +186,18 @@ BOOL BrushSel_RegisterClass(HINSTANCE hInstance)
 
 LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wparam, LPARAM lparam)
 {
+	/*
+	primitives_context_t* primitivesContext = PanitentApp_GetPrimitivesContext(PanitentApp_Instance());
+
 	if (HIWORD(wparam) == BN_CLICKED)
 	{
 		switch (LOWORD(wparam))
 		{
 		case IDB_SHAPESTROKE:
-			g_primitives_context.fStroke = Button_GetCheck((HWND)lparam);
+			primitivesContext->fStroke = Button_GetCheck((HWND)lparam);
 			break;
 		case IDB_SHAPEFILL:
-			g_primitives_context.fFill = Button_GetCheck((HWND)lparam);
+			primitivesContext->fFill = Button_GetCheck((HWND)lparam);
 			break;
 		}
 	}
@@ -212,10 +213,10 @@ LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wpar
 		switch (ComboBox_GetCurSel((HWND)lparam))
 		{
 		case 0:
-			g_primitives_context = g_bresenham_primitives;
+			PanitentApp_SetPrimitivesContext(PanitentApp_Instance(), &g_bresenham_primitives);
 			break;
 		case 1:
-			g_primitives_context = g_wu_primitives;
+			PanitentApp_SetPrimitivesContext(PanitentApp_Instance(), &g_wu_primitives);
 			break;
 		}
 		break;
@@ -232,12 +233,16 @@ LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wpar
 			break;
 		}
 	}
+	*/
 
 	return 0;
 }
 
 BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT lpcs)
 {
+	/*
+	primitives_context_t* primitivesContext = PanitentApp_GetPrimitivesContext(PanitentApp_Instance());
+
 	HWND hWnd = Window_GetHWND((Window *)pOptionBarWindow);
 
 	HWND hCheckStroke = CreateWindowEx(0, WC_BUTTON, L"Stroke",
@@ -245,14 +250,14 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		4, 3, 70, 20, hWnd, (HMENU)IDB_SHAPESTROKE, GetModuleHandle(NULL),
 		NULL);
 	Win32_ApplyUIFont(hCheckStroke);
-	Button_SetCheck(hCheckStroke, g_primitives_context.fStroke);
+	Button_SetCheck(hCheckStroke, primitivesContext->fStroke);
 
 	HWND hCheckFill = CreateWindowEx(0, WC_BUTTON, L"Fill",
 		BS_AUTOCHECKBOX | WS_CHILD | WS_VISIBLE,
 		74, 3, 70, 20, hWnd, (HMENU)IDB_SHAPEFILL, GetModuleHandle(NULL),
 		NULL);
 	Win32_ApplyUIFont(hCheckFill);
-	Button_SetCheck(hCheckFill, g_primitives_context.fFill);
+	Button_SetCheck(hCheckFill, primitivesContext->fFill);
 
 	HWND hcombo = CreateWindowEx(0, WC_COMBOBOX, L"",
 		CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
@@ -298,6 +303,7 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		WS_BORDER | WS_CHILD | WS_VISIBLE,
 		526, 0, 64, 24,
 		hWnd, NULL, GetModuleHandle(NULL), NULL);
+		*/
 }
 
 LRESULT OptionBarWindow_UserProc(OptionBarWindow* pOptionBarWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -622,9 +628,9 @@ void OptionBarWindow_PreCreate(LPCREATESTRUCT lpcs)
 	lpcs->cy = 200;
 }
 
-void OptionBarWindow_Init(OptionBarWindow* pOptionBarWindow, struct Application* app)
+void OptionBarWindow_Init(OptionBarWindow* pOptionBarWindow)
 {
-	Window_Init(&pOptionBarWindow->base, app);
+	Window_Init(&pOptionBarWindow->base);
 
 	pOptionBarWindow->base.szClassName = szClassName;
 
@@ -637,14 +643,14 @@ void OptionBarWindow_Init(OptionBarWindow* pOptionBarWindow, struct Application*
 	_WindowInitHelper_SetUserProcRoutine((Window *)pOptionBarWindow, (FnWindowUserProc)OptionBarWindow_UserProc);
 }
 
-OptionBarWindow* OptionBarWindow_Create(struct Application* app)
+OptionBarWindow* OptionBarWindow_Create()
 {
 	OptionBarWindow* pOptionBarWindow = (OptionBarWindow*)malloc(sizeof(OptionBarWindow));
 	memset(pOptionBarWindow, 0, sizeof(OptionBarWindow));
 
 	if (pOptionBarWindow)
 	{
-		OptionBarWindow_Init(pOptionBarWindow, app);
+		OptionBarWindow_Init(pOptionBarWindow);
 	}
 
 	return pOptionBarWindow;

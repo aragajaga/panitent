@@ -2,8 +2,10 @@
 
 #include "dockhost.h"
 
-typedef struct PanitentWindow PanitentWindow;
+typedef struct PanitentApp PanitentApp;
+typedef struct MSTheme MSTheme;
 
+typedef struct PanitentWindow PanitentWindow;
 struct PanitentWindow
 {
 	Window base;
@@ -15,6 +17,8 @@ struct PanitentWindow
 	TreeNode* m_viewportNode;
 	BOOL fCallDWP;
 	BOOL bCustomFrame;
+
+	MSTheme* m_pMSTheme;
 };
 
-PanitentWindow* PanitentWindow_Create(struct Application*);
+PanitentWindow* PanitentWindow_Create();

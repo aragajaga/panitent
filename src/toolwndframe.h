@@ -15,6 +15,7 @@ typedef struct CaptionButton CaptionButton;
 struct CaptionButton {
     SIZE size;
     int glyph;
+    int htCommand;
 };
 
 void DrawCaptionGlyph(HDC hdc, int x, int y, int iGlyph);

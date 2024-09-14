@@ -206,19 +206,35 @@ void pntmap$$##NAME_add_pair(pntmap$$##NAME* map, T1 el1, T2 el2) { \
 
 inline int __float2int_s_check_safecast(float val)
 {
-  return isfinite(val) && val >= INT_MIN && val <= INT_MAX;
+    return isfinite(val) && val >= INT_MIN && val <= INT_MAX;
 }
 
 inline int float2int_s(int* i, float val)
 {
-  int bsafe = __float2int_s_check_safecast(val);
+    int bsafe = __float2int_s_check_safecast(val);
 
-  assert(bsafe && L"float2int_s: Can't cast to int");
+    assert(bsafe && L"float2int_s: Can't cast to int");
 
-  *i = bsafe ? (int)val : 0;
-  return bsafe;
+    *i = bsafe ? (int)val : 0;
+    return bsafe;
 }
 
 uint32_t ABGRToARGB(uint32_t abgr);
+
+inline int sign(int x)
+{
+    if (x > 0)
+    {
+        return 1;
+    }
+    else if (x < 0)
+    {
+        return -1;
+    }
+    else
+    {
+        return 0;
+    }
+}
 
 #endif  /* PANITENT_UTIL_H_ */

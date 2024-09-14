@@ -294,9 +294,9 @@ void LayeredWindow_OnPaint(LayeredWindow* window)
     EndPaint(hWnd, &ps);
 }
 
-void LayeredWindow_Init(LayeredWindow* pLayeredWindow, struct Application* app)
+void LayeredWindow_Init(LayeredWindow* pLayeredWindow)
 {
-    Window_Init(&pLayeredWindow->base, app);
+    Window_Init(&pLayeredWindow->base);
 
     pLayeredWindow->base.szClassName = szClassName;
 
@@ -311,14 +311,14 @@ void LayeredWindow_Init(LayeredWindow* pLayeredWindow, struct Application* app)
     pLayeredWindow->iHover = -1;
 }
 
-LayeredWindow* LayeredWindow_Create(struct Application* app)
+LayeredWindow* LayeredWindow_Create()
 {
     LayeredWindow* pLayeredWindow = (LayeredWindow*)malloc(sizeof(LayeredWindow));
     memset(pLayeredWindow, 0, sizeof(LayeredWindow));
 
     if (pLayeredWindow)
     {
-        LayeredWindow_Init(pLayeredWindow, app);
+        LayeredWindow_Init(pLayeredWindow);
     }
 
     return pLayeredWindow;

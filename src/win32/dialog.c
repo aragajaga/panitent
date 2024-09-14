@@ -5,8 +5,8 @@
 
 extern HashMap g_hWndMap;
 
-Dialog* Dialog_Create(Application* pApp);
-void Dialog_Init(Dialog* pDialog, Application* pApp);
+Dialog* Dialog_Create();
+void Dialog_Init(Dialog* pDialog);
 INT_PTR Dialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR Dialog_DefaultDialogProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR CALLBACK Dialog_DialogProcStatic(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
@@ -19,12 +19,12 @@ BOOL Dialog_OnCommand(Dialog* pDialog, WPARAM wParam, LPARAM lParam)
     return FALSE;
 }
 
-void Dialog_OnInitDialog(Dialog* pDialog)
+BOOL Dialog_OnInitDialog(Dialog* pDialog)
 {
-    return;
+    return FALSE;
 }
 
-Dialog* Dialog_Create(Application* pApp)
+Dialog* Dialog_Create()
 {
     Dialog* pDialog = (Dialog*)malloc(sizeof(Dialog));
     
@@ -32,15 +32,15 @@ Dialog* Dialog_Create(Application* pApp)
     {
         memset(pDialog, 0, sizeof(Dialog));
 
-        Dialog_Init(pDialog, pApp);
+        Dialog_Init(pDialog);
     }
 
     return pDialog;
 }
 
-void Dialog_Init(Dialog* pDialog, Application* pApp)
+void Dialog_Init(Dialog* pDialog)
 {
-    Window_Init((Window *)pDialog, pApp);
+    Window_Init((Window *)pDialog);
 
     pDialog->base.OnCommand = Dialog_OnCommand;
     pDialog->DlgUserProc = Dialog_DlgUserProc;
@@ -120,7 +120,7 @@ INT_PTR Dialog_CreateWindow(Dialog* pDialog, UINT uResourceId, HWND hWndParent, 
     if (bModal)
     {
         INT_PTR result = DialogBoxParam(GetModuleHandle(NULL), MAKEINTRESOURCE(uResourceId), hWndParent, Dialog_DialogProcStatic, (LPARAM)pDialog);
-        pDialog->base.hWnd = NULL;
+        // pDialog->base.hWnd = NULL;
         g_pCurrentDialog = NULL;
 
         return result;

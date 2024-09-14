@@ -7,33 +7,44 @@ void Application_Init(Application*);
 
 int Application_Run(Application*);
 
-Application* Application_Create()
+void Application_InitCommonControls()
 {
-  Application* app = (Application*)malloc(sizeof(Application));
-  memset(app, 0, sizeof(Application));
-  Application_Init(app);
-  return app;
+    INITCOMMONCONTROLSEX iccex = { 0 };
+    iccex.dwSize = sizeof(INITCOMMONCONTROLSEX);
+    iccex.dwICC = ICC_TREEVIEW_CLASSES;
+    InitCommonControlsEx(&iccex);
 }
 
-void Application_Init(Application* app)
+Application* Application_Create()
 {
-  INITCOMMONCONTROLSEX iccex = { 0 };
-  iccex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-  iccex.dwICC = ICC_TREEVIEW_CLASSES;
-  InitCommonControlsEx(&iccex);
+    Application* pApplication = (Application*)malloc(sizeof(Application));
+    
+    if (pApplication)
+    {
+        Application_Init(pApplication);
+    }
+    
+    return pApplication;
+}
 
-  app->hInstance = GetModuleHandle(NULL);
+void Application_Init(Application* pApplication)
+{
+    memset(pApplication, 0, sizeof(Application));
+
+    Application_InitCommonControls();
+
+    pApplication->hInstance = GetModuleHandle(NULL);
 }
 
 int Application_Run(Application* app)
 {
-  MSG msg = { 0 };
+    MSG msg = { 0 };
 
-  while (GetMessage(&msg, NULL, 0, 0))
-  {
-    TranslateMessage(&msg);
-    DispatchMessage(&msg);
-  }
+    while (GetMessage(&msg, NULL, 0, 0))
+    {
+        TranslateMessage(&msg);
+        DispatchMessage(&msg);
+    }
 
-  return (int) msg.wParam;
+    return (int)msg.wParam;
 }

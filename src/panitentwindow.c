@@ -7,7 +7,6 @@
 
 #include "history.h"
 #include "resource.h"
-#include "panitent.h"
 #include "log.h"
 #include "aboutbox.h"
 #include "log_window.h"
@@ -20,13 +19,18 @@
 #include <Uxtheme.h>
 #include <Vssym32.h>
 
+#include "panitentapp.h"
+#include "msthemeloader.h"
+#include <tchar.h>
+#include "rbhashmapviz.h"
+
 static const WCHAR szClassName[] = L"__PanitentWindow";
 
 /* Private forward declarations */
 void PanitentWindow_PaintCustomCaption(PanitentWindow* pPanitentWindow, HDC hdc);
 
-PanitentWindow* PanitentWindow_Create(struct Application*);
-void PanitentWindow_Init(PanitentWindow*, struct Application*);
+PanitentWindow* PanitentWindow_Create();
+void PanitentWindow_Init(PanitentWindow* pPanitentWindow);
 
 void PanitentWindow_PreRegister(LPWNDCLASSEX);
 void PanitentWindow_PreCreate(LPCREATESTRUCT);
@@ -46,22 +50,22 @@ LRESULT PanitentWindow_OnNCHitTest(PanitentWindow* pPanitentWindow, int x, int y
 LRESULT PanitentWindow_OnNCPaint(PanitentWindow* pPanitentWindow, HRGN hrgn);
 LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-PanitentWindow* PanitentWindow_Create(struct Application* app)
+PanitentWindow* PanitentWindow_Create()
 {
     PanitentWindow* pPanitentWindow = malloc(sizeof(PanitentWindow));
 
     if (pPanitentWindow)
     {
         memset(pPanitentWindow, 0, sizeof(PanitentWindow));
-        PanitentWindow_Init(pPanitentWindow, app);
+        PanitentWindow_Init(pPanitentWindow);
     }
 
     return pPanitentWindow;
 }
 
-void PanitentWindow_Init(PanitentWindow* pPanitentWindow, struct Application* app)
+void PanitentWindow_Init(PanitentWindow* pPanitentWindow)
 {
-    Window_Init(&pPanitentWindow->base, app);
+    Window_Init(&pPanitentWindow->base);
 
     pPanitentWindow->base.szClassName = szClassName;
 
@@ -75,7 +79,9 @@ void PanitentWindow_Init(PanitentWindow* pPanitentWindow, struct Application* ap
     pPanitentWindow->base.PostCreate = (FnWindowPostCreate)PanitentWindow_PostCreate;
 
     pPanitentWindow->fCallDWP = FALSE;
-    pPanitentWindow->bCustomFrame = TRUE;
+    pPanitentWindow->bCustomFrame = FALSE;
+
+    pPanitentWindow->m_pMSTheme = MSTheme_Create(L"C:\\Users\\User\\Desktop\\luna.dll");
 }
 
 void PanitentWindow_PreRegister(LPWNDCLASSEX lpwcex)
@@ -122,9 +128,9 @@ void PanitentWindow_OnContextMenu(PanitentWindow* window, int x, int y)
     UNREFERENCED_PARAMETER(y);
 }
 
-void PanitentWindow_OnDestroy(PanitentWindow* window)
+void PanitentWindow_OnDestroy(PanitentWindow* pPanitentWindow)
 {
-    UNREFERENCED_PARAMETER(window);
+    MSTheme_Destroy(pPanitentWindow->m_pMSTheme);
 }
 
 void PanitentWindow_OnSize(PanitentWindow* pPanitentWindow, UINT state, int cx, int cy)
@@ -319,6 +325,15 @@ LRESULT PanitentWindow_OnNCPaint(PanitentWindow* pPanitentWindow, HRGN hrgn)
 
     Rectangle(hdc, rcWindow.right - 48 - 8, rcWindow.top, rcWindow.right - 8, rcWindow.top + 24);
 
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_CLOSEBUTTON_BMP"), rcWindow.right - 21 - 8, rcWindow.top + 8);
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_CLOSEGLYPH_BMP"), rcWindow.right - 21 - 8 + 4, rcWindow.top + 8 + 4);
+
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_CAPTIONBUTTON_BMP"), rcWindow.right - 21 - 21 - 8 - 2, rcWindow.top + 8);
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_MAXIMIZEGLYPH_BMP"), rcWindow.right - 21 - 21 - 8 + 4 - 2, rcWindow.top + 8 + 4);
+
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_CAPTIONBUTTON_BMP"), rcWindow.right - 21 - 21 - 21 - 8 - 4, rcWindow.top + 8);
+    MSTheme_DrawAnything(pPanitentWindow->m_pMSTheme, hdc, _T("BLUE_MINIMIZEGLYPH_BMP"), rcWindow.right - 21 - 21 - 21 - 8 + 4 - 4, rcWindow.top + 8 + 4);
+
     return 0;
 }
 
@@ -328,6 +343,8 @@ enum {
     IDM_FILE_OPEN,
     IDM_FILE_SAVE,
     IDM_FILE_CLIPBOARD_EXPORT,
+    IDM_FILE_BINVIEW,
+    IDM_FILE_RUN_SCRIPT,
     IDM_FILE_CLOSE,
 
     IDM_EDIT_UNDO,
@@ -342,7 +359,9 @@ enum {
 
     IDM_HELP_TOPICS,
     IDM_HELP_LOG,
-    IDM_HELP_ABOUT
+    IDM_HELP_RBTREEVIZ,
+    IDM_HELP_ABOUT,
+    IDM_HELP_DISPLAYPIXELBUFFER
 };
 
 HMENU PanitentWindow_CreateMenu()
@@ -357,6 +376,7 @@ HMENU PanitentWindow_CreateMenu()
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open\tCtrl+O");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save\tCtrl+S");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLIPBOARD_EXPORT, L"Export image to clipboard");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_BINVIEW, L"BinView");
     AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
 
@@ -365,6 +385,11 @@ HMENU PanitentWindow_CreateMenu()
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
     AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
+
+    hSubMenu = CreatePopupMenu();
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_RUN_SCRIPT, L"Run last script");
+    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_RUN_SCRIPT, L"Run script...");
+    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Scripting");
 
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
@@ -380,7 +405,9 @@ HMENU PanitentWindow_CreateMenu()
     hSubMenu = CreatePopupMenu();
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_LOG, L"&Log");
+    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_RBTREEVIZ, L"&RBTreeViz");
     AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
+    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_DISPLAYPIXELBUFFER, L"&Display pixel buffer");
     AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
 
     return hMenu;
@@ -392,20 +419,27 @@ LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam,
     switch (LOWORD(wParam))
     {
     case IDM_FILE_NEW:
-        LogMessage(LOGENTRY_TYPE_INFO, L"MAIN", L"New File menu issued");
-        NewFileDialog(Window_GetHWND((Window *)pPanitentWindow));
+        PanitentApp_CmdNewFile(PanitentApp_Instance());
         break;
 
     case IDM_FILE_OPEN:
-        Panitent_Open();
+        PanitentApp_CmdOpenFile(PanitentApp_Instance());
         break;
 
     case IDM_FILE_SAVE:
-        Panitent_CmdSaveFile((struct PanitentApplication *)pPanitentWindow->base.app);
+        PanitentApp_CmdSaveFile(PanitentApp_Instance());
         break;
 
     case IDM_FILE_CLIPBOARD_EXPORT:
-        Panitent_ClipboardExport();
+        PanitentApp_CmdClipboardExport(PanitentApp_Instance());
+        break;
+
+    case IDM_FILE_BINVIEW:
+        PanitentApp_CmdBinView(PanitentApp_Instance());
+        break;
+
+    case IDM_FILE_RUN_SCRIPT:
+        PanitentApp_CmdRunScript(PanitentApp_Instance());
         break;
 
     case IDM_FILE_CLOSE:
@@ -413,40 +447,43 @@ LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam,
         break;
 
     case IDM_EDIT_UNDO:
-        History_Undo(Panitent_GetActiveDocument());
+        History_Undo(PanitentApp_GetActiveDocument(PanitentApp_Instance()));
         break;
 
     case IDM_EDIT_REDO:
-        History_Redo(Panitent_GetActiveDocument());
+        History_Redo(PanitentApp_GetActiveDocument(PanitentApp_Instance()));
         break;
 
     case IDM_EDIT_CLRCANVAS:
-        Panitent_CmdClearCanvas((PanitentApplication*)pPanitentWindow->base.app);
+        PanitentApp_CmdClearCanvas(PanitentApp_Instance());
         break;
 
     case IDM_WINDOW_ACTIVITY_DIALOG:
-        Panitent_CmdShowActivityDialog((PanitentApplication*)pPanitentWindow->base.app);
+        PanitentApp_CmdShowActivityDialog(PanitentApp_Instance());
         break;
 
     case IDM_WINDOW_PROPERTY_GRID:
-        Panitent_CmdShowPropertyGridDialog((PanitentApplication*)pPanitentWindow->base.app);
+        PanitentApp_CmdShowPropertyGridDialog(PanitentApp_Instance());
         break;
 
     case IDM_OPTIONS_SETTINGS:
-        ShowSettingsWindow(Window_GetHWND((Window *)pPanitentWindow));
+        PanitentApp_CmdShowSettings(PanitentApp_Instance());
         break;
 
     case IDM_HELP_LOG:
-        {
-        LogWindow* pLogWindow = (LogWindow*)LogWindow_Create(pPanitentWindow->base.app);
-        Window_CreateWindow((Window*)pLogWindow, NULL);
-        Window_Show((Window*)pLogWindow, SW_SHOW);
-        }
+        PanitentApp_CmdShowLog(PanitentApp_Instance());
+        break;
+
+    case IDM_HELP_RBTREEVIZ:
+        PanitentApp_CmdShowRbTreeViz(PanitentApp_Instance());
         break;
 
     case IDM_HELP_ABOUT:
         AboutBox_Run(Window_GetHWND((Window *)pPanitentWindow));
         break;
+
+    case IDM_HELP_DISPLAYPIXELBUFFER:
+        PanitentApp_CmdDisplayPixelBuffer(PanitentApp_Instance());
     }
 
     return 0;
@@ -513,7 +550,7 @@ void PanitentWindow_PreCreate(LPCREATESTRUCT lpcs)
     lpcs->dwExStyle = 0;
     lpcs->lpszClass = szClassName;
     lpcs->lpszName = L"Panit.ent";
-    lpcs->style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    lpcs->style = WS_THICKFRAME | WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_VISIBLE;
     lpcs->x = CW_USEDEFAULT;
     lpcs->y = CW_USEDEFAULT;
     lpcs->cx = CW_USEDEFAULT;
@@ -540,7 +577,7 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     SetMenu(hWnd, PanitentWindow_CreateMenu());
 
     /* Allocate dockhost window data structure */
-    DockHostWindow* pDockHostWindow = DockHostWindow_Create(pPanitentWindow->base.app);
+    DockHostWindow* pDockHostWindow = DockHostWindow_Create(PanitentApp_Instance());
     Window_CreateWindow((Window *)pDockHostWindow, hWnd);
     pPanitentWindow->m_pDockHostWindow = pDockHostWindow;
 
@@ -556,7 +593,8 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
 
     DockHostWindow_SetRoot(pDockHostWindow, pRoot);
 
-    Panitent_DockHostInit(pDockHostWindow, pRoot);
+    // Panitent_DockHostInit(pDockHostWindow, pRoot);
+    PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow, pRoot);
 
     Win32_FitChild((Window*)pDockHostWindow, (Window*)pPanitentWindow);
 }

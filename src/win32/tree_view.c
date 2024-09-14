@@ -3,9 +3,9 @@
 void TreeViewCtl_PreCreate(TreeViewCtl*);
 BOOL TreeViewCtl_OnCreate(TreeViewCtl*, LPCREATESTRUCT);
 
-void TreeViewCtl_Init(TreeViewCtl* window, struct Application* app)
+void TreeViewCtl_Init(TreeViewCtl* window)
 {
-  Window_Init(&window->base, app);
+  Window_Init(&window->base);
 
   window->base.PreRegister = NULL;
   window->base.PreCreate = TreeViewCtl_PreCreate;
@@ -13,13 +13,13 @@ void TreeViewCtl_Init(TreeViewCtl* window, struct Application* app)
   window->base.OnCreate = TreeViewCtl_OnCreate;
 }
 
-TreeViewCtl* TreeViewCtl_Create(struct Application* app)
+TreeViewCtl* TreeViewCtl_Create()
 {
   TreeViewCtl* pTreeViewCtl = (TreeViewCtl*)malloc(sizeof(TreeViewCtl));
   memset(pTreeViewCtl, 0, sizeof(TreeViewCtl));
   if (pTreeViewCtl)
   {
-    TreeViewCtl_Init(pTreeViewCtl, app);
+    TreeViewCtl_Init(pTreeViewCtl);
   }
 
   return pTreeViewCtl;

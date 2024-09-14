@@ -17,8 +17,8 @@ typedef struct _tagLOGWINDOWDATA {
 static const WCHAR szClassName[] = L"Win32Class_LogWindow";
 
 /* Private forward declarations */
-LogWindow* LogWindow_Create(Application* pApplication);
-void LogWindow_Init(LogWindow* pLogWindow, Application* pApplication);
+LogWindow* LogWindow_Create();
+void LogWindow_Init(LogWindow* pLogWindow);
 
 void LogWindow_PreRegister(LPWNDCLASSEX lpwcex);
 void LogWindow_PreCreate(LPCREATESTRUCT lpcs);
@@ -33,20 +33,20 @@ LRESULT LogWindow_UserProc(LogWindow* pLogWindow, HWND hWnd, UINT message, WPARA
 
 void LogWindow_LogEventObserverCallback(LPLOGEVENT lEvent);
 
-LogWindow* LogWindow_Create(Application* pApplication)
+LogWindow* LogWindow_Create()
 {
     LogWindow* pLogWindow = (LogWindow*)malloc(sizeof(LogWindow));
 
     if (pLogWindow)
     {
         memset(pLogWindow, 0, sizeof(LogWindow));
-        LogWindow_Init(pLogWindow, pApplication);
+        LogWindow_Init(pLogWindow);
     }
 }
 
-void LogWindow_Init(LogWindow* pLogWindow, Application* pApplication)
+void LogWindow_Init(LogWindow* pLogWindow)
 {
-    Window_Init(&pLogWindow->base, pApplication);
+    Window_Init(&pLogWindow->base);
 
     pLogWindow->base.OnCreate = (FnWindowOnCreate)LogWindow_OnCreate;
     pLogWindow->base.OnSize = (FnWindowOnSize)LogWindow_OnSize;

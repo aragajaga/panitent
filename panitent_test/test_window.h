@@ -1,8 +1,8 @@
 #ifndef _TEST_WINDOW_H_INCLUDED
 #define _TEST_WINDOW_H_INCLUDED
 
-#include "win32/window.h"
-#include "palette_window.h"
+#include "../src/win32/window.h"
+#include "../src/palette_window.h"
 
 typedef struct TestWindow TestWindow;
 

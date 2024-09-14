@@ -65,3 +65,10 @@ tags
 *.idb
 *.pdb
 /res/floatingglyphs.psd
+
+# Build directory
+/build
+/buildcache
+
+*.vcxproj.user
+

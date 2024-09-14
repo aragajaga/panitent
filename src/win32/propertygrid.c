@@ -3,11 +3,11 @@
 #include "propertygrid.h"
 #include "propertygridimpl.h"
 
-PropertyGridCtl* PropertyGridCtl_Create(Application* pApplication);
-void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl, Application* pApplication);
+PropertyGridCtl* PropertyGridCtl_Create();
+void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl);
 void PropertyGridCtl_PreCreate(LPCREATESTRUCT lpcs);
 
-PropertyGridCtl* PropertyGridCtl_Create(Application* pApplication)
+PropertyGridCtl* PropertyGridCtl_Create()
 {
     PropertyGridCtl* pPropertyGridCtl = (PropertyGridCtl*)malloc(sizeof(PropertyGridCtl));
     memset(pPropertyGridCtl, 0, sizeof(PropertyGridCtl));
@@ -15,17 +15,17 @@ PropertyGridCtl* PropertyGridCtl_Create(Application* pApplication)
     if (pPropertyGridCtl)
     {
         memset(pPropertyGridCtl, 0, sizeof(PropertyGridCtl));
-        PropertyGridCtl_Init(pPropertyGridCtl, pApplication);
+        PropertyGridCtl_Init(pPropertyGridCtl);
     }
 
     return pPropertyGridCtl;
 }
 
-void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl, Application* pApplication)
+void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl)
 {
     InitPropertyGrid(GetModuleHandle(NULL));
 
-    Window_Init((Window*)pPropertyGridCtl, pApplication);
+    Window_Init((Window*)pPropertyGridCtl);
 
     pPropertyGridCtl->base.PreRegister = NULL;
     pPropertyGridCtl->base.PreCreate = PropertyGridCtl_PreCreate;

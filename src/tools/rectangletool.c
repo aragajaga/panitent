@@ -6,7 +6,8 @@
 #include "../document.h"
 #include "../canvas.h"
 #include "../history.h"
-#include "../primitives_context.h"
+#include "../grimstroke/shapecontext.h"
+#include "../panitentapp.h"
 
 RectangleTool* RectangleTool_Create();
 void RectangleTool_Init(RectangleTool* pRectangleTool);
@@ -51,7 +52,9 @@ void RectangleTool_OnLButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pV
 
         Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
         Canvas* pCanvas = Document_GetCanvas(pDocument);
-        draw_rectangle(pCanvas, pRectangleTool->prev.x, pRectangleTool->prev.y, ptCanvas.x, ptCanvas.y);
+
+        ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+        ShapeContext_DrawLine(pShapeContext, pRectangleTool->prev.x, pRectangleTool->prev.y, ptCanvas.x, ptCanvas.y);
     }
     pRectangleTool->fDraw = FALSE;
     ReleaseCapture();

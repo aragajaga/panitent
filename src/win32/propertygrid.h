@@ -8,7 +8,7 @@ struct PropertyGridCtl {
     Window base;
 };
 
-PropertyGridCtl* PropertyGridCtl_Create(Application* pApplication);
-void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl, Application* pApplication);
+PropertyGridCtl* PropertyGridCtl_Create();
+void PropertyGridCtl_Init(PropertyGridCtl* pPropertyGridCtl);
 
 void PropertyGridCtl_PreCreate(LPCREATESTRUCT lpcs);

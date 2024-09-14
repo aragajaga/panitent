@@ -42,7 +42,9 @@ struct DockHostWindow {
 
 extern TreeNode* g_pRoot;
 
-DockHostWindow* DockHostWindow_Create(struct Application* app);
+typedef struct PanitentApp PanitentApp;
+
+DockHostWindow* DockHostWindow_Create(PanitentApp* app);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);

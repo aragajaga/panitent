@@ -5,8 +5,8 @@
 static const WCHAR szClassName[] = L"__ControlLibrary";
 
 /* Private forward declarations */
-ControlLibrary* ControlLibrary_Create(struct Application*);
-void ControlLibrary_Init(ControlLibrary*, struct Application*);
+ControlLibrary* ControlLibrary_Create();
+void ControlLibrary_Init(ControlLibrary*);
 
 void ControlLibrary_PreRegister(LPWNDCLASSEX);
 void ControlLibrary_PreCreate(LPCREATESTRUCT);
@@ -19,22 +19,22 @@ void ControlLibrary_OnContextMenu(ControlLibrary*, int, int);
 void ControlLibrary_OnDestroy(ControlLibrary*);
 LRESULT CALLBACK ControlLibrary_UserProc(ControlLibrary*, HWND hWnd, UINT, WPARAM, LPARAM);
 
-ControlLibrary* ControlLibrary_Create(struct Application* app)
+ControlLibrary* ControlLibrary_Create()
 {
     ControlLibrary* window = (ControlLibrary*)malloc(sizeof(ControlLibrary));
     memset(window, 0, sizeof(ControlLibrary));
 
     if (window)
     {
-        ControlLibrary_Init(window, app);
+        ControlLibrary_Init(window);
     }
 
     return window;
 }
 
-void ControlLibrary_Init(ControlLibrary* window, struct Application* app)
+void ControlLibrary_Init(ControlLibrary* window)
 {
-    Window_Init(&window->base, app);
+    Window_Init(&window->base);
 
     window->base.szClassName = szClassName;
 

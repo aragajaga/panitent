@@ -11,8 +11,9 @@ struct FloatingWindowContainer {
 	BOOL bPinned;
 	BOOL fCaptionUnpinStarted;
 	POINT ptCaptionUnpinStartingPoint;
+	HWND hWndPrevParent;
 	HWND hWndChild;
 };
 
-FloatingWindowContainer* FloatingWindowContainer_Create(Application*);
+FloatingWindowContainer* FloatingWindowContainer_Create();
 void FloatingWindowContainer_PinWindow(FloatingWindowContainer* pFloatingWindowContainer, HWND hWndChild);

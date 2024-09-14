@@ -3,7 +3,6 @@
 
 #include "discordasp.h"
 
-#include "../panitent.h"
 #include "discordsdk.h"
 
 DiscordASP* DiscordASP_Create()

@@ -1,10 +1,10 @@
 #ifndef _TEST_APPLICATION_H
 #define _TEST_APPLICATION_H
 
-#include "win32/application.h"
+#include "../src/win32/application.h"
 #include "test_window.h"
 
-#include "palette.h"
+#include "../src/palette.h"
 
 typedef struct TestApplication TestApplication;
 struct TestApplication {

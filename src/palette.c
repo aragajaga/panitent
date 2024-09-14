@@ -1,10 +1,6 @@
 #include "precomp.h"
 #include "palette.h"
 
-struct Palette {
-    void* _stub;
-};
-
 static uint32_t defaultPaletteColors[] = {
     0xFF000000, /* Black */
     0xFFFFFFFF, /* White */
@@ -108,7 +104,8 @@ size_t Palette_GetSize(Palette* palette)
 {
     if (palette)
     {
-        return kv_size(*palette);
+        // return kv_size(*palette);
+        return 16;
     }
 
     return 0;
@@ -118,7 +115,8 @@ uint32_t Palette_At(Palette* palette, size_t idx)
 {
     if (palette)
     {
-        return kv_a(uint32_t, *palette, idx);
+        // return kv_a(uint32_t, *palette, idx);
+        return 0xFF0000FF;
     }
 
     return 0;

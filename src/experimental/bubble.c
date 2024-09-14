@@ -36,20 +36,20 @@ LRESULT CALLBACK Bubble_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
             L"Local MouseX: = %d\n"
             L"Local MouseY: = %d\n\n"
 
-            L"rcWindow.left = %d\n"
+            L"rcWindow.pLeft = %d\n"
             L"rcWindow.top = %d\n"
-            L"rcWindow.right = %d\n"
+            L"rcWindow.pRight = %d\n"
             L"rcWindow.bottom = %d\n\n"
 
-            L"rcClient.left = %d\n"
+            L"rcClient.pLeft = %d\n"
             L"rcClient.top = %d\n"
-            L"rcClient.right = %d\n"
+            L"rcClient.pRight = %d\n"
             L"rcClient.bottom = %d\n\n"
             
 
-            L"rcTemp.left = %d\n"
+            L"rcTemp.pLeft = %d\n"
             L"rcTemp.top = %d\n"
-            L"rcTemp.right = %d\n"
+            L"rcTemp.pRight = %d\n"
             L"rcTemp.bottom = %d\n",
             ptCursor.x, ptCursor.y,
             g_localCursorPos.x, g_localCursorPos.y,
