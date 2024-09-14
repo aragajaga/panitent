@@ -19,8 +19,8 @@ struct Dialog {
     FnDialogOnInitDialog OnInitDialog;
 };
 
-Dialog* Dialog_Create(Application* pApp);
-void Dialog_Init(Dialog* pDialog, Application* pApp);
+Dialog* Dialog_Create();
+void Dialog_Init(Dialog* pDialog);
 INT_PTR Dialog_DefaultDialogProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
 INT_PTR Dialog_CreateWindow(Dialog* pDialog, UINT uResourceId, HWND hWndParent, BOOL bModal);
 

@@ -27,6 +27,7 @@
     <ClCompile Include="src\palette.c" />
     <ClCompile Include="src\palette_settings_dlg.c" />
     <ClCompile Include="src\palette_window.c" />
+    <ClCompile Include="src\util.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="panitent_test\test_application.h" />
@@ -36,6 +37,7 @@
     <ClInclude Include="src\palette.h" />
     <ClInclude Include="src\palette_settings_dlg.h" />
     <ClInclude Include="src\palette_window.h" />
+    <ClInclude Include="src\util.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="panitent_framework.vcxproj">
@@ -98,6 +100,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)build\msvc-x86_64-debug\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-x86_64-debug\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)build\msvc-x86_64-release\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-x86_64-release\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)build\msvc-i686-release\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-i686-release\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)build\msvc-i686-debug\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-i686-debug\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>

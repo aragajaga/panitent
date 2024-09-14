@@ -7,4 +7,4 @@ struct LayeredWindow {
 	int iHover;
 };
 
-LayeredWindow* LayeredWindow_Create(struct Application* app);
+LayeredWindow* LayeredWindow_Create();

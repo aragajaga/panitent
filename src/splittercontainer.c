@@ -6,8 +6,8 @@
 static const WCHAR szClassName[] = L"__SplitterContainer";
 
 /* Private forward declarations */
-SplitterContainer* SplitterContainer_Create(struct Application*);
-void SplitterContainer_Init(SplitterContainer*, struct Application*);
+SplitterContainer* SplitterContainer_Create();
+void SplitterContainer_Init(SplitterContainer*);
 
 void SplitterContainer_PreRegister(LPWNDCLASSEX);
 void SplitterContainer_PreCreate(LPCREATESTRUCT);
@@ -21,22 +21,22 @@ void SplitterContainer_OnDestroy(SplitterContainer*);
 void SplitterContainer_OnSize(SplitterContainer* window, UINT state, int x, int y);
 LRESULT CALLBACK SplitterContainer_UserProc(SplitterContainer* pSplitterContainer, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-SplitterContainer* SplitterContainer_Create(struct Application* app)
+SplitterContainer* SplitterContainer_Create()
 {
     SplitterContainer* pWindow = (SplitterContainer*)malloc(sizeof(SplitterContainer));
     memset(pWindow, 0, sizeof(SplitterContainer));
 
     if (pWindow)
     {
-        SplitterContainer_Init(pWindow, app);
+        SplitterContainer_Init(pWindow);
     }
 
     return pWindow;
 }
 
-void SplitterContainer_Init(SplitterContainer* window, struct Application* app)
+void SplitterContainer_Init(SplitterContainer* window)
 {
-    Window_Init(&window->base, app);
+    Window_Init(&window->base);
 
     window->base.szClassName = szClassName;
 

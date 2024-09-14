@@ -6,7 +6,8 @@
 #include "../document.h"
 #include "../canvas.h"
 #include "../history.h"
-#include "../primitives_context.h"
+#include "../grimstroke/shapecontext.h"
+#include "../panitentapp.h"
 #include "../util.h"
 
 CircleTool* CircleTool_Create();
@@ -58,7 +59,9 @@ void CircleTool_OnLButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWi
 
         Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
         Canvas* pCanvas = Document_GetCanvas(pDocument);
-        draw_circle(pCanvas, pCircleTool->circCenter.x, pCircleTool->circCenter.y, radius);
+
+        ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+        ShapeContext_DrawCircle(pShapeContext, pCircleTool->circCenter.x, pCircleTool->circCenter.y, radius);
     }
     pCircleTool->fDraw = FALSE;
     ReleaseCapture();

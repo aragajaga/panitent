@@ -25,3 +25,13 @@ typedef struct Window Window;
 void Win32_FitChild(Window* pChildWindow, Window* pParentWindow);
 
 ULONG64 Win32_GetSystemTimeAsUnixTime();
+
+
+inline static void ContractRect(LPRECT lprc, int i)
+{
+    lprc->left += i;
+    lprc->top += i;
+    lprc->right -= i;
+    lprc->bottom -= i;
+}
+

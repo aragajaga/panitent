@@ -9,8 +9,8 @@ struct TreeViewCtl {
   struct Window base;
 };
 
-void TreeViewCtl_Init(TreeViewCtl*, struct Application*);
-TreeViewCtl* TreeViewCtl_Create(struct Application*);
+void TreeViewCtl_Init(TreeViewCtl*);
+TreeViewCtl* TreeViewCtl_Create();
 
 BOOL TreeViewCtl_DeleteAllItems(TreeViewCtl*);
 BOOL TreeViewCtl_DeleteItem(TreeViewCtl*, HTREEITEM);

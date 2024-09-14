@@ -1,314 +1,313 @@
 ﻿#include "precomp.h"
 
-#include "panitent.h"
 #include "flexible.h"
 #include "settings_dialog.h"
 #include "win32util.h"
 
 typedef struct _tagSETTINGSDIALOGDATA {
-  PLAYOUTBOX pRootBox;
-} SETTINGSDIALOGDATA, *PSETTINGSDIALOGDATA;
+    PLAYOUTBOX pRootBox;
+} SETTINGSDIALOGDATA, * PSETTINGSDIALOGDATA;
 
 BOOL LBoxHelper_CreateLabeledEdit(LPCWSTR lpszLabel, HMENU nId,
-    PLAYOUTBOX *ppLayoutBox, HWND hParent)
+    PLAYOUTBOX* ppLayoutBox, HWND hParent)
 {
-  HWND hWndControl;
-  HWND hWndLabel;
-  HINSTANCE hInstance;
+    HWND hWndControl;
+    HWND hWndLabel;
+    HINSTANCE hInstance;
 
-  hInstance = (HINSTANCE) GetWindowLongPtr(hParent, GWLP_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE);
 
-  hWndLabel = CreateWindowEx(0, WC_STATIC, lpszLabel, WS_CHILD | WS_VISIBLE,
-      0, 0, 70, 21, hParent, NULL, hInstance, NULL);
-  assert(hWndLabel);
-  if (!hWndLabel)
-    return FALSE;
-  Win32_ApplyUIFont(hWndLabel);
+    hWndLabel = CreateWindowEx(0, WC_STATIC, lpszLabel, WS_CHILD | WS_VISIBLE,
+        0, 0, 70, 21, hParent, NULL, hInstance, NULL);
+    assert(hWndLabel);
+    if (!hWndLabel)
+        return FALSE;
+    Win32_ApplyUIFont(hWndLabel);
 
-  hWndControl = CreateWindowEx(0, WC_EDIT, NULL,
-      WS_CHILD | WS_BORDER | WS_VISIBLE,
-      0, 0, 70, 21, hParent, nId, hInstance, NULL);
-  assert(hWndControl);
-  if (!hWndControl)
-    return FALSE;
-  Win32_ApplyUIFont(hWndControl);
+    hWndControl = CreateWindowEx(0, WC_EDIT, NULL,
+        WS_CHILD | WS_BORDER | WS_VISIBLE,
+        0, 0, 70, 21, hParent, nId, hInstance, NULL);
+    assert(hWndControl);
+    if (!hWndControl)
+        return FALSE;
+    Win32_ApplyUIFont(hWndControl);
 
-  CreateLayoutBox(ppLayoutBox, hParent);
-  LayoutBox_AddControl(*ppLayoutBox, hWndLabel);
-  LayoutBox_AddControl(*ppLayoutBox, hWndControl);
+    CreateLayoutBox(ppLayoutBox, hParent);
+    LayoutBox_AddControl(*ppLayoutBox, hWndLabel);
+    LayoutBox_AddControl(*ppLayoutBox, hWndControl);
 
-  (*ppLayoutBox)->direction = LAYOUTBOX_HORIZONTAL;
-  (*ppLayoutBox)->spaceBetween = 4;
-  (*ppLayoutBox)->stretch = FALSE;
+    (*ppLayoutBox)->direction = LAYOUTBOX_HORIZONTAL;
+    (*ppLayoutBox)->spaceBetween = 4;
+    (*ppLayoutBox)->stretch = FALSE;
 
-  LayoutBox_SetSize(*ppLayoutBox, 300, 21);
-  LayoutBox_Update(*ppLayoutBox);
+    LayoutBox_SetSize(*ppLayoutBox, 300, 21);
+    LayoutBox_Update(*ppLayoutBox);
 
-  return TRUE;
+    return TRUE;
 }
 
-void BuildWindowInitializationSettingsLayout(PLAYOUTBOX *ppLayoutBox,
+void BuildWindowInitializationSettingsLayout(PLAYOUTBOX* ppLayoutBox,
     HWND hParent)
 {
-  PLAYOUTBOX lpLabelPosX;
-  PLAYOUTBOX lpLabelPosY;
-  PLAYOUTBOX lpLabelWidth;
-  PLAYOUTBOX lpLabelHeight;
+    PLAYOUTBOX lpLabelPosX;
+    PLAYOUTBOX lpLabelPosY;
+    PLAYOUTBOX lpLabelWidth;
+    PLAYOUTBOX lpLabelHeight;
 
-  CreateLayoutBox(ppLayoutBox, hParent);
+    CreateLayoutBox(ppLayoutBox, hParent);
 
-  LBoxHelper_CreateLabeledEdit(L"Position X", (HMENU) 101, &lpLabelPosX,
-      hParent);
-  LayoutBox_AddBox(*ppLayoutBox, lpLabelPosX);
+    LBoxHelper_CreateLabeledEdit(L"Position X", (HMENU)101, &lpLabelPosX,
+        hParent);
+    LayoutBox_AddBox(*ppLayoutBox, lpLabelPosX);
 
-  LBoxHelper_CreateLabeledEdit(L"Position Y", (HMENU) 102, &lpLabelPosY,
-      hParent);
-  LayoutBox_AddBox(*ppLayoutBox, lpLabelPosY);
+    LBoxHelper_CreateLabeledEdit(L"Position Y", (HMENU)102, &lpLabelPosY,
+        hParent);
+    LayoutBox_AddBox(*ppLayoutBox, lpLabelPosY);
 
-  LBoxHelper_CreateLabeledEdit(L"Width", (HMENU) 103, &lpLabelWidth, hParent);
-  LayoutBox_AddBox(*ppLayoutBox, lpLabelWidth);
+    LBoxHelper_CreateLabeledEdit(L"Width", (HMENU)103, &lpLabelWidth, hParent);
+    LayoutBox_AddBox(*ppLayoutBox, lpLabelWidth);
 
-  LBoxHelper_CreateLabeledEdit(L"Height", (HMENU) 104, &lpLabelHeight, hParent);
-  LayoutBox_AddBox(*ppLayoutBox, lpLabelHeight);
+    LBoxHelper_CreateLabeledEdit(L"Height", (HMENU)104, &lpLabelHeight, hParent);
+    LayoutBox_AddBox(*ppLayoutBox, lpLabelHeight);
 
-  (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
-  (*ppLayoutBox)->spaceBetween = 7;
-  (*ppLayoutBox)->stretch = TRUE;
+    (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
+    (*ppLayoutBox)->spaceBetween = 7;
+    (*ppLayoutBox)->stretch = TRUE;
 
-  LayoutBox_SetSize(*ppLayoutBox, 400, 100);
-  LayoutBox_Update(*ppLayoutBox);
+    LayoutBox_SetSize(*ppLayoutBox, 400, 100);
+    LayoutBox_Update(*ppLayoutBox);
 }
 
-void BuildInputSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
+void BuildInputSettingsLayout(PLAYOUTBOX* ppLayoutBox, HWND hParent)
 {
-  HINSTANCE hInstance;
-  HWND hCheckEnablePen;
+    HINSTANCE hInstance;
+    HWND hCheckEnablePen;
 
-  CreateLayoutBox(ppLayoutBox, hParent);
+    CreateLayoutBox(ppLayoutBox, hParent);
 
-  hInstance = (HINSTANCE) GetWindowLongPtr(hParent, GWLP_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE);
 
-  hCheckEnablePen = CreateWindowEx(0, WC_BUTTON, L"Enable pen tablet",
-      WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
-      0, 0, 50, 21,
-      hParent, NULL, hInstance, NULL);
-  assert(hCheckEnablePen);
-  Win32_ApplyUIFont(hCheckEnablePen);
+    hCheckEnablePen = CreateWindowEx(0, WC_BUTTON, L"Enable pen tablet",
+        WS_CHILD | WS_VISIBLE | BS_AUTOCHECKBOX,
+        0, 0, 50, 21,
+        hParent, NULL, hInstance, NULL);
+    assert(hCheckEnablePen);
+    Win32_ApplyUIFont(hCheckEnablePen);
 
-  LayoutBox_AddControl(*ppLayoutBox, hCheckEnablePen);
+    LayoutBox_AddControl(*ppLayoutBox, hCheckEnablePen);
 
-  (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
-  (*ppLayoutBox)->spaceBetween = 7;
-  (*ppLayoutBox)->stretch = TRUE;
+    (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
+    (*ppLayoutBox)->spaceBetween = 7;
+    (*ppLayoutBox)->stretch = TRUE;
 
-  LayoutBox_SetSize(*ppLayoutBox, 400, 50);
-  LayoutBox_Update(*ppLayoutBox);
+    LayoutBox_SetSize(*ppLayoutBox, 400, 50);
+    LayoutBox_Update(*ppLayoutBox);
 }
 
-void BuildMaintenanceSettingsLayout(PLAYOUTBOX *ppLayoutBox, HWND hParent)
+void BuildMaintenanceSettingsLayout(PLAYOUTBOX* ppLayoutBox, HWND hParent)
 {
-  HINSTANCE hInstance;
-  HWND hBtnResetAll;
-  HWND hBtnCheckUpdates;
+    HINSTANCE hInstance;
+    HWND hBtnResetAll;
+    HWND hBtnCheckUpdates;
 
-  CreateLayoutBox(ppLayoutBox, hParent);
+    CreateLayoutBox(ppLayoutBox, hParent);
 
-  hInstance = (HINSTANCE) GetWindowLongPtr(hParent, GWLP_HINSTANCE);
+    hInstance = (HINSTANCE)GetWindowLongPtr(hParent, GWLP_HINSTANCE);
 
-  hBtnResetAll = CreateWindowEx(0, WC_BUTTON, L"Reset all settings",
-      WS_CHILD | WS_VISIBLE,
-      0, 0, 100, 30,
-      hParent, NULL, hInstance, NULL);
-  assert(hBtnResetAll);
-  Win32_ApplyUIFont(hBtnResetAll);
+    hBtnResetAll = CreateWindowEx(0, WC_BUTTON, L"Reset all settings",
+        WS_CHILD | WS_VISIBLE,
+        0, 0, 100, 30,
+        hParent, NULL, hInstance, NULL);
+    assert(hBtnResetAll);
+    Win32_ApplyUIFont(hBtnResetAll);
 
-  LayoutBox_AddControl(*ppLayoutBox, hBtnResetAll);
+    LayoutBox_AddControl(*ppLayoutBox, hBtnResetAll);
 
-  hBtnCheckUpdates = CreateWindowEx(0, WC_BUTTON, L"Check updates",
-      WS_CHILD | WS_VISIBLE,
-      0, 0, 100, 30,
-      hParent, NULL, hInstance, NULL);
-  assert(hBtnCheckUpdates);
-  Win32_ApplyUIFont(hBtnCheckUpdates);
+    hBtnCheckUpdates = CreateWindowEx(0, WC_BUTTON, L"Check updates",
+        WS_CHILD | WS_VISIBLE,
+        0, 0, 100, 30,
+        hParent, NULL, hInstance, NULL);
+    assert(hBtnCheckUpdates);
+    Win32_ApplyUIFont(hBtnCheckUpdates);
 
-  LayoutBox_AddControl(*ppLayoutBox, hBtnCheckUpdates);
+    LayoutBox_AddControl(*ppLayoutBox, hBtnCheckUpdates);
 
-  (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
-  (*ppLayoutBox)->spaceBetween = 7;
-  (*ppLayoutBox)->stretch = TRUE;
+    (*ppLayoutBox)->direction = LAYOUTBOX_VERTICAL;
+    (*ppLayoutBox)->spaceBetween = 7;
+    (*ppLayoutBox)->stretch = TRUE;
 
-  LayoutBox_SetSize(*ppLayoutBox, 1000, 100);
-  LayoutBox_Update(*ppLayoutBox);
+    LayoutBox_SetSize(*ppLayoutBox, 1000, 100);
+    LayoutBox_Update(*ppLayoutBox);
 }
 
-void BuildWindowInitializationSettingsGroup(PGROUPBOX *ppGroupBox, HWND hParent)
+void BuildWindowInitializationSettingsGroup(PGROUPBOX* ppGroupBox, HWND hParent)
 {
-  PLAYOUTBOX lbWindowInitialization;
+    PLAYOUTBOX lbWindowInitialization;
 
-  /* Create inner content */
-  CreateGroupBox(ppGroupBox);
-  BuildWindowInitializationSettingsLayout(&lbWindowInitialization, hParent);
-  GroupBox_SetLayoutBox(*ppGroupBox, lbWindowInitialization);
+    /* Create inner content */
+    CreateGroupBox(ppGroupBox);
+    BuildWindowInitializationSettingsLayout(&lbWindowInitialization, hParent);
+    GroupBox_SetLayoutBox(*ppGroupBox, lbWindowInitialization);
 
-  /* Set caption and size to group */
-  GroupBox_SetCaption(*ppGroupBox, L"Initial window nPosition and nSize");
-  GroupBox_SetSize(*ppGroupBox, 400, 200);
-  GroupBox_Update(*ppGroupBox);
+    /* Set caption and size to group */
+    GroupBox_SetCaption(*ppGroupBox, L"Initial window nPosition and nSize");
+    GroupBox_SetSize(*ppGroupBox, 400, 200);
+    GroupBox_Update(*ppGroupBox);
 }
 
-void BuildInputSettingsGroup(PGROUPBOX *ppGroupBox, HWND hParent)
+void BuildInputSettingsGroup(PGROUPBOX* ppGroupBox, HWND hParent)
 {
-  PLAYOUTBOX lbInput;
+    PLAYOUTBOX lbInput;
 
-  /* Create inner content */
-  CreateGroupBox(ppGroupBox);
-  BuildInputSettingsLayout(&lbInput, hParent);
-  GroupBox_SetLayoutBox(*ppGroupBox, lbInput);
+    /* Create inner content */
+    CreateGroupBox(ppGroupBox);
+    BuildInputSettingsLayout(&lbInput, hParent);
+    GroupBox_SetLayoutBox(*ppGroupBox, lbInput);
 
-  /* Set caption and size to group */
-  GroupBox_SetCaption(*ppGroupBox, L"Input");
-  GroupBox_SetSize(*ppGroupBox, 400, 100);
-  GroupBox_Update(*ppGroupBox);
+    /* Set caption and size to group */
+    GroupBox_SetCaption(*ppGroupBox, L"Input");
+    GroupBox_SetSize(*ppGroupBox, 400, 100);
+    GroupBox_Update(*ppGroupBox);
 }
 
-void BuildMaintenanceSettingsGroup(PGROUPBOX *ppGroupBox, HWND hParent)
+void BuildMaintenanceSettingsGroup(PGROUPBOX* ppGroupBox, HWND hParent)
 {
-  PLAYOUTBOX lbMaintenance;
+    PLAYOUTBOX lbMaintenance;
 
-  /* Create inner content */
-  CreateGroupBox(ppGroupBox);
-  BuildMaintenanceSettingsLayout(&lbMaintenance, hParent);
-  GroupBox_SetLayoutBox(*ppGroupBox, lbMaintenance);
+    /* Create inner content */
+    CreateGroupBox(ppGroupBox);
+    BuildMaintenanceSettingsLayout(&lbMaintenance, hParent);
+    GroupBox_SetLayoutBox(*ppGroupBox, lbMaintenance);
 
-  /* Set caption and size to group */
-  GroupBox_SetCaption(*ppGroupBox, L"Maintenance");
-  GroupBox_SetSize(*ppGroupBox, 400, 100);
-  GroupBox_Update(*ppGroupBox);
+    /* Set caption and size to group */
+    GroupBox_SetCaption(*ppGroupBox, L"Maintenance");
+    GroupBox_SetSize(*ppGroupBox, 400, 100);
+    GroupBox_Update(*ppGroupBox);
 }
 
 void InitSettingsDialogLayout(PLAYOUTBOX pLayoutBox, HWND hParent)
 {
-  PGROUPBOX gbWindowInitSG;
-  PGROUPBOX gbInputSG;
-  PGROUPBOX gbMaintenanceSG;
+    PGROUPBOX gbWindowInitSG;
+    PGROUPBOX gbInputSG;
+    PGROUPBOX gbMaintenanceSG;
 
-  /* Construct and insert setting groups */
+    /* Construct and insert setting groups */
 
-  /* Window initialization */
-  BuildWindowInitializationSettingsGroup(&gbWindowInitSG, hParent);
-  LayoutBox_AddGroup(pLayoutBox, gbWindowInitSG);
+    /* Window initialization */
+    BuildWindowInitializationSettingsGroup(&gbWindowInitSG, hParent);
+    LayoutBox_AddGroup(pLayoutBox, gbWindowInitSG);
 
-  /* Input */
-  BuildInputSettingsGroup(&gbInputSG, hParent);
-  LayoutBox_AddGroup(pLayoutBox, gbInputSG);
+    /* Input */
+    BuildInputSettingsGroup(&gbInputSG, hParent);
+    LayoutBox_AddGroup(pLayoutBox, gbInputSG);
 
-  /* Maintenance */
-  BuildMaintenanceSettingsGroup(&gbMaintenanceSG, hParent);
-  LayoutBox_AddGroup(pLayoutBox, gbMaintenanceSG);
+    /* Maintenance */
+    BuildMaintenanceSettingsGroup(&gbMaintenanceSG, hParent);
+    LayoutBox_AddGroup(pLayoutBox, gbMaintenanceSG);
 }
 
 void SettingsDialog_OnCreate(HWND hWnd, LPCREATESTRUCT lpcs)
 {
-  UNREFERENCED_PARAMETER(lpcs);
+    UNREFERENCED_PARAMETER(lpcs);
 
-  PSETTINGSDIALOGDATA pData;
-  PLAYOUTBOX pLayoutBox;
- 
-  pData = (PSETTINGSDIALOGDATA)malloc(sizeof(SETTINGSDIALOGDATA));
-  memset(pData, 0, sizeof(SETTINGSDIALOGDATA));
-  if (!pData)
-    return;
+    PSETTINGSDIALOGDATA pData;
+    PLAYOUTBOX pLayoutBox;
 
-  ZeroMemory(pData, sizeof(SETTINGSDIALOGDATA));
+    pData = (PSETTINGSDIALOGDATA)malloc(sizeof(SETTINGSDIALOGDATA));
+    memset(pData, 0, sizeof(SETTINGSDIALOGDATA));
+    if (!pData)
+        return;
 
-  SetWindowLongPtr(hWnd, 0, (LONG_PTR) pData);
+    ZeroMemory(pData, sizeof(SETTINGSDIALOGDATA));
 
-  CreateLayoutBox(&pLayoutBox, hWnd);
-  InitSettingsDialogLayout(pLayoutBox, hWnd);
-  pLayoutBox->padding = 7;
-  pLayoutBox->spaceBetween = 7;
-  pLayoutBox->direction = LAYOUTBOX_VERTICAL;
-  pLayoutBox->stretch = TRUE;
+    SetWindowLongPtr(hWnd, 0, (LONG_PTR)pData);
 
-  pData->pRootBox = pLayoutBox;
+    CreateLayoutBox(&pLayoutBox, hWnd);
+    InitSettingsDialogLayout(pLayoutBox, hWnd);
+    pLayoutBox->padding = 7;
+    pLayoutBox->spaceBetween = 7;
+    pLayoutBox->direction = LAYOUTBOX_VERTICAL;
+    pLayoutBox->stretch = TRUE;
+
+    pData->pRootBox = pLayoutBox;
 }
 
 void SettingsDialog_OnSize(HWND hWnd, UINT uWidth, UINT uHeight)
 {
-  PSETTINGSDIALOGDATA pData;
-  
-  pData = (PSETTINGSDIALOGDATA) GetWindowLongPtr(hWnd, 0);
-  LayoutBox_SetSize(pData->pRootBox, uWidth, uHeight);
-  LayoutBox_Update(pData->pRootBox);
+    PSETTINGSDIALOGDATA pData;
+
+    pData = (PSETTINGSDIALOGDATA)GetWindowLongPtr(hWnd, 0);
+    LayoutBox_SetSize(pData->pRootBox, uWidth, uHeight);
+    LayoutBox_Update(pData->pRootBox);
 }
 
 void SettingsDialog_OnPaint(HWND hWnd)
 {
-  PSETTINGSDIALOGDATA pData;
+    PSETTINGSDIALOGDATA pData;
 
-  pData = (PSETTINGSDIALOGDATA) GetWindowLongPtr(hWnd, 0);
+    pData = (PSETTINGSDIALOGDATA)GetWindowLongPtr(hWnd, 0);
 
-  PAINTSTRUCT ps;
-  HDC hDC;
+    PAINTSTRUCT ps;
+    HDC hDC;
 
-  ZeroMemory(&ps, sizeof(PAINTSTRUCT));
+    ZeroMemory(&ps, sizeof(PAINTSTRUCT));
 
-  hDC = BeginPaint(hWnd, &ps);
-  DrawLayoutBox(hDC, pData->pRootBox);
+    hDC = BeginPaint(hWnd, &ps);
+    DrawLayoutBox(hDC, pData->pRootBox);
 
-  EndPaint(hWnd, &ps);
+    EndPaint(hWnd, &ps);
 }
 
 void SettingsDialog_OnDestroy(HWND hWnd)
 {
-  PSETTINGSDIALOGDATA pData;
+    PSETTINGSDIALOGDATA pData;
 
-  pData = (PSETTINGSDIALOGDATA) GetWindowLongPtr(hWnd, 0);
-  SetWindowLongPtr(hWnd, 0, (LONG_PTR) NULL);
+    pData = (PSETTINGSDIALOGDATA)GetWindowLongPtr(hWnd, 0);
+    SetWindowLongPtr(hWnd, 0, (LONG_PTR)NULL);
 
-  LayoutBox_Destroy(pData->pRootBox);
+    LayoutBox_Destroy(pData->pRootBox);
 
-  free(pData);
+    free(pData);
 }
 
 LRESULT CALLBACK SettingsDialog_WndProc(HWND hWnd, UINT message,
     WPARAM wParam, LPARAM lParam)
 {
-  switch (message)
-  {
+    switch (message)
+    {
     case WM_CREATE:
-      SettingsDialog_OnCreate(hWnd, (LPCREATESTRUCT) lParam);
-      return 0;
+        SettingsDialog_OnCreate(hWnd, (LPCREATESTRUCT)lParam);
+        return 0;
 
     case WM_SIZE:
-      SettingsDialog_OnSize(hWnd, LOWORD(lParam), HIWORD(lParam));
-      return 0;
+        SettingsDialog_OnSize(hWnd, LOWORD(lParam), HIWORD(lParam));
+        return 0;
 
     case WM_PAINT:
-      SettingsDialog_OnPaint(hWnd);
-      return 0;
+        SettingsDialog_OnPaint(hWnd);
+        return 0;
 
     case WM_DESTROY:
-      SettingsDialog_OnDestroy(hWnd);
-      return 0;
-  }
+        SettingsDialog_OnDestroy(hWnd);
+        return 0;
+    }
 
-  return DefWindowProc(hWnd, message, wParam, lParam);
+    return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
 BOOL SettingsDialog_RegisterClass(HINSTANCE hInstance)
 {
-  WNDCLASSEX wcex;
+    WNDCLASSEX wcex;
 
-  ZeroMemory(&wcex, sizeof(WNDCLASSEX));
-  wcex.cbSize = sizeof(WNDCLASSEX);
-  wcex.style = CS_HREDRAW | CS_VREDRAW;
-  wcex.cbWndExtra = sizeof(PSETTINGSDIALOGDATA);
-  wcex.lpfnWndProc = (WNDPROC) SettingsDialog_WndProc;
-  wcex.hInstance = hInstance;
-  wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
-  wcex.hbrBackground = (HBRUSH) CreateSolidBrush(HSVtoCOLORREF(30.0f, 0.05f, 1.0f));
-  wcex.lpszClassName = L"SettingsDialogClass";
+    ZeroMemory(&wcex, sizeof(WNDCLASSEX));
+    wcex.cbSize = sizeof(WNDCLASSEX);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.cbWndExtra = sizeof(PSETTINGSDIALOGDATA);
+    wcex.lpfnWndProc = (WNDPROC)SettingsDialog_WndProc;
+    wcex.hInstance = hInstance;
+    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)CreateSolidBrush(HSVtoCOLORREF(30.0f, 0.05f, 1.0f));
+    wcex.lpszClassName = L"SettingsDialogClass";
 
-  return RegisterClassEx(&wcex);
+    return RegisterClassEx(&wcex);
 }

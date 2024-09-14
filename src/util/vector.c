@@ -2,7 +2,7 @@
 
 #include "vector.h"
 
-#include "../panitent.h"
+#include "assert.h"
 
 // Initialize the vector
 void Vector_Init(Vector* pVector, size_t nElementSize)
@@ -13,41 +13,85 @@ void Vector_Init(Vector* pVector, size_t nElementSize)
     pVector->nElementSize = nElementSize;
 }
 
+// Reserve memory for a specified number of elements
+void Vector_Reserve(Vector* pVector, size_t nNewCapacity)
+{
+    if (nNewCapacity > pVector->nCapacity)
+    {
+        pVector->pData = realloc(pVector->pData, nNewCapacity * pVector->nElementSize);
+        if (!pVector->pData)
+        {
+            Panitent_RaiseException(L"MemoryBarrier allocation failed");
+        }
+        pVector->nCapacity = nNewCapacity;
+    }
+}
+
+// Resize the vector to contain nNewSize elements
+void Vector_Resize(Vector* pVector, size_t nNewSize, void* pDefaultValue)
+{
+    if (nNewSize > pVector->nCapacity)
+    {
+        // Reserve more space if necessary
+        Vector_Reserve(pVector, nNewSize);
+    }
+
+    if (nNewSize > pVector->nSize)
+    {
+        // Initialize new elements with the default value
+        char* pStart = (char*)pVector->pData + pVector->nSize * pVector->nElementSize;        
+        for (size_t i = pVector->nSize; i < nNewSize; ++i)
+        {
+            memcpy(pStart + i * pVector->nElementSize, pDefaultValue, pVector->nElementSize);
+        }
+    }
+
+    pVector->nSize = nNewSize;
+}
+
 // Push an element to the back of the vector
-void Vector_PushBack(Vector* pVector, void* pValue, size_t nValueSize)
+void Vector_PushBack(Vector* pVector, void* pValue)
 {
     // Check if resize is needed
     if (pVector->nSize >= pVector->nCapacity)
     {
         // Double the capacity
-        pVector->nCapacity = (!pVector->nCapacity) ? 1 : pVector->nCapacity * 2;
-        pVector->pData = realloc(pVector->pData, pVector->nCapacity * sizeof(void*));
-        if (!pVector->pData)
-        {
-            Panitent_RaiseException(L"Memory allocation failed");
-        }
-    }
-
-    // Allocate memory for the new element
-    pVector->pData[pVector->nSize] = malloc(nValueSize);
-    if (!pVector->pData[pVector->nSize])
-    {
-        Panitent_RaiseException(L"Memory allocation failed");
+        Vector_Reserve(pVector, (!pVector->nCapacity) ? 1 : pVector->nCapacity * 2);
     }
 
     // Copy the value into the new element
-    memcpy(pVector->pData[pVector->nSize], pValue, nValueSize);
+    char* pTarget = (char*)pVector->pData + pVector->nSize * pVector->nElementSize;
+    memcpy(pTarget, pValue, pVector->nElementSize);
     pVector->nSize++;
 }
 
 // Access an element at a specific index
 void* Vector_At(Vector* pVector, size_t nIndex)
 {
+    ASSERT(nIndex < pVector->nSize);
+    return (char*)pVector->pData + nIndex * pVector->nElementSize;
+}
+
+// Remove an element at a specific index
+void Vector_Remove(Vector* pVector, size_t nIndex)
+{
     if (nIndex >= pVector->nSize)
     {
         Panitent_RaiseException(L"Index out of bounds");
     }
-    return pVector->pData[nIndex];
+
+    // Calculate the location of the element to remove
+    char* pRemoveAt = (char*)pVector->pData + nIndex * pVector->nElementSize;
+
+    // If it's not the last element, shift the elements after it
+    if (nIndex < pVector->nSize - 1)
+    {
+        char* pNext = pRemoveAt + pVector->nElementSize;
+        memmove(pRemoveAt, pNext, (pVector->nSize - nIndex - 1) * pVector->nElementSize);
+    }
+
+    // Decrease the size
+    pVector->nSize--;
 }
 
 // Get the number of elements stored in the vector
@@ -61,10 +105,6 @@ void Vector_Free(Vector* pVector)
 {
     if (pVector->pData)
     {
-        for (size_t i = 0; i < pVector->nSize; ++i)
-        {
-            free(pVector->pData[i]);
-        }
         free(pVector->pData);
     }
 

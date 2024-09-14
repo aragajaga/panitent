@@ -14,6 +14,6 @@ struct PaletteWindow {
     Palette* palette;
 };
 
-PaletteWindow* PaletteWindow_Create(Application*, Palette*);
+PaletteWindow* PaletteWindow_Create(Palette*);
 
 #endif  /* PANITENT_PALETTE_WINDOW_H_ */

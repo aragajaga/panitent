@@ -13,6 +13,6 @@ struct LogWindow {
     int nIDLogObserver;
 };
 
-LogWindow* LogWindow_Create(Application* pApplication);
+LogWindow* LogWindow_Create();
 
 #endif  /* PANITENT_LOG_WINDOW_H */

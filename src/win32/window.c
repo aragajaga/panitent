@@ -1,11 +1,13 @@
 #include "window.h"
+#include "window.h"
+#include "window.h"
 
 #include "windowmap.h"
 
 static const WCHAR szClassName[] = L"DummyWindowClass";
 
-Window* Window_Create(struct Application*);
-void Window_Init(Window*, struct Application*);
+Window* Window_Create();
+void Window_Init(Window*);
 
 void Window_PreRegister(LPWNDCLASSEX lpwcex);
 void Window_PreCreate(LPCREATESTRUCT lpcs);
@@ -23,7 +25,7 @@ LRESULT CALLBACK Window_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 BOOL Window_Register(Window*);
 HWND Window_CreateWindow(Window*, HWND);
 
-Window* Window_Create(struct Application* app)
+Window* Window_Create()
 {
     Window* window = (Window*)malloc(sizeof(Window));
 
@@ -31,16 +33,14 @@ Window* Window_Create(struct Application* app)
     if (window)
     {
         memset(window, 0, sizeof(Window));
-        Window_Init(window, app);
+        Window_Init(window);
     }
 
     return window;
 }
 
-void Window_Init(Window* pWindow, struct Application* app)
+void Window_Init(Window* pWindow)
 {
-    pWindow->app = app;
-
     pWindow->szClassName = szClassName;
 
     pWindow->PreRegister = (FnWindowPreRegister)Window_PreRegister;
@@ -378,6 +378,19 @@ void Window_Invalidate(Window* pWindow)
 BOOL Window_Show(Window* pWindow, int nCmdShow)
 {
     return ShowWindow(Window_GetHWND(pWindow), nCmdShow);
+}
+
+void Window_Destroy(Window* pWindow)
+{
+    if (pWindow && Window_IsWindow(pWindow))
+    {
+        DestroyWindow(pWindow->hWnd);
+    }
+}
+
+BOOL Window_IsWindow(Window* pWindow)
+{
+    return pWindow && pWindow->hWnd ? IsWindow(pWindow->hWnd) : FALSE;
 }
 
 void _WindowInitHelper_SetPreRegisterRoutine(Window* pWindow, void(*pfnPreRegister)(LPWNDCLASSEX lpwcex))

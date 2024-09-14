@@ -3,7 +3,7 @@
 #include "aboutbox.h"
 #include "resource.h"
 
-#include "panitent.h"
+#include "panitentapp.h"
 #include "sharing/activitysharingmanager.h"
 
 INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam)
@@ -14,7 +14,7 @@ INT_PTR CALLBACK AboutDlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM 
     {
     case WM_INITDIALOG:
     {
-        Panitent_SetActivityStatus(Panitent_GetApp(), L"Seeking About dialog 👀");
+        PanitentApp_SetActivityStatus(PanitentApp_Instance(), L"Seeking About dialog 👀");
     }
         return TRUE;
         break;

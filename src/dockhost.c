@@ -12,11 +12,12 @@
 #include "util/stack.h"
 #include "util/tree.h"
 #include "dockhost.h"
-#include "panitent.h"
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
 #include "toolwndframe.h"
+
+#include "panitentapp.h"
 
 static const WCHAR szClassName[] = L"__DockHostWindow";
 
@@ -206,7 +207,7 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 			memcpy(&rcCaptionText, rc, sizeof(RECT));
 			Win32_ContractRect(&rcCaptionText, 4, 4);
 	
-			HFONT guiFont = GetGuiFont();
+			HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
 			HFONT hOldFont = SelectObject(hdc, guiFont);
 	
 			SetBkMode(hdc, TRANSPARENT);
@@ -232,7 +233,7 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 			CaptionButton button = { 0 };
 			button.glyph = GLYPH_CLOSE;
 			button.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
-			DrawCaptionButton(&button, hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth);
+			DrawCaptionButton(&button, hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth, 14, 14);
 	
 			/* ================================================================================ */
 	
@@ -577,25 +578,246 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 	}
 }
 
+HWND g_hWndDragOverlay;
+
 void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode)
 {
 	TreeNode* pRoot = pDockHostWindow->pRoot_;
 	DockHostWindow_Undock(pDockHostWindow, pNode);
 
-	FloatingWindowContainer* floatingWindowContainer = FloatingWindowContainer_Create(Panitent_GetApp());
-	Window_CreateWindow((Window*)floatingWindowContainer, NULL);
-	FloatingWindowContainer_PinWindow(floatingWindowContainer, ((DockData*)pNode->data)->hWnd);
+	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
+	Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
+	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, ((DockData*)pNode->data)->hWnd);
 
 	DockHostWindow_Rearrange(pDockHostWindow, pNode);
+
+	DestroyWindow(g_hWndDragOverlay);
 }
 
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
 {
 	if (pDockHostWindow->fCaptionDrag)
 	{
-		DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode);
-		pDockHostWindow->fCaptionDrag = FALSE;
+		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
+		int activateDistance = 32;
+
+		if (distance >= activateDistance)
+		{
+			DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode);
+			pDockHostWindow->fCaptionDrag = FALSE;
+
+			ReleaseCapture();
+		}
+		/*
+		else {
+			POINT pt = { 0 };
+			pt.x = pDockHostWindow->ptDragPos_.x;
+			pt.y = pDockHostWindow->ptDragPos_.y;
+			HDC hScreenDC = GetDC(NULL);
+			ClientToScreen(pDockHostWindow->base.hWnd, &pt);
+
+			Ellipse(hScreenDC, pt.x - activateDistance, pt.y - activateDistance, pt.x + activateDistance, pt.y + activateDistance);
+		}
+		*/
 	}
+}
+
+LRESULT CALLBACK DragOverlayWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+
+	}
+
+	return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+float smoothstepf(float edge0, float edge1, float x) {
+	float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);
+	return t * t * (3.0f - 2.0f * t);
+}
+
+float clampf(float value, int min, int max)
+{
+	if (value < min)
+	{
+		return min;
+	}
+	else if (value > max)
+	{
+		return max;
+	}
+	else {
+		return value;
+	}
+}
+
+void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
+{
+	WNDCLASSEX wcex = { 0 };
+	if (!GetClassInfoEx(GetModuleHandle(NULL), L"__DragOverlayClass", &wcex))
+	{
+		wcex.cbSize = sizeof(wcex);
+		wcex.lpfnWndProc = (WNDPROC)DragOverlayWndProc;
+		wcex.hInstance = GetModuleHandle(NULL);
+		wcex.lpszClassName = L"__DragOverlayClass";
+		RegisterClassEx(&wcex);
+	}
+
+	HWND g_hWndDragOverlay = CreateWindowEx(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST, L"__DragOverlayClass", L"DragOverlay", WS_VISIBLE | WS_POPUP, x - 64, y - 64, 128, 128, NULL, NULL, GetModuleHandle(NULL), NULL);
+
+	HDC hdcScreen = GetDC(NULL);
+	HDC hdcMem = CreateCompatibleDC(hdcScreen);
+
+	BLENDFUNCTION blendFunction = { 0 };
+	blendFunction.BlendOp = AC_SRC_OVER;
+	blendFunction.SourceConstantAlpha = 255;
+	blendFunction.AlphaFormat = AC_SRC_ALPHA;
+
+	BITMAPINFO bmi = { 0 };
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = 128;
+	bmi.bmiHeader.biHeight = -128;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	unsigned int* pBits;
+
+	// Create a compatible bitmap with the desired format
+	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+	HGDIOBJ hOldObj = SelectObject(hdcMem, hBitmap);
+
+	// Draw
+	{
+		int centerX = 32;
+		int centerY = 32;
+		int radius = 32;
+
+		unsigned char* pCircle = malloc(64 * 64 * sizeof(unsigned char));
+
+		for (int y = 0; y < 64; ++y)
+		{
+			for (int x = 0; x < 64; ++x)
+			{
+				int dx = x - centerX;
+				int dy = y - centerY;
+				float distance = sqrtf((float)(dx * dx + dy * dy));
+
+				float dist = distance / (float)radius;
+
+				// Calculate alpha based on the distance
+
+				float uStripeWidth = 0.1f;
+				float stripeEdge = 0.5 * (1.0 / uStripeWidth);
+				BYTE alpha1 = (BYTE)(255.0f * smoothstepf(1.0f, 0.95f, dist));
+				BYTE alpha2 = (BYTE)(255.0f * (sinf(dist * 24.0f) * 0.5f + 0.5f));
+				BYTE alpha = min(alpha1, alpha2);
+				if (alpha > 255)
+				{
+					alpha = 255;
+				}
+				if (alpha < 0)
+				{
+					alpha = 0;
+				}
+
+				pCircle[y * 64 + x] = alpha;
+			}
+		}
+
+		unsigned int* pData = pBits;
+		pData += 128 * ((128 - 64) / 2) + ((128 - 64) / 2);
+		for (int y = 0; y < 64; ++y)
+		{
+			for (int x = 0; x < 64; ++x)
+			{
+				BYTE alpha = pCircle[y * 64 + x];
+				unsigned int color = (alpha << 24) | (alpha << 16);
+				*pData = color;
+				pData++;
+			}
+			
+			pData += 64;
+		}
+
+		free(pCircle);
+
+		/*
+		for (int y = 0; y < 128; ++y)
+		{
+			for (int x = 0; x < 128; ++x)
+			{
+				unsigned int color = pBits[y * 128 + x];
+
+				// Extract RGBA components
+				BYTE alpha = (color >> 24) & 0xFF;
+				BYTE red = (color >> 16) & 0xFF;
+				BYTE green = (color >> 8) & 0xFF;
+				BYTE blue = (color) & 0xFF;
+
+				// Premultiply RGB values by alpha
+				BYTE premultRed = (BYTE)((red * alpha) / 255);
+				BYTE premultGreen = (BYTE)((green * alpha) / 255);
+				BYTE premultBlue = (BYTE)((blue * alpha) / 255);
+
+				// Store the premultiplied color back into the bitmap
+				pBits[y * 128 + x] = (premultRed << 16) | (premultGreen << 8) | premultBlue | (alpha << 24);
+			}
+		}
+		*/
+		
+		/*
+		for (int y = 0; y < 128; ++y)
+		{
+			pBits[y * 128] = 0xFFFF0000;
+			pBits[y * 128 + 127] = 0xFFFF0000;
+			pBits[y] = 0xFFFF0000;
+			pBits[y + 127 * 128] = 0xFFFF0000;
+		}
+		*/
+
+		/*
+		for (int y = 0; y < 128; ++y)
+		{
+			for (int x = 0; x < 128; ++x)
+			{
+				int dx = x - centerX;
+				int dy = y - centerY;
+				float distance = sqrtf((float)(dx * dx + dy * dy));
+
+				// Calculate alpha based on the distance
+				BYTE alpha = (BYTE)(255 * (1.0f - (distance / radius)));
+				if (alpha > 255)
+				{
+					alpha = 255;
+				}
+				if (alpha < 0 || distance > radius)
+				{
+					alpha = 0;
+				}
+
+				// Set the pixel color (white with varying alpha)
+				DWORD color = (alpha << 24) | (alpha << 16) | (alpha << 8) | alpha;
+				pBits[y * 128 + x] = color;
+			}
+		}
+		*/
+	}
+
+	POINT ptPos = { x, y };
+	SIZE sizeWnd = { 128, 128 };
+	POINT ptSrc = { 0, 0 };
+
+	ClientToScreen(pDockHostWindow->base.hWnd, &ptPos);
+	ptPos.x -= 64;
+	ptPos.y -= 64;
+
+	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
+
+	SelectObject(hdcMem, hOldObj);
+	DeleteDC(hdcMem);
+	ReleaseDC(NULL, hdcScreen);
 }
 
 void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)
@@ -631,6 +853,8 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 		pDockHostWindow->ptDragPos_.x = x - (rcClient.left + 2);
 		pDockHostWindow->ptDragPos_.y = y - (rcClient.top + 2);
 		pDockHostWindow->fDrag_ = TRUE;
+
+		DockHostWindow_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
 	}
 	break;
 	}
@@ -669,6 +893,7 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 	}
 
 	pDockHostWindow->fDrag_ = FALSE;
+	DestroyWindow(g_hWndDragOverlay);
 	ReleaseCapture();
 }
 
@@ -769,9 +994,9 @@ void DockHostWindow_PreCreate(LPCREATESTRUCT lpcs)
 	lpcs->cy = 0;
 }
 
-void DockHostWindow_Init(DockHostWindow* pDockHostWindow, struct Application* app)
+void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp)
 {
-	Window_Init(&pDockHostWindow->base, app);
+	Window_Init(&pDockHostWindow->base, pPanitentApp);
 
 	pDockHostWindow->base.szClassName = szClassName;
 
@@ -790,14 +1015,14 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, struct Application* ap
 	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
 }
 
-DockHostWindow* DockHostWindow_Create(struct Application* app)
+DockHostWindow* DockHostWindow_Create(PanitentApp* pPanitentApp)
 {
 	DockHostWindow* pDockHostWindow = (DockHostWindow*)malloc(sizeof(DockHostWindow));
-	memset(pDockHostWindow, 0, sizeof(DockHostWindow));
 
 	if (pDockHostWindow)
 	{
-		DockHostWindow_Init(pDockHostWindow, app);
+		memset(pDockHostWindow, 0, sizeof(DockHostWindow));
+		DockHostWindow_Init(pDockHostWindow, pPanitentApp);
 	}
 
 	return pDockHostWindow;

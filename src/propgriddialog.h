@@ -9,5 +9,5 @@ struct PropertyGridDialog {
 	PropertyGridCtl* m_pPropertyGrid;
 };
 
-PropertyGridDialog* PropertyGridDialog_Create(Application* pApp);
-void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog, Application* pApp);
+PropertyGridDialog* PropertyGridDialog_Create();
+void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog);

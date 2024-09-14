@@ -5,12 +5,9 @@ typedef struct Window Window;
 
 typedef struct HashMap HashMap;
 
-void WindowingInit();
-
 void WindowMap_Insert(HWND hWnd, Window* pWindow);
 Window* WindowMap_Get(HWND hWnd);
-
-void WindowMap_GlobalInit();
+void WindowMap_Erase(HWND hWnd);
 
 extern Window* pWndCreating;
 extern HashMap* g_pHWNDMap;

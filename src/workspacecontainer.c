@@ -3,12 +3,13 @@
 #include "win32/util.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
+#include "panitentapp.h"
 
 static const WCHAR szClassName[] = L"__WorkspaceContainer";
 
 /* Private forward declarations */
-WorkspaceContainer* WorkspaceContainer_Create(struct Application*);
-void WorkspaceContainer_Init(WorkspaceContainer*, struct Application*);
+WorkspaceContainer* WorkspaceContainer_Create();
+void WorkspaceContainer_Init(WorkspaceContainer*);
 
 void WorkspaceContainer_PreRegister(LPWNDCLASSEX lpwcex);
 void WorkspaceContainer_PreCreate(LPCREATESTRUCT lpcs);
@@ -78,22 +79,22 @@ ViewportWindow* ViewportVector_Get(ViewportVector* pViewportVector, int idx)
     return NULL;
 }
 
-WorkspaceContainer* WorkspaceContainer_Create(struct Application* app)
+WorkspaceContainer* WorkspaceContainer_Create()
 {
     WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)malloc(sizeof(WorkspaceContainer));
     memset(pWorkspaceContainer, 0, sizeof(WorkspaceContainer));
 
     if (pWorkspaceContainer)
     {
-        WorkspaceContainer_Init(pWorkspaceContainer, app);
+        WorkspaceContainer_Init(pWorkspaceContainer);
     }
 
     return pWorkspaceContainer;
 }
 
-void WorkspaceContainer_Init(WorkspaceContainer* pWorkspaceContainer, struct Application* app)
+void WorkspaceContainer_Init(WorkspaceContainer* pWorkspaceContainer)
 {
-    Window_Init(&pWorkspaceContainer->base, app);
+    Window_Init(&pWorkspaceContainer->base);
 
     pWorkspaceContainer->base.szClassName = szClassName;
 
@@ -211,6 +212,31 @@ void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer)
 
     WorkspaceContainer_DrawTabs(pWorkspaceContainer, hdc);
 
+    if (!ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector))
+    {
+        RECT rcClient;
+        Window_GetClientRect(pWorkspaceContainer, &rcClient);
+        rcClient.top += 24;
+        ContractRect(&rcClient, 24);
+
+        HFONT hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
+        LOGFONT lf;
+        GetObject(hFont, sizeof(lf), &lf);
+        lf.lfHeight = 24;
+        HFONT hWelcomeFont = CreateFontIndirect(&lf);
+
+        HFONT hPrevFont = (HFONT)SelectObject(hdc, hWelcomeFont);
+
+        SetBkMode(hdc, TRANSPARENT);
+        WCHAR szWelcomeText[] = L"Welcome to Panit.ent! Create a new or open an existing file using the File menu";
+        DrawTextEx(hdc, szWelcomeText, wcslen(szWelcomeText), &rcClient, 0, NULL);
+
+        SelectObject(hdc, hPrevFont);
+        DeleteObject(hWelcomeFont);
+        
+    }
+    
+
     /* End painting the window */
     EndPaint(hwnd, &ps);
 }
@@ -288,4 +314,9 @@ void WorkspaceContainer_AddViewport(WorkspaceContainer* pWorkspaceContainer, Vie
 
     /* Set _current_ viewport window to the last one */
     pWorkspaceContainer->m_pViewportWindow = pViewportWindow;
+}
+
+ViewportWindow* WorkspaceContainer_GetCurrentViewport(WorkspaceContainer* pWorkspaceContainer)
+{
+    return pWorkspaceContainer->m_pViewportWindow;
 }

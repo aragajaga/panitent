@@ -3,15 +3,14 @@
 #include "win32/window.h"
 #include "glwindow.h"
 #include "resource.h"
-#include "panitent.h"
 
 #include <gl/GL.h>
 
 static const WCHAR szClassName[] = L"GLWindowClass";
 
 /* Private forward declarations */
-GLWindow* GLWindow_Create(struct Application*);
-void GLWindow_Init(GLWindow*, struct Application*);
+GLWindow* GLWindow_Create();
+void GLWindow_Init(GLWindow*);
 
 void GLWindow_PreRegister(LPWNDCLASSEX);
 void GLWindow_PreCreate(LPCREATESTRUCT);
@@ -24,22 +23,22 @@ void GLWindow_OnContextMenu(GLWindow*, int, int);
 void GLWindow_OnDestroy(GLWindow*);
 LRESULT CALLBACK GLWindow_UserProc(GLWindow*, HWND hWnd, UINT, WPARAM, LPARAM);
 
-GLWindow* GLWindow_Create(struct Application* app)
+GLWindow* GLWindow_Create()
 {
     GLWindow* pGLWindow = (GLWindow*)malloc(sizeof(GLWindow));
     memset(pGLWindow, 0, sizeof(GLWindow));
 
     if (pGLWindow)
     {
-        GLWindow_Init(pGLWindow, app);
+        GLWindow_Init(pGLWindow);
     }
 
     return pGLWindow;
 }
 
-void GLWindow_Init(GLWindow* pGLWindow, struct Application* app)
+void GLWindow_Init(GLWindow* pGLWindow)
 {
-    Window_Init(&pGLWindow->base, app);
+    Window_Init(&pGLWindow->base);
 
     pGLWindow->base.szClassName = szClassName;
 

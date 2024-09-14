@@ -3,32 +3,43 @@
 #include "window.h"
 #include "../util/hashmap.h"
 
-HashMap* g_pHWNDMap;
+static int WindowMap_KeyCompare(void* pKey1, void* pKey2);
+
+HashMap* WindowMap_GetWindowMap()
+{
+    static HashMap* s_pHWNDMap;
+    if (!s_pHWNDMap)
+    {
+        s_pHWNDMap = HashMap_Create(16, &WindowMap_KeyCompare);
+    }
+
+    return s_pHWNDMap;
+}
 
 void WindowMap_Insert(HWND hWnd, Window* pWindow)
 {
-    if (g_pHWNDMap)
-    {
-        HashMap_Put(g_pHWNDMap, (void*)hWnd, (void*)pWindow);
-    }
-    else {
-        MessageBox(NULL, L"WindowMap not initialized", NULL, MB_OK | MB_ICONERROR);
-    }
+    HashMap* pWindowMap = WindowMap_GetWindowMap();
+    HashMap_Put(pWindowMap, (void*)hWnd, (void*)pWindow);
 }
 
 Window* WindowMap_Get(HWND hWnd)
 {
-    Window* pWindow = NULL;
+    HashMap* pWindowMap = WindowMap_GetWindowMap();
 
-    if (g_pHWNDMap)
-    {
-        pWindow = HashMap_Get(g_pHWNDMap, (void*)hWnd);
-    }
-    else {
-        MessageBox(NULL, L"WindowMap not initialized", NULL, MB_OK | MB_ICONERROR);
-    }
+    Window* pWindow = NULL;
+    pWindow = HashMap_Get(pWindowMap, (void*)hWnd);
     
     return pWindow;
+}
+
+void WindowMap_Erase(HWND hWnd)
+{
+    HashMap* pWindowMap = WindowMap_GetWindowMap();
+
+    if (pWindowMap)
+    {
+        HashMap_Remove(pWindowMap, (void*)hWnd);
+    }
 }
 
 /**
@@ -41,11 +52,6 @@ Window* WindowMap_Get(HWND hWnd)
 static int WindowMap_KeyCompare(void* pKey1, void* pKey2)
 {
     return (HWND)pKey1 > (HWND)pKey2 ? CMP_GREATER : (HWND)pKey1 < (HWND)pKey2 ? CMP_LOWER : CMP_EQUAL;
-}
-
-void WindowMap_GlobalInit()
-{
-    g_pHWNDMap = HashMap_Create(16, &WindowMap_KeyCompare);
 }
 
 Window* pWndCreating;

@@ -9,5 +9,5 @@ struct ActivityStubDialog {
     ActivitySharingClient m_activitySharingClient;
 };
 
-ActivityStubDialog* ActivityStubDialog_Create(Application* pApp);
-void ActivityStubDialog_Init(ActivityStubDialog* pActivityStubDialog, Application* pApp);
+ActivityStubDialog* ActivityStubDialog_Create();
+void ActivityStubDialog_Init(ActivityStubDialog* pActivityStubDialog);

@@ -7,8 +7,8 @@
 static const WCHAR szClassName[] = L"__WindowStub";
 
 /* Private forward declarations */
-WindowStub* WindowStub_Create(Application* app);
-void WindowStub_Init(WindowStub*, Application* app);
+WindowStub* WindowStub_Create();
+void WindowStub_Init(WindowStub* pWindowStub);
 
 void WindowStub_PreRegister(LPWNDCLASSEX lpwcex);
 void WindowStub_PreCreate(LPCREATESTRUCT lpcs);
@@ -21,22 +21,22 @@ void WindowStub_OnContextMenu(WindowStub* pWindowStub, int x, int y);
 void WindowStub_OnDestroy(WindowStub* pWindowStub);
 LRESULT WindowStub_UserProc(WindowStub* pWindowStub, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-WindowStub* WindowStub_Create(Application* app)
+WindowStub* WindowStub_Create()
 {
     WindowStub* pWindowStub = (WindowStub *)malloc(sizeof(WindowStub));
     if (pWindowStub)
     {
-        WindowStub_Init(pWindowStub, app);
+        WindowStub_Init(pWindowStub);
     }
 
     return pWindowStub;
 }
 
-void WindowStub_Init(WindowStub* pWindowStub, Application* app)
+void WindowStub_Init(WindowStub* pWindowStub)
 {
     memset(pWindowStub, 0, sizeof(WindowStub));
 
-    Window_Init(&pWindowStub->base, app);
+    Window_Init(&pWindowStub->base);
 
     pWindowStub->base.szClassName = szClassName;
 

@@ -10,7 +10,7 @@ void PropertyGridDialog_OnOK(PropertyGridDialog* pPropertyGridDialog);
 void PropertyGridDialog_OnCancel(PropertyGridDialog* pPropertyGridDialog);
 
 
-PropertyGridDialog* PropertyGridDialog_Create(Application* pApp)
+PropertyGridDialog* PropertyGridDialog_Create()
 {
     PropertyGridDialog* pPropertyGridDialog = (PropertyGridDialog*)malloc(sizeof(PropertyGridDialog));
 
@@ -18,22 +18,22 @@ PropertyGridDialog* PropertyGridDialog_Create(Application* pApp)
     {
         memset(pPropertyGridDialog, 0, sizeof(PropertyGridDialog));
 
-        PropertyGridDialog_Init(pPropertyGridDialog, pApp);
+        PropertyGridDialog_Init(pPropertyGridDialog);
     }
 
     return pPropertyGridDialog;
 }
 
-void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog, Application* pApp)
+void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog)
 {
-    Dialog_Init((Dialog*)&pPropertyGridDialog->base, pApp);
+    Dialog_Init((Dialog*)&pPropertyGridDialog->base);
 
     pPropertyGridDialog->base.DlgUserProc = PropertyGridDialog_DlgUserProc;
     pPropertyGridDialog->base.OnInitDialog = PropertyGridDialog_OnInitDialog;
     pPropertyGridDialog->base.OnCancel = PropertyGridDialog_OnCancel;
     pPropertyGridDialog->base.OnOK = PropertyGridDialog_OnOK;
 
-    pPropertyGridDialog->m_pPropertyGrid = PropertyGridCtl_Create(pApp);
+    pPropertyGridDialog->m_pPropertyGrid = PropertyGridCtl_Create();
 }
 
 INT_PTR PropertyGridDialog_DlgUserProc(PropertyGridDialog* pPropertyGridDialog, UINT message, WPARAM wParam, LPARAM lParam)

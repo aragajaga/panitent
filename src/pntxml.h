@@ -1,5 +1,3 @@
-#pragma once
-
 /**
  * pntxml - a fork of ooxi/xml.c adapted for using with WinAPI and
  *     wide-character strings
@@ -33,6 +31,9 @@
  *
  *  3. This notice may not be removed or altered from any source distribution.
  */
+
+#ifndef PANITENT_PNTXML_H
+#define PANITENT_PNTXML_H
 
 /* Opaque structure holding the parsed xml document */
 typedef struct XMLDocument XMLDocument;
@@ -144,3 +145,5 @@ size_t XMLString_Length(XMLString* pxsString);
  * @warning Will write at most length bytes, even if the string is longer
  */
 void XMLString_Copy(XMLString* pxsString, PWSTR pszBuffer, size_t nLength);
+
+#endif  /* PANITENT_PNTXML_H */

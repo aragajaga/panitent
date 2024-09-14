@@ -5,7 +5,6 @@
 #include "../viewport.h"
 #include "../canvas.h"
 #include "../color_context.h"
-#include "../panitent.h"
 #include "../document.h"
 #include "../history.h"
 

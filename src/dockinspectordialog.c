@@ -1,7 +1,6 @@
 #include "precomp.h"
 
 #include "DockInspectorDialog.h"
-#include "panitent.h"
 #include "resource.h"
 #include "win32/util.h"
 
@@ -10,7 +9,7 @@
 #include "util/queue.h"
 
 DockInspectorDialog* DockInspectorDialog_Create();
-void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog, Application *pApp);
+void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog);
 
 INT_PTR DockInspectorDialog_DlgUserProc(DockInspectorDialog* pDockInspectorDialog, UINT message, WPARAM wParam, LPARAM lParam);
 void DockInspectorDialog_OnInitDialog(DockInspectorDialog* pDockInspectorDialog);
@@ -25,22 +24,22 @@ DockInspectorDialog* DockInspectorDialog_Create()
     if (pDockInspectorDialog)
     {
         memset(pDockInspectorDialog, 0, sizeof(DockInspectorDialog));
-        DockInspectorDialog_Init(pDockInspectorDialog, (Application*)Panitent_GetApp());
+        DockInspectorDialog_Init(pDockInspectorDialog);
     }    
 
     return pDockInspectorDialog;
 }
 
-void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog, Application* pApp)
+void DockInspectorDialog_Init(DockInspectorDialog* pDockInspectorDialog)
 {
-    Dialog_Init((Dialog*)pDockInspectorDialog, pApp);
+    Dialog_Init((Dialog*)pDockInspectorDialog);
 
     pDockInspectorDialog->base.DlgUserProc = (FnDialogDlgUserProc)DockInspectorDialog_DlgUserProc;
     pDockInspectorDialog->base.OnInitDialog = (FnDialogOnInitDialog)DockInspectorDialog_OnInitDialog;
     pDockInspectorDialog->base.OnOK = (FnDialogOnOK)DockInspectorDialog_OnOK;
     pDockInspectorDialog->base.OnCancel = (FnDialogOnCancel)DockInspectorDialog_OnCancel;
 
-    pDockInspectorDialog->m_pTreeView = TreeViewCtl_Create(pApp);
+    pDockInspectorDialog->m_pTreeView = TreeViewCtl_Create();
 }
 
 typedef struct TreeViewNodePair TreeViewNodePair;

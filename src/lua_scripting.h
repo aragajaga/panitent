@@ -1,0 +1,6 @@
+#ifndef PANITENT_LUA_SCRIPTING_H
+#define PANITENT_LUA_SCRIPTING_H
+
+int Lua_RunScript(PCWSTR pcszPath);
+
+#endif  /* PANITENT_LUA_SCRIPTING_H */

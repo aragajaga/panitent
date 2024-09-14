@@ -8,15 +8,13 @@
 
 #include "viewport.h"
 
-#include "panitent.h"
 #include "dockhost.h"
 #include "file_open.h"
 #include "crefptr.h"
 #include "wic.h"
 #include "workspacecontainer.h"
 
-
-extern const WCHAR szAppName[];
+#include "panitentapp.h"
 
 extern TreeNode* viewportNode;
 
@@ -88,12 +86,12 @@ void Document_OpenFile(LPWSTR pszPath)
     Canvas* canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
     Document_SetCanvas(pDocument, canvas);
 
-    ViewportWindow* pViewportWindow = ViewportWindow_Create((struct Application*)Panitent_GetApp());
+    ViewportWindow* pViewportWindow = ViewportWindow_Create();
     Window_CreateWindow((Window*)pViewportWindow, NULL);
 
     ViewportWindow_SetDocument(pViewportWindow, pDocument);
 
-    Panitent_SetActiveViewport(pViewportWindow);
+    // Panitent_SetActiveViewport(pViewportWindow);
 }
 
 void Document_Open(Document* prevDoc)
@@ -148,7 +146,7 @@ void Document_Purge(Document* doc)
 
 BOOL Document_Close(Document* doc)
 {
-    int answer = MessageBox(NULL, L"Do you want to save changes?", szAppName,
+    int answer = MessageBox(NULL, L"Do you want to save changes?", L"Panit.ent",
         MB_YESNOCANCEL | MB_ICONWARNING);
 
     switch (answer) {
@@ -168,20 +166,16 @@ BOOL Document_Close(Document* doc)
 
 Document* Document_New(int width, int height)
 {
-    ViewportWindow* pViewportWindow = Panitent_GetActiveViewport();
+    ViewportWindow* pViewportWindow = PanitentApp_GetActiveViewport(PanitentApp_Instance());
 
     if (!pViewportWindow) {
-        PanitentApplication* pPanitentApplication = Panitent_GetApp();
-
-        pViewportWindow = ViewportWindow_Create((Application*)pPanitentApplication);
+        pViewportWindow = ViewportWindow_Create();
         Window_CreateWindow((Window*)pViewportWindow, NULL);
 
-        WorkspaceContainer* pWorkspaceContainer = Panitent_GetWorkspaceContainer();
+        WorkspaceContainer* pWorkspaceContainer = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
         WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
 
-        Panitent_SetActiveViewport(pViewportWindow);
-
-        
+        PanitentApp_SetActiveViewport(PanitentApp_Instance(), pViewportWindow);
     }
 
     Document* pDocument = Document_Create();

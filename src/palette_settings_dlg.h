@@ -4,12 +4,12 @@
 #define IDM_PALETTESETTINGS 101
 
 struct _PaletteSettings {
-  int swatchSize;
-  int checkerSize;
-  uint32_t checkerColor1;
-  uint32_t checkerColor2;
-  HBRUSH checkerBrush;
-  BOOL checkerInvalidate;
+    int swatchSize;
+    int checkerSize;
+    uint32_t checkerColor1;
+    uint32_t checkerColor2;
+    HBRUSH checkerBrush;
+    BOOL checkerInvalidate;
 };
 
 extern struct _PaletteSettings g_paletteSettings;

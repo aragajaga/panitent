@@ -2,27 +2,27 @@
 
 #include "listbox.h"
 
-ListBoxCtl* ListBoxCtl_Create(Application* pApplication);
-void ListBoxCtl_Init(ListBoxCtl* pListBoxCtl, Application* pApplication);
+ListBoxCtl* ListBoxCtl_Create();
+void ListBoxCtl_Init(ListBoxCtl* pListBoxCtl);
 void ListBoxCtl_PreCreate(LPCREATESTRUCT lpcs);
 
-ListBoxCtl* ListBoxCtl_Create(Application* pApplication)
+ListBoxCtl* ListBoxCtl_Create()
 {
     ListBoxCtl* pListBoxCtl = (ListBoxCtl*)malloc(sizeof(ListBoxCtl));
-    memset(pListBoxCtl, 0, sizeof(ListBoxCtl));
     
     if (pListBoxCtl)
     {
-        memset(pListBoxCtl, 0, sizeof(ListBoxCtl));
-        ListBoxCtl_Init(pListBoxCtl, pApplication);
+        ListBoxCtl_Init(pListBoxCtl);
     }
 
     return pListBoxCtl;
 }
 
-void ListBoxCtl_Init(ListBoxCtl* pListBoxCtl, Application* pApplication)
+void ListBoxCtl_Init(ListBoxCtl* pListBoxCtl)
 {
-    Window_Init((Window*)pListBoxCtl, pApplication);
+    memset(pListBoxCtl, 0, sizeof(ListBoxCtl));
+
+    Window_Init((Window*)pListBoxCtl);
 
     pListBoxCtl->base.PreRegister = NULL;
     pListBoxCtl->base.PreCreate = ListBoxCtl_PreCreate;

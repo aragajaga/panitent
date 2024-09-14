@@ -4,7 +4,8 @@
 #include "canvas.h"
 #include <assert.h>
 #include <math.h>
-#include "primitives_context.h"
+
+#include "util.h"
 
 typedef struct _Brush {
     Canvas* tex;
@@ -74,7 +75,7 @@ void Brush_SetBuilder(Brush* brush, BrushBuilder* builder)
     brush->builder = builder;
 }
 
-float euclidean_distance(float px, float py)
+float EuclideanDistance(float px, float py)
 {
     return 1.f - min(sqrtf(powf(px, 2.f) + powf(py, 2.f)), 1.f);
 }
@@ -114,7 +115,7 @@ Brush* PointBrushBuilder_Build(BrushBuilder* builder, int size)
     {
         for (int x = 0; x < tex->width; x++)
         {
-            float value = euclidean_distance(
+            float value = EuclideanDistance(
                 (x / (float)tex->width - 0.5f) * 2,
                 (y / (float)tex->height - 0.5f) * 2) * 255.f;
 
@@ -132,7 +133,7 @@ Brush* PointBrushBuilder_Build(BrushBuilder* builder, int size)
 Brush* CircleBrushBuilder_Build(BrushBuilder* builder, int size)
 {
     Canvas* tex = Canvas_Create(size, size);
-    draw_filled_circle_color(tex, size / 2, size / 2, size / 2, 0xFF000000);
+    // draw_filled_circle_color(tex, size / 2, size / 2, size / 2, 0xFF000000);
 
     Brush* brush = Brush_Create(tex);
     Brush_SetBuilder(brush, builder);
@@ -153,16 +154,6 @@ void Brush_Draw(Brush* brush, int x, int y, Canvas* target, uint32_t color)
 {
     Canvas_ColorStencil(target, x - brush->tex->width / 2, y - brush->tex->height / 2,
         brush->tex, color);
-}
-
-static int sign(int x)
-{
-    if (x > 0)
-        return 1;
-    else if (x < 0)
-        return -1;
-    else
-        return 0;
 }
 
 void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,

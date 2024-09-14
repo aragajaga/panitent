@@ -7,8 +7,8 @@
 static const WCHAR szClassName[] = L"__LayersWindow";
 
 /* Private forward declarations */
-LayersWindow* LayersWindow_Create(Application* app);
-void LayersWindow_Init(LayersWindow*, Application* app);
+LayersWindow* LayersWindow_Create();
+void LayersWindow_Init(LayersWindow*);
 
 void LayersWindow_PreRegister(LPWNDCLASSEX lpwcex);
 void LayersWindow_PreCreate(LPCREATESTRUCT lpcs);
@@ -24,22 +24,22 @@ BOOL LayersWindow_OnCommand(LayersWindow* pLayersWindow, WPARAM wParam, LPARAM l
 void LayersWindow_OnDestroy(LayersWindow* pLayersWindow);
 LRESULT LayersWindow_UserProc(LayersWindow* pLayersWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-LayersWindow* LayersWindow_Create(Application* pApp)
+LayersWindow* LayersWindow_Create()
 {
     LayersWindow* pLayersWindow = (LayersWindow *)malloc(sizeof(LayersWindow));
     memset(pLayersWindow, 0, sizeof(LayersWindow));
 
     if (pLayersWindow)
     {
-        LayersWindow_Init(pLayersWindow, pApp);
+        LayersWindow_Init(pLayersWindow);
     }
 
     return pLayersWindow;
 }
 
-void LayersWindow_Init(LayersWindow* pLayersWindow, Application* pApp)
+void LayersWindow_Init(LayersWindow* pLayersWindow)
 {
-    Window_Init(&pLayersWindow->base, pApp);
+    Window_Init(&pLayersWindow->base);
 
     pLayersWindow->base.szClassName = szClassName;
 
@@ -84,9 +84,9 @@ BOOL LayersWindow_OnCreate(LayersWindow* pLayersWindow, LPCREATESTRUCT lpcs)
 
 void LayersWindow_PostCreate(LayersWindow* pLayersWindow)
 {
-    pLayersWindow->m_pListBoxCtl = ListBoxCtl_Create(pLayersWindow->base.app);
+    pLayersWindow->m_pListBoxCtl = ListBoxCtl_Create();
 
-    HWND hButton = CreateWindowEx(0, WC_BUTTON, L"+", WS_VISIBLE | WS_CHILD, 2, 2, 20, 20, Window_GetHWND((Window*)pLayersWindow), NULL, pLayersWindow->base.app->hInstance, NULL);
+    HWND hButton = CreateWindowEx(0, WC_BUTTON, L"+", WS_VISIBLE | WS_CHILD, 2, 2, 20, 20, Window_GetHWND((Window*)pLayersWindow), NULL, GetModuleHandle(NULL), NULL);
 
     HWND hListBox = NULL;
     hListBox = Window_CreateWindow((Window*)pLayersWindow->m_pListBoxCtl, Window_GetHWND((Window*)pLayersWindow));

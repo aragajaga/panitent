@@ -71,6 +71,22 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <OutDir>$(SolutionDir)build\msvc-i686-debug\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-i686-debug\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)build\msvc-i686-release\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-i686-release\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <OutDir>$(SolutionDir)build\msvc-x86_64-debug\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-x86_64-debug\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)build\msvc-x86_64-release\</OutDir>
+    <IntDir>$(SolutionDir)buildcache\msvc-x86_64-release\$(ShortProjectName)\</IntDir>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -152,6 +168,7 @@
     </Lib>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="src\util\hashmap.c" />
     <ClCompile Include="src\win32\application.c" />
     <ClCompile Include="src\win32\dialog.c" />
     <ClCompile Include="src\win32\framework.c" />
@@ -164,6 +181,7 @@
     <ClCompile Include="src\win32\windowmap.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="src\util\hashmap.h" />
     <ClInclude Include="src\win32\application.h" />
     <ClInclude Include="src\win32\common.h" />
     <ClInclude Include="src\win32\dialog.h" />

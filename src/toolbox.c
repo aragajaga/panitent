@@ -10,8 +10,6 @@
 #include "tool.h"
 #include "tools/common.h"
 
-#include "panitent.h"
-
 #include "toolbox.h"
 
 #include "resource.h"
@@ -19,11 +17,12 @@
 #include "document.h"
 #include "log.h"
 #include "color_context.h"
-#include "primitives_context.h"
 #include "util.h"
 #include "brush.h"
 #include "history.h"
 #include "sharing/activitysharingmanager.h"
+
+#include "panitentapp.h"
 
 const WCHAR szClassName[] = L"__ToolboxWindow";
 
@@ -175,7 +174,7 @@ void ToolboxWindow_DrawButtons(ToolboxWindow* pToolboxWindow, HDC hdc)
 
         AlphaBlend(hdc, x + offset, y + offset, 24, bitmap.bmHeight, hdcMem, 24 * iBmp, 0, 24, bitmap.bmHeight, blendFunc);
 #if 0
-        TransparentBlt(hdc, x + offset, y + offset, 16, bitmap.bmHeight, hdcMem, 16 * iBmp, 0, 16, bitmap.bmHeight, (UINT)0x00FF00FF);
+        TransparentBlt(hdc, x + nOffset, y + nOffset, 16, bitmap.bmHeight, hdcMem, 16 * iBmp, 0, 16, bitmap.bmHeight, (UINT)0x00FF00FF);
 #endif
     }
 
@@ -291,10 +290,8 @@ void ToolboxWindow_OnLButtonUp(ToolboxWindow* pToolboxWindow, int x, int y)
 
             LogMessageF(LOGENTRY_TYPE_DEBUG, L"Toolbox", L"Selected tool: %s", pTool->pszLabel);
 
-            PanitentApplication* pPanitentApplication = Panitent_GetApp();
-            pPanitentApplication->m_pTool = (Tool*)pTool;
-
-            Panitent_SetActivityStatusF(pPanitentApplication, L"Drawing with %s", pTool->pszLabel);
+            PanitentApp_SetTool(PanitentApp_Instance(), (Tool*)pTool);
+            // PanitentApp_SetActivityStatusF(pPanitentApp, L"Drawing with %s", pTool->pszLabel);
         }
     }
 
@@ -368,16 +365,16 @@ INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
         PNTSETTINGS* settings;
 
         PTOOLBOXSETTINGS pTempSettings = (PTOOLBOXSETTINGS)malloc(sizeof(TOOLBOXSETTINGS));
-        memset(pTempSettings, 0, sizeof(TOOLBOXSETTINGS));
         assert(pTempSettings);
         if (!pTempSettings)
         {
+            memset(pTempSettings, 0, sizeof(TOOLBOXSETTINGS));
             EndDialog(hDlg, 0);
         }
 
         SetWindowLongPtr(hDlg, DWLP_USER, (LONG_PTR)pTempSettings);
 
-        settings = Panitent_GetSettings();
+        settings = PanitentApp_GetSettings(PanitentApp_Instance());
         int iSelTheme = settings->iToolbarIconTheme;
 
         SendDlgItemMessage(hDlg, IDC_TOOLBARICONTHEME, CB_ADDSTRING,
@@ -414,7 +411,7 @@ INT_PTR CALLBACK ToolboxSettingsDlgProc(HWND hDlg, UINT message,
         case IDOK:
         {
             PNTSETTINGS* pSettings;
-            pSettings = Panitent_GetSettings();
+            pSettings = PanitentApp_GetSettings(PanitentApp_Instance());
 
             pSettings->iToolbarIconTheme = pTempSettings->nIconTheme;
         }
@@ -435,9 +432,9 @@ void ToolboxWindow_PreRegister(LPWNDCLASSEX lpwcex);
 void ToolboxWindow_PreCreate(LPCREATESTRUCT lpcs);
 LRESULT ToolboxWindow_UserProc(ToolboxWindow* pToolboxWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow, PanitentApplication* pPanitentApplication)
+void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow)
 {
-    Window_Init(&pToolboxWindow->base, pPanitentApplication);
+    Window_Init(&pToolboxWindow->base);
 
     pToolboxWindow->base.szClassName = szClassName;
 
@@ -459,7 +456,7 @@ void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow, PanitentApplication* pPan
     pToolboxWindow->m_pBrushTool = BrushTool_Create();
     pToolboxWindow->m_pEraserTool = EraserTool_Create();
 
-    pPanitentApplication->m_pTool = (Tool*)pToolboxWindow->m_pPointerTool;
+    PanitentApp_SetTool(PanitentApp_Instance(), (Tool*)pToolboxWindow->m_pPointerTool);
 
     g_uToolPrevious = 0;
     g_uToolSelected = 0;
@@ -503,14 +500,14 @@ void ToolboxWindow_PreCreate(LPCREATESTRUCT lpcs)
     lpcs->cy = 200;
 }
 
-ToolboxWindow* ToolboxWindow_Create(PanitentApplication* pPanitentApplication)
+ToolboxWindow* ToolboxWindow_Create()
 {
     ToolboxWindow* pToolboxWindow = (ToolboxWindow*)malloc(sizeof(ToolboxWindow));
     
     if (pToolboxWindow)
     {
         memset(pToolboxWindow, 0, sizeof(ToolboxWindow));
-        ToolboxWindow_Init(pToolboxWindow, pPanitentApplication);
+        ToolboxWindow_Init(pToolboxWindow);
     }
 
     return pToolboxWindow;

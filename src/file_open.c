@@ -9,7 +9,8 @@
 #include <wchar.h>
 #include <assert.h>
 
-#include "panitent.h"
+#include "win32/window.h"
+#include "panitentapp.h"
 #include "settings.h"
 #include "util.h"
 
@@ -88,13 +89,13 @@ void FileOpenPng(LPWSTR pszPath)
 PNTMAP_DECLARE_TYPE(ExtensionMap, PWSTR, PWSTR)
 
 typedef struct _tagPNTSAVEPARAMS {
-  pntmap(ExtensionMap) m_extensionMap;
-  PWSTR pszPath;
-} PNTSAVEPARAMS, *PPNTSAVEPARAMS;
+    pntmap(ExtensionMap) m_extensionMap;
+    PWSTR pszPath;
+} PNTSAVEPARAMS, * PPNTSAVEPARAMS;
 
 typedef struct _tagPNGOPENPARAMS {
-  pntmap(ExtensionMap) m_extensionMap;
-} PNTOPENPARAMS, *PPNTOPENPARAMS;
+    pntmap(ExtensionMap) m_extensionMap;
+} PNTOPENPARAMS, * PPNTOPENPARAMS;
 
 COMDLG_FILTERSPEC c_rgReadTypes[2] = {
   {L"Windows/OS2 Bitmap", L"*.bmp"},
@@ -110,218 +111,218 @@ COMDLG_FILTERSPEC c_rgSaveTypes[4] = {
 
 void CoStringDtor(void* str)
 {
-  CoTaskMemFree(str);
+    CoTaskMemFree(str);
 }
 
-BOOL Win32LegacyFileOpenDialog(LPWSTR *pszPath)
+BOOL Win32LegacyFileOpenDialog(LPWSTR* pszPath)
 {
-  BOOL bStatus;
-  HWND hWnd = Panitent_GetHWND();
+    BOOL bStatus;
+    HWND hWnd = Window_GetHWND((Window *)PanitentApp_GetWindow(PanitentApp_Instance()));
 
-  OPENFILENAME ofn = {0};
+    OPENFILENAME ofn = { 0 };
 
-  ofn.lStructSize = sizeof(OPENFILENAME);
-  ofn.hwndOwner = hWnd;
-  ofn.hInstance = GetModuleHandle(NULL);
-  ofn.lpstrFile = *pszPath;
-  ofn.lpstrFilter = L"PNG Files\0*.png\0All Files\0*.*\0";
-  ofn.nMaxFile = 256;
-  ofn.lpstrDefExt = L"zip";
-  ofn.Flags = OFN_PATHMUSTEXIST;
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hWnd;
+    ofn.hInstance = GetModuleHandle(NULL);
+    ofn.lpstrFile = *pszPath;
+    ofn.lpstrFilter = L"PNG Files\0*.png\0All Files\0*.*\0";
+    ofn.nMaxFile = 256;
+    ofn.lpstrDefExt = L"zip";
+    ofn.Flags = OFN_PATHMUSTEXIST;
 
-  bStatus = GetOpenFileName(&ofn);
+    bStatus = GetOpenFileName(&ofn);
 
-  *pszPath = ofn.lpstrFile;
+    *pszPath = ofn.lpstrFile;
 
-  return bStatus;
+    return bStatus;
 }
 
-BOOL COMFileOpenDialog(LPWSTR *pszPath)
+BOOL COMFileOpenDialog(LPWSTR* pszPath)
 {
-  BOOL bResult;
-  HRESULT hr;
-  IFileDialog* pfd = NULL;
-  IShellItem* psiResult = NULL;
+    BOOL bResult;
+    HRESULT hr;
+    IFileDialog* pfd = NULL;
+    IShellItem* psiResult = NULL;
 
-  bResult = FALSE;
-  hr = S_OK;
+    bResult = FALSE;
+    hr = S_OK;
 
-  hr = CoInitialize(NULL);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"CoInitialize failed");
-    goto fail;
-  }
-
-  hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
-      &IID_IFileDialog, (LPVOID)&pfd);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"CoCreateInstance FileOpenDialog failed");
-    goto fail;
-  }
-
-  hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgReadTypes), c_rgReadTypes);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"FileOpenDialog::SetFileType failed");
-    goto fail;
-  }
-
-  hr = pfd->lpVtbl->Show(pfd, NULL);
-  assert(SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED));
-  if (FAILED(hr)) {
-    if (hr != HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    hr = CoInitialize(NULL);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
     {
-      OutputDebugString(L"FileOpenDialog::Show failed");
+        OutputDebugString(L"CoInitialize failed");
+        goto fail;
     }
-    goto fail;
-  }
 
-  hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"FileOpenDialog::GetResult failed");
-    goto fail;
-  }
-  
-  /* CHECKME: POSSIBLY DANGLING UNFREED MEMORY 
-     What does CoTaskMemFree actually do?
-     Should it be applied on COM strings explicitly to free them properly? */
-  hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH, pszPath);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"GetResult failed");
-    goto fail;
-  }
+    hr = CoCreateInstance(&CLSID_FileOpenDialog, NULL, CLSCTX_INPROC_SERVER,
+        &IID_IFileDialog, (LPVOID)&pfd);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"CoCreateInstance FileOpenDialog failed");
+        goto fail;
+    }
 
-  bResult = TRUE;
+    hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgReadTypes), c_rgReadTypes);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"FileOpenDialog::SetFileType failed");
+        goto fail;
+    }
+
+    hr = pfd->lpVtbl->Show(pfd, NULL);
+    assert(SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED));
+    if (FAILED(hr)) {
+        if (hr != HRESULT_FROM_WIN32(ERROR_CANCELLED))
+        {
+            OutputDebugString(L"FileOpenDialog::Show failed");
+        }
+        goto fail;
+    }
+
+    hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"FileOpenDialog::GetResult failed");
+        goto fail;
+    }
+
+    /* CHECKME: POSSIBLY DANGLING UNFREED MEMORY
+       What does CoTaskMemFree actually do?
+       Should it be applied on COM strings explicitly to free them properly? */
+    hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH, pszPath);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"GetResult failed");
+        goto fail;
+    }
+
+    bResult = TRUE;
 
 fail:
-  SAFE_RELEASE(psiResult)
-  SAFE_RELEASE(pfd)
+    SAFE_RELEASE(psiResult)
+        SAFE_RELEASE(pfd)
 
-  return bResult;
+        return bResult;
 }
 
-BOOL Win32LegacyFileSaveDialog(LPWSTR *pszPath)
+BOOL Win32LegacyFileSaveDialog(LPWSTR* pszPath)
 {
-  BOOL bStatus;
-  HWND hWnd = Panitent_GetHWND();
+    BOOL bStatus;
+    HWND hWnd = Window_GetHWND((Window*)PanitentApp_GetWindow(PanitentApp_Instance()));
 
-  OPENFILENAME ofn = {0};
+    OPENFILENAME ofn = { 0 };
 
-  ofn.lStructSize = sizeof(OPENFILENAME);
-  ofn.hwndOwner = hWnd;
-  ofn.hInstance = GetModuleHandle(NULL);
-  ofn.lpstrFile = *pszPath;
-  ofn.nMaxFile = 256;
-  bStatus = GetSaveFileName(&ofn);
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.hwndOwner = hWnd;
+    ofn.hInstance = GetModuleHandle(NULL);
+    ofn.lpstrFile = *pszPath;
+    ofn.nMaxFile = 256;
+    bStatus = GetSaveFileName(&ofn);
 
-  *pszPath = ofn.lpstrFile;
+    *pszPath = ofn.lpstrFile;
 
-  return bStatus;
+    return bStatus;
 }
 
-BOOL COMFileSaveDialog(LPWSTR *pszPath)
+BOOL COMFileSaveDialog(LPWSTR* pszPath)
 {
-  HRESULT hr = S_OK;
+    HRESULT hr = S_OK;
 
-  IFileDialog* pfd = NULL;
-  IShellItem* psiResult = NULL;
+    IFileDialog* pfd = NULL;
+    IShellItem* psiResult = NULL;
 
-  hr = CoInitialize(NULL);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"CoInitialize failed");
-    goto fail;
-  }
-
-  hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
-      &IID_IFileDialog, (LPVOID)&pfd);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"CoCreateInstance FileSaveDialog failed");
-    goto fail;
-  }
-
-  hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"FileSaveDialog::SetFileTypes failed");
-    goto fail;
-  }
-
-  hr = pfd->lpVtbl->Show(pfd, NULL);
-  assert(SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED));
-  if (FAILED(hr))
-  {
-    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+    hr = CoInitialize(NULL);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
     {
-      OutputDebugString(L"FileSaveDialog::Show failed");
+        OutputDebugString(L"CoInitialize failed");
+        goto fail;
     }
-    goto fail;
-  }
 
-  hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"FileSaveDialog::GetResult failed");
-    goto fail;
-  }
+    hr = CoCreateInstance(&CLSID_FileSaveDialog, NULL, CLSCTX_INPROC_SERVER,
+        &IID_IFileDialog, (LPVOID)&pfd);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"CoCreateInstance FileSaveDialog failed");
+        goto fail;
+    }
 
-  hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH,
-      pszPath);
-  assert(SUCCEEDED(hr));
-  if (FAILED(hr))
-  {
-    OutputDebugString(L"FileSaveDialog::GetResult failed");
-    goto fail;
-  }
+    hr = pfd->lpVtbl->SetFileTypes(pfd, ARRAYSIZE(c_rgSaveTypes), c_rgSaveTypes);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"FileSaveDialog::SetFileTypes failed");
+        goto fail;
+    }
+
+    hr = pfd->lpVtbl->Show(pfd, NULL);
+    assert(SUCCEEDED(hr) || hr == HRESULT_FROM_WIN32(ERROR_CANCELLED));
+    if (FAILED(hr))
+    {
+        if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED))
+        {
+            OutputDebugString(L"FileSaveDialog::Show failed");
+        }
+        goto fail;
+    }
+
+    hr = pfd->lpVtbl->GetResult(pfd, &psiResult);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"FileSaveDialog::GetResult failed");
+        goto fail;
+    }
+
+    hr = psiResult->lpVtbl->GetDisplayName(psiResult, SIGDN_FILESYSPATH,
+        pszPath);
+    assert(SUCCEEDED(hr));
+    if (FAILED(hr))
+    {
+        OutputDebugString(L"FileSaveDialog::GetResult failed");
+        goto fail;
+    }
 
 
 fail:
-  SAFE_RELEASE(psiResult)
-  SAFE_RELEASE(pfd)
+    SAFE_RELEASE(psiResult)
+        SAFE_RELEASE(pfd)
 
-  return TRUE;
+        return TRUE;
 }
 
-BOOL init_save_file_dialog(LPWSTR *pszPath)
+BOOL init_save_file_dialog(LPWSTR* pszPath)
 {
-  PNTSETTINGS *pSettings;
-  BOOL bStatus;
+    PNTSETTINGS* pSettings;
+    BOOL bStatus;
 
-  pSettings = Panitent_GetSettings();
+    pSettings = PanitentApp_GetSettings(PanitentApp_Instance());
 
-  if (pSettings->bLegacyFileDialogs == TRUE)
-    bStatus = Win32LegacyFileSaveDialog(pszPath);
-  else
-    bStatus = COMFileSaveDialog(pszPath);
+    if (pSettings->bLegacyFileDialogs == TRUE)
+        bStatus = Win32LegacyFileSaveDialog(pszPath);
+    else
+        bStatus = COMFileSaveDialog(pszPath);
 
-  return bStatus;
+    return bStatus;
 }
 
-BOOL init_open_file_dialog(LPWSTR *pszPath)
+BOOL init_open_file_dialog(LPWSTR* pszPath)
 {
-  PNTSETTINGS *pSettings;
-  BOOL bStatus;
+    PNTSETTINGS* pSettings;
+    BOOL bStatus;
 
-  pSettings = Panitent_GetSettings();
+    pSettings = PanitentApp_GetSettings(PanitentApp_Instance());
 
-  if (pSettings->bLegacyFileDialogs == TRUE)
-    bStatus = Win32LegacyFileOpenDialog(pszPath);
-  else
-    bStatus = COMFileOpenDialog(pszPath);
+    if (pSettings->bLegacyFileDialogs == TRUE)
+        bStatus = Win32LegacyFileOpenDialog(pszPath);
+    else
+        bStatus = COMFileOpenDialog(pszPath);
 
-  return bStatus;
+    return bStatus;
 }

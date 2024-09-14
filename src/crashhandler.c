@@ -32,3 +32,8 @@ LONG WINAPI PanitentUnhandledExceptionFilter(EXCEPTION_POINTERS* exceptionPointe
     CreateDump(exceptionPointers);
     return EXCEPTION_EXECUTE_HANDLER;
 }
+
+void Panitent_RaiseException(PCWSTR pszExceptionMessage)
+{
+    MessageBox(NULL, pszExceptionMessage, NULL, MB_ICONERROR);
+}
