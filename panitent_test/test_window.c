@@ -25,7 +25,7 @@ TestWindow* TestWindow_$new()
     if (pTestWindow)
     {
         memset(pTestWindow, 0, sizeof(TestWindow));
-        TestWindow_Init(pTestWindow, app);
+        TestWindow_$init(pTestWindow);
     }
 
     return pTestWindow;
@@ -33,7 +33,7 @@ TestWindow* TestWindow_$new()
 
 void TestWindow_$init(TestWindow* window)
 {
-    Window_Init(&window->base, app);
+    Window_$init(&window->base);
 
     window->base.szClassName = szClassName;
 
