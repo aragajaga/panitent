@@ -51,9 +51,9 @@ void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1,
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pWuShapeStrategy->base.m_pShapeContext);
 
-    int strokeWidth = 32;
+    int strokeWidth = 2;
 
-    BOOL steep = fabsf((float)(y2 - y1)) > fabsf((float)(x2 - x1)) != 0.0f;
+    BOOL steep = fabsf((float)(y2 - y1)) > fabsf((float)(x2 - x1));
 
     if (steep) {
         ffswapT_(int, x1, y1);

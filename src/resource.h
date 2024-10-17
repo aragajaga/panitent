@@ -10,6 +10,32 @@
 #define IDI_ICON 1101
 #define IDI_LOG 1102
 
+#define IDC_MAINMENU                100
+
+#define IDM_FILE_NEW                1001
+#define IDM_FILE_OPEN               1002
+#define IDM_FILE_SAVE               1003
+#define IDM_FILE_CLIPBOARD_EXPORT   1004
+#define IDM_FILE_BINVIEW            1005
+#define IDM_FILE_RUN_SCRIPT         1006
+#define IDM_FILE_CLOSE              1007
+
+#define IDM_EDIT_UNDO               1008
+#define IDM_EDIT_REDO               1009
+#define IDM_EDIT_CLRCANVAS          1010
+
+#define IDM_WINDOW_TOOLS            1011
+#define IDM_WINDOW_ACTIVITY_DIALOG  1012
+#define IDM_WINDOW_PROPERTY_GRID    1013
+
+#define IDM_OPTIONS_SETTINGS        1014
+
+#define IDM_HELP_TOPICS             1015
+#define IDM_HELP_LOG                1016
+#define IDM_HELP_RBTREEVIZ          1017
+#define IDM_HELP_ABOUT              1018
+#define IDM_HELP_DISPLAYPIXELBUFFER 1019
+
 #define IDB_TOOLS 1201
 #define IDB_TOOLS24 1202
 #define IDB_CLOSEBTN 1203

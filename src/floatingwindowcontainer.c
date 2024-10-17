@@ -272,7 +272,7 @@ FloatingWindowContainer* FloatingWindowContainer_Create(struct Application* app)
 
 void FloatingWindowContainer_Init(FloatingWindowContainer* window, struct Application* app)
 {
-    Window_Init(&window->base, app);
+    Window_Init(&window->base);
 
     window->base.szClassName = szClassName;
 

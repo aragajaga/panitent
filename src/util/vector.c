@@ -112,3 +112,9 @@ void Vector_Free(Vector* pVector)
     pVector->nSize = 0;
     pVector->nCapacity = 0;
 }
+
+/* Clear the vector. (Remove all elements) */
+void Vector_Clear(Vector* pVector)
+{
+    pVector->nSize = 0;
+}

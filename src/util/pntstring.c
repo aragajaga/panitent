@@ -86,7 +86,7 @@ void PntString_SetFromUTF16(PntString* pPntString, const uint16_t* pStr)
         pData = realloc(pPntString->data, len);
     }
     else {
-        pData = malloc(pPntString->data, len);
+        pData = malloc(len);
     }
 
     if (!pData)

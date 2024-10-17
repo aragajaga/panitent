@@ -27,33 +27,30 @@ uint32_t color_opacity(uint32_t color, float opacity)
 
 uint32_t mix(uint32_t base, uint32_t overlay)
 {
-    float baseA = (base >> 24 & 0xFF) / 255.f;
-    float baseR = (base >> 16 & 0xFF) / 255.f;
-    float baseG = (base >> 8 & 0xFF) / 255.f;
-    float baseB = (base & 0xFF) / 255.f;
+    /* extract base color components */
+    uint8_t baseA = (base >> 24) & 0xFF;
+    uint8_t baseR = (base >> 16) & 0xFF;
+    uint8_t baseG = (base >> 8) & 0xFF;
+    uint8_t baseB = base & 0xFF;
 
-    float overlayA = (overlay >> 24 & 0xFF) / 255.f;
-    float overlayR = (overlay >> 16 & 0xFF) / 255.f;
-    float overlayG = (overlay >> 8 & 0xFF) / 255.f;
-    float overlayB = (overlay & 0xFF) / 255.f;
+    /* Extract overlay color components */
+    uint8_t overlayA = (overlay >> 24) & 0xFF;
+    uint8_t overlayR = (overlay >> 16) & 0xFF;
+    uint8_t overlayG = (overlay >> 8) & 0xFF;
+    uint8_t overlayB = overlay & 0xFF;
 
-    /*
-    float blendR = baseR * overlayA + overlayR * (1.f - overlayA);
-    float blendG = baseG * overlayA + overlayG * (1.f - overlayA);
-    float blendB = baseB * overlayA + overlayB * (1.f - overlayA);
-    */
+    /* Precompute scaled alpha for base and overlay */
+    uint16_t invOverlayA = 255 - overlayA;
 
-    float resultR = (1.f - overlayA) * baseR + overlayA * overlayR;
-    float resultG = (1.f - overlayA) * baseG + overlayA * overlayG;
-    float resultB = (1.f - overlayA) * baseB + overlayA * overlayB;
-    float resultA = 1.f - (1.f - baseA) * (1.f - overlayA);
+    /* Blend the RGB channels directly using integer math */
+    uint8_t resultR = (uint8_t)((baseR * invOverlayA + overlayR * overlayA) / 255);
+    uint8_t resultG = (uint8_t)((baseG * invOverlayA + overlayG * overlayA) / 255);
+    uint8_t resultB = (uint8_t)((baseB * invOverlayA + overlayB * overlayA) / 255);
 
-    uint8_t a = (uint8_t)roundf(resultA * 255.f);
-    uint8_t r = (uint8_t)roundf(resultR * 255.f);
-    uint8_t g = (uint8_t)roundf(resultG * 255.f);
-    uint8_t b = (uint8_t)roundf(resultB * 255.f);
+    /* Blend alpha channel (premultiply the inverse alpha blend) */
+    uint8_t resultA = (uint8_t)(255 - ((255 - baseA) * invOverlayA / 255));
 
-    return ARGB(a, r, g, b);
+    return (resultA << 24) | (resultR << 16) | (resultG << 8) | resultB;
 }
 
 void* Canvas_BufferAlloc(Canvas* canvas)

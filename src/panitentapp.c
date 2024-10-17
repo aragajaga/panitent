@@ -32,12 +32,20 @@
 #include "util/assert.h"
 #include "win32/util.h"
 #include "lua_scripting.h"
+#include "history.h"
+#include "viewport.h"
+#include "aboutbox.h"
 
 #include "verifycheck.h"
+
+void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp);
 
 void PanitentApp_Init(PanitentApp* pPanitentApp)
 {
     Application_Init(&pPanitentApp->base);
+
+    AppCmd_Init(&pPanitentApp->m_appCmd);
+    PanitentApp_RegisterCommands(pPanitentApp);
     pPanitentApp->pPanitentWindow = PanitentWindow_Create(pPanitentApp);
 
     pPanitentApp->palette = Palette_Create();
@@ -93,7 +101,7 @@ int PanitentApp_Run(PanitentApp* pPanitentApp)
     Window_CreateWindow((Window*)pPanitentApp->pPanitentWindow, NULL);
 
     PanitentApp* pPanitentApp2 = PanitentApp_Instance();
-    HANDLE hVerifyCheckThread = CreateThread(NULL, 0, VerifyCheckThreadProc, NULL, 0, NULL);
+    // HANDLE hVerifyCheckThread = CreateThread(NULL, 0, VerifyCheckThreadProc, NULL, 0, NULL);
 
     return Application_Run(pPanitentApp);
 }
@@ -159,7 +167,7 @@ TreeNode* CreatePaletteWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDo
         memset(pDockDataPalette, 0, sizeof(DockData));
         pNodePalette->data = (void*)pDockDataPalette;
         wcscpy_s(pDockDataPalette->lpszName, MAX_PATH, L"Palette");
-        PaletteWindow* pPaletteWindow = PaletteWindow_Create((Application*)pPanitentApp, pPanitentApp->palette);
+        PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
         HWND hwndPalette = Window_CreateWindow((Window*)pPaletteWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataPalette, (Window*)pPaletteWindow);
     }
@@ -311,8 +319,8 @@ ViewportWindow* PanitentApp_GetActiveViewport(PanitentApp* pPanitentApp)
 
 Document* PanitentApp_GetActiveDocument(PanitentApp* pPanitentApp)
 {
-    /* TODO: Not implemented */
-    return NULL;
+    ViewportWindow *pViewportWindow = PanitentApp_GetActiveViewport(pPanitentApp);
+    return ViewportWindow_GetDocument(pViewportWindow);
 }
 
 ActivitySharingManager* PanitentApp_GetActivitySharingManager(PanitentApp* pPanitentApp)
@@ -551,4 +559,49 @@ void PanitentApp_CmdDisplayPixelBuffer(PanitentApp* pPanitentApp)
         fwrite(pData, width * height * 4, 1, fp);
         fclose(fp);
     }
+}
+
+void PanitentApp_CmdClose(PanitentApp* pPanitentApp)
+{
+    PostQuitMessage(0);
+}
+
+void PanitentApp_CmdUndo(PanitentApp* pPanitentApp)
+{
+    History_Undo(PanitentApp_GetActiveDocument(pPanitentApp));
+}
+
+void PanitentApp_CmdRedo(PanitentApp* pPanitentApp)
+{
+    History_Redo(PanitentApp_GetActiveDocument(pPanitentApp));
+}
+
+void PanitentApp_CmdAbout(PanitentApp* pPanitentApp)
+{
+    PanitentWindow* pPanitentWindow = PanitentApp_GetWindow(pPanitentApp);
+    HWND hMainWnd = Window_GetHWND((Window*)pPanitentWindow);
+    AboutBox_Run(hMainWnd);
+}
+
+void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp)
+{
+    AppCmd* pAppCmd = &pPanitentApp->m_appCmd;
+
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_NEW, &PanitentApp_CmdNewFile);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_OPEN, &PanitentApp_CmdOpenFile);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_SAVE, &PanitentApp_CmdSaveFile);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_CLIPBOARD_EXPORT, &PanitentApp_CmdClipboardExport);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_BINVIEW, &PanitentApp_CmdBinView);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_RUN_SCRIPT, &PanitentApp_CmdRunScript);
+    AppCmd_AddCommand(pAppCmd, IDM_FILE_CLOSE, &PanitentApp_CmdClose);
+    AppCmd_AddCommand(pAppCmd, IDM_EDIT_UNDO, &PanitentApp_CmdUndo);
+    AppCmd_AddCommand(pAppCmd, IDM_EDIT_REDO, &PanitentApp_CmdRedo);
+    AppCmd_AddCommand(pAppCmd, IDM_EDIT_CLRCANVAS, &PanitentApp_CmdClearCanvas);
+    AppCmd_AddCommand(pAppCmd, IDM_WINDOW_ACTIVITY_DIALOG, &PanitentApp_CmdShowActivityDialog);
+    AppCmd_AddCommand(pAppCmd, IDM_WINDOW_PROPERTY_GRID, &PanitentApp_CmdShowPropertyGridDialog);
+    AppCmd_AddCommand(pAppCmd, IDM_OPTIONS_SETTINGS, &PanitentApp_CmdShowSettings);
+    AppCmd_AddCommand(pAppCmd, IDM_HELP_LOG, &PanitentApp_CmdShowLog);
+    AppCmd_AddCommand(pAppCmd, IDM_HELP_RBTREEVIZ, &PanitentApp_CmdShowRbTreeViz);
+    AppCmd_AddCommand(pAppCmd, IDM_HELP_ABOUT, &PanitentApp_CmdAbout);
+    AppCmd_AddCommand(pAppCmd, IDM_HELP_DISPLAYPIXELBUFFER, &PanitentApp_CmdDisplayPixelBuffer);
 }

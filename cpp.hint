@@ -1,0 +1,4 @@
+// Hint files help the Visual Studio IDE interpret Visual C++ identifiers
+// such as names of functions and macros.
+// For more information see https://go.microsoft.com/fwlink/?linkid=865984
+#define DECLARE_$NEW(T, __VA_ARGS__) T* T##_$new(E) { void* pObject = malloc(sizeof(T)); if (pObject) { memset(pObject, 0, sizeof(T)); T##_$init((T*)pObject, __VA_ARGS__); } return (T*)pObject; }

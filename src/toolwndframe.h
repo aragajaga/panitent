@@ -18,5 +18,5 @@ struct CaptionButton {
     int htCommand;
 };
 
-void DrawCaptionGlyph(HDC hdc, int x, int y, int iGlyph);
-void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y);
+void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph);
+void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height);
