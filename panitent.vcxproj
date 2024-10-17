@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\aboutbox.c" />
+    <ClCompile Include="src\appcmd.c" />
     <ClCompile Include="src\binview\audioplayer.c" />
     <ClCompile Include="src\binview\audiosource.c" />
     <ClCompile Include="src\binview\binview.c" />
@@ -122,6 +123,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\aboutbox.h" />
+    <ClInclude Include="src\appcmd.h" />
     <ClInclude Include="src\binview\audioplayer.h" />
     <ClInclude Include="src\binview\audiosource.h" />
     <ClInclude Include="src\binview\binview.h" />

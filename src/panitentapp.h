@@ -4,6 +4,7 @@
 #include "win32/application.h"
 #include "palette.h"
 #include "settings.h"
+#include "appcmd.h"
 
 typedef struct PanitentWindow PanitentWindow;
 typedef struct Tool Tool;
@@ -30,6 +31,7 @@ struct PanitentApp {
     ViewportWindow* m_pViewportWindow;
     PNTSETTINGS m_settings;
     ShapeContext* m_pShapeContext;
+    AppCmd m_appCmd;
 };
 
 void PanitentApp_Init(PanitentApp* pPanitentApp);
