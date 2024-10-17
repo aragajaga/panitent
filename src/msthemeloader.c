@@ -61,8 +61,6 @@ int PntINI_Callback(void* user, PCTSTR section, PCTSTR name, PCTSTR value, int l
             SelectObject(hdcMem, hOldBitmap);
             DeleteBitmap(hBitmap);
             DeleteDC(hdcMem);
-
-            // MessageBox(NULL, szValue, section, NULL);
         }
         
     }   
@@ -157,11 +155,7 @@ void MSTheme_Init(MSTheme* pMSTheme, PTSTR pszPath)
                                 PTSTR pszKey = (PTSTR)malloc((len + 1) * sizeof(TCHAR));
                                 _stprintf_s(pszKey, len + 1, szFormat, pPntINIContext->szSection, pPntINIContext->szName);
 
-                                // MessageBox(NULL, pszValue, pszKey, MB_OK);
-
                                 RBHashMap_Insert(map, pszKey, pszValue);
-
-                                
                             }
 
                             void* val = RBHashMap_Lookup(map, _T("Window.Caption//ImageFile"));

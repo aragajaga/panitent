@@ -46,6 +46,8 @@
     <ClCompile Include="src\floatingwindowcontainer.c" />
     <ClCompile Include="src\glwindow.c" />
     <ClCompile Include="src\grimstroke\bresenhamshapestrategy.c" />
+    <ClCompile Include="src\grimstroke\msaa.c" />
+    <ClCompile Include="src\grimstroke\msaaplotterproxy.c" />
     <ClCompile Include="src\grimstroke\pixelbuffer.c" />
     <ClCompile Include="src\grimstroke\plotter.c" />
     <ClCompile Include="src\grimstroke\polygon.c" />
@@ -72,6 +74,10 @@
     <ClCompile Include="src\pntxml.c" />
     <ClCompile Include="src\propgriddialog.c" />
     <ClCompile Include="src\rbhashmapviz.c" />
+    <ClCompile Include="src\s11n\bsonserializer.c" />
+    <ClCompile Include="src\s11n\jsonserializer.c" />
+    <ClCompile Include="src\s11n\serializable_example.c" />
+    <ClCompile Include="src\s11n\xmlserializer.c" />
     <ClCompile Include="src\settings.c" />
     <ClCompile Include="src\settings_dialog.c" />
     <ClCompile Include="src\settings_wnd.c" />
@@ -142,7 +148,11 @@
     <ClInclude Include="src\flexible.h" />
     <ClInclude Include="src\floatingwindowcontainer.h" />
     <ClInclude Include="src\glwindow.h" />
+    <ClInclude Include="src\grimstroke\basic_plotter.h" />
     <ClInclude Include="src\grimstroke\bresenhamshapestrategy.h" />
+    <ClInclude Include="src\grimstroke\msaa.h" />
+    <ClInclude Include="src\grimstroke\msaaplotterproxy.h" />
+    <ClInclude Include="src\grimstroke\path.h" />
     <ClInclude Include="src\grimstroke\pixelbuffer.h" />
     <ClInclude Include="src\grimstroke\plotter.h" />
     <ClInclude Include="src\grimstroke\polygon.h" />
@@ -173,7 +183,13 @@
     <ClInclude Include="src\propgriddialog.h" />
     <ClInclude Include="src\rbhashmapviz.h" />
     <ClInclude Include="src\resource.h" />
+    <ClInclude Include="src\s11n\bsonserializer.h" />
+    <ClInclude Include="src\s11n\tentany.h" />
+    <ClInclude Include="src\s11n\jsonserializer.h" />
+    <ClInclude Include="src\s11n\xmlserializer.h" />
     <ClInclude Include="src\sdk\panitent.h" />
+    <ClInclude Include="src\s11n\propertytree.h" />
+    <ClInclude Include="src\s11n\serializable_example.h" />
     <ClInclude Include="src\settings.h" />
     <ClInclude Include="src\settings_dialog.h" />
     <ClInclude Include="src\settings_wnd.h" />
@@ -188,6 +204,8 @@
     <ClInclude Include="src\splittercontainer.h" />
     <ClInclude Include="src\swatch.h" />
     <ClInclude Include="src\swatch2.h" />
+    <ClInclude Include="src\swatchstorage.h" />
+    <ClInclude Include="src\swatchstoragebase.h" />
     <ClInclude Include="src\test.h" />
     <ClInclude Include="src\tool.h" />
     <ClInclude Include="src\toolbox.h" />
@@ -213,7 +231,11 @@
     <ClInclude Include="src\util\pntstring.h" />
     <ClInclude Include="src\util\queue.h" />
     <ClInclude Include="src\util\rbhashmap.h" />
+    <ClInclude Include="src\s11n\serializable.h" />
+    <ClInclude Include="src\s11n\serializer.h" />
     <ClInclude Include="src\util\stack.h" />
+    <ClInclude Include="src\util\tentobj.h" />
+    <ClInclude Include="src\util\tenttypes.h" />
     <ClInclude Include="src\util\tree.h" />
     <ClInclude Include="src\util\utf.h" />
     <ClInclude Include="src\util\vector.h" />

@@ -3,11 +3,13 @@
 
 #include "test_application.h"
 #include "../src/palette_window.h"
+#include "../src/util/tentobj.h"
 
 static const WCHAR szClassName[] = L"TestWindowClass";
 
-TestWindow* TestWindow_Create(struct Application* app);
-void TestWindow_Init(TestWindow*, Application*);
+/* Forward declarations */
+DECLARE_$NEW(TestWindow)
+void TestWindow_$init(TestWindow*, Application*);
 
 void TestWindow_PreRegister(LPWNDCLASSEX);
 void TestWindow_PreCreate(LPCREATESTRUCT);
@@ -17,21 +19,21 @@ void TestWindow_OnSize(TestWindow*, UINT, int, int);
 void TestWindow_OnPaint(TestWindow*);
 LRESULT CALLBACK TestWindow_UserProc(struct Window*, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-TestWindow* TestWindow_Create(struct Application* app)
+TestWindow* TestWindow_$new()
 {
     TestWindow* pTestWindow = (TestWindow*)malloc(sizeof(TestWindow));
     if (pTestWindow)
     {
         memset(pTestWindow, 0, sizeof(TestWindow));
-        TestWindow_Init(pTestWindow, app);
+        TestWindow_$init(pTestWindow);
     }
 
     return pTestWindow;
 }
 
-void TestWindow_Init(TestWindow* window, struct Application* app)
+void TestWindow_$init(TestWindow* window)
 {
-    Window_Init(&window->base, app);
+    Window_$init(&window->base);
 
     window->base.szClassName = szClassName;
 
@@ -41,7 +43,7 @@ void TestWindow_Init(TestWindow* window, struct Application* app)
     window->base.OnPaint = TestWindow_OnPaint;
     window->base.UserProc = TestWindow_UserProc;
 
-    window->paletteWindow = PaletteWindow_Create(window->base.app, ((struct TestApplication*)app)->palette);
+    window->paletteWindow = PaletteWindow_Create(((struct TestApplication*)app)->palette);
 }
 
 LRESULT CALLBACK TestWindow_UserProc(struct Window* window, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)

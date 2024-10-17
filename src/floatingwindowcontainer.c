@@ -15,7 +15,7 @@ static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
 /* Private forward declarations */
 FloatingWindowContainer* FloatingWindowContainer_Create();
-void FloatingWindowContainer_Init(FloatingWindowContainer*);
+void FloatingWindowContainer_Init(FloatingWindowContainer*, Application* app);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -272,7 +272,7 @@ FloatingWindowContainer* FloatingWindowContainer_Create(struct Application* app)
 
 void FloatingWindowContainer_Init(FloatingWindowContainer* window, struct Application* app)
 {
-    Window_Init(&window->base, app);
+    Window_Init(&window->base);
 
     window->base.szClassName = szClassName;
 

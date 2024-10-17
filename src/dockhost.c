@@ -589,7 +589,7 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 	Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
 	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, ((DockData*)pNode->data)->hWnd);
 
-	DockHostWindow_Rearrange(pDockHostWindow, pNode);
+	DockHostWindow_Rearrange(pDockHostWindow);
 
 	DestroyWindow(g_hWndDragOverlay);
 }
@@ -996,7 +996,7 @@ void DockHostWindow_PreCreate(LPCREATESTRUCT lpcs)
 
 void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp)
 {
-	Window_Init(&pDockHostWindow->base, pPanitentApp);
+	Window_Init(&pDockHostWindow->base);
 
 	pDockHostWindow->base.szClassName = szClassName;
 

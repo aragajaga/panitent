@@ -115,7 +115,7 @@ void GetWorkDir()
         PWSTR pszWorkDir = (PWSTR)malloc((dwLen + 1) * sizeof(WCHAR));
         if (pszWorkDir)
         {
-            GetCurrentDirectory(pszWorkDir, pszWorkDir, dwLen + 1);
+            GetCurrentDirectoryW(dwLen + 1, pszWorkDir);
         }
     }
 }

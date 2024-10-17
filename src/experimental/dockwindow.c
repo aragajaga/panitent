@@ -42,7 +42,7 @@ void DockHostWindow2_Init(DockHostWindow2* pDockHostWindow2, Application* pAppli
 {
     memset(pDockHostWindow2, 0, sizeof(DockHostWindow2));
 
-    Window_Init(&pDockHostWindow2->base, pApplication);
+    Window_Init(&pDockHostWindow2->base);
 
     _WindowInitHelper_SetPreCreateRoutine(pDockHostWindow2, (FnWindowPreCreate)DockHostWindow2_PreCreate);
     _WindowInitHelper_SetPreRegisterRoutine(pDockHostWindow2, (FnWindowPreRegister)DockHostWindow2_PreRegister);

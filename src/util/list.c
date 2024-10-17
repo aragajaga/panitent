@@ -10,7 +10,7 @@ struct List {
     size_t nElementSize;
 };
 
-void List_Init(List* pList);
+void List_Init(List* pList, size_t nElementSize);
 
 List* List_Create(size_t nElementSize)
 {

@@ -11,6 +11,6 @@ struct TestWindow {
   TreeViewCtl treeView;
 };
 
-TestWindow* TestWindow_Create(Application*);
+TestWindow* TestWindow_$new(Application*);
 
 #endif  /* _TEST_WINDOW_H_INLUCDED */

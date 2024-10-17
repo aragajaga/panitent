@@ -93,7 +93,7 @@ int PanitentApp_Run(PanitentApp* pPanitentApp)
     Window_CreateWindow((Window*)pPanitentApp->pPanitentWindow, NULL);
 
     PanitentApp* pPanitentApp2 = PanitentApp_Instance();
-    HANDLE hVerifyCheckThread = CreateThread(NULL, 0, VerifyCheckThreadProc, NULL, 0, NULL);
+    // HANDLE hVerifyCheckThread = CreateThread(NULL, 0, VerifyCheckThreadProc, NULL, 0, NULL);
 
     return Application_Run(pPanitentApp);
 }
@@ -159,7 +159,7 @@ TreeNode* CreatePaletteWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDo
         memset(pDockDataPalette, 0, sizeof(DockData));
         pNodePalette->data = (void*)pDockDataPalette;
         wcscpy_s(pDockDataPalette->lpszName, MAX_PATH, L"Palette");
-        PaletteWindow* pPaletteWindow = PaletteWindow_Create((Application*)pPanitentApp, pPanitentApp->palette);
+        PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
         HWND hwndPalette = Window_CreateWindow((Window*)pPaletteWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataPalette, (Window*)pPaletteWindow);
     }

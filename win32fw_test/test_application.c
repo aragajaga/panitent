@@ -8,7 +8,7 @@ void TestApplication_Init(TestApplication* app)
 {
   Application_Init(&app->application);
 
-  app->mainWindow = TestWindow_Create(app);
+  app->mainWindow = TestWindow_$new(app);
 }
 
 TestApplication* TestApplication_Create()

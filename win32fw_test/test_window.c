@@ -5,8 +5,8 @@
 
 static const WCHAR szClassName[] = L"TestWindowClass";
 
-TestWindow* TestWindow_Create(Application*);
-void TestWindow_Init(TestWindow* window, Application*);
+TestWindow* TestWindow_$new(Application*);
+void TestWindow_$init(TestWindow* window, Application*);
 
 void TestWindow_PreRegister(LPWNDCLASSEX);
 void TestWindow_PreCreate(LPCREATESTRUCT);
@@ -16,22 +16,22 @@ void TestWindow_OnSize(TestWindow*, UINT, int, int);
 void TestWindow_OnPaint(TestWindow*);
 LRESULT CALLBACK TestWindow_UserProc(struct Window*, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
-TestWindow* TestWindow_Create(Application* app)
+TestWindow* TestWindow_$new(Application* app)
 {
   TestWindow* pTestWindow = (TestWindow*)malloc(sizeof(TestWindow));
   memset(pTestWindow, 0, sizeof(TestWindow));
 
   if (pTestWindow)
   {
-    TestWindow_Init(pTestWindow, app);
+    TestWindow_$init(pTestWindow, app);
   }
 
   return pTestWindow;
 }
 
-void TestWindow_Init(TestWindow* window, Application* app)
+void TestWindow_$init(TestWindow* window, Application* app)
 {
-  Window_Init(&window->base, app);
+  Window_$init(&window->base, app);
 
   window->base.szClassName = szClassName;
 
