@@ -91,6 +91,7 @@ void PanitentWindow_PreRegister(LPWNDCLASSEX lpwcex)
     lpwcex->hIcon = LoadIcon(GetModuleHandle(NULL), MAKEINTRESOURCE(IDI_ICON));
     lpwcex->hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
     lpwcex->lpszClassName = szClassName;
+    lpwcex->lpszMenuName = MAKEINTRESOURCE(IDC_MAINMENU);
 }
 
 void PanitentWindow_OnPaint(PanitentWindow* window)
@@ -337,155 +338,10 @@ LRESULT PanitentWindow_OnNCPaint(PanitentWindow* pPanitentWindow, HRGN hrgn)
     return 0;
 }
 
-/* Menu ID values */
-enum {
-    IDM_FILE_NEW = 1001,
-    IDM_FILE_OPEN,
-    IDM_FILE_SAVE,
-    IDM_FILE_CLIPBOARD_EXPORT,
-    IDM_FILE_BINVIEW,
-    IDM_FILE_RUN_SCRIPT,
-    IDM_FILE_CLOSE,
-
-    IDM_EDIT_UNDO,
-    IDM_EDIT_REDO,
-    IDM_EDIT_CLRCANVAS,
-
-    IDM_WINDOW_TOOLS,
-    IDM_WINDOW_ACTIVITY_DIALOG,
-    IDM_WINDOW_PROPERTY_GRID,
-
-    IDM_OPTIONS_SETTINGS,
-
-    IDM_HELP_TOPICS,
-    IDM_HELP_LOG,
-    IDM_HELP_RBTREEVIZ,
-    IDM_HELP_ABOUT,
-    IDM_HELP_DISPLAYPIXELBUFFER
-};
-
-HMENU PanitentWindow_CreateMenu()
-{
-    HMENU hMenu;
-    HMENU hSubMenu;
-
-    hMenu = CreateMenu();
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_NEW, L"&New\tCtrl+N");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_OPEN, L"&Open\tCtrl+O");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_SAVE, L"&Save\tCtrl+S");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLIPBOARD_EXPORT, L"Export image to clipboard");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_BINVIEW, L"BinView");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_CLOSE, L"&Close");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&File");
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_UNDO, L"&Undo");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_REDO, L"&Redo");
-    AppendMenu(hSubMenu, MF_STRING, IDM_EDIT_CLRCANVAS, L"&Clear canvas");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Edit");
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_RUN_SCRIPT, L"Run last script");
-    AppendMenu(hSubMenu, MF_STRING, IDM_FILE_RUN_SCRIPT, L"Run script...");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Scripting");
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_TOOLS, L"&Tools");
-    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_ACTIVITY_DIALOG, L"&Activity...");
-    AppendMenu(hSubMenu, MF_STRING, IDM_WINDOW_PROPERTY_GRID, L"&Property Grid...");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Window");
-    CheckMenuItem(hSubMenu, IDM_WINDOW_TOOLS, MF_BYCOMMAND | MF_CHECKED);
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_OPTIONS_SETTINGS, L"&Settings");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Options");
-
-    hSubMenu = CreatePopupMenu();
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_TOPICS, L"Help &Topics");
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_LOG, L"&Log");
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_RBTREEVIZ, L"&RBTreeViz");
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_ABOUT, L"&About");
-    AppendMenu(hSubMenu, MF_STRING, IDM_HELP_DISPLAYPIXELBUFFER, L"&Display pixel buffer");
-    AppendMenu(hMenu, MF_STRING | MF_POPUP, (UINT_PTR)hSubMenu, L"&Help");
-
-    return hMenu;
-}
-
 LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam, LPARAM lParam)
 {
-    /* Handle menu commands */
-    switch (LOWORD(wParam))
-    {
-    case IDM_FILE_NEW:
-        PanitentApp_CmdNewFile(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_OPEN:
-        PanitentApp_CmdOpenFile(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_SAVE:
-        PanitentApp_CmdSaveFile(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_CLIPBOARD_EXPORT:
-        PanitentApp_CmdClipboardExport(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_BINVIEW:
-        PanitentApp_CmdBinView(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_RUN_SCRIPT:
-        PanitentApp_CmdRunScript(PanitentApp_Instance());
-        break;
-
-    case IDM_FILE_CLOSE:
-        PostQuitMessage(0);
-        break;
-
-    case IDM_EDIT_UNDO:
-        History_Undo(PanitentApp_GetActiveDocument(PanitentApp_Instance()));
-        break;
-
-    case IDM_EDIT_REDO:
-        History_Redo(PanitentApp_GetActiveDocument(PanitentApp_Instance()));
-        break;
-
-    case IDM_EDIT_CLRCANVAS:
-        PanitentApp_CmdClearCanvas(PanitentApp_Instance());
-        break;
-
-    case IDM_WINDOW_ACTIVITY_DIALOG:
-        PanitentApp_CmdShowActivityDialog(PanitentApp_Instance());
-        break;
-
-    case IDM_WINDOW_PROPERTY_GRID:
-        PanitentApp_CmdShowPropertyGridDialog(PanitentApp_Instance());
-        break;
-
-    case IDM_OPTIONS_SETTINGS:
-        PanitentApp_CmdShowSettings(PanitentApp_Instance());
-        break;
-
-    case IDM_HELP_LOG:
-        PanitentApp_CmdShowLog(PanitentApp_Instance());
-        break;
-
-    case IDM_HELP_RBTREEVIZ:
-        PanitentApp_CmdShowRbTreeViz(PanitentApp_Instance());
-        break;
-
-    case IDM_HELP_ABOUT:
-        AboutBox_Run(Window_GetHWND((Window *)pPanitentWindow));
-        break;
-
-    case IDM_HELP_DISPLAYPIXELBUFFER:
-        PanitentApp_CmdDisplayPixelBuffer(PanitentApp_Instance());
-    }
-
+    PanitentApp* pPanitentApp = PanitentApp_Instance();
+    AppCmd_Execute(&pPanitentApp->m_appCmd, LOWORD(wParam), pPanitentApp);
     return 0;
 }
 
@@ -572,9 +428,7 @@ BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpc
 
 void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
 {
-    /* Set menu */
     HWND hWnd = Window_GetHWND((Window *)pPanitentWindow);
-    SetMenu(hWnd, PanitentWindow_CreateMenu());
 
     /* Allocate dockhost window data structure */
     DockHostWindow* pDockHostWindow = DockHostWindow_Create(PanitentApp_Instance());

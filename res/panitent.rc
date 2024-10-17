@@ -250,6 +250,53 @@ END
 
 
 //
+// Menu resources
+//
+IDC_MAINMENU MENU
+    BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "&New\tCtrl+N", IDM_FILE_NEW
+        MENUITEM "&Open\tCtrl+O", IDM_FILE_OPEN
+        MENUITEM "&Save\tCtrl+S", IDM_FILE_SAVE
+        MENUITEM "Export image to clipboard", IDM_FILE_CLIPBOARD_EXPORT
+        MENUITEM "BinView", IDM_FILE_BINVIEW
+        MENUITEM "&Close", IDM_FILE_CLOSE
+    END
+    POPUP "&Edit"
+    BEGIN
+        MENUITEM "&Undo", IDM_EDIT_UNDO
+        MENUITEM "&Redo", IDM_EDIT_REDO
+        MENUITEM "&Clear canvas", IDM_EDIT_CLRCANVAS
+    END
+    POPUP "&Scripting"
+    BEGIN
+        MENUITEM "Run last script", IDM_FILE_RUN_SCRIPT
+        MENUITEM "Run script...", IDM_FILE_RUN_SCRIPT
+    END
+    POPUP "&Window"
+    BEGIN
+        MENUITEM "&Tools", IDM_WINDOW_TOOLS
+        MENUITEM "&Activity...", IDM_WINDOW_ACTIVITY_DIALOG
+        MENUITEM "&Property Grid...", IDM_WINDOW_PROPERTY_GRID
+    END
+    POPUP "&Settings"
+    BEGIN
+        MENUITEM "&Options", IDM_OPTIONS_SETTINGS
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "Help &Topics", IDM_HELP_TOPICS
+        MENUITEM "&Log", IDM_HELP_LOG
+        MENUITEM "&RBTreeViz", IDM_HELP_RBTREEVIZ
+        MENUITEM "&About", IDM_HELP_ABOUT
+        MENUITEM "&Display pixel buffer", IDM_HELP_DISPLAYPIXELBUFFER
+    END
+END
+
+
+
+//
 // Cursor resources
 //
 LANGUAGE LANG_NEUTRAL, SUBLANG_NEUTRAL
