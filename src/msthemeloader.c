@@ -62,7 +62,6 @@ int PntINI_Callback(void* user, PCTSTR section, PCTSTR name, PCTSTR value, int l
             DeleteBitmap(hBitmap);
             DeleteDC(hdcMem);
         }
-        
     }   
 }
 

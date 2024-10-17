@@ -9,7 +9,7 @@ void TestApplication_Init(TestApplication* app)
     Application_Init(&app->base);
 
     app->palette = Palette_Create();
-    app->mainWindow = TestWindow_$new(app);
+    app->mainWindow = TestWindow_Create(app);
 }
 
 TestApplication* TestApplication_Create()
