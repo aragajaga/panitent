@@ -3,6 +3,7 @@
 #include "audioplayer.h"
 #include "../util/assert.h"
 
+#ifndef __MINGW32__
 // CLSID_MMDeviceEnumerator
 DEFINE_GUID(CLSID_MMDeviceEnumerator, 0xBCDE0395, 0xE52F, 0x467C, 0x8E, 0x3D, 0xC4, 0x57, 0x92, 0x91, 0x69, 0x2E);
 
@@ -22,7 +23,9 @@ DEFINE_GUID(KSDATAFORMAT_SUBTYPE_WAVEFORMATEX, 0x00000003, 0x0000, 0x0010, 0x80,
 #define IAudioClient_Stop(_This)((_This)->lpVtbl->Stop((_This)))
 #define IAudioClient_GetMixFormat(_This, ppDeviceFormat)((_This)->lpVtbl->GetMixFormat((_This), (ppDeviceFormat)))
 #define IAudioClient_Initialize(_This, ShareMode, StreamFlags, hnsBufferDuration, hnsPeriodicity, pFormat, AudioSessionGuid)((_This)->lpVtbl->Initialize((_This), (ShareMode), (StreamFlags), (hnsBufferDuration), (hnsPeriodicity), (pFormat), (AudioSessionGuid)))
-#define IAudioClient_GetService(_This, riid, ppv)((_This)->lpVtbl->GetService((_This), (riid), (ppv)))
+#define IAudioClient_GetService(_This, riid, ppv)((_This)->lpVtbl->GetService((_This), (riid), (ppv)))  
+#endif // !__MINGW32__
+
 
 #define REFTIMES_PER_SEC  10000000
 #define REFTIMES_PER_MILLISEC  10000
