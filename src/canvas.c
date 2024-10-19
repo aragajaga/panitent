@@ -453,7 +453,7 @@ void Canvas_DrawLine(const Canvas* pCanvas, int x1, int y1, int x2, int y2)
     PlotterData* pPlotterData = (PlotterData*)malloc(sizeof(PlotterData));
     ASSERT(pPlotterData);
     pPlotterData->canvas = pCanvas;
-    pPlotterData->color = 0xCCFF00CC;
+    pPlotterData->color = 0xFF0000FF;
     plotter.userData = pPlotterData;
     plotter.fn = PixelPlotterCallback;
 

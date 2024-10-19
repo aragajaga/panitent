@@ -588,9 +588,7 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
 	Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
 	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, ((DockData*)pNode->data)->hWnd);
-
 	DockHostWindow_Rearrange(pDockHostWindow);
-
 	DestroyWindow(g_hWndDragOverlay);
 }
 
