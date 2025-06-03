@@ -37,6 +37,7 @@
 #include "aboutbox.h"
 
 #include "verifycheck.h"
+#include "playground.h"
 
 void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp);
 
@@ -58,6 +59,10 @@ void PanitentApp_Init(PanitentApp* pPanitentApp)
     pPanitentApp->m_hFont = CreateFontIndirect(&ncm.lfMessageFont);
     pPanitentApp->m_pShapeContext = ShapeContext_Create();
     ShapeContext_SetStrategy(pPanitentApp->m_pShapeContext, WuShapeStrategy_Create());
+
+    // PlaygroundDlg playgroundDlg;
+    // PlaygroundDlg_Init(&playgroundDlg);
+    // Dialog_CreateWindow(&playgroundDlg, IDD_PLAYGROUND, NULL, TRUE);
 }
 
 PanitentApp* PanitentApp_Create()
@@ -376,7 +381,7 @@ void PanitentApp_CmdSaveFile(PanitentApp* pPanitentApp)
 
 void PanitentApp_CmdRunScript(PanitentApp* pPanitentApp)
 {
-    Lua_RunScript(L"init.lua");
+    // Lua_RunScript(L"init.lua");
 }
 
 void PanitentApp_CmdBinView(PanitentApp* pPanitentApp)

@@ -116,6 +116,8 @@
 #define IDC_CAPTCHA                     1002
 #define IDC_PHONECOUNTRY                1003
 
+#define IDD_PLAYGROUND                  140
+
 #define CBS_CDCLRSEL_SWATCHBIAS 128
 
 #endif
