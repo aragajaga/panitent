@@ -60,7 +60,6 @@
     <ClCompile Include="src\layerswindow.c" />
     <ClCompile Include="src\log.c" />
     <ClCompile Include="src\log_window.c" />
-    <ClCompile Include="src\lua_scripting.c" />
     <ClCompile Include="src\msthemeloader.c" />
     <ClCompile Include="src\new.c" />
     <ClCompile Include="src\option_bar.c" />
@@ -71,6 +70,7 @@
     <ClCompile Include="src\panitentapp.c" />
     <ClCompile Include="src\panitentwindow.c" />
     <ClCompile Include="src\pentablet.c" />
+    <ClCompile Include="src\playground.c" />
     <ClCompile Include="src\pntini.c" />
     <ClCompile Include="src\pntxml.c" />
     <ClCompile Include="src\propgriddialog.c" />
@@ -168,7 +168,6 @@
     <ClInclude Include="src\layerswindow.h" />
     <ClInclude Include="src\log.h" />
     <ClInclude Include="src\log_window.h" />
-    <ClInclude Include="src\lua_scripting.h" />
     <ClInclude Include="src\msthemeloader.h" />
     <ClInclude Include="src\new.h" />
     <ClInclude Include="src\option_bar.h" />
@@ -179,6 +178,7 @@
     <ClInclude Include="src\panitentwindow.h" />
     <ClInclude Include="src\pencil_tool.h" />
     <ClInclude Include="src\pentablet.h" />
+    <ClInclude Include="src\playground.h" />
     <ClInclude Include="src\pntini.h" />
     <ClInclude Include="src\pntxml.h" />
     <ClInclude Include="src\precomp.h" />
@@ -376,7 +376,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;lua.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\libs\msvc-x86_64-debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -398,7 +398,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;lua.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\libs\msvc-x86_64-debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -414,7 +414,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;lua.lib;ole32.lib;avrt.lib;mmdevapi.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;ole32.lib;avrt.lib;mmdevapi.lib;winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\libs\msvc-x86_64-debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -436,7 +436,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;lua.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>shlwapi.lib;comctl32.lib;uxtheme.lib;msimg32.lib;windowscodecs.lib;dbghelp.lib;opengl32.lib;dwmapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>C:\libs\msvc-x86_64-debug\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
