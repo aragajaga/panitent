@@ -325,6 +325,9 @@ ViewportWindow* PanitentApp_GetActiveViewport(PanitentApp* pPanitentApp)
 Document* PanitentApp_GetActiveDocument(PanitentApp* pPanitentApp)
 {
     ViewportWindow *pViewportWindow = PanitentApp_GetActiveViewport(pPanitentApp);
+    if (pViewportWindow == NULL)
+        return NULL;
+
     return ViewportWindow_GetDocument(pViewportWindow);
 }
 
@@ -358,15 +361,146 @@ Tool* PanitentApp_GetTool(PanitentApp* pPanitentApp)
     return pPanitentApp->m_pTool;
 }
 
+#include "grimstroke/plotter.h"
+
 ShapeContext* PanitentApp_GetShapeContext(PanitentApp* pPanitentApp)
 {
+    ShapeContext* pShapeContext = pPanitentApp->m_pShapeContext;
+    if (!pShapeContext->m_pPlotter)
+    {
+        Plotter* plotter = (Plotter*)calloc(1, sizeof(Plotter));
+        if (plotter == NULL)
+        {
+            return NULL;
+        }
+
+        PlotterData* plotterData = (PlotterData*)calloc(1, sizeof(PlotterData));
+        if (plotterData == NULL)
+        {
+            return NULL;
+        }
+
+        plotterData->color = 0xFFFF0000;
+
+        ViewportWindow* pViewportWindow = PanitentApp_GetCurrentViewport(pPanitentApp);
+
+        plotter->userData = plotterData;
+        plotter->fn = PixelPlotterCallback;
+
+
+        pShapeContext->m_pPlotter = plotter;
+    }
+
     return pPanitentApp->m_pShapeContext;
 }
 
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp)
 {
     LogMessage(LOGENTRY_TYPE_INFO, L"MAIN", L"New File menu issued");
-    NewFileDialog(pPanitentApp->pPanitentWindow);
+    
+    if (0)
+    {
+        PanitentWindow* pPanitentWindow = NULL;
+        pPanitentWindow = PanitentApp_GetWindow(pPanitentApp);
+        if (pPanitentWindow == NULL)
+        {
+            LogMessage(LOGENTRY_TYPE_ERROR, L"MAIN", L"Failed to get parent appframe (PanitentWindow* PanitentApp_GetWindow()) during the creation of document setup dialog.");
+            return;
+        }
+
+        HWND hwndAppFrame = Window_GetHWND((Window*)pPanitentWindow);
+        if (hwndAppFrame == NULL || !IsWindow(hwndAppFrame))
+        {
+            LogMessage(LOGENTRY_TYPE_ERROR, L"MAIN", L"Failed to get appframe (Window_GetHWND((Window*)PanitentWindow*)) HWND during the creation of document setup dialog.");
+            return;
+        }
+
+        HINSTANCE hInstanceApp = NULL;
+        hInstanceApp = (HINSTANCE)GetWindowLongPtr(hwndAppFrame, GWLP_HINSTANCE);
+        if (!hInstanceApp)
+        {
+            LogMessage(LOGENTRY_TYPE_WARNING, L"MAIN", L"AppFrame's GWLP_HINSTANCE is NULL, it's an abnormal behavior. Falling back to the GetModuleHandle(NULL)");
+            hInstanceApp = GetModuleHandle(NULL);
+        }
+
+        if (!hInstanceApp)
+        {
+            /* Something is completely broken */
+            DebugBreak();
+            return;
+        }
+
+        BOOL bResult = DocumentSetupDialog_RegisterClass(hInstanceApp);
+        if (!bResult)
+        {
+            LogMessage(LOGENTRY_TYPE_ERROR, L"MAIN", L"Failed to register DocumentSetupDialogV1 class during the creation of document setup dialog.");
+            return;
+        }
+
+        RECT rcDocSetupWnd = { 0 };
+        rcDocSetupWnd.right = 320;
+        rcDocSetupWnd.bottom = 240;
+        AdjustWindowRect(&rcDocSetupWnd, WS_OVERLAPPEDWINDOW, FALSE);
+
+        int width = RECTWIDTH(&rcDocSetupWnd);
+        int height = RECTHEIGHT(&rcDocSetupWnd);
+
+        RECT rcWorkarea = { 0 };
+
+#if 0   /* No monitor info */
+        SystemParametersInfo(SPI_GETWORKAREA, sizeof(RECT), &rcWorkarea, 0);
+#else
+        /* With monitor info */
+
+
+        do {
+            BOOL bFromCursor = TRUE;
+            DWORD dwFlags = MONITOR_DEFAULTTONEAREST;
+            HMONITOR hMonitor = NULL;
+
+            if (bFromCursor)
+            {
+                POINT pt;
+                GetCursorPos(&pt);
+                hMonitor = MonitorFromPoint(pt, dwFlags);
+            }
+            else {
+                if (!IsWindow(hwndAppFrame))
+                    break;
+                hMonitor = MonitorFromWindow(hwndAppFrame, dwFlags);
+            }
+
+            if (!hMonitor) break;
+
+            MONITORINFO mi = { 0 };
+            mi.cbSize = sizeof(MONITORINFO);
+
+            if (!GetMonitorInfo(hMonitor, &mi)) break;
+
+            CopyRect(&rcWorkarea, &mi.rcWork);
+            break;
+        } while (FALSE);
+#endif
+
+        /* Center window in workarea */
+        int x = rcWorkarea.left + (RECTWIDTH(&rcWorkarea) - width) / 2;
+        int y = rcWorkarea.top + (RECTHEIGHT(&rcWorkarea) - height) / 2;
+
+        HWND hwndDocSetup = NULL;
+        hwndDocSetup = CreateWindowEx(0, L"{69097ff4-7bc3-4339-9164-2b4b5d88b601}", L"New", WS_OVERLAPPEDWINDOW,
+            x, y, width, height, hwndAppFrame, NULL, hInstanceApp, NULL);
+        if (hwndDocSetup == NULL || !IsWindow(hwndDocSetup))
+        {
+            LogMessage(LOGENTRY_TYPE_ERROR, L"MAIN", L"Failed to create DocumentSetupDialogV1 window.");
+            return;
+        }
+
+        ShowWindow(hwndDocSetup, SW_NORMAL);
+        UpdateWindow(hwndDocSetup);
+    }
+    else {
+        NewFileDialog(pPanitentApp->pPanitentWindow);
+    }    
 }
 
 void PanitentApp_CmdOpenFile(PanitentApp* pPanitentApp)
@@ -394,8 +528,17 @@ void PanitentApp_CmdBinView(PanitentApp* pPanitentApp)
 
 void PanitentApp_CmdClearCanvas(PanitentApp* pPanitentApp)
 {
+    if (pPanitentApp == NULL)
+        return;
+
     Document* pDocument = PanitentApp_GetActiveDocument(pPanitentApp);
+    if (pDocument == NULL)
+        return;
+
     Canvas* pCanvas = Document_GetCanvas(pDocument);
+    if (pCanvas == NULL)
+        return;
+    
     Canvas_Clear(pCanvas);
     Window_Invalidate(PanitentApp_GetActiveViewport(pPanitentApp));
 }
