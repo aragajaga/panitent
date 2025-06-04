@@ -212,5 +212,8 @@ History* Document_GetHistory(Document* document)
 
 Canvas* Document_GetCanvas(Document* document)
 {
+    if (document == NULL)
+        return NULL;
+
     return document->canvas;
 }

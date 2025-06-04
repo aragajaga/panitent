@@ -18,6 +18,7 @@
 #include "checker.h"
 #include "util.h"
 #include "sharing/activitysharingmanager.h"
+#include "log.h"
 
 #include "panitentwindow.h"
 
@@ -25,185 +26,306 @@
 
 #include "panitentapp.h"
 
-void RegisterNewFileDialog()
-{
-    WNDCLASS wc = { 0 };
-    wc.style = CS_HREDRAW | CS_VREDRAW;
-    wc.lpfnWndProc = (WNDPROC)NewFileDialogWndProc;
-    wc.hInstance = GetModuleHandle(NULL);
-    wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
-    wc.lpszClassName = L"NewFileDialogClass";
-    if (!RegisterClass(&wc))
-        printf("[NewFileDialog] Class registration failed\n");
+/******************************************************************************
+ *                                                                            *
+ * Document setup dialog V1                                                   *
+ *                                                                            *
+ *****************************************************************************/
+#if 1   /* IDE folding helper */
+
+#define CHECK_HWND(hwnd) (hwnd != NULL && IsWindow(hwnd))
+
+#define SAFE_DESTROYHWND(hwnd) \
+if ((hwnd) != NULL) { \
+    if (IsWindow((hwnd))) { \
+        DestroyWindow((hwnd)); \
+    } \
+    (hwnd) = NULL; \
 }
 
-HWND hEditWidth;
-HWND hEditHeight;
-HWND hComboBackground;
-HWND hButtonOk;
+const WCHAR g_cszDocSetupDlgV1ClassName[] = L"{69097ff4-7bc3-4339-9164-2b4b5d88b601}";
 
-LRESULT CALLBACK NewFileDialogWndProc(HWND hwnd,
-    UINT msg,
-    WPARAM wParam,
-    LPARAM lParam)
+/******************************************************************************
+ * Forward declarations                                                       *
+ *****************************************************************************/
+LRESULT CALLBACK DocumentSetupDialog_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
+HWND g_hEditWidth;
+HWND g_hEditHeight;
+HWND g_hComboBackground;
+HWND g_hButtonOk;
+
+/******************************************************************************
+ * Implementation                                                             *
+ *****************************************************************************/
+BOOL DocumentSetupDialog_RegisterClass(HINSTANCE hInstance)
 {
-    switch (msg) {
-    case WM_COMMAND:
-        switch (LOWORD(wParam)) {
-        case IDB_OK:
+    WNDCLASSEX wcex = { 0 };
+
+    /* Check that class is already registered.  If not - register one */
+    if (!GetClassInfo(hInstance, g_cszDocSetupDlgV1ClassName, &wcex))
+    {
+        ZeroMemory(&wcex, sizeof(WNDCLASSEX));
+        wcex.cbSize = sizeof(WNDCLASSEX);
+        wcex.style = CS_HREDRAW | CS_VREDRAW;
+        wcex.lpfnWndProc = (WNDPROC)DocumentSetupDialog_WndProc;
+        wcex.hInstance = hInstance;
+        wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+        wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+        wcex.lpszClassName = g_cszDocSetupDlgV1ClassName;
+
+        BOOL bResult = (BOOL)RegisterClassEx(&wcex) ? TRUE : FALSE;
+
+        if (!bResult)
         {
-            WCHAR szWidth[40];
-            WCHAR szHeight[40];
-            int iWidth;
-            int iHeight;
+            LogMessage(LOGENTRY_TYPE_INFO, L"MAIN", L"[DocumentSetupDialogV1] Class registration failed");
+            return FALSE;
+        }
+    }
 
-            GetWindowText(hEditWidth, szWidth, 40);
-            GetWindowText(hEditHeight, szHeight, 40);
+    return TRUE;
+}
 
-            COLORREF bgColor = 0x00000000;
-            int bgIndex = ComboBox_GetCurSel(hComboBackground);
+/******************************************************************************
+ * Message handlers                                                           *
+ *****************************************************************************/
 
-            switch (bgIndex)
-            {
-            case 0:
-                bgColor = 0x00000000;
-                break;
-            case 1:
-                bgColor = 0xFFFFFFFF;
-                break;
-            case 2:
-                bgColor = 0xFF000000;
-                break;
-            case 3:
-                bgColor = g_color_context.fg_color;
-                break;
-            case 4:
-                bgColor = g_color_context.bg_color;
-                break;
-            }
+/*
+    WM_CREATE message handler
 
-            iWidth = StrToInt(szWidth);
-            iHeight = StrToInt(szHeight);
+    returns TRUE if window creates successfuly and FALSE to point that an error occured within
+    handing this message which should stop further creation process.
+*/
+BOOL DocumentSetupDialog_OnCreate(HWND hwnd, LPCREATESTRUCT lpcs)
+{
+    HWND hStaticWidth = NULL;
+    HWND hStaticHeight = NULL;
+    HWND hStaticBackground = NULL;
 
-            printf("[NewFile] width: %d, AVLNode_Height: %d\n", iWidth, iHeight);
+    /******************************************************************************
+     * Width setup                                                                *
+     ******************************************************************************/
+    /* A "Width" label for width edit field */
+    hStaticWidth = CreateWindow(WC_STATIC, L"Width:", WS_CHILD | WS_VISIBLE,
+        10, 15, 70, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
 
-            DestroyWindow(hwnd);
-            Document* pDocument = Document_New(iWidth, iHeight);
-            Canvas* pCanvas = Document_GetCanvas(pDocument);
+    if (!CHECK_HWND(hStaticWidth))
+        goto error;
 
-            if (pDocument && Document_GetCanvas(pDocument))
-            {
-                Canvas_FillSolid(Document_GetCanvas(pDocument), bgColor);
-            }
-        } break;
-        default:
+    Win32_ApplyUIFont(hStaticWidth);
+
+
+    /* The width edit field */
+    g_hEditWidth = CreateWindowEx(WS_EX_CLIENTEDGE, WC_EDIT, L"640", WS_CHILD | WS_VISIBLE | ES_NUMBER,
+        100, 10, 100, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!CHECK_HWND(g_hEditWidth))
+        goto error;
+
+    Win32_ApplyUIFont(g_hEditWidth);
+    
+
+    /******************************************************************************
+     * Height setup                                                               *
+     ******************************************************************************/
+     /* A "Height" label for height edit field */
+    hStaticHeight = CreateWindow(WC_STATIC, L"Height:", WS_CHILD | WS_VISIBLE,
+        10, 42, 70, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+    
+    if (!CHECK_HWND(hStaticHeight))
+        goto error;
+
+    Win32_ApplyUIFont(hStaticHeight);
+
+
+    /* The height edit field */
+    g_hEditHeight = CreateWindowEx(WS_EX_CLIENTEDGE, WC_EDIT, L"480", WS_CHILD | WS_VISIBLE | ES_NUMBER,
+        100, 38, 100, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!CHECK_HWND(g_hEditHeight))
+        goto error;
+
+    Win32_ApplyUIFont(g_hEditHeight);
+
+
+    /******************************************************************************
+     * Canvas background setup                                                    *
+     ******************************************************************************/
+    hStaticBackground = CreateWindow(WC_STATIC, L"Background:",
+        WS_CHILD | WS_VISIBLE,
+        10, 69, 70, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!CHECK_HWND(hStaticBackground))
+        goto error;
+
+    Win32_ApplyUIFont(hStaticBackground);
+
+
+    g_hComboBackground = CreateWindowEx(WS_EX_CLIENTEDGE, WC_COMBOBOX, L"",
+        CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED | WS_VISIBLE,
+        100, 66, 100, 23,
+        hwnd, NULL, GetModuleHandle(NULL), NULL);
+
+    if (!CHECK_HWND(g_hComboBackground))
+        goto error;
+
+    Win32_ApplyUIFont(g_hComboBackground);
+
+
+    /* Add choose entries to the background selection combobox */
+    ComboBox_AddString(g_hComboBackground, L"Transparent");
+    ComboBox_AddString(g_hComboBackground, L"White");
+    ComboBox_AddString(g_hComboBackground, L"Black");
+    ComboBox_AddString(g_hComboBackground, L"Primary color");
+    ComboBox_AddString(g_hComboBackground, L"Secondary color");
+    ComboBox_SetCurSel(g_hComboBackground, 1);
+
+    /******************************************************************************
+     * Dialog buttons                                                             *
+     ******************************************************************************/
+    g_hButtonOk = CreateWindow(L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
+        200, 250, 100, 30,
+        hwnd, (HMENU)IDB_OK, GetModuleHandle(NULL), NULL);
+
+    if (!CHECK_HWND(g_hButtonOk))
+        goto error;
+
+    Win32_ApplyUIFont(g_hButtonOk);
+
+
+    return TRUE;
+
+error:
+    SAFE_DESTROYHWND(hStaticWidth);
+    SAFE_DESTROYHWND(g_hEditWidth);
+    SAFE_DESTROYHWND(hStaticHeight);
+    SAFE_DESTROYHWND(g_hEditWidth);
+    SAFE_DESTROYHWND(hStaticBackground);
+    SAFE_DESTROYHWND(g_hComboBackground);
+    SAFE_DESTROYHWND(g_hButtonOk);
+
+    return FALSE;
+}
+
+/*
+    WM_SIZE message handler
+*/
+void DocumentSetupDialog_OnSize(HWND hWnd, UINT message, int x, int y)
+{
+    UNREFERENCED_PARAMETER(hWnd);   /* Delete this if hWnd will be used in future */
+
+    /* Adhere the OK button */
+    SetWindowPos(g_hButtonOk, NULL, x - 110, y - 40, 100, 30, SWP_NOZORDER);
+}
+
+/*
+    WM_COMMAND message handler
+
+    returns TRUE if command is handled and message chain should be ended here.
+    And FALSE if message need to be passed to further dispatchers.
+*/
+BOOL DocumentSetupDialog_OnCommand(HWND hwnd, WPARAM wParam, LPARAM lParam)
+{
+    switch (LOWORD(wParam)) {
+    case IDB_OK:
+    {
+        WCHAR szWidth[40];
+        WCHAR szHeight[40];
+        int iWidth;
+        int iHeight;
+
+        GetWindowText(g_hEditWidth, szWidth, 40);
+        GetWindowText(g_hEditHeight, szHeight, 40);
+
+        COLORREF bgColor = 0x00000000;
+        int bgIndex = ComboBox_GetCurSel(g_hComboBackground);
+
+        switch (bgIndex)
+        {
+        case 0:
+            bgColor = 0x00000000;
+            break;
+        case 1:
+            bgColor = 0xFFFFFFFF;
+            break;
+        case 2:
+            bgColor = 0xFF000000;
+            break;
+        case 3:
+            bgColor = g_color_context.fg_color;
+            break;
+        case 4:
+            bgColor = g_color_context.bg_color;
             break;
         }
-        break;
-    case WM_SIZE:
-    {
-        WORD cx = LOWORD(lParam);
-        WORD cy = HIWORD(lParam);
-        SetWindowPos(hButtonOk, NULL, cx - 110, cy - 40, 100, 30, SWP_NOZORDER);
-    } break;
-    case WM_CREATE:
-    {
-        HWND hStaticWidth = CreateWindow(L"STATIC",
-            L"Width:",
-            WS_CHILD | WS_VISIBLE,
-            10,
-            15,
-            70,
-            23,
-            hwnd,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
-        Win32_ApplyUIFont(hStaticWidth);
 
-        hEditWidth = CreateWindowEx(WS_EX_CLIENTEDGE,
-            L"EDIT",
-            L"640",
-            WS_CHILD | WS_VISIBLE | ES_NUMBER,
-            100,
-            10,
-            100,
-            23,
-            hwnd,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
-        Win32_ApplyUIFont(hEditWidth);
+        iWidth = StrToInt(szWidth);
+        iHeight = StrToInt(szHeight);
 
-        HWND hStaticHeight = CreateWindow(L"STATIC",
-            L"Height:",
-            WS_CHILD | WS_VISIBLE,
-            10,
-            42,
-            70,
-            23,
-            hwnd,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
-        Win32_ApplyUIFont(hStaticHeight);
+        printf("[NewFile] width: %d, height: %d\n", iWidth, iHeight);
 
-        hEditHeight = CreateWindowEx(WS_EX_CLIENTEDGE,
-            L"EDIT",
-            L"480",
-            WS_CHILD | WS_VISIBLE | ES_NUMBER,
-            100,
-            38,
-            100,
-            23,
-            hwnd,
-            NULL,
-            GetModuleHandle(NULL),
-            NULL);
-        Win32_ApplyUIFont(hEditHeight);
+        DestroyWindow(hwnd);
+        Document* pDocument = Document_New(iWidth, iHeight);
+        Canvas* pCanvas = Document_GetCanvas(pDocument);
 
-        HWND hStaticBackground = CreateWindow(L"STATIC", L"Background:",
-            WS_CHILD | WS_VISIBLE,
-            10, 69, 70, 23,
-            hwnd, NULL, GetModuleHandle(NULL), NULL);
-        Win32_ApplyUIFont(hStaticBackground);
-
-        hComboBackground = CreateWindowEx(WS_EX_CLIENTEDGE, WC_COMBOBOX,
-            L"",
-            CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_OVERLAPPED |
-            WS_VISIBLE,
-            100, 66, 100, 23,
-            hwnd, NULL, GetModuleHandle(NULL), NULL);
-        Win32_ApplyUIFont(hComboBackground);
-        ComboBox_AddString(hComboBackground, L"Transparent");
-        ComboBox_AddString(hComboBackground, L"White");
-        ComboBox_AddString(hComboBackground, L"Black");
-        ComboBox_AddString(hComboBackground, L"Primary color");
-        ComboBox_AddString(hComboBackground, L"Secondary color");
-        ComboBox_SetCurSel(hComboBackground, 1);
-
-        hButtonOk = CreateWindow(L"BUTTON",
-            L"OK",
-            WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
-            200,
-            250,
-            100,
-            30,
-            hwnd,
-            (HMENU)IDB_OK,
-            GetModuleHandle(NULL),
-            NULL);
-        Win32_ApplyUIFont(hButtonOk);
+        if (pDocument && Document_GetCanvas(pDocument))
+        {
+            Canvas_FillSolid(Document_GetCanvas(pDocument), bgColor);
+        }
     } break;
     default:
-        return DefWindowProc(hwnd, msg, wParam, lParam);
+        break;
+    }
+}
+
+/* (Add new handlers here) */
+
+LRESULT CALLBACK DocumentSetupDialog_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    /* Handle messages here */
+
+    switch (message) {
+    case WM_COMMAND:
+    {
+        BOOL bHandled = DocumentSetupDialog_OnCommand(hWnd, wParam, lParam);
+        if (bHandled)
+            return 0;
+        /* else fallthrough to the DefWindowProc */
+    }
+    break;
+
+    case WM_SIZE:
+        return DocumentSetupDialog_OnSize(hWnd, message, (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam)), 0;
+        break;
+
+    case WM_CREATE:
+        return DocumentSetupDialog_OnCreate(hWnd, (LPCREATESTRUCT)lParam);
         break;
     }
 
-    return 0;
+    return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
+#endif  /* IDE folding helper */
+
+/******************************************************************************
+ *                                                                            *
+ * Document setup dialog V2                                                   *
+ *                                                                            *
+ *****************************************************************************/
+#if 1   /* IDE folding helper */
+ /*
+    This is the next revision of document setup dialog. Should be used by default.
+ */
+
+ /******************************************************************************
+ * Metadata/Preset definitions                                                 *
+ *******************************************************************************/
 typedef struct _DocumentPreset {
     LPCWSTR szName;
     int width;
@@ -213,7 +335,6 @@ typedef struct _DocumentPreset {
 DocumentPreset pDocPreset[] = {
     {L"Custom", 640, 480},
     {L"Generic social media post", 640, 480},
-    {L"VK Post", 640, 480},
     {L"Rage comics", 480, 1000},
     {L"128px squared asset (icon, game tile, etc.)", 128, 128},
     {L"96px squared asset (icon, game tile, etc.)", 72, 72},
@@ -604,3 +725,5 @@ void NewFileDialog(PanitentWindow* pPanitentWindow)
         MAKEINTRESOURCE(IDD_NEWDOCUMENT), hWnd, (DLGPROC)NewDocumentDlgProc);
 #endif
 }
+
+#endif /* IDE folding helper */

@@ -14,6 +14,9 @@ Canvas* g_historyTempSavedState;
 
 void History_Undo(Document* document)
 {
+    if (document == NULL)
+        return;
+
     History* history = Document_GetHistory(document);
     Canvas* canvas = Document_GetCanvas(document);
 
@@ -38,6 +41,9 @@ void History_Undo(Document* document)
 
 void History_Redo(Document* document)
 {
+    if (document == NULL)
+        return;
+
     History* history = Document_GetHistory(document);
     Canvas* canvas = Document_GetCanvas(document);
 
