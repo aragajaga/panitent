@@ -435,20 +435,18 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     Window_CreateWindow((Window *)pDockHostWindow, hWnd);
     pPanitentWindow->m_pDockHostWindow = pDockHostWindow;
 
-    /* Get dockhost client rect*/
-    RECT rcDockHost = { 0 };
-    Window_GetClientRect(pDockHostWindow, &rcDockHost);
+    /* Get dockhost client rect - This might not be needed anymore here as DockHostWindow_OnSize handles layout */
+    // RECT rcDockHost = { 0 };
+    // Window_GetClientRect(pDockHostWindow, &rcDockHost);
 
-    /* Create and assign root dock node */
-    TreeNode* pRoot = (TreeNode*)calloc(1, sizeof(TreeNode));
-    DockData* pDockData = (DockData*)calloc(1, sizeof(DockData));
-    pRoot->data = (void*)pDockData;
-    ((DockData*)pRoot->data)->rc = rcDockHost;
+    // The root DockGroup and initial layout are now handled internally by DockManager,
+    // triggered by DockHostWindow_OnCreate and subsequent calls to DockHostWindow_PinWindow.
+    // No need to manually create TreeNode or DockData here.
+    // The call to DockHostWindow_SetRoot is obsolete.
 
-    DockHostWindow_SetRoot(pDockHostWindow, pRoot);
-
-    // Panitent_DockHostInit(pDockHostWindow, pRoot);
-    PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow, pRoot);
+    // PanitentApp_DockHostInit will now be responsible for calling DockHostWindow_PinWindow
+    // for all initial windows. It no longer needs the old pRoot.
+    PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow);
 
     Win32_FitChild((Window*)pDockHostWindow, (Window*)pPanitentWindow);
 }
