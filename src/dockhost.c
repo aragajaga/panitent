@@ -737,10 +737,13 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitent
 	pDockHostWindow->dockManager = NULL;
 	pDockHostWindow->dockSite = NULL;
 
-	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
+	// pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
     // Ensure DockManager's UI font is set, e.g., in GetDockManager() or DockManager_Init()
     // GetDockManager()->uiFont = PanitentApp_GetUIFont(PanitentApp_Instance()); // Example
 }
+
+/* FORWARD DECL */
+void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp);
 
 DockHostWindow* DockHostWindow_Create(PanitentApp* pPanitentApp)
 {

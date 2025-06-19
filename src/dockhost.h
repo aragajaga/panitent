@@ -3,6 +3,7 @@
 #include "precomp.h"
 #include "dock_system.h" // Include the new docking system definitions
 #include "win32/window.h" // Ensure Window base class is known
+#include "panitentapp.h"
 
 // Forward declare PanitentApp if it's used in function signatures
 typedef struct PanitentApp PanitentApp;
@@ -10,7 +11,7 @@ typedef struct DockInspectorDialog DockInspectorDialog; // Keep if still used
 
 // DockHostWindow will now act as the main DockSite or be closely tied to it.
 // The old tree structure (TreeNode, DockData) is being replaced by DockGroup, DockPane, DockContent.
-struct DockHostWindow {
+struct _DockHostWindow {
 	Window base; // Inherits from a base Window class
 
 	DockManager* dockManager; // Pointer to the global dock manager
