@@ -5,7 +5,7 @@
 
 #define IDB_OK 1001
 
-typedef struct PanitentWindow PanitentWindow;
+typedef struct _PanitentWindow PanitentWindow;
 
 void NewFileDialog(HWND hwnd);
 void RegisterNewFileDialog();

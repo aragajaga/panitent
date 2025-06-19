@@ -4,13 +4,13 @@
 #include "util/list.h" // Assuming a generic list implementation exists
 
 // Forward declarations
-typedef struct DockManager DockManager;
-typedef struct DockSite DockSite;
-typedef struct DockGroup DockGroup;
-typedef struct DockPane DockPane;
-typedef struct DockContent DockContent;
-typedef struct FloatingWindow FloatingWindow;
-typedef struct AutoHideArea AutoHideArea;
+typedef struct _DockManager DockManager;
+typedef struct _DockSite DockSite;
+typedef struct _DockGroup DockGroup;
+typedef struct _DockPane DockPane;
+typedef struct _DockContent DockContent;
+typedef struct _FloatingWindow FloatingWindow;
+typedef struct _AutoHideArea AutoHideArea;
 
 // Enums
 typedef enum {
@@ -45,9 +45,12 @@ typedef enum {
     GROUP_ORIENTATION_VERTICAL
 } GroupOrientation;
 
+// Callback for the app to provide/recreate content during layout load
+typedef HWND(*AppCreateContentCallback)(const wchar_t* contentId, PaneType contentType, void* userContext);
+
 // --- Structures ---
 
-struct DockContent {
+struct _DockContent {
     HWND hWnd;
     wchar_t title[MAX_PATH];
     wchar_t id[MAX_PATH]; // Unique ID for layout saving/loading
@@ -63,7 +66,7 @@ struct DockContent {
     void* userData;       // For application-specific data
 };
 
-struct DockPane {
+struct _DockPane {
     PaneType type;
     List* contents; // List of DockContent* items (tabs)
     int activeContentIndex;
@@ -78,7 +81,7 @@ struct DockPane {
     wchar_t caption[MAX_PATH]; // Pane caption if shown
 };
 
-struct DockGroup {
+struct _DockGroup {
     List* children; // List of DockPane* or DockGroup*
                     // For simplicity, let's assume a DockGroup always splits into two children for now,
                     // one DockPane/DockGroup and another DockPane/DockGroup, or it contains just one DockPane.
@@ -97,7 +100,7 @@ struct DockGroup {
     RECT rect; // Current rectangle of this group
 };
 
-struct AutoHideArea {
+struct _AutoHideArea {
     AutoHideSide side;
     List* hiddenTools; // List of DockContent* (tools)
     HWND hTabStripWnd; // For displaying tabs of hidden tools
@@ -105,13 +108,13 @@ struct AutoHideArea {
     RECT rect;
 };
 
-struct FloatingWindow {
+struct _FloatingWindow {
     HWND hFloatWnd;      // The OS window for the floating container
     DockSite* dockSite;  // The content of a floating window is a mini-DockSite
     wchar_t id[MAX_PATH]; // Unique ID for layout persistence
 };
 
-struct DockSite {
+struct _DockSite {
     HWND hWnd;              // The HWND this dock site is attached to (e.g., main window client area, or FloatingWindow client area)
     DockGroup* rootGroup;
     AutoHideArea autoHideAreas[4]; // Top, Bottom, Left, Right
@@ -119,7 +122,7 @@ struct DockSite {
     List* allContents;      // Flat list of all contents for easier lookup
 };
 
-struct DockManager {
+struct _DockManager {
     DockSite* mainDockSite;
     List* floatingWindows; // List of FloatingWindow*
 
@@ -156,7 +159,7 @@ void DockManager_Destroy(DockManager* pMgr);
 // Content Management
 DockContent* DockManager_CreateContent(DockManager* pMgr, HWND hContentWnd, const wchar_t* title, const wchar_t* id, PaneType contentType);
 void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* pTargetPane /*optional*/, DockPosition position /*optional*/);
-void DockManager_RemoveContent(DockManager* pMgr, DockContent* pContent); // This should also handle cleanup of empty panes/groups
+BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove, BOOL bDestroyContentHwnd); // This should also handle cleanup of empty panes/groups
 // ... other content functions
 
 // Layout and Operations
@@ -176,8 +179,6 @@ DockManager* GetDockManager();
 // Layout Serialization
 BOOL DockManager_SaveLayout(DockManager* pMgr, const wchar_t* filePath);
 BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath);
-// Callback for the app to provide/recreate content during layout load
-typedef HWND (*AppCreateContentCallback)(const wchar_t* contentId, PaneType contentType, void* userContext);
 void DockManager_SetAppCreateContentCallback(DockManager* pMgr, AppCreateContentCallback callback, void* userContext);
 
 

@@ -13,7 +13,7 @@ DockManager* DockManager_Init() {
         return NULL;
     }
 
-    pMgr->floatingWindows = List_Create();
+    pMgr->floatingWindows = List_Create(sizeof(FloatingWindow*));
     if (!pMgr->floatingWindows) {
         free(pMgr);
         return NULL;
@@ -55,8 +55,8 @@ void DockManager_SetMainDockSite(DockManager* pMgr, HWND hMainWndAsDockSite) {
 
     pSite->hWnd = hMainWndAsDockSite;
     pSite->rootGroup = NULL; // Will be created when first content is added or layout loaded
-    pSite->allPanes = List_Create();
-    pSite->allContents = List_Create();
+    pSite->allPanes = List_Create(sizeof(DockPane*));
+    pSite->allContents = List_Create(sizeof(DockContent*));
 
     if (!pSite->allPanes || !pSite->allContents) {
         if (pSite->allPanes) List_Destroy(pSite->allPanes);
@@ -69,7 +69,7 @@ void DockManager_SetMainDockSite(DockManager* pMgr, HWND hMainWndAsDockSite) {
     // Initialize AutoHideAreas (rects will be set during layout)
     for (int i = 0; i < 4; ++i) {
         pSite->autoHideAreas[i].side = (AutoHideSide)i;
-        pSite->autoHideAreas[i].hiddenTools = List_Create();
+        pSite->autoHideAreas[i].hiddenTools = List_Create(sizeof(void*));
         pSite->autoHideAreas[i].isVisible = FALSE;
     }
 
@@ -162,7 +162,7 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
 
 
     if (!pTargetPane->contents) {
-        pTargetPane->contents = List_Create();
+        pTargetPane->contents = List_Create(sizeof(DockContent*));
     }
 
     if (!pTargetPane->contents) {
@@ -212,7 +212,7 @@ DockPane* DockPane_Create(PaneType type, DockGroup* parentGroup) {
     }
 
     pPane->type = type;
-    pPane->contents = List_Create(); // Initialize contents list
+    pPane->contents = List_Create(sizeof(DockContent*)); // Initialize contents list
     if (!pPane->contents) {
         free(pPane);
         return NULL;
@@ -360,8 +360,8 @@ DockSite* DockSite_Create(HWND hWndOwner) {
     if (!pSite) return NULL;
 
     pSite->hWnd = hWndOwner;
-    pSite->allPanes = List_Create();
-    pSite->allContents = List_Create();
+    pSite->allPanes = List_Create(sizeof(DockPane*));
+    pSite->allContents = List_Create(sizeof(DockPane*));
     if (!pSite->allPanes || !pSite->allContents) {
         if(pSite->allPanes) List_Destroy(pSite->allPanes);
         if(pSite->allContents) List_Destroy(pSite->allContents);
@@ -370,10 +370,13 @@ DockSite* DockSite_Create(HWND hWndOwner) {
     }
     for (int i = 0; i < 4; ++i) { // Initialize AutoHideAreas
         pSite->autoHideAreas[i].side = (AutoHideSide)i;
-        pSite->autoHideAreas[i].hiddenTools = List_Create();
+        pSite->autoHideAreas[i].hiddenTools = List_Create(sizeof(void*));
     }
     return pSite;
 }
+
+/* FORWARD DECL */
+void DockGroup_DestroyRecursive(DockGroup* pGroup);
 
 void DockSite_Destroy(DockSite* pSite) {
     if (!pSite) return;
@@ -505,7 +508,10 @@ LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, 
 // --- Undocking and Floating ---
 
 // Forward declaration for helper
-static DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane);
+static DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane)
+{
+    return NULL;
+}
 
 BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove, BOOL bDestroyContentHwnd) {
     if (!pMgr || !pContentToRemove) return FALSE;

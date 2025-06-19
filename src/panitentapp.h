@@ -6,11 +6,11 @@
 #include "settings.h"
 #include "appcmd.h"
 
-typedef struct PanitentWindow PanitentWindow;
+typedef struct _PanitentWindow PanitentWindow;
 typedef struct Tool Tool;
 typedef struct WorkspaceContainer WorkspaceContainer;
 typedef struct PaletteWindow PaletteWindow;
-typedef struct DockHostWindow DockHostWindow;
+typedef struct _DockHostWindow DockHostWindow;
 typedef struct TreeNode TreeNode;
 typedef struct ActivitySharingManager ActivitySharingManager;
 typedef struct ViewportWindow ViewportWindow;
