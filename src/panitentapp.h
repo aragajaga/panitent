@@ -38,7 +38,7 @@ void PanitentApp_Init(PanitentApp* pPanitentApp);
 PanitentApp* PanitentApp_Create();
 int PanitentApp_Run(PanitentApp* pPanitentApp);
 
-void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent);
+void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow); // TreeNode* pNodeParent removed
 void PanitentApp_SetActivityStatus(PanitentApp* pPanitentApp, PCWSTR pszStatusText);
 Palette* PanitentApp_GetPalette(PanitentApp* pPanitentApp);
 PanitentApp* PanitentApp_Instance();
