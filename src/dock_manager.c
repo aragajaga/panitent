@@ -512,7 +512,6 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
 
     List_RemovePointer(oldPane->contents, pContent);
     pContent->parentPane = NULL;
-    
     if (List_GetCount(oldPane->contents) > 0) {
         oldPane->activeContentIndex = 0;
     } else {
