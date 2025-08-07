@@ -70,7 +70,7 @@ struct _DockPane {
     PaneType type;
     List* contents; // List of DockContent* items (tabs)
     int activeContentIndex;
-    HWND hTabControl; // HWND for the tab control UI, if applicable
+    List* tabRects;   // List of RECTs for manual tab hit-testing/drawing
 
     DockGroup* parentGroup; // Back-pointer
     RECT rect; // Current rectangle of this pane
@@ -168,6 +168,7 @@ void DockManager_Destroy(DockManager* pMgr);
 DockContent* DockManager_CreateContent(DockManager* pMgr, HWND hContentWnd, const wchar_t* title, const wchar_t* id, PaneType contentType);
 void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* pTargetPane /*optional*/, DockPosition position /*optional*/);
 BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove, BOOL bDestroyContentHwnd); // This should also handle cleanup of empty panes/groups
+DockContent* DockManager_FindContentByHwnd(DockManager* pMgr, HWND hWnd);
 // ... other content functions
 
 // Layout and Operations
