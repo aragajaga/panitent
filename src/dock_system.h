@@ -169,6 +169,7 @@ void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite
 // Utility functions for creating panes and groups could also be here or be internal
 DockPane* DockPane_Create(PaneType type, DockGroup* parentGroup);
 DockGroup* DockGroup_Create(DockGroup* parentGroup, GroupOrientation orientation);
+void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane);
 
 // TODO: Add functions for list creation/destruction if not part of "util/list.h"
 // e.g. List* List_Create(); void List_Add(List* pList, void* pItem); etc.
@@ -180,6 +181,27 @@ DockManager* GetDockManager();
 BOOL DockManager_SaveLayout(DockManager* pMgr, const wchar_t* filePath);
 BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath);
 void DockManager_SetAppCreateContentCallback(DockManager* pMgr, AppCreateContentCallback callback, void* userContext);
+
+// --- Drag & Drop / Hit Testing ---
+
+typedef enum {
+	DOCK_DROP_AREA_NONE,
+	DOCK_DROP_AREA_TAB_STRIP,
+	DOCK_DROP_AREA_CENTER,
+	DOCK_DROP_AREA_LEFT,
+	DOCK_DROP_AREA_RIGHT,
+	DOCK_DROP_AREA_TOP,
+	DOCK_DROP_AREA_BOTTOM
+} DockDropArea;
+
+typedef struct _DockDropTarget {
+	DockPane* pane;       // The pane that is the target
+	int tabIndex;         // Index for tab strip drop, -1 otherwise
+	DockDropArea area;    // The specific area within the pane
+	RECT feedbackRect;    // The rectangle for visual feedback
+} DockDropTarget;
+
+DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt);
 
 
 #define DEFAULT_SPLITTER_WIDTH 5

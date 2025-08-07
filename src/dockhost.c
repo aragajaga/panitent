@@ -516,40 +516,25 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
     case WM_LBUTTONDOWN:
         {
             POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-            HWND hClickedWnd = WindowFromPoint(pt); // This gets the direct window, might be the tab control
+			ClientToScreen(hWnd, &pt); // Convert to screen coordinates for hit testing
 
-            if (pMgr && pMgr->mainDockSite && pMgr->mainDockSite->allPanes) {
-                for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
-                    DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
-                    if (pane->hTabControl && pane->hTabControl == hClickedWnd) {
-                        TCHITTESTINFO htInfo = { 0 };
-                        htInfo.pt = pt;
-                        ScreenToClient(pane->hTabControl, &htInfo.pt); // Convert to tab control's client coords
-                        int tabIdx = TabCtrl_HitTest(pane->hTabControl, &htInfo);
-
-                        if (tabIdx != -1) { // Hit a tab
-                            pMgr->isDraggingTab = TRUE;
-                            pMgr->draggedTabPane = pane;
-                            pMgr->draggedTabIndexOriginal = tabIdx;
-                            ClientToScreen(hClickedWnd, &pt); // Use screen coords for drag start
-                            pMgr->ptTabDragStart = pt;
-                            SetCapture(hWnd); // Capture mouse for dragging
-                            // OutputDebugString(L"Tab drag started.\n");
-                            return 0;
-                        }
-                    }
-                }
-            }
+			if (pMgr) {
+				DockDropTarget target = DockManager_HitTest(pMgr, pt);
+				if (target.area == DOCK_DROP_AREA_TAB_STRIP && target.tabIndex != -1) {
+					pMgr->isDraggingTab = TRUE;
+					pMgr->draggedTabPane = target.pane;
+					pMgr->draggedTabIndexOriginal = target.tabIndex;
+					pMgr->ptTabDragStart = pt;
+					SetCapture(hWnd);
+					return 0;
+				}
+			}
         }
-        break; // Fall through to default if not handled
+        break;
 
     case WM_MOUSEMOVE:
         if (pMgr && pMgr->isDraggingTab) {
-            // POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-            // ClientToScreen(hWnd, &ptCurrent); // Convert to screen
             // TODO: Implement visual feedback for tab dragging (e.g., ghost tab, insertion marker)
-            // For now, just keeping it simple.
-            // OutputDebugString(L"Tab dragging...\n");
             return 0;
         }
         break;
@@ -558,117 +543,73 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
         if (pMgr && pMgr->isDraggingTab) {
             ReleaseCapture();
             POINT ptDrop = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-            HWND hTargetWnd = WindowFromPoint(ptDrop); // Screen coordinates by default from GetMessage
-                                                      // If captured, lParam is client. Let's assume screen for now or convert.
-            ClientToScreen(hWnd, &ptDrop); // Ensure ptDrop is in screen coordinates
+            ClientToScreen(hWnd, &ptDrop);
 
-            DockPane* targetPaneForDrop = NULL;
-            int targetIndexForDrop = -1;
+			DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop);
+			DockPane* sourcePane = pMgr->draggedTabPane;
+			int sourceIndex = pMgr->draggedTabIndexOriginal;
+			DockContent* contentToMove = (DockContent*)List_GetAt(sourcePane->contents, sourceIndex);
 
-            // Check if dropped onto a tab control (could be the same or another)
-            if (pMgr->mainDockSite && pMgr->mainDockSite->allPanes) {
-                 for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
-                    DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
-                    if (pane->hTabControl && pane->hTabControl == WindowFromPoint(ptDrop) ) { // WindowFromPoint uses screen coords
-                        targetPaneForDrop = pane;
-                        TCHITTESTINFO htInfo = { 0 };
-                        htInfo.pt = ptDrop;
-                        ScreenToClient(pane->hTabControl, &htInfo.pt);
-                        targetIndexForDrop = TabCtrl_HitTest(pane->hTabControl, &htInfo);
-                        if (targetIndexForDrop == -1) { // Dropped on tab control but not on a specific tab, append.
-                            targetIndexForDrop = TabCtrl_GetItemCount(pane->hTabControl);
-                        }
-                        break;
-                    }
-                }
-            }
+			if (contentToMove && dropTarget.area == DOCK_DROP_AREA_TAB_STRIP) {
+				DockPane* destPane = dropTarget.pane;
+				int destIndex = dropTarget.tabIndex;
 
-            // For now, only handle reordering within the SAME pane
-            if (targetPaneForDrop == pMgr->draggedTabPane && targetIndexForDrop != -1) {
-                DockPane* pane = pMgr->draggedTabPane;
-                DockContent* contentToMove = (DockContent*)List_GetAt(pane->contents, pMgr->draggedTabIndexOriginal);
+				// If dropping on the same pane, just reorder
+				if (sourcePane == destPane) {
+					if (sourceIndex != destIndex) {
+						List_RemoveAt(sourcePane->contents, sourceIndex);
+						if (destIndex > sourceIndex) destIndex--; // Adjust index after removal
+						if (destIndex < 0) destIndex = 0;
+						if (destIndex > (int)List_GetCount(sourcePane->contents)) destIndex = List_GetCount(sourcePane->contents);
+						List_InsertAt(sourcePane->contents, contentToMove, destIndex);
+						sourcePane->activeContentIndex = destIndex; // Make dropped tab active
 
-                if (contentToMove) {
-                    List_RemoveAt(pane->contents, pMgr->draggedTabIndexOriginal);
-                    if (targetIndexForDrop > pMgr->draggedTabIndexOriginal && targetIndexForDrop > 0) {
-                        // If moving to a later position, the target index effectively reduces by 1 after removal
-                        // targetIndexForDrop--; // This is not needed if we insert before the target index
-                    }
-                    // Ensure targetIndexForDrop is within bounds for insertion
-                    if(targetIndexForDrop < 0) targetIndexForDrop = 0;
-                    if(targetIndexForDrop > (int)List_GetCount(pane->contents)) targetIndexForDrop = List_GetCount(pane->contents);
+						DockSite* site = GetSiteForPane(pMgr, sourcePane);
+						if (site) DockManager_LayoutDockSite(pMgr, site);
+					}
+				} else { // Dropping on a different pane
+					DockSite* sourceSite = GetSiteForPane(pMgr, sourcePane);
+					DockSite* destSite = GetSiteForPane(pMgr, destPane);
 
-                    List_InsertAt(pane->contents, contentToMove, targetIndexForDrop);
+					// 1. Remove from source
+					DockManager_RemoveContent(pMgr, contentToMove, FALSE); // FALSE = don't destroy HWND
 
-                    // Update active index if the moved tab was active or affected the active one
-                    // If the active tab was moved, its new index is targetIndexForDrop
-                    // If another tab was active and its index changed, update activeContentIndex
-                    if (pane->activeContentIndex == pMgr->draggedTabIndexOriginal) {
-                        pane->activeContentIndex = targetIndexForDrop;
-                    } else if (pMgr->draggedTabIndexOriginal < pane->activeContentIndex && targetIndexForDrop >= pane->activeContentIndex) {
-                        pane->activeContentIndex--;
-                    } else if (pMgr->draggedTabIndexOriginal > pane->activeContentIndex && targetIndexForDrop <= pane->activeContentIndex) {
-                        pane->activeContentIndex++;
-                    }
+					// 2. Reparent HWND if moving between sites
+					if (sourceSite && destSite && sourceSite->hWnd != destSite->hWnd) {
+						SetParent(contentToMove->hWnd, destSite->hWnd);
+					}
 
+					// 3. Add to destination
+					DockManager_AddContent(pMgr, contentToMove, destPane, DOCK_POSITION_TABBED);
+					// TODO: Insert at specific index, not just at the end.
 
-                    // Refresh tab control
-                    TabCtrl_DeleteAllItems(pane->hTabControl);
-                    for (size_t i = 0; i < List_GetCount(pane->contents); ++i) {
-                        DockContent* dc = (DockContent*)List_GetAt(pane->contents, i);
-                        TCITEMW tcItem = { 0 };
-                        tcItem.mask = TCIF_TEXT | TCIF_PARAM;
-                        tcItem.pszText = dc->title;
-                        tcItem.lParam = (LPARAM)dc;
-                        TabCtrl_InsertItem(pane->hTabControl, i, &tcItem);
-                    }
-                    if(pane->activeContentIndex >=0 && pane->activeContentIndex < (int)List_GetCount(pane->contents)) {
-                        TabCtrl_SetCurSel(pane->hTabControl, pane->activeContentIndex);
-                    } else if (List_GetCount(pane->contents) > 0) {
-                        pane->activeContentIndex = 0; // Default to first tab if active index is invalid
-                        TabCtrl_SetCurSel(pane->hTabControl, pane->activeContentIndex);
-                    } else {
-                        pane->activeContentIndex = -1;
-                    }
+					// 4. Layout destination site
+					if (destSite) DockManager_LayoutDockSite(pMgr, destSite);
 
-                    DockManager_LayoutDockSite(pMgr, pMgr->mainDockSite);
-                    // OutputDebugString(L"Tab reordered.\n");
-                }
-            } else { // Dropped somewhere else (not on a tab in the original pane)
-                // Check if it's a drop onto another existing pane (TODO later)
-                // For now, if not on any tab control, consider it a float operation if moved enough
-                if (targetPaneForDrop == NULL) { // Not dropped on any known tab control
-                    DockContent* contentToFloat = (DockContent*)List_GetAt(pMgr->draggedTabPane->contents, pMgr->draggedTabIndexOriginal);
-                    if (contentToFloat) {
-                        POINT ptCurrent;
-                        GetCursorPos(&ptCurrent); // Current cursor in screen coordinates
+					// 5. Handle source pane
+					if (sourceSite) {
+						if (List_GetCount(sourcePane->contents) == 0) {
+							DockManager_RemovePane(pMgr, sourcePane); // This will trigger its own layout
+						} else {
+							DockManager_LayoutDockSite(pMgr, sourceSite);
+						}
+					}
+				}
 
-                        int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2; // Minimum drag distance
-                        if (abs(ptCurrent.x - pMgr->ptTabDragStart.x) > dragThreshold ||
-                            abs(ptCurrent.y - pMgr->ptTabDragStart.y) > dragThreshold) {
-
-                            // Initial rect for the floating window
-                            RECT floatRect = { ptCurrent.x - 150, ptCurrent.y - 20, ptCurrent.x + 150, ptCurrent.y + 200 };
-                            // Ensure the original content HWND is made visible before floating if it was hidden (e.g. inactive tab)
-                            // ShowWindow(contentToFloat->hWnd, SW_SHOW);
-
-                            DockManager_FloatContent(pMgr, contentToFloat, floatRect);
-                            // OutputDebugString(L"Tab floated.\n");
-                        } else {
-                            // OutputDebugString(L"Tab drag too short, no float.\n");
-                        }
-                    }
-                } else {
-                     // TODO: Dropped on a *different* pane's tab control. Implement docking to other panes.
-                     // OutputDebugString(L"Tab dropped on another pane (not implemented yet).\n");
-                }
-            }
+			} else if (contentToMove) { // Dropped somewhere else, float it
+				int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
+				if (abs(ptDrop.x - pMgr->ptTabDragStart.x) > dragThreshold ||
+					abs(ptDrop.y - pMgr->ptTabDragStart.y) > dragThreshold) {
+					RECT floatRect = { ptDrop.x - 150, ptDrop.y - 20, ptDrop.x + 150, ptDrop.y + 200 };
+					DockManager_FloatContent(pMgr, contentToMove, floatRect);
+				}
+			}
 
             pMgr->isDraggingTab = FALSE;
             pMgr->draggedTabPane = NULL;
             return 0;
         }
-        break; // Fall through to default if not handled
+        break;
 
     case WM_NOTIFY: // For tab control notifications
         if (pDockHostWindow->dockSite && pDockHostWindow->dockSite->allPanes) {

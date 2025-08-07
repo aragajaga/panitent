@@ -510,7 +510,34 @@ LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, 
 // Forward declaration for helper
 static DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane)
 {
-    return NULL;
+	if (!pMgr || !pPane) return NULL;
+
+	// Traverse up the hierarchy from the pane to find the root group
+	DockGroup* pGroup = pPane->parentGroup;
+	while (pGroup && pGroup->parentGroup) {
+		pGroup = pGroup->parentGroup;
+	}
+
+	if (!pGroup) {
+		// This might happen if the pane is detached or during a complex operation.
+		// We can try to find it by iterating all sites as a fallback.
+		return NULL;
+	}
+
+	// Check if the root group belongs to the main dock site
+	if (pMgr->mainDockSite && pMgr->mainDockSite->rootGroup == pGroup) {
+		return pMgr->mainDockSite;
+	}
+
+	// Check if the root group belongs to any floating window's dock site
+	for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
+		FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+		if (pFltWnd->dockSite && pFltWnd->dockSite->rootGroup == pGroup) {
+			return pFltWnd->dockSite;
+		}
+	}
+
+	return NULL; // Not found in any known site
 }
 
 BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove, BOOL bDestroyContentHwnd) {
@@ -549,11 +576,13 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
             }
         }
 
-        // TODO: Handle empty pane removal and group collapsing. This is complex.
-        // For now, an empty pane will remain.
-        // if (List_GetCount(parentPane->contents) == 0) {
-        //     DockManager_RemovePane(pMgr, parentPane); // This function would handle group logic
-        // }
+        // If pane becomes empty, remove it and collapse the group
+        if (List_GetCount(parentPane->contents) == 0) {
+            DockManager_RemovePane(pMgr, parentPane);
+			// After RemovePane, the parentSite might have changed or been laid out already.
+			// We set parentSite to NULL to avoid a redundant layout pass at the end of this function.
+			parentSite = NULL;
+        }
 
     }
 
@@ -778,8 +807,8 @@ static void SaveDockContentInfo(FILE* f, DockContent* pContent, int indentLevel)
 
 
 // Helper function prototypes for recursive loading
-static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockGroup* pParentGroup, int indentLevel);
-static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockGroup* pParentGroup, int indentLevel);
+static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockSite* pSite, DockGroup* pParentGroup, int indentLevel);
+static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockSite* pSite, DockGroup* pParentGroup, int indentLevel);
 // static DockContent* LoadDockContentInfo(FILE* f, DockManager* pMgr, int indentLevel); // Content is loaded via callback
 
 // Simplified line reading helper
@@ -824,7 +853,7 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
 
     // Load Main DockSite
     if (ReadLine(f, lineBuffer, _countof(lineBuffer)) && wcscmp(lineBuffer, L"MainDockSite {") == 0) {
-        pMgr->mainDockSite->rootGroup = LoadDockGroupRecursive(f, pMgr, NULL, 1);
+        pMgr->mainDockSite->rootGroup = LoadDockGroupRecursive(f, pMgr, pMgr->mainDockSite, NULL, 1);
         ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}"
     }
 
@@ -851,22 +880,41 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
                     // FloatingWindow_Create adds a default pane and group. We need to replace its rootGroup.
                     if (pFltWnd && pFltWnd->dockSite) {
                         // Clear the auto-generated simple layout in the new floating window
-                        if (pFltWnd->dockSite->rootGroup) {
-                            // TODO: Proper recursive free of the temp group/pane
-                            // For now, assuming it's simple and can be overwritten
-                            if(pFltWnd->dockSite->rootGroup->child1 && !pFltWnd->dockSite->rootGroup->isChild1Group) {
-                                List_Remove(pFltWnd->dockSite->allPanes, pFltWnd->dockSite->rootGroup->child1);
-                                free(pFltWnd->dockSite->rootGroup->child1);
-                            }
-                            free(pFltWnd->dockSite->rootGroup);
+                        if (pFltWnd->dockSite->rootG-roup) {
+							DockGroup_DestroyRecursive(pFltWnd->dockSite->rootGroup);
+							pFltWnd->dockSite->rootGroup = NULL;
                         }
-                        pFltWnd->dockSite->rootGroup = LoadDockGroupRecursive(f, pMgr, NULL, 2); // Load actual layout
-                        // The content that was used as placeholder is now part of the loaded layout if its ID matched
-                        // We need to remove the placeholder from its temporary pane if it wasn't loaded by ID
-                        List_Remove(List_GetAt(pFltWnd->dockSite->allPanes, 0), &placeholderContent); // This is risky
+						// Clear the temporary pane and content that FloatingWindow_Create made
+						List_Clear(pFltWnd->dockSite->allPanes, (ListItemFreeFunc)DockPane_Destroy);
+						List_Clear(pFltWnd->dockSite->allContents, NULL); // This list doesn't own the content structs
+
+                        pFltWnd->dockSite->rootGroup = LoadDockGroupRecursive(f, pMgr, pFltWnd->dockSite, NULL, 2); // Load actual layout
+
+						// The placeholder content HWND will be destroyed along with the floating window if it's not reused.
+						// The placeholder struct is on the stack.
+						// We need to find the real content that was just loaded and destroy the placeholder's HWND if it wasn't used.
+						BOOL placeholderUsed = FALSE;
+						for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allContents); ++j) {
+							DockContent* loadedContent = (DockContent*)List_GetAt(pFltWnd->dockSite->allContents, j);
+							if (wcscmp(loadedContent->id, placeholderContent.id) == 0) {
+								placeholderUsed = TRUE;
+								break;
+							}
+						}
+						if (!placeholderUsed && placeholderContent.hWnd && IsWindow(placeholderContent.hWnd)) {
+							// This placeholder was not part of the loaded layout, so destroy its window.
+							// DestroyWindow(placeholderContent.hWnd);
+						}
                     }
                     ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "\t}"
-                } else { ReadLine(f, lineBuffer, _countof(lineBuffer)); /* Consume closing brace if format error */ }
+                } else {
+					// Consume until the closing brace to allow the loop to continue
+					int braceLevel = 1;
+					while (ReadLine(f, lineBuffer, _countof(lineBuffer)) && braceLevel > 0) {
+						if (wcsstr(lineBuffer, L"{")) braceLevel++;
+						if (wcsstr(lineBuffer, L"}")) braceLevel--;
+					}
+				}
             }
             ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}" for FloatingWindows
         }
@@ -888,50 +936,28 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
 }
 
 
-static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockGroup* pParentGroup, int indentLevel) {
+static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockSite* pSite, DockGroup* pParentGroup, int indentLevel) {
     wchar_t lineBuffer[1024];
-    wchar_t orientationStr[20];
-    float splitRatio;
+    wchar_t orientationStr[20] = L"";
+    float splitRatio = 0.5f;
 
-    if (!ReadLine(f, lineBuffer, _countof(lineBuffer))) return NULL; // Expected DockGroup line
+    if (!ReadLine(f, lineBuffer, _countof(lineBuffer))) return NULL;
 
-    // Example parse: "\tDockGroup Orientation: Horizontal SplitRatio: 0.50 {"
-    wchar_t* token;
-    wchar_t* context = NULL;
-    wchar_t localLineBuffer[1024]; // Use a local copy for strtok
-    StringCchCopy(localLineBuffer, _countof(localLineBuffer), lineBuffer);
-
-    BOOL foundOrientation = FALSE;
-    BOOL foundRatio = FALSE;
-
-    token = wcstok_s(localLineBuffer, L" :{", &context); // Skip "DockGroup"
-    while (token != NULL) {
-        if (wcscmp(token, L"Orientation") == 0) {
-            token = wcstok_s(NULL, L" :{,}", &context); // Get value
-            if (token) {
-                StringCchCopy(orientationStr, _countof(orientationStr), token);
-                foundOrientation = TRUE;
-            }
-        } else if (wcscmp(token, L"SplitRatio") == 0) {
-            token = wcstok_s(NULL, L" :{,}", &context); // Get value
-            if (token) {
-                splitRatio = (float)_wtof(token);
-                foundRatio = TRUE;
-            }
-        }
-        token = wcstok_s(NULL, L" :{,}", &context);
+    // Robust parsing using wcsstr
+    wchar_t* pOrientation = wcsstr(lineBuffer, L"Orientation:");
+    if (pOrientation) {
+        swscanf_s(pOrientation, L"Orientation: %19s", orientationStr, (unsigned)_countof(orientationStr));
     }
 
-    if (!foundOrientation || !foundRatio) {
-        OutputDebugString(L"LoadDockGroupRecursive: Failed to parse DockGroup line for orientation/ratio.\n");
-        OutputDebugString(lineBuffer); // Print the problematic line
-        // Consume child lines until closing brace to attempt recovery for subsequent items
-        int braceLevel = 1;
-        while (ReadLine(f, lineBuffer, _countof(lineBuffer)) && braceLevel > 0) {
-            if (wcsstr(lineBuffer, L"{")) braceLevel++;
-            if (wcsstr(lineBuffer, L"}")) braceLevel--;
-        }
-        return NULL;
+    wchar_t* pSplitRatio = wcsstr(lineBuffer, L"SplitRatio:");
+    if (pSplitRatio) {
+        swscanf_s(pSplitRatio, L"SplitRatio: %f", &splitRatio);
+    }
+
+    if (wcslen(orientationStr) == 0) {
+        OutputDebugString(L"LoadDockGroupRecursive: Could not parse Orientation.\n");
+        OutputDebugString(lineBuffer);
+        return NULL; // Or handle error more gracefully
     }
 
     DockGroup* pGroup = DockGroup_Create(pParentGroup,
@@ -943,12 +969,12 @@ static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockGroup* 
     if (ReadLine(f, lineBuffer, _countof(lineBuffer)) && wcsstr(lineBuffer, L"Child1 {")) {
         if (ReadLine(f, lineBuffer, _countof(lineBuffer))) { // Read the actual type line
             if (wcsstr(lineBuffer, L"DockGroup")) {
-                pGroup->child1 = LoadDockGroupRecursive(f, pMgr, pGroup, indentLevel + 2);
+                pGroup->child1 = LoadDockGroupRecursive(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild1Group = TRUE;
             } else if (wcsstr(lineBuffer, L"DockPane")) {
-                pGroup->child1 = LoadDockPane(f, pMgr, pGroup, indentLevel + 2);
+                pGroup->child1 = LoadDockPane(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild1Group = FALSE;
-                if(pGroup->child1) List_Add(pMgr->mainDockSite->allPanes, pGroup->child1); // Add to global list (assuming main site for now)
+                if(pGroup->child1) List_Add(pSite->allPanes, pGroup->child1); // Add to correct site's list
             }
         }
         ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}" for Child1
@@ -958,12 +984,12 @@ static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockGroup* 
     if (ReadLine(f, lineBuffer, _countof(lineBuffer)) && wcsstr(lineBuffer, L"Child2 {")) {
          if (ReadLine(f, lineBuffer, _countof(lineBuffer))) { // Read the actual type line
             if (wcsstr(lineBuffer, L"DockGroup")) {
-                pGroup->child2 = LoadDockGroupRecursive(f, pMgr, pGroup, indentLevel + 2);
+                pGroup->child2 = LoadDockGroupRecursive(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild2Group = TRUE;
             } else if (wcsstr(lineBuffer, L"DockPane")) {
-                pGroup->child2 = LoadDockPane(f, pMgr, pGroup, indentLevel + 2);
+                pGroup->child2 = LoadDockPane(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild2Group = FALSE;
-                 if(pGroup->child2) List_Add(pMgr->mainDockSite->allPanes, pGroup->child2); // Add to global list
+                 if(pGroup->child2) List_Add(pSite->allPanes, pGroup->child2); // Add to correct site's list
             }
         }
         ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}" for Child2
@@ -973,47 +999,31 @@ static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockGroup* 
     return pGroup;
 }
 
-static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockGroup* pParentGroup, int indentLevel) {
+static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockSite* pSite, DockGroup* pParentGroup, int indentLevel) {
     wchar_t lineBuffer[1024];
-    wchar_t typeStr[20];
-    int activeIndex;
-    size_t numContents;
+    wchar_t typeStr[20] = L"";
+    int activeIndex = -1;
+    size_t numContents = 0;
 
-    // The first line for DockPane was already read by LoadDockGroupRecursive to determine type.
-    // The lineBuffer should contain the "DockPane Type:..." line, read by the caller (LoadDockGroupRecursive)
-    wchar_t* token;
-    wchar_t* context = NULL;
-    wchar_t localLineBuffer[1024];
-    StringCchCopy(localLineBuffer, _countof(localLineBuffer), lineBuffer);
-
-    BOOL foundType = FALSE;
-    BOOL foundActiveIndex = FALSE;
-    BOOL foundNumContents = FALSE;
-
-    token = wcstok_s(localLineBuffer, L" :{", &context); // Skip "DockPane"
-    while (token != NULL) {
-        if (wcscmp(token, L"Type") == 0) {
-            token = wcstok_s(NULL, L" :{,}", &context);
-            if (token) { StringCchCopy(typeStr, _countof(typeStr), token); foundType = TRUE; }
-        } else if (wcscmp(token, L"ActiveIndex") == 0) {
-            token = wcstok_s(NULL, L" :{,}", &context);
-            if (token) { activeIndex = _wtoi(token); foundActiveIndex = TRUE; }
-        } else if (wcscmp(token, L"Contents") == 0) {
-            token = wcstok_s(NULL, L" :{,}", &context);
-            if (token) { numContents = (size_t)_wtoi(token); foundNumContents = TRUE; }
-        }
-        token = wcstok_s(NULL, L" :{,}", &context);
+    // Robust parsing for DockPane line
+    wchar_t* pType = wcsstr(lineBuffer, L"Type:");
+    if (pType) {
+        swscanf_s(pType, L"Type: %19s", typeStr, (unsigned)_countof(typeStr));
     }
 
-    if (!foundType || !foundActiveIndex || !foundNumContents) {
-        OutputDebugString(L"LoadDockPane: Failed to parse DockPane line for type/activeIndex/numContents.\n");
+    wchar_t* pActiveIndex = wcsstr(lineBuffer, L"ActiveIndex:");
+    if (pActiveIndex) {
+        swscanf_s(pActiveIndex, L"ActiveIndex: %d", &activeIndex);
+    }
+
+    wchar_t* pContents = wcsstr(lineBuffer, L"Contents:");
+    if (pContents) {
+        swscanf_s(pContents, L"Contents: %zu", &numContents);
+    }
+
+    if (wcslen(typeStr) == 0) {
+        OutputDebugString(L"LoadDockPane: Could not parse Type.\n");
         OutputDebugString(lineBuffer);
-        // Consume child lines until closing brace
-        int braceLevel = 1; // Already inside the Pane's {
-        while (ReadLine(f, lineBuffer, _countof(lineBuffer)) && braceLevel > 0) {
-            if (wcsstr(lineBuffer, L"{")) braceLevel++;
-            if (wcsstr(lineBuffer, L"}")) braceLevel--;
-        }
         return NULL;
     }
 
@@ -1022,27 +1032,55 @@ static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockGroup* pParentGrou
     pPane->activeContentIndex = activeIndex;
 
     for (size_t i = 0; i < numContents; ++i) {
-        if (!ReadLine(f, lineBuffer, _countof(lineBuffer))) break; // Expected DockContent line
-        wchar_t contentId[MAX_PATH];
-        wchar_t contentTitle[MAX_PATH]; // Title also saved for recreate if needed
-        wchar_t contentTypeStr[20];
+        if (!ReadLine(f, lineBuffer, _countof(lineBuffer))) break;
 
-        // Example: "\t\t\tDockContent ID: "some_id" Title: "Some Title" Type: Document"
-        if (swscanf_s(lineBuffer, L"%*[^I]ID: \"%[^\"]\" Title: \"%[^\"]\" Type: %s",
-            contentId, _countof(contentId), contentTitle, _countof(contentTitle), contentTypeStr, _countof(contentTypeStr)) == 3)
-        {
+        wchar_t contentId[MAX_PATH] = { 0 };
+        wchar_t contentTitle[MAX_PATH] = { 0 };
+        wchar_t contentTypeStr[20] = { 0 };
+        BOOL idFound = FALSE, titleFound = FALSE, typeFound = FALSE;
+
+        // Robustly parse ID
+        wchar_t* pId = wcsstr(lineBuffer, L"ID: \"");
+        if (pId) {
+            if (swscanf_s(pId, L"ID: \"%[^\"]\"", contentId, (unsigned)_countof(contentId)) == 1) {
+                idFound = TRUE;
+            }
+        }
+
+        // Robustly parse Title
+        wchar_t* pTitle = wcsstr(lineBuffer, L"Title: \"");
+        if (pTitle) {
+            if (swscanf_s(pTitle, L"Title: \"%[^\"]\"", contentTitle, (unsigned)_countof(contentTitle)) == 1) {
+                titleFound = TRUE;
+            }
+        }
+
+        // Robustly parse Type
+        wchar_t* pContentType = wcsstr(lineBuffer, L"Type:");
+        if (pContentType) {
+            if (swscanf_s(pContentType, L"Type: %19s", contentTypeStr, (unsigned)_countof(contentTypeStr)) == 1) {
+                typeFound = TRUE;
+            }
+        }
+
+        if (idFound && titleFound && typeFound) {
             PaneType contentType = (wcscmp(contentTypeStr, L"Document") == 0) ? PANE_TYPE_DOCUMENT : PANE_TYPE_TOOL;
             HWND hWndContent = pMgr->appCreateContentCallback(contentId, contentType, pMgr->appCreateContentUserContext);
             if (hWndContent) {
                 DockContent* pContent = DockManager_CreateContent(pMgr, hWndContent, contentTitle, contentId, contentType);
                 if (pContent) {
-                    // Parent HWND to the correct site (main or floating)
-                    // This needs to be determined based on pParentGroup's hierarchy
-                    HWND hParentSiteWnd = pMgr->mainDockSite->hWnd; // Default
-                    // TODO: Find correct site HWND if in floating window
-                    SetParent(hWndContent, hParentSiteWnd);
+                    // Parent HWND to the correct site's HWND
+                    SetParent(hWndContent, pSite->hWnd);
 
+					// Add to the site's global content list
+					List_Add(pSite->allContents, pContent);
+
+                    // Add content to the pane. AddContent will handle adding to the pane's list.
                     DockManager_AddContent(pMgr, pContent, pPane, DOCK_POSITION_TABBED);
+
+					// Make sure the content knows its state is docked within this site.
+					pContent->state = CONTENT_STATE_DOCKED;
+
                 } else { /* Log error, couldn't create DockContent struct */ }
             } else { /* Log error, app couldn't provide HWND for contentID */ }
         } else { /* Log parse error for DockContent line */ }
@@ -1065,3 +1103,140 @@ static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockGroup* pParentGrou
 // This will be the most complex part, recursively calculating rectangles for groups, panes, and content.
 // And then calling SetWindowPos on the actual HWNDs.
 // The version in dockhost.c is a very early placeholder.
+
+void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane)
+{
+	if (!pMgr || !pPane) return;
+
+	DockSite* site = GetSiteForPane(pMgr, pPane);
+	if (!site) return; // Should not happen for a pane in the tree
+
+	DockGroup* parentGroup = pPane->parentGroup;
+	if (!parentGroup) { // Pane is likely the root of a site, which shouldn't be empty.
+		// Or it's a logic error.
+		return;
+	}
+
+	// Find which child of the parent group is the pane to be removed and get the other child.
+	void* otherChild = NULL;
+	BOOL otherChildIsGroup = FALSE;
+	if (parentGroup->child1 == pPane) {
+		otherChild = parentGroup->child2;
+		otherChildIsGroup = parentGroup->isChild2Group;
+	} else if (parentGroup->child2 == pPane) {
+		otherChild = parentGroup->child1;
+		otherChildIsGroup = parentGroup->isChild1Group;
+	} else {
+		// This pane is not a direct child of its parent? Logic error.
+		return;
+	}
+
+	DockGroup* grandparentGroup = parentGroup->parentGroup;
+
+	if (grandparentGroup) {
+		// The parent group has a parent. We replace the parent group with the "other child".
+		if (grandparentGroup->child1 == parentGroup) {
+			grandparentGroup->child1 = otherChild;
+			grandparentGroup->isChild1Group = otherChildIsGroup;
+		} else { // It must be child2
+			grandparentGroup->child2 = otherChild;
+			grandparentGroup->isChild2Group = otherChildIsGroup;
+		}
+		// Update the other child's parent pointer
+		if (otherChild) {
+			if (otherChildIsGroup) {
+				((DockGroup*)otherChild)->parentGroup = grandparentGroup;
+			} else {
+				((DockPane*)otherChild)->parentGroup = grandparentGroup;
+			}
+		}
+	} else {
+		// The parent group is the root of the site. The "other child" becomes the new root.
+		if (otherChild) {
+			if (otherChildIsGroup) {
+				site->rootGroup = (DockGroup*)otherChild;
+				((DockGroup*)otherChild)->parentGroup = NULL;
+			} else {
+				// The new root is a single pane. It must be wrapped in a group to be a valid root.
+				DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
+				newRoot->child1 = otherChild;
+				newRoot->isChild1Group = FALSE;
+				((DockPane*)otherChild)->parentGroup = newRoot;
+				site->rootGroup = newRoot;
+			}
+		} else {
+			// The parent group had only one child (the pane being removed), so the site is now empty.
+			site->rootGroup = NULL;
+		}
+	}
+
+	// Remove the pane from the site's flat list
+	List_Remove(site->allPanes, pPane);
+
+	// Free the memory for the removed pane and its now-obsolete parent group
+	DockPane_Destroy(pPane);
+	free(parentGroup);
+
+	// The layout has changed, so we must rearrange the site.
+	DockManager_LayoutDockSite(pMgr, site);
+}
+
+DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
+{
+	DockDropTarget target = { 0 }; // Initialize to DOCK_DROP_AREA_NONE
+
+	// Check floating windows first, as they are on top
+	for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
+		FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+		if (pFltWnd->dockSite) {
+			for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allPanes); ++j) {
+				DockPane* pane = (DockPane*)List_GetAt(pFltWnd->dockSite->allPanes, j);
+				if (pane->hTabControl && IsWindowVisible(pane->hTabControl)) {
+					RECT rcTab;
+					GetWindowRect(pane->hTabControl, &rcTab);
+					if (PtInRect(&rcTab, screenPt)) {
+						target.pane = pane;
+						target.area = DOCK_DROP_AREA_TAB_STRIP;
+						TCHITTESTINFO htInfo = { 0 };
+						htInfo.pt = screenPt;
+						ScreenToClient(pane->hTabControl, &htInfo.pt);
+						target.tabIndex = TabCtrl_HitTest(pane->hTabControl, &htInfo);
+						if (target.tabIndex == -1) {
+							target.tabIndex = TabCtrl_GetItemCount(pane->hTabControl);
+						}
+						// TODO: Calculate feedback rect for tab insertion
+						return target;
+					}
+				}
+			}
+		}
+	}
+
+	// Check main dock site
+	if (pMgr->mainDockSite) {
+		for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
+			DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
+			if (pane->hTabControl && IsWindowVisible(pane->hTabControl)) {
+				RECT rcTab;
+				GetWindowRect(pane->hTabControl, &rcTab);
+				if (PtInRect(&rcTab, screenPt)) {
+					target.pane = pane;
+					target.area = DOCK_DROP_AREA_TAB_STRIP;
+					TCHITTESTINFO htInfo = { 0 };
+					htInfo.pt = screenPt;
+					ScreenToClient(pane->hTabControl, &htInfo.pt);
+					target.tabIndex = TabCtrl_HitTest(pane->hTabControl, &htInfo);
+					if (target.tabIndex == -1) {
+						target.tabIndex = TabCtrl_GetItemCount(pane->hTabControl);
+					}
+					// TODO: Calculate feedback rect for tab insertion
+					return target;
+				}
+			}
+		}
+	}
+
+	// TODO: Add hit testing for center/side areas to allow splitting
+
+	return target;
+}
