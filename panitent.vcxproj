@@ -36,6 +36,7 @@
     <ClCompile Include="src\debug.c" />
     <ClCompile Include="src\dockhost.c" />
     <ClCompile Include="src\dock_manager.c" />
+    <ClCompile Include="src\\dock_site.c" />
     <ClCompile Include="src\document.c" />
     <ClCompile Include="src\experimental\bubble.c" />
     <ClCompile Include="src\experimental\captionglyphs.c" />
@@ -139,6 +140,7 @@
     <ClInclude Include="src\debug.h" />
     <ClInclude Include="src\dockhost.h" />
     <ClInclude Include="src\dock_system.h" />
+    <ClInclude Include="src\\dock_site.h" />
     <ClInclude Include="src\document.h" />
     <ClInclude Include="src\experimental\bubble.h" />
     <ClInclude Include="src\experimental\captionglyphs.h" />
