@@ -139,6 +139,7 @@ struct _DockManager {
 
     // Tab Drag State
     BOOL isDraggingTab;
+    BOOL isFloatingTab; // Has the tab drag turned into a float operation?
     DockPane* draggedTabPane;   // The pane from which a tab is being dragged
     int draggedTabIndexOriginal; // Original index of the tab being dragged
     POINT ptTabDragStart;        // Screen coordinates of tab drag start
