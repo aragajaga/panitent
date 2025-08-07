@@ -373,6 +373,7 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be")); // Keep for now
 
     pDockHostWindow->dockManager = GetDockManager();
+    pDockHostWindow->dockGuideManager = DockGuideManager_Create();
     // The DockHostWindow's HWND is the main dock site.
     DockManager_SetMainDockSite(pDockHostWindow->dockManager, Window_GetHWND((Window*)pDockHostWindow));
     pDockHostWindow->dockSite = pDockHostWindow->dockManager->mainDockSite; // Store direct pointer
@@ -383,6 +384,7 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 {
 	DeleteObject(pDockHostWindow->hCaptionBrush_);
+    DockGuideManager_Destroy(pDockHostWindow->dockGuideManager);
     // Global DockManager is not destroyed here; handle on app exit.
 }
 
@@ -526,6 +528,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 					pMgr->draggedTabPane = target.pane;
 					pMgr->draggedTabIndexOriginal = target.tabIndex;
 					pMgr->ptTabDragStart = pt;
+                    DockGuideManager_Show(pDockHostWindow->dockGuideManager, NULL, pDockHostWindow->dockSite);
 					SetCapture(hWnd);
 					return 0;
 				}
@@ -545,7 +548,9 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 
     case WM_MOUSEMOVE:
         if (pMgr && pMgr->isDraggingTab) {
-            // TODO: Implement visual feedback for tab dragging (e.g., ghost tab, insertion marker)
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptCurrent);
+            DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
             return 0;
         }
         else if (pMgr && pMgr->isDraggingSplitter) {
@@ -585,18 +590,22 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 
     case WM_LBUTTONUP:
         if (pMgr && pMgr->isDraggingTab) {
+            DockGuideManager_Hide(pDockHostWindow->dockGuideManager);
             ReleaseCapture();
             POINT ptDrop = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
             ClientToScreen(hWnd, &ptDrop);
 
-			DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop);
+			DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
+            DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop); // Also need the pane context
 			DockPane* sourcePane = pMgr->draggedTabPane;
 			int sourceIndex = pMgr->draggedTabIndexOriginal;
 			DockContent* contentToMove = *(DockContent**)List_GetAt(sourcePane->contents, sourceIndex);
 
-			if (contentToMove && dropTarget.area == DOCK_DROP_AREA_TAB_STRIP) {
-				DockPane* destPane = dropTarget.pane;
-				int destIndex = dropTarget.tabIndex;
+			if (contentToMove && dropArea != DOCK_DROP_AREA_NONE) {
+                if (dropArea == DOCK_DROP_AREA_TAB_STRIP || dropArea == DOCK_DROP_AREA_CENTER)
+                {
+				    DockPane* destPane = dropTarget.pane;
+				    int destIndex = dropTarget.tabIndex;
 
 				// If dropping on the same pane, just reorder
 				if (sourcePane == destPane) {
@@ -638,7 +647,16 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 							DockManager_LayoutDockSite(pMgr, sourceSite);
 						}
 					}
+                }
 				}
+                else // Dropped on an edge guide
+                {
+                    DockSite* sourceSite = GetSiteForPane(pMgr, sourcePane);
+                    DockManager_RemoveContent(pMgr, contentToMove, FALSE);
+                    // This is a simplified re-pin, a full implementation would be more complex
+                    DockHostWindow_PinWindow(pDockHostWindow, contentToMove->hWnd, contentToMove->title, contentToMove->id, contentToMove->contentType, dropArea);
+                    if(sourceSite) DockManager_LayoutDockSite(pMgr, sourceSite);
+                }
 
 			} else if (contentToMove) { // Dropped somewhere else, float it
 				int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;

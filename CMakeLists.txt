@@ -43,6 +43,7 @@ set(C_SOURCES
     src/settings_dialog.c
     src/util.c
     src/util/list.c
+    src/dock_guides.c
     src/log.c
     src/log_window.c
     )
@@ -63,6 +64,7 @@ if(MSVC)
       src/debug.h
       src/discordsdk.h
       src/dockhost.h
+      src/dock_guides.h
       src/document.h
       src/file_open.h
       src/flexible.h
