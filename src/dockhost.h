@@ -8,7 +8,7 @@
 // Forward declare PanitentApp if it's used in function signatures
 typedef struct PanitentApp PanitentApp;
 typedef struct DockInspectorDialog DockInspectorDialog;
-typedef struct DockGuideManager DockGuideManager;
+typedef struct _DockGuideManager DockGuideManager;
 
 // DockHostWindow will now act as the main DockSite or be closely tied to it.
 // The old tree structure (TreeNode, DockData) is being replaced by DockGroup, DockPane, DockContent.
