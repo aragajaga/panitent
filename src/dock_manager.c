@@ -176,11 +176,7 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
     pTargetPane->activeContentIndex = List_GetCount(pTargetPane->contents) - 1; // Make new content active
 
     // Add to global list in the site for easier management if not already there
-    DockSite* site = NULL;
-    if (pTargetPane->parentGroup && pTargetPane->parentGroup->parentGroup == NULL) { // Assuming root group's parent is NULL for main site
-        site = pMgr->mainDockSite; // This logic to find the site is naive, needs improvement
-    }
-    // TODO: More robust way to find which site the pTargetPane belongs to (main or floating)
+    DockSite* site = GetSiteForPane(pMgr, pTargetPane);
 
     if (site && List_IndexOf(site->allContents, pContent) == -1) {
         List_Add(site->allContents, pContent);
