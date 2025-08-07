@@ -508,7 +508,7 @@ LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, 
 // --- Undocking and Floating ---
 
 // Forward declaration for helper
-static DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane)
+DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane)
 {
 	if (!pMgr || !pPane) return NULL;
 
