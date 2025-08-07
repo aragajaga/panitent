@@ -885,8 +885,14 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
 							pFltWnd->dockSite->rootGroup = NULL;
                         }
 						// Clear the temporary pane and content that FloatingWindow_Create made
-						List_Clear(pFltWnd->dockSite->allPanes, (ListItemFreeFunc)DockPane_Destroy);
-						List_Clear(pFltWnd->dockSite->allContents, NULL); // This list doesn't own the content structs
+						while (List_GetCount(pFltWnd->dockSite->allPanes) > 0) {
+							DockPane* pane = (DockPane*)List_GetAt(pFltWnd->dockSite->allPanes, 0);
+							DockPane_Destroy(pane);
+							List_RemoveAt(pFltWnd->dockSite->allPanes, 0);
+						}
+						while (List_GetCount(pFltWnd->dockSite->allContents) > 0) {
+							List_RemoveAt(pFltWnd->dockSite->allContents, 0);
+						}
 
                         pFltWnd->dockSite->rootGroup = LoadDockGroupRecursive(f, pMgr, pFltWnd->dockSite, NULL, 2); // Load actual layout
 
