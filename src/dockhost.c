@@ -738,7 +738,7 @@ void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, c
 
         mainSite->rootGroup->child1 = targetPane;
         mainSite->rootGroup->isChild1Group = FALSE;
-        List_Add(mainSite->allPanes, targetPane); // Add to site's list of panes
+        List_Add(mainSite->allPanes, &targetPane); // Add to site's list of panes
     } else {
         // Find an existing pane or decide where to put it.
         // Simplistic: find first pane of matching type, or first document pane for documents, or first tool pane for tools.
@@ -780,7 +780,7 @@ void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, c
                 mainSite->rootGroup->isChild1Group = TRUE;
             }
             targetPane = newPane;
-            List_Add(mainSite->allPanes, targetPane);
+            List_Add(mainSite->allPanes, &targetPane);
         }
     }
 
