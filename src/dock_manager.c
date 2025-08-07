@@ -178,7 +178,7 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
     // Add to global list in the site for easier management if not already there
     DockSite* site = GetSiteForPane(pMgr, pTargetPane);
 
-    if (site && List_IndexOf(site->allContents, pContent) == -1) {
+    if (site && List_IndexOfPointer(site->allContents, pContent) == -1) {
         List_Add(site->allContents, pContent);
     }
 
@@ -477,7 +477,7 @@ LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, 
                 // For now, just destroy the floating window and its site.
                 // Content might be lost or need to be re-parented/re-docked.
                 // This is a simplified close.
-                List_Remove(pMgr->floatingWindows, pFltWnd); // Remove from manager's list
+                List_RemovePointer(pMgr->floatingWindows, pFltWnd); // Remove from manager's list
                 DockSite_Destroy(pFltWnd->dockSite);
                 pFltWnd->dockSite = NULL; // Avoid double free if DestroyWindow calls this again
                 // Any content HWNDs that were parented to this floating window will be destroyed with it.
@@ -544,13 +544,16 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
 
     if (parentPane) {
         parentSite = GetSiteForPane(pMgr, parentPane);
-        List_Remove(parentPane->contents, pContentToRemove);
+        int removedIdx = List_IndexOfPointer(parentPane->contents, pContentToRemove);
+        if (removedIdx != -1) {
+            List_RemoveAt(parentPane->contents, removedIdx);
+        }
         pContentToRemove->parentPane = NULL; // Unlink
 
         // Update active index and tab control
         if (List_GetCount(parentPane->contents) > 0) {
             if (parentPane->activeContentIndex >= (int)List_GetCount(parentPane->contents) ||
-                parentPane->activeContentIndex == List_IndexOf(parentPane->contents, pContentToRemove)) { // If active was removed or index out of bounds
+                parentPane->activeContentIndex == removedIdx) { // If active was removed or index out of bounds
                 parentPane->activeContentIndex = 0;
             }
         } else {
@@ -586,19 +589,19 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
     // If parentSite is NULL, it might be content that was never fully added or already removed from a pane.
     // We should try to find it in *any* site's allContents list.
     BOOL removedFromGlobalList = FALSE;
-    if (parentSite && List_IndexOf(parentSite->allContents, pContentToRemove) != -1) {
-        List_Remove(parentSite->allContents, pContentToRemove);
+    if (parentSite && List_IndexOfPointer(parentSite->allContents, pContentToRemove) != -1) {
+        List_RemovePointer(parentSite->allContents, pContentToRemove);
         removedFromGlobalList = TRUE;
     } else { // Check all sites if not found in the presumed parentSite
-        if (pMgr->mainDockSite && List_IndexOf(pMgr->mainDockSite->allContents, pContentToRemove) != -1) {
-            List_Remove(pMgr->mainDockSite->allContents, pContentToRemove);
+        if (pMgr->mainDockSite && List_IndexOfPointer(pMgr->mainDockSite->allContents, pContentToRemove) != -1) {
+            List_RemovePointer(pMgr->mainDockSite->allContents, pContentToRemove);
             parentSite = pMgr->mainDockSite; // Found its site
             removedFromGlobalList = TRUE;
         } else {
             for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
                 FloatingWindow* fw = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
-                if (fw->dockSite && List_IndexOf(fw->dockSite->allContents, pContentToRemove) != -1) {
-                    List_Remove(fw->dockSite->allContents, pContentToRemove);
+                if (fw->dockSite && List_IndexOfPointer(fw->dockSite->allContents, pContentToRemove) != -1) {
+                    List_RemovePointer(fw->dockSite->allContents, pContentToRemove);
                     parentSite = fw->dockSite; // Found its site
                     removedFromGlobalList = TRUE;
                     break;
@@ -632,7 +635,7 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
     DockPane* oldPane = pContent->parentPane;
     DockSite* siteOfOldPane = GetSiteForPane(pMgr, oldPane);
 
-    List_Remove(oldPane->contents, pContent);
+    List_RemovePointer(oldPane->contents, pContent);
     pContent->parentPane = NULL;
 
     // Refresh original pane's tab control
@@ -1173,7 +1176,7 @@ void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane)
 	}
 
 	// Remove the pane from the site's flat list
-	List_Remove(site->allPanes, pPane);
+	List_RemovePointer(site->allPanes, pPane);
 
 	// Free the memory for the removed pane and its now-obsolete parent group
 	DockPane_Destroy(pPane);
