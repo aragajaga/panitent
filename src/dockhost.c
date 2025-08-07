@@ -392,40 +392,77 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 
 #define DOCKHOSTBGMARGIN 16
 
-void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush) {
-    if (!pSite) return;
+void DockPane_Paint(DockPane* pPane, HDC hdc, HBRUSH hCaptionBrush)
+{
+    if (!pPane || IsRectEmpty(&pPane->rect)) return;
 
-    if (pSite->rootGroup) {
-        // TODO: Recursive paint for groups, splitters, panes, tabs, captions
-        // For now, very basic: draw border around first pane if it exists
-        if (pSite->rootGroup->child1 && !pSite->rootGroup->isChild1Group) {
-            DockPane* pane = (DockPane*)pSite->rootGroup->child1;
-            FrameRect(hdc, &pane->rect, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
+    // Draw border
+    FrameRect(hdc, &pPane->rect, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
 
-            // Draw caption for active content in this pane
-            if (pane->contents && List_GetCount(pane->contents) > 0 && pane->activeContentIndex != -1) {
-                 DockContent* activeContent = *(DockContent**)List_GetAt(pane->contents, pane->activeContentIndex);
-                 if (activeContent) {
-                    RECT rcCaptionArea = pane->rect; // Placeholder for caption area
-                    if (pane->showTabs && List_GetCount(pane->contents) > 0) {
-                        // Caption could be part of tab, or a separate bar
-                        // This example assumes separate caption bar for non-tabbed or if pane->showCaption is true
-                    }
-                    // For simplicity, let's say if NO tabs, pane shows a caption for its active content
-                    if (!(pane->showTabs && List_GetCount(pane->contents) > 0) || pane->showCaption) {
-                        rcCaptionArea.bottom = rcCaptionArea.top + DEFAULT_CAPTION_HEIGHT;
-                        FillRect(hdc, &rcCaptionArea, hCaptionBrush);
-                        SetBkMode(hdc, TRANSPARENT);
-                        SetTextColor(hdc, RGB(0xff,0xff,0xff));
-                        HFONT hOldFont = (HFONT)SelectObject(hdc, GetDockManager()->uiFont);
-                        DrawText(hdc, activeContent->title, -1, &rcCaptionArea, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-                        SelectObject(hdc, hOldFont);
-                        // TODO: Draw close/pin buttons on this caption
-                    }
-                 }
-            }
+    // Draw caption if needed
+    BOOL shouldShowCaption = pPane->showCaption || (pPane->showTabs && List_GetCount(pPane->contents) <= 1);
+    if (shouldShowCaption && List_GetCount(pPane->contents) > 0) {
+        DockContent* activeContent = *(DockContent**)List_GetAt(pPane->contents, pPane->activeContentIndex);
+        if (activeContent) {
+            RECT rcCaptionArea = pPane->rect;
+            rcCaptionArea.bottom = rcCaptionArea.top + DEFAULT_CAPTION_HEIGHT;
+
+            FillRect(hdc, &rcCaptionArea, hCaptionBrush);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
+            HFONT hOldFont = (HFONT)SelectObject(hdc, GetDockManager()->uiFont);
+            DrawText(hdc, activeContent->title, -1, &rcCaptionArea, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            SelectObject(hdc, hOldFont);
         }
     }
+}
+
+void DockGroup_PaintRecursive(DockGroup* pGroup, HDC hdc, HBRUSH hCaptionBrush)
+{
+    if (!pGroup) return;
+
+    // Recurse to children
+    if (pGroup->isChild1Group) {
+        DockGroup_PaintRecursive((DockGroup*)pGroup->child1, hdc, hCaptionBrush);
+    } else if (pGroup->child1) {
+        DockPane_Paint((DockPane*)pGroup->child1, hdc, hCaptionBrush);
+    }
+
+    if (pGroup->isChild2Group) {
+        DockGroup_PaintRecursive((DockGroup*)pGroup->child2, hdc, hCaptionBrush);
+    } else if (pGroup->child2) {
+        DockPane_Paint((DockPane*)pGroup->child2, hdc, hCaptionBrush);
+    }
+
+    // Draw splitter
+    if (pGroup->child1 && pGroup->child2) {
+        RECT rcSplitter;
+        RECT rcChild1, rcChild2;
+
+        if (pGroup->isChild1Group) rcChild1 = ((DockGroup*)pGroup->child1)->rect;
+        else rcChild1 = ((DockPane*)pGroup->child1)->rect;
+
+        if (pGroup->isChild2Group) rcChild2 = ((DockGroup*)pGroup->child2)->rect;
+        else rcChild2 = ((DockPane*)pGroup->child2)->rect;
+
+        if (pGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+            rcSplitter.left = rcChild1.right;
+            rcSplitter.right = rcChild2.left;
+            rcSplitter.top = pGroup->rect.top;
+            rcSplitter.bottom = pGroup->rect.bottom;
+        } else { // VERTICAL
+            rcSplitter.top = rcChild1.bottom;
+            rcSplitter.bottom = rcChild2.top;
+            rcSplitter.left = pGroup->rect.left;
+            rcSplitter.right = pGroup->rect.right;
+        }
+        FillRect(hdc, &rcSplitter, (HBRUSH)GetStockObject(LTGRAY_BRUSH));
+    }
+}
+
+void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush) {
+    if (!pSite || !pSite->rootGroup) return;
+    DockGroup_PaintRecursive(pSite->rootGroup, hdc, hCaptionBrush);
 }
 
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
@@ -678,6 +715,23 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
             pMgr->isDraggingSplitter = FALSE;
             pMgr->draggedGroup = NULL;
             return 0;
+        }
+        break;
+
+    case WM_SETCURSOR:
+        {
+            POINT pt;
+            GetCursorPos(&pt);
+
+            DockGroup* splitterGroup = DockManager_HitTestSplitter(pMgr, pt);
+            if (splitterGroup) {
+                if (splitterGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+                    SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+                } else {
+                    SetCursor(LoadCursor(NULL, IDC_SIZENS));
+                }
+                return TRUE;
+            }
         }
         break;
 
