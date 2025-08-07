@@ -975,9 +975,12 @@ void DockHostWindow_UnpinWindow(DockHostWindow* pDockHostWindow, HWND hWndToUnpi
         return;
     }
 
-    RECT rc;
-    GetWindowRect(hWndToUnpin, &rc);
-    DockManager_FloatContent(pMgr, content, rc);
+    DockManager_RemoveContent(pMgr, content, FALSE);
+    SetParent(hWndToUnpin, NULL);
+    DWORD style = GetWindowLong(hWndToUnpin, GWL_STYLE);
+    style |= WS_OVERLAPPEDWINDOW;
+    SetWindowLong(hWndToUnpin, GWL_STYLE, style);
+    ShowWindow(hWndToUnpin, SW_SHOW);
 }
 
 
