@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "dockhost.h"   // Includes dock_system.h and indirectly win32/window.h etc.
 #include "dock_system.h"// Explicit include for clarity
+#include "dock_site.h"
 #include "util/list.h"
 #include <assert.h>
 #include <stdio.h> // For printf in test runner

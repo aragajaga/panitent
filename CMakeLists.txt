@@ -21,6 +21,8 @@ set(C_SOURCES
     src/color_context.c
     src/debug.c
     src/dockhost.c
+    src/dock_manager.c
+    src/dock_site.c
     src/document.c
     src/file_open.c
     src/new.c
@@ -65,6 +67,7 @@ if(MSVC)
       src/discordsdk.h
       src/dockhost.h
       src/dock_guides.h
+      src/dock_site.h
       src/document.h
       src/file_open.h
       src/flexible.h
