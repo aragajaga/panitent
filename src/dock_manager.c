@@ -1,5 +1,6 @@
 #include "precomp.h"
 #include "dock_system.h"
+#include "dock_site.h"
 #include "util/list.h" // Assuming List_Create, List_Add, List_IndexOf, List_RemoveAt, List_Destroy
 
 #include <assert.h>
@@ -38,39 +39,13 @@ void DockManager_SetMainDockSite(DockManager* pMgr, HWND hMainWndAsDockSite) {
     }
 
     if (pMgr->mainDockSite) {
-        // TODO: Handle if a main dock site already exists.
-        // Maybe destroy the old one or log an error.
-        // For now, let's assume this is called once.
-        free(pMgr->mainDockSite->allPanes); // Assuming List_Destroy handles NULL or is not needed if empty
-        free(pMgr->mainDockSite->allContents);
-        // If rootGroup and its children are dynamically allocated, they need deep destruction here.
-        free(pMgr->mainDockSite);
+        DockSite_Destroy(pMgr->mainDockSite);
+        pMgr->mainDockSite = NULL;
     }
 
-    DockSite* pSite = (DockSite*)calloc(1, sizeof(DockSite));
+    DockSite* pSite = DockSite_Create(hMainWndAsDockSite);
     if (!pSite) {
-        // Error: Could not allocate main dock site
         return;
-    }
-
-    pSite->hWnd = hMainWndAsDockSite;
-    pSite->rootGroup = NULL; // Will be created when first content is added or layout loaded
-    pSite->allPanes = List_Create(sizeof(DockPane*));
-    pSite->allContents = List_Create(sizeof(DockContent*));
-
-    if (!pSite->allPanes || !pSite->allContents) {
-        if (pSite->allPanes) List_Destroy(pSite->allPanes);
-        if (pSite->allContents) List_Destroy(pSite->allContents);
-        free(pSite);
-        // Error: Could not allocate lists for dock site
-        return;
-    }
-
-    // Initialize AutoHideAreas (rects will be set during layout)
-    for (int i = 0; i < 4; ++i) {
-        pSite->autoHideAreas[i].side = (AutoHideSide)i;
-        pSite->autoHideAreas[i].hiddenTools = List_Create(sizeof(void*));
-        pSite->autoHideAreas[i].isVisible = FALSE;
     }
 
     pMgr->mainDockSite = pSite;
@@ -247,8 +222,6 @@ DockGroup* DockGroup_Create(DockGroup* parentGroup, GroupOrientation orientation
 
 // Forward declarations
 LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-DockSite* DockSite_Create(HWND hWndOwner); // Helper to create and init a DockSite
-void DockSite_Destroy(DockSite* pSite);   // Helper to clean up a DockSite
 
 #define FLOATING_WINDOW_CLASS_NAME L"__FloatingDockSiteClass"
 
@@ -349,108 +322,6 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
 
     return pFltWnd;
 }
-
-
-DockSite* DockSite_Create(HWND hWndOwner) {
-    DockSite* pSite = (DockSite*)calloc(1, sizeof(DockSite));
-    if (!pSite) return NULL;
-
-    pSite->hWnd = hWndOwner;
-    pSite->allPanes = List_Create(sizeof(DockPane*));
-    pSite->allContents = List_Create(sizeof(DockPane*));
-    if (!pSite->allPanes || !pSite->allContents) {
-        if(pSite->allPanes) List_Destroy(pSite->allPanes);
-        if(pSite->allContents) List_Destroy(pSite->allContents);
-        free(pSite);
-        return NULL;
-    }
-    for (int i = 0; i < 4; ++i) { // Initialize AutoHideAreas
-        pSite->autoHideAreas[i].side = (AutoHideSide)i;
-        pSite->autoHideAreas[i].hiddenTools = List_Create(sizeof(void*));
-    }
-    return pSite;
-}
-
-/* FORWARD DECL */
-void DockGroup_DestroyRecursive(DockGroup* pGroup);
-
-void DockSite_Destroy(DockSite* pSite) {
-    if (!pSite) return;
-    // TODO: Full recursive destruction of groups, panes, contents within this site
-    if (pSite->rootGroup) {
-        DockGroup_DestroyRecursive(pSite->rootGroup); // Call recursive destruction
-        pSite->rootGroup = NULL;
-    }
-
-    // Panes in allPanes are owned by groups, so they should be freed via group destruction.
-    // We just destroy the list itself.
-    if (pSite->allPanes) {
-        List_Destroy(pSite->allPanes);
-        pSite->allPanes = NULL;
-    }
-
-    // Contents in allContents are typically pointers to app-managed or DockManager-managed items.
-    // Destroying this list doesn't free the DockContent structs themselves here.
-    // True DockContent cleanup happens when DockManager_RemoveContent is fully implemented
-    // or when the DockManager itself is destroyed.
-    if (pSite->allContents) {
-        List_Destroy(pSite->allContents);
-        pSite->allContents = NULL;
-    }
-
-    for (int i = 0; i < 4; ++i) {
-        if (pSite->autoHideAreas[i].hiddenTools) {
-            // Similar to allContents, this list doesn't own the DockContent structs.
-            List_Destroy(pSite->autoHideAreas[i].hiddenTools);
-            pSite->autoHideAreas[i].hiddenTools = NULL;
-        }
-    }
-    free(pSite);
-}
-
-void DockPane_Destroy(DockPane* pPane) {
-    if (!pPane) return;
-
-    if (pPane->hTabControl && IsWindow(pPane->hTabControl)) {
-        DestroyWindow(pPane->hTabControl);
-        pPane->hTabControl = NULL;
-    }
-
-    // The 'contents' list in DockPane stores DockContent pointers.
-    // The DockContent structures themselves are typically managed globally by DockManager
-    // or by the application. Destroying the pane should not free the DockContent structs
-    // unless the pane explicitly owns them (which is not the current design).
-    // The content HWNDs are reparented or destroyed by other logic (e.g. when content is closed/moved).
-    if (pPane->contents) {
-        List_Destroy(pPane->contents); // Just destroy the list container.
-        pPane->contents = NULL;
-    }
-    free(pPane);
-}
-
-void DockGroup_DestroyRecursive(DockGroup* pGroup) {
-    if (!pGroup) return;
-
-    if (pGroup->child1) {
-        if (pGroup->isChild1Group) {
-            DockGroup_DestroyRecursive((DockGroup*)pGroup->child1);
-        } else {
-            DockPane_Destroy((DockPane*)pGroup->child1);
-        }
-        pGroup->child1 = NULL;
-    }
-
-    if (pGroup->child2) {
-        if (pGroup->isChild2Group) {
-            DockGroup_DestroyRecursive((DockGroup*)pGroup->child2);
-        } else {
-            DockPane_Destroy((DockPane*)pGroup->child2);
-        }
-        pGroup->child2 = NULL;
-    }
-    free(pGroup);
-}
-
 
 LRESULT CALLBACK FloatingWindow_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) {
     FloatingWindow* pFltWnd = (FloatingWindow*)GetWindowLongPtr(hWnd, GWLP_USERDATA);
