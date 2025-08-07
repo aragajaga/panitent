@@ -520,7 +520,11 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
     }
 
     if (siteOfOldPane) {
-         DockManager_LayoutDockSite(pMgr, siteOfOldPane);
+        // Remove content from site's global list as it will be floated separately
+        if (List_IndexOfPointer(siteOfOldPane->allContents, pContent) != -1) {
+            List_RemovePointer(siteOfOldPane->allContents, pContent);
+        }
+        DockManager_LayoutDockSite(pMgr, siteOfOldPane);
     }
     // Content HWND is not destroyed, just unparented from layout system logic here.
     // Its actual SetParent(NULL) or to the floating window happens in FloatContent.
