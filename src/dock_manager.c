@@ -527,7 +527,7 @@ DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane)
 
 	// Check if the root group belongs to any floating window's dock site
 	for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-		FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+		FloatingWindow* pFltWnd = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
 		if (pFltWnd->dockSite && pFltWnd->dockSite->rootGroup == pGroup) {
 			return pFltWnd->dockSite;
 		}
@@ -563,7 +563,7 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
         if (parentPane->hTabControl) { // Refresh tab control
             TabCtrl_DeleteAllItems(parentPane->hTabControl);
             for (size_t i = 0; i < List_GetCount(parentPane->contents); ++i) {
-                DockContent* dc = (DockContent*)List_GetAt(parentPane->contents, i);
+                DockContent* dc = *(DockContent**)List_GetAt(parentPane->contents, i);
                 TCITEMW tcItem = {0};
                 tcItem.mask = TCIF_TEXT | TCIF_PARAM;
                 tcItem.pszText = dc->title;
@@ -599,7 +599,7 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
             removedFromGlobalList = TRUE;
         } else {
             for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-                FloatingWindow* fw = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+                FloatingWindow* fw = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
                 if (fw->dockSite && List_IndexOfPointer(fw->dockSite->allContents, pContentToRemove) != -1) {
                     List_RemovePointer(fw->dockSite->allContents, pContentToRemove);
                     parentSite = fw->dockSite; // Found its site
@@ -642,7 +642,7 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
     if (oldPane->hTabControl) {
         TabCtrl_DeleteAllItems(oldPane->hTabControl);
         for (size_t i = 0; i < List_GetCount(oldPane->contents); ++i) {
-            DockContent* dc = (DockContent*)List_GetAt(oldPane->contents, i);
+            DockContent* dc = *(DockContent**)List_GetAt(oldPane->contents, i);
             TCITEMW tcItem = { 0 };
             tcItem.mask = TCIF_TEXT | TCIF_PARAM;
             tcItem.pszText = dc->title;
@@ -719,7 +719,7 @@ BOOL DockManager_SaveLayout(DockManager* pMgr, const wchar_t* filePath) {
     // Save Floating Windows
     fwprintf(f, L"FloatingWindows: %zu {\n", List_GetCount(pMgr->floatingWindows));
     for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-        FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+        FloatingWindow* pFltWnd = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
         RECT rcFloatWnd;
         GetWindowRect(pFltWnd->hFloatWnd, &rcFloatWnd);
 
@@ -787,7 +787,7 @@ static void SaveDockPane(FILE* f, DockPane* pPane, int indentLevel) {
              List_GetCount(pPane->contents));
 
     for (size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
-        DockContent* pContent = (DockContent*)List_GetAt(pPane->contents, i);
+        DockContent* pContent = *(DockContent**)List_GetAt(pPane->contents, i);
         SaveDockContentInfo(f, pContent, indentLevel + 1);
     }
 
@@ -900,7 +900,7 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
 						// We need to find the real content that was just loaded and destroy the placeholder's HWND if it wasn't used.
 						BOOL placeholderUsed = FALSE;
 						for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allContents); ++j) {
-							DockContent* loadedContent = (DockContent*)List_GetAt(pFltWnd->dockSite->allContents, j);
+							DockContent* loadedContent = *(DockContent**)List_GetAt(pFltWnd->dockSite->allContents, j);
 							if (wcscmp(loadedContent->id, placeholderContent.id) == 0) {
 								placeholderUsed = TRUE;
 								break;
@@ -932,7 +932,7 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
     // Final layout pass
     DockManager_LayoutDockSite(pMgr, pMgr->mainDockSite);
     for(size_t i=0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-        FloatingWindow* fw = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+        FloatingWindow* fw = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
         DockManager_LayoutDockSite(pMgr, fw->dockSite);
     }
 
@@ -1195,7 +1195,7 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
 		FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
 		if (pFltWnd->dockSite) {
 			for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allPanes); ++j) {
-				DockPane* pane = (DockPane*)List_GetAt(pFltWnd->dockSite->allPanes, j);
+				DockPane* pane = *(DockPane**)List_GetAt(pFltWnd->dockSite->allPanes, j);
 				if (pane->hTabControl && IsWindowVisible(pane->hTabControl)) {
 					RECT rcTab;
 					GetWindowRect(pane->hTabControl, &rcTab);
