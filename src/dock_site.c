@@ -23,15 +23,13 @@ DockSite* DockSite_Create(HWND hWndOwner) {
 
 void DockPane_Destroy(DockPane* pPane) {
     if (!pPane) return;
-
-    if (pPane->hTabControl && IsWindow(pPane->hTabControl)) {
-        DestroyWindow(pPane->hTabControl);
-        pPane->hTabControl = NULL;
-    }
-
     if (pPane->contents) {
         List_Destroy(pPane->contents);
         pPane->contents = NULL;
+    }
+    if (pPane->tabRects) {
+        List_Destroy(pPane->tabRects);
+        pPane->tabRects = NULL;
     }
     free(pPane);
 }
