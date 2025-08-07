@@ -42,6 +42,7 @@ set(C_SOURCES
     src/flexible.c
     src/settings_dialog.c
     src/util.c
+    src/util/list.c
     src/log.c
     src/log_window.c
     )
