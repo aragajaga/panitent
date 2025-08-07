@@ -9,4 +9,3 @@ void DockSite_Destroy(DockSite* pSite);
 // Helpers exposed for DockManager to clean up hierarchy
 void DockPane_Destroy(DockPane* pPane);
 void DockGroup_DestroyRecursive(DockGroup* pGroup);
-
