@@ -1324,16 +1324,19 @@ DockPane* DockGroup_GetFirstPane(DockGroup* pGroup)
 {
     if (!pGroup) return NULL;
 
-    void* pChild = pGroup->child1;
-    if (!pChild) return NULL;
+    void* pNode = pGroup;
+    BOOL isNodeGroup = TRUE;
 
-    BOOL isGroup = pGroup->isChild1Group;
+    while (isNodeGroup) {
+        // pNode is guaranteed to be a DockGroup* in this loop
+        DockGroup* currentGroup = (DockGroup*)pNode;
 
-    while (isGroup) {
-        pChild = ((DockGroup*)pChild)->child1;
-        if (!pChild) return NULL;
-        isGroup = ((DockGroup*)pChild)->isChild1Group;
+        pNode = currentGroup->child1;
+        if (!pNode) return NULL; // Dead end, no panes down this path
+
+        isNodeGroup = currentGroup->isChild1Group;
     }
 
-    return (DockPane*)pChild;
+    // When the loop terminates, pNode is the first non-group child, which must be a pane.
+    return (DockPane*)pNode;
 }
