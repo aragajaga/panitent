@@ -130,7 +130,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     if (pToolboxWindow) {
         HWND hToolbox = Window_CreateWindow((Window*)pToolboxWindow, Window_GetHWND((Window*)pDockHostWindow));
         if (hToolbox) {
-            DockHostWindow_PinWindow(pDockHostWindow, hToolbox, L"Toolbox", L"ID_Toolbox", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hToolbox, L"Toolbox", L"ID_Toolbox", PANE_TYPE_TOOL, DOCK_POSITION_LEFT);
         }
     }
     
@@ -155,7 +155,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
          // The old code pinned it. Let's try to replicate.
         HWND hWorkspace = Window_CreateWindow((Window*)pPanitentApp->m_pWorkspaceContainer, Window_GetHWND((Window*)pDockHostWindow));
         if (hWorkspace) {
-             DockHostWindow_PinWindow(pDockHostWindow, hWorkspace, L"Canvas", L"ID_WorkspaceContainer", PANE_TYPE_DOCUMENT);
+             DockHostWindow_PinWindow(pDockHostWindow, hWorkspace, L"Canvas", L"ID_WorkspaceContainer", PANE_TYPE_DOCUMENT, DOCK_POSITION_TABBED);
         }
     }
     
@@ -164,7 +164,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     if (pGLWindow) {
         HWND hGL = Window_CreateWindow((Window*)pGLWindow, Window_GetHWND((Window*)pDockHostWindow));
         if (hGL) {
-            DockHostWindow_PinWindow(pDockHostWindow, hGL, L"OpenGL View", L"ID_GLWindow", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hGL, L"OpenGL View", L"ID_GLWindow", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
         }
     }
     
@@ -172,7 +172,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     if (pPaletteWindow) {
         HWND hPalette = Window_CreateWindow((Window*)pPaletteWindow, Window_GetHWND((Window*)pDockHostWindow));
         if (hPalette) {
-            DockHostWindow_PinWindow(pDockHostWindow, hPalette, L"Palette", L"ID_Palette", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hPalette, L"Palette", L"ID_Palette", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
         }
     }
     
@@ -180,7 +180,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     if (pLayersWindow) {
         HWND hLayers = Window_CreateWindow((Window*)pLayersWindow, Window_GetHWND((Window*)pDockHostWindow));
         if (hLayers) {
-            DockHostWindow_PinWindow(pDockHostWindow, hLayers, L"Layers", L"ID_Layers", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hLayers, L"Layers", L"ID_Layers", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
         }
     }
     
@@ -190,7 +190,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
         if (hOptBar) {
             // OptionBar might be special (e.g. always top, not really dockable in the same way)
             // For now, treat as a tool window. A more complex system might have dedicated regions.
-            DockHostWindow_PinWindow(pDockHostWindow, hOptBar, L"Options", L"ID_OptionBar", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hOptBar, L"Options", L"ID_OptionBar", PANE_TYPE_TOOL, DOCK_POSITION_TOP);
         }
     }
     
@@ -198,7 +198,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     if(pLogWindow) {
         HWND hLog = Window_CreateWindow((Window*)pLogWindow, Window_GetHWND((Window*)pDockHostWindow));
         if(hLog) {
-            DockHostWindow_PinWindow(pDockHostWindow, hLog, L"Log", L"ID_LogWindow", PANE_TYPE_TOOL);
+            DockHostWindow_PinWindow(pDockHostWindow, hLog, L"Log", L"ID_LogWindow", PANE_TYPE_TOOL, DOCK_POSITION_BOTTOM);
             ShowWindow(hLog, SW_SHOW); // Show it by default
         }
     }

@@ -141,7 +141,12 @@ struct _DockManager {
     BOOL isDraggingTab;
     DockPane* draggedTabPane;   // The pane from which a tab is being dragged
     int draggedTabIndexOriginal; // Original index of the tab being dragged
-    POINT ptTabDragStart;        // Screen coordinates of drag start
+    POINT ptTabDragStart;        // Screen coordinates of tab drag start
+
+    // Splitter Drag State
+    BOOL isDraggingSplitter;
+    DockGroup* draggedGroup; // The group whose splitter is being dragged
+    POINT ptSplitterDragStart; // Screen coordinates of splitter drag start
     HWND hTabDragFeedbackWnd;   // Optional: A window for visual feedback during drag
 
     // Layout persistence
@@ -203,6 +208,8 @@ typedef struct _DockDropTarget {
 } DockDropTarget;
 
 DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt);
+DockGroup* DockManager_HitTestSplitter(DockManager* pMgr, POINT screenPt);
+DockPane* DockGroup_GetFirstPane(DockGroup* pGroup);
 
 
 #define DEFAULT_SPLITTER_WIDTH 5

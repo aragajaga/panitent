@@ -519,6 +519,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 			ClientToScreen(hWnd, &pt); // Convert to screen coordinates for hit testing
 
 			if (pMgr) {
+                // First, try to drag a tab
 				DockDropTarget target = DockManager_HitTest(pMgr, pt);
 				if (target.area == DOCK_DROP_AREA_TAB_STRIP && target.tabIndex != -1) {
 					pMgr->isDraggingTab = TRUE;
@@ -528,6 +529,16 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 					SetCapture(hWnd);
 					return 0;
 				}
+
+                // If not a tab, try to drag a splitter
+                DockGroup* splitterGroup = DockManager_HitTestSplitter(pMgr, pt);
+                if (splitterGroup) {
+                    pMgr->isDraggingSplitter = TRUE;
+                    pMgr->draggedGroup = splitterGroup;
+                    pMgr->ptSplitterDragStart = pt;
+                    SetCapture(hWnd);
+                    return 0;
+                }
 			}
         }
         break;
@@ -535,6 +546,39 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
     case WM_MOUSEMOVE:
         if (pMgr && pMgr->isDraggingTab) {
             // TODO: Implement visual feedback for tab dragging (e.g., ghost tab, insertion marker)
+            return 0;
+        }
+        else if (pMgr && pMgr->isDraggingSplitter) {
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptCurrent);
+
+            DockGroup* group = pMgr->draggedGroup;
+            RECT groupRect = group->rect;
+            float newRatio = group->splitRatio;
+
+            if (group->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+                int totalWidth = groupRect.right - groupRect.left - group->splitterWidth;
+                if (totalWidth > 0) {
+                    newRatio = (float)(ptCurrent.x - groupRect.left) / totalWidth;
+                }
+            } else { // VERTICAL
+                int totalHeight = groupRect.bottom - groupRect.top - group->splitterWidth;
+                if (totalHeight > 0) {
+                    newRatio = (float)(ptCurrent.y - groupRect.top) / totalHeight;
+                }
+            }
+
+            // Clamp ratio to avoid panes disappearing
+            if (newRatio < 0.1f) newRatio = 0.1f;
+            if (newRatio > 0.9f) newRatio = 0.9f;
+
+            group->splitRatio = newRatio;
+
+            DockPane* paneToFindSite = DockGroup_GetFirstPane(group);
+            DockSite* site = GetSiteForPane(pMgr, paneToFindSite);
+            if(site) {
+                DockManager_LayoutDockSite(pMgr, site);
+            }
             return 0;
         }
         break;
@@ -607,6 +651,12 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 
             pMgr->isDraggingTab = FALSE;
             pMgr->draggedTabPane = NULL;
+            return 0;
+        }
+        else if (pMgr && pMgr->isDraggingSplitter) {
+            ReleaseCapture();
+            pMgr->isDraggingSplitter = FALSE;
+            pMgr->draggedGroup = NULL;
             return 0;
         }
         break;
@@ -703,7 +753,7 @@ DockHostWindow* DockHostWindow_Create(PanitentApp* pPanitentApp)
 
 // New function to add a window to the docking system.
 // Replaces DockData_PinWindow and old TreeNode logic.
-void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType) {
+void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType, DockPosition position) {
     if (!pDockHostWindow || !pDockHostWindow->dockManager || !hWndToPin) {
         return;
     }
@@ -728,57 +778,67 @@ void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, c
 
     DockPane* targetPane = NULL;
 
-    // If no root group, create one with a single pane of the content's type
+    // If no root group, create one with a single pane.
     if (!mainSite->rootGroup) {
-        mainSite->rootGroup = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL); // Orientation irrelevant for single child
-        if (!mainSite->rootGroup) { free(pContent); return; } // Failed to create group
+        targetPane = DockPane_Create(contentType, NULL);
+        DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
+        newRoot->child1 = targetPane;
+        targetPane->parentGroup = newRoot;
+        mainSite->rootGroup = newRoot;
+        List_Add(mainSite->allPanes, &targetPane);
+    } else if (position != DOCK_POSITION_TABBED) {
+        // Create a new pane for the content
+        DockPane* newPane = DockPane_Create(contentType, NULL);
+        if (!newPane) { free(pContent); return; }
 
-        targetPane = DockPane_Create(contentType, mainSite->rootGroup);
-        if (!targetPane) { free(mainSite->rootGroup); mainSite->rootGroup = NULL; free(pContent); return; }
+        // Get the existing root and wrap it
+        DockGroup* oldRoot = mainSite->rootGroup;
+        DockGroup* newRoot = DockGroup_Create(NULL,
+            (position == DOCK_POSITION_LEFT || position == DOCK_POSITION_RIGHT) ? GROUP_ORIENTATION_VERTICAL : GROUP_ORIENTATION_HORIZONTAL);
 
-        mainSite->rootGroup->child1 = targetPane;
-        mainSite->rootGroup->isChild1Group = FALSE;
-        List_Add(mainSite->allPanes, &targetPane); // Add to site's list of panes
-    } else {
-        // Find an existing pane or decide where to put it.
-        // Simplistic: find first pane of matching type, or first document pane for documents, or first tool pane for tools.
-        // Or, always add to the first child of rootGroup if it's a pane.
-        if (mainSite->rootGroup->child1 && !mainSite->rootGroup->isChild1Group) {
-            DockPane* potentialPane = (DockPane*)mainSite->rootGroup->child1; // This is a direct member access, not from a list, so it's OK.
-            // Basic type matching for now
-            if ((contentType == PANE_TYPE_DOCUMENT && potentialPane->type == PANE_TYPE_DOCUMENT) ||
-                (contentType == PANE_TYPE_TOOL && potentialPane->type == PANE_TYPE_TOOL) ||
-                (contentType == PANE_TYPE_TOOL && potentialPane->type == PANE_TYPE_DOCUMENT) ) { // Allow tools in doc panes sometimes
-                 targetPane = potentialPane;
+        if (position == DOCK_POSITION_LEFT || position == DOCK_POSITION_TOP) {
+            newRoot->child1 = newPane;
+            newRoot->isChild1Group = FALSE;
+            newRoot->child2 = oldRoot;
+            newRoot->isChild2Group = TRUE;
+        } else { // RIGHT or BOTTOM
+            newRoot->child1 = oldRoot;
+            newRoot->isChild1Group = TRUE;
+            newRoot->child2 = newPane;
+            newRoot->isChild2Group = FALSE;
+        }
+
+        oldRoot->parentGroup = newRoot;
+        newPane->parentGroup = newRoot;
+
+        mainSite->rootGroup = newRoot;
+        targetPane = newPane;
+        List_Add(mainSite->allPanes, &targetPane);
+    }
+    else { // DOCK_POSITION_TABBED
+        // Find the first available pane of a compatible type. This is still simplistic.
+        // A better implementation would allow specifying a target pane ID.
+        for (size_t i = 0; i < List_GetCount(mainSite->allPanes); ++i) {
+            DockPane* p = *(DockPane**)List_GetAt(mainSite->allPanes, i);
+            if (p->type == contentType || (contentType == PANE_TYPE_TOOL && p->type == PANE_TYPE_DOCUMENT)) {
+                targetPane = p;
+                break;
             }
         }
-        // If no suitable pane found in this simple check, we might need to create a new split or new pane.
-        // For now, if targetPane is still NULL, we'll create a new pane and make the root a horizontal split.
+        // If no suitable pane exists, we could create a new one in a default location.
+        // For now, we'll just fail silently if no tabbed location is found.
         if (!targetPane) {
-            DockPane* newPane = DockPane_Create(contentType, mainSite->rootGroup);
-            if (!newPane) { free(pContent); return; }
-
-            if (!mainSite->rootGroup->child1) { // Root group was empty, make newPane the first child
-                 mainSite->rootGroup->child1 = newPane;
-                 mainSite->rootGroup->isChild1Group = FALSE;
-            } else { // Root group has one child, make it a split
-                void* existingChild = mainSite->rootGroup->child1;
-                BOOL existingIsGroup = mainSite->rootGroup->isChild1Group;
-
-                DockGroup* newSplitGroup = DockGroup_Create(mainSite->rootGroup, GROUP_ORIENTATION_HORIZONTAL);
-                if(!newSplitGroup) { free(newPane); free(pContent); return;}
-
-                newSplitGroup->child1 = existingChild;
-                newSplitGroup->isChild1Group = existingIsGroup;
-                if(existingIsGroup) ((DockGroup*)existingChild)->parentGroup = newSplitGroup; else ((DockPane*)existingChild)->parentGroup = newSplitGroup;
-
-                newSplitGroup->child2 = newPane;
-                newSplitGroup->isChild2Group = FALSE;
-                newPane->parentGroup = newSplitGroup;
-
-                mainSite->rootGroup->child1 = newSplitGroup;
-                mainSite->rootGroup->isChild1Group = TRUE;
-            }
+             // As a fallback, just split the root.
+            DockPane* newPane = DockPane_Create(contentType, NULL);
+            DockGroup* oldRoot = mainSite->rootGroup;
+            DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
+            newRoot->child1 = oldRoot;
+            newRoot->isChild1Group = TRUE;
+            oldRoot->parentGroup = newRoot;
+            newRoot->child2 = newPane;
+            newRoot->isChild2Group = FALSE;
+            newPane->parentGroup = newRoot;
+            mainSite->rootGroup = newRoot;
             targetPane = newPane;
             List_Add(mainSite->allPanes, &targetPane);
         }

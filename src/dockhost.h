@@ -37,8 +37,7 @@ struct _DockHostWindow {
 // DockHostWindow now primarily manages the DockSite and interacts with DockManager
 DockHostWindow* DockHostWindow_Create(PanitentApp* pApp); // pApp might be needed to get main HWND for DockManager
 
-// The old PinWindow function will be replaced by DockManager_AddContent or similar.
-// void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, PaneType contentType);
+void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType, DockPosition position);
 
 // Functions for creating nodes and data are now part of DockManager or helpers in dock_system.c
 // DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);

@@ -1245,3 +1245,95 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
 
 	return target;
 }
+
+static DockGroup* FindSplitterRecursive(DockGroup* pGroup, POINT pt) {
+    if (!pGroup || !pGroup->child1 || !pGroup->child2) {
+        return NULL;
+    }
+
+    // Calculate splitter rect
+    RECT rcSplitter;
+    RECT rcChild1, rcChild2;
+
+    if (pGroup->isChild1Group) {
+        rcChild1 = ((DockGroup*)pGroup->child1)->rect;
+    } else {
+        rcChild1 = ((DockPane*)pGroup->child1)->rect;
+    }
+
+    if (pGroup->isChild2Group) {
+        rcChild2 = ((DockGroup*)pGroup->child2)->rect;
+    } else {
+        rcChild2 = ((DockPane*)pGroup->child2)->rect;
+    }
+
+    if (pGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+        rcSplitter.left = rcChild1.right;
+        rcSplitter.right = rcChild2.left;
+        rcSplitter.top = pGroup->rect.top;
+        rcSplitter.bottom = pGroup->rect.bottom;
+    } else { // VERTICAL
+        rcSplitter.top = rcChild1.bottom;
+        rcSplitter.bottom = rcChild2.top;
+        rcSplitter.left = pGroup->rect.left;
+        rcSplitter.right = pGroup->rect.right;
+    }
+
+    if (PtInRect(&rcSplitter, pt)) {
+        return pGroup;
+    }
+
+    // Recurse into children if they are groups
+    if (pGroup->isChild1Group) {
+        DockGroup* hit = FindSplitterRecursive((DockGroup*)pGroup->child1, pt);
+        if (hit) return hit;
+    }
+    if (pGroup->isChild2Group) {
+        DockGroup* hit = FindSplitterRecursive((DockGroup*)pGroup->child2, pt);
+        if (hit) return hit;
+    }
+
+    return NULL;
+}
+
+DockGroup* DockManager_HitTestSplitter(DockManager* pMgr, POINT screenPt)
+{
+	// Check floating windows first
+	for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
+		FloatingWindow* pFltWnd = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
+		if (pFltWnd->dockSite && pFltWnd->dockSite->rootGroup) {
+			POINT ptClient = screenPt;
+			ScreenToClient(pFltWnd->dockSite->hWnd, &ptClient);
+			DockGroup* hit = FindSplitterRecursive(pFltWnd->dockSite->rootGroup, ptClient);
+			if (hit) return hit;
+		}
+	}
+
+	// Check main site
+	if (pMgr->mainDockSite && pMgr->mainDockSite->rootGroup) {
+		POINT ptClient = screenPt;
+		ScreenToClient(pMgr->mainDockSite->hWnd, &ptClient);
+		DockGroup* hit = FindSplitterRecursive(pMgr->mainDockSite->rootGroup, ptClient);
+		if (hit) return hit;
+	}
+
+	return NULL;
+}
+
+DockPane* DockGroup_GetFirstPane(DockGroup* pGroup)
+{
+    if (!pGroup) return NULL;
+
+    void* pChild = pGroup->child1;
+    if (!pChild) return NULL;
+
+    BOOL isGroup = pGroup->isChild1Group;
+
+    while (isGroup) {
+        pChild = ((DockGroup*)pChild)->child1;
+        if (!pChild) return NULL;
+        isGroup = ((DockGroup*)pChild)->isChild1Group;
+    }
+
+    return (DockPane*)pChild;
+}
