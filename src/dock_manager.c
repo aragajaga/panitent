@@ -161,15 +161,6 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
     // TODO: Handle different DockPositions (splitting, etc.)
     // For now, only DOCK_POSITION_TABBED is implicitly handled by adding to pane's list.
 
-    // Update tab control if it exists
-    if (pTargetPane->hTabControl) {
-        TCITEM tcItem = { 0 };
-        tcItem.mask = TCIF_TEXT;
-        tcItem.pszText = pContent->title;
-        TabCtrl_InsertItem(pTargetPane->hTabControl, TabCtrl_GetItemCount(pTargetPane->hTabControl), &tcItem);
-        TabCtrl_SetCurSel(pTargetPane->hTabControl, pTargetPane->activeContentIndex);
-    }
-
     ShowWindow(pContent->hWnd, SW_SHOW); // Ensure child window is visible
     UpdateWindow(pContent->hWnd);
 }
@@ -184,7 +175,10 @@ DockPane* DockPane_Create(PaneType type, DockGroup* parentGroup) {
 
     pPane->type = type;
     pPane->contents = List_Create(sizeof(DockContent*)); // Initialize contents list
-    if (!pPane->contents) {
+    pPane->tabRects = List_Create(sizeof(RECT));
+    if (!pPane->contents || !pPane->tabRects) {
+        if (pPane->contents) List_Destroy(pPane->contents);
+        if (pPane->tabRects) List_Destroy(pPane->tabRects);
         free(pPane);
         return NULL;
     }
@@ -193,7 +187,7 @@ DockPane* DockPane_Create(PaneType type, DockGroup* parentGroup) {
     pPane->showTabs = TRUE; // Default
     pPane->showCaption = FALSE; // Default, caption might show if it's the only thing in a group or floating
 
-    // hTabControl would be created when the pane is actually displayed and needs tabs.
+    // tabRects will be computed during layout when tabs are shown.
     // rect will be set by layout logic.
 
     return pPane;
@@ -431,21 +425,6 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
             parentPane->activeContentIndex = -1;
         }
 
-        if (parentPane->hTabControl) { // Refresh tab control
-            TabCtrl_DeleteAllItems(parentPane->hTabControl);
-            for (size_t i = 0; i < List_GetCount(parentPane->contents); ++i) {
-                DockContent* dc = *(DockContent**)List_GetAt(parentPane->contents, i);
-                TCITEMW tcItem = {0};
-                tcItem.mask = TCIF_TEXT | TCIF_PARAM;
-                tcItem.pszText = dc->title;
-                tcItem.lParam = (LPARAM)dc;
-                TabCtrl_InsertItem(parentPane->hTabControl, i, &tcItem);
-            }
-            if (parentPane->activeContentIndex != -1) {
-                TabCtrl_SetCurSel(parentPane->hTabControl, parentPane->activeContentIndex);
-            }
-        }
-
         // If pane becomes empty, remove it and collapse the group
         if (List_GetCount(parentPane->contents) == 0) {
             DockManager_RemovePane(pMgr, parentPane);
@@ -497,6 +476,31 @@ BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove,
     return TRUE;
 }
 
+DockContent* DockManager_FindContentByHwnd(DockManager* pMgr, HWND hWnd) {
+    if (!pMgr || !hWnd) return NULL;
+
+    // Check main site
+    if (pMgr->mainDockSite) {
+        for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allContents); ++i) {
+            DockContent* dc = *(DockContent**)List_GetAt(pMgr->mainDockSite->allContents, i);
+            if (dc && dc->hWnd == hWnd) return dc;
+        }
+    }
+
+    // Check floating windows
+    for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
+        FloatingWindow* fw = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
+        if (fw && fw->dockSite) {
+            for (size_t j = 0; j < List_GetCount(fw->dockSite->allContents); ++j) {
+                DockContent* dc = *(DockContent**)List_GetAt(fw->dockSite->allContents, j);
+                if (dc && dc->hWnd == hWnd) return dc;
+            }
+        }
+    }
+
+    return NULL;
+}
+
 
 BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
     if (!pMgr || !pContent || pContent->state != CONTENT_STATE_DOCKED || !pContent->parentPane) {
@@ -508,29 +512,22 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
 
     List_RemovePointer(oldPane->contents, pContent);
     pContent->parentPane = NULL;
-
-    // Refresh original pane's tab control
-    if (oldPane->hTabControl) {
-        TabCtrl_DeleteAllItems(oldPane->hTabControl);
-        for (size_t i = 0; i < List_GetCount(oldPane->contents); ++i) {
-            DockContent* dc = *(DockContent**)List_GetAt(oldPane->contents, i);
-            TCITEMW tcItem = { 0 };
-            tcItem.mask = TCIF_TEXT | TCIF_PARAM;
-            tcItem.pszText = dc->title;
-            tcItem.lParam = (LPARAM)dc;
-            TabCtrl_InsertItem(oldPane->hTabControl, i, &tcItem);
-        }
-        if (List_GetCount(oldPane->contents) > 0) {
-            oldPane->activeContentIndex = 0; // Default to first tab
-            TabCtrl_SetCurSel(oldPane->hTabControl, oldPane->activeContentIndex);
-        } else {
-            oldPane->activeContentIndex = -1;
-            // TODO: If pane is empty, it might need to be removed/collapsed.
-        }
+    
+    if (List_GetCount(oldPane->contents) > 0) {
+        oldPane->activeContentIndex = 0;
+    } else {
+        oldPane->activeContentIndex = -1;
+        // Remove empty pane and collapse its group
+        DockManager_RemovePane(pMgr, oldPane);
+        siteOfOldPane = NULL; // RemovePane already triggers layout
     }
 
     if (siteOfOldPane) {
-         DockManager_LayoutDockSite(pMgr, siteOfOldPane);
+        // Remove content from site's global list as it will be floated separately
+        if (List_IndexOfPointer(siteOfOldPane->allContents, pContent) != -1) {
+            List_RemovePointer(siteOfOldPane->allContents, pContent);
+        }
+        DockManager_LayoutDockSite(pMgr, siteOfOldPane);
     }
     // Content HWND is not destroyed, just unparented from layout system logic here.
     // Its actual SetParent(NULL) or to the floating window happens in FloatContent.
@@ -1061,56 +1058,56 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
 {
 	DockDropTarget target = { 0 }; // Initialize to DOCK_DROP_AREA_NONE
 
-	// Check floating windows first, as they are on top
-	for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-		FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
-		if (pFltWnd->dockSite) {
-			for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allPanes); ++j) {
-				DockPane* pane = *(DockPane**)List_GetAt(pFltWnd->dockSite->allPanes, j);
-				if (pane->hTabControl && IsWindowVisible(pane->hTabControl)) {
-					RECT rcTab;
-					GetWindowRect(pane->hTabControl, &rcTab);
-					if (PtInRect(&rcTab, screenPt)) {
-						target.pane = pane;
-						target.area = DOCK_DROP_AREA_TAB_STRIP;
-						TCHITTESTINFO htInfo = { 0 };
-						htInfo.pt = screenPt;
-						ScreenToClient(pane->hTabControl, &htInfo.pt);
-						target.tabIndex = TabCtrl_HitTest(pane->hTabControl, &htInfo);
-						if (target.tabIndex == -1) {
-							target.tabIndex = TabCtrl_GetItemCount(pane->hTabControl);
-						}
-						// TODO: Calculate feedback rect for tab insertion
-						return target;
-					}
-				}
-			}
-		}
-	}
+        // Check floating windows first, as they are on top
+        for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
+                FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
+                if (pFltWnd->dockSite) {
+                        POINT ptClient = screenPt;
+                        ScreenToClient(pFltWnd->dockSite->hWnd, &ptClient);
+                        for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allPanes); ++j) {
+                                DockPane* pane = *(DockPane**)List_GetAt(pFltWnd->dockSite->allPanes, j);
+                                RECT rcTabStrip = pane->rect;
+                                rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
+                                if (PtInRect(&rcTabStrip, ptClient)) {
+                                        target.pane = pane;
+                                        target.area = DOCK_DROP_AREA_TAB_STRIP;
+                                        target.tabIndex = List_GetCount(pane->contents);
+                                        for (size_t k = 0; k < List_GetCount(pane->tabRects); ++k) {
+                                                RECT r = *(RECT*)List_GetAt(pane->tabRects, k);
+                                                if (PtInRect(&r, ptClient)) {
+                                                        target.tabIndex = (int)k;
+                                                        break;
+                                                }
+                                        }
+                                        return target;
+                                }
+                        }
+                }
+        }
 
-	// Check main dock site
-	if (pMgr->mainDockSite) {
-		for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
-			DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
-			if (pane->hTabControl && IsWindowVisible(pane->hTabControl)) {
-				RECT rcTab;
-				GetWindowRect(pane->hTabControl, &rcTab);
-				if (PtInRect(&rcTab, screenPt)) {
-					target.pane = pane;
-					target.area = DOCK_DROP_AREA_TAB_STRIP;
-					TCHITTESTINFO htInfo = { 0 };
-					htInfo.pt = screenPt;
-					ScreenToClient(pane->hTabControl, &htInfo.pt);
-					target.tabIndex = TabCtrl_HitTest(pane->hTabControl, &htInfo);
-					if (target.tabIndex == -1) {
-						target.tabIndex = TabCtrl_GetItemCount(pane->hTabControl);
-					}
-					// TODO: Calculate feedback rect for tab insertion
-					return target;
-				}
-			}
-		}
-	}
+        // Check main dock site
+        if (pMgr->mainDockSite) {
+                POINT ptClient = screenPt;
+                ScreenToClient(pMgr->mainDockSite->hWnd, &ptClient);
+                for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
+                        DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
+                        RECT rcTabStrip = pane->rect;
+                        rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
+                        if (PtInRect(&rcTabStrip, ptClient)) {
+                                target.pane = pane;
+                                target.area = DOCK_DROP_AREA_TAB_STRIP;
+                                target.tabIndex = List_GetCount(pane->contents);
+                                for (size_t k = 0; k < List_GetCount(pane->tabRects); ++k) {
+                                        RECT r = *(RECT*)List_GetAt(pane->tabRects, k);
+                                        if (PtInRect(&r, ptClient)) {
+                                                target.tabIndex = (int)k;
+                                                break;
+                                        }
+                                }
+                                return target;
+                        }
+                }
+        }
 
 	// TODO: Add hit testing for center/side areas to allow splitting
 
