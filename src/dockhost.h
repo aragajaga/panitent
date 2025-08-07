@@ -27,6 +27,7 @@ struct _DockHostWindow {
 	// BOOL fDrag_;
 
 	DockInspectorDialog* m_pDockInspectorDialog; // If the inspector is still part of this window
+    DockGuideManager* dockGuideManager;
 };
 
 // Global instance of the DockManager will likely replace g_pRoot.
