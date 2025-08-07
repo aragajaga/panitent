@@ -40,6 +40,7 @@ struct _DockHostWindow {
 DockHostWindow* DockHostWindow_Create(PanitentApp* pApp); // pApp might be needed to get main HWND for DockManager
 
 void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType, DockPosition position);
+void DockHostWindow_UnpinWindow(DockHostWindow* pDockHostWindow, HWND hWndToUnpin);
 
 // Functions for creating nodes and data are now part of DockManager or helpers in dock_system.c
 // DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
