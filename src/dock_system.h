@@ -176,6 +176,7 @@ void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane);
 
 // Helper to get the manager instance (if it's a singleton)
 DockManager* GetDockManager();
+DockSite* GetSiteForPane(DockManager* pMgr, DockPane* pPane);
 
 // Layout Serialization
 BOOL DockManager_SaveLayout(DockManager* pMgr, const wchar_t* filePath);
