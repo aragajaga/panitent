@@ -319,7 +319,7 @@ void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite
     if (!pMgr || !pSite || !pSite->allContents) return;
 
     for (size_t i = 0; i < List_GetCount(pSite->allContents); ++i) {
-        DockContent* content = (DockContent*)List_GetAt(pSite->allContents, i);
+        DockContent* content = *(DockContent**)List_GetAt(pSite->allContents, i);
         if (!content || !content->hWnd) continue;
 
         if (content->state == CONTENT_STATE_DOCKED && content->parentPane) {
@@ -400,7 +400,7 @@ void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush)
 
             // Draw caption for active content in this pane
             if (pane->contents && List_GetCount(pane->contents) > 0 && pane->activeContentIndex != -1) {
-                 DockContent* activeContent = (DockContent*)List_GetAt(pane->contents, pane->activeContentIndex);
+                 DockContent* activeContent = *(DockContent**)List_GetAt(pane->contents, pane->activeContentIndex);
                  if (activeContent) {
                     RECT rcCaptionArea = pane->rect; // Placeholder for caption area
                     if (pane->showTabs && List_GetCount(pane->contents) > 0) {
@@ -548,7 +548,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 			DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop);
 			DockPane* sourcePane = pMgr->draggedTabPane;
 			int sourceIndex = pMgr->draggedTabIndexOriginal;
-			DockContent* contentToMove = (DockContent*)List_GetAt(sourcePane->contents, sourceIndex);
+			DockContent* contentToMove = *(DockContent**)List_GetAt(sourcePane->contents, sourceIndex);
 
 			if (contentToMove && dropTarget.area == DOCK_DROP_AREA_TAB_STRIP) {
 				DockPane* destPane = dropTarget.pane;
@@ -616,7 +616,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
             LPNMHDR lpnmhdr = (LPNMHDR)lParam;
             // Check if it's from one of our pane's tab controls
             for(size_t i=0; i < List_GetCount(pDockHostWindow->dockSite->allPanes); ++i) {
-                DockPane* pane = (DockPane*)List_GetAt(pDockHostWindow->dockSite->allPanes, i);
+                DockPane* pane = *(DockPane**)List_GetAt(pDockHostWindow->dockSite->allPanes, i);
                 if (pane->hTabControl && pane->hTabControl == lpnmhdr->hwndFrom) {
                     if (lpnmhdr->code == TCN_SELCHANGE) {
                         int sel = TabCtrl_GetCurSel(pane->hTabControl);
@@ -744,7 +744,7 @@ void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, c
         // Simplistic: find first pane of matching type, or first document pane for documents, or first tool pane for tools.
         // Or, always add to the first child of rootGroup if it's a pane.
         if (mainSite->rootGroup->child1 && !mainSite->rootGroup->isChild1Group) {
-            DockPane* potentialPane = (DockPane*)mainSite->rootGroup->child1;
+            DockPane* potentialPane = (DockPane*)mainSite->rootGroup->child1; // This is a direct member access, not from a list, so it's OK.
             // Basic type matching for now
             if ((contentType == PANE_TYPE_DOCUMENT && potentialPane->type == PANE_TYPE_DOCUMENT) ||
                 (contentType == PANE_TYPE_TOOL && potentialPane->type == PANE_TYPE_TOOL) ||
