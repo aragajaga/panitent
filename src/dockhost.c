@@ -329,7 +329,7 @@ void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite
                 continue;
             }
 
-            BOOL isActive = (List_IndexOf(pane->contents, content) == pane->activeContentIndex);
+            BOOL isActive = (List_IndexOfPointer(pane->contents, content) == pane->activeContentIndex);
 
             if (isActive) {
                 RECT contentAreaRect = pane->rect;
