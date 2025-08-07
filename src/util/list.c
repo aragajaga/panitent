@@ -165,3 +165,23 @@ int List_Remove(List* pList, void* pElement) {
     return 0;
 }
 
+int List_IndexOfPointer(List* pList, void* pPointer) {
+    // This function is for lists that store pointers.
+    // It compares the pointer values directly.
+    for (size_t i = 0; i < pList->nSize; ++i) {
+        void** pCurrentPointer = (void**)((unsigned char*)pList->pData + i * pList->nElementSize);
+        if (*pCurrentPointer == pPointer) {
+            return (int)i;
+        }
+    }
+    return -1;
+}
+
+int List_RemovePointer(List* pList, void* pPointer) {
+	int index = List_IndexOfPointer(pList, pPointer);
+	if (index >= 0) {
+		List_RemoveAt(pList, index);
+		return 1;
+	}
+	return 0;
+}
