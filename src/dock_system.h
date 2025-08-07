@@ -148,6 +148,8 @@ struct _DockManager {
     BOOL isDraggingSplitter;
     DockGroup* draggedGroup; // The group whose splitter is being dragged
     POINT ptSplitterDragStart; // Screen coordinates of splitter drag start
+
+    FloatingWindow* draggedFloatingWindow; // The floating window being dragged after a tab float
     HWND hTabDragFeedbackWnd;   // Optional: A window for visual feedback during drag
 
     // Layout persistence
