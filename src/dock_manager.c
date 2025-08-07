@@ -879,7 +879,7 @@ BOOL DockManager_LoadLayout(DockManager* pMgr, const wchar_t* filePath) {
                     // FloatingWindow_Create adds a default pane and group. We need to replace its rootGroup.
                     if (pFltWnd && pFltWnd->dockSite) {
                         // Clear the auto-generated simple layout in the new floating window
-                        if (pFltWnd->dockSite->rootG-roup) {
+                        if (pFltWnd->dockSite->rootGroup) {
 							DockGroup_DestroyRecursive(pFltWnd->dockSite->rootGroup);
 							pFltWnd->dockSite->rootGroup = NULL;
                         }
