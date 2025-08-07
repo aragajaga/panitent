@@ -15,7 +15,6 @@ if(MINGW)
 endif()
 
 set(C_SOURCES
-    src/bresenham.c
     src/brush.c
     src/canvas.c
     src/color_context.c
@@ -29,13 +28,11 @@ set(C_SOURCES
     src/option_bar.c
     src/palette.c
     src/panitent.c
-    src/primitives_context.c
     src/settings.c
     src/swatch.c
     src/swatch2.c
     src/toolbox.c
     src/viewport.c
-    src/wu_primitives.c
     src/crefptr.c
     src/wic.c
     src/history.c
@@ -56,7 +53,6 @@ if(MSVC)
   set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
 
   set(HEADERS
-      src/bresenham.h
       src/brush.h
       src/brush_context.h
       src/canvas.h
@@ -78,7 +74,6 @@ if(MSVC)
       src/pencil_tool.h
       src/pentablet.h
       src/precomp.h
-      src/primitives_context.h
       src/resource.h
       src/settings.h
       src/settings_dialog.h
@@ -90,7 +85,6 @@ if(MSVC)
       src/util.h
       src/viewport.h
       src/wic.h
-      src/wu_primitives.h
       )
 
   source_group("Headers" FILES ${HEADERS})
