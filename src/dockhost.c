@@ -1,4 +1,5 @@
 #include "precomp.h"
+#include "dockhost.h"
 
 #include "win32/window.h"
 #include "win32/dialog.h" // Keep if DockInspectorDialog or other dialogs are used
@@ -15,6 +16,7 @@
 
 #include "dockhost.h"
 #include "dock_system.h" // New docking system structures and APIs
+#include "dock_guides.h"
 #include "resource.h"    // For resource IDs like IDB_DOCKHOSTBG
 #include "floatingwindowcontainer.h" // This will likely be refactored or replaced by DockManager's FloatingWindow
 #include "dockinspectordialog.h"     // Keep if inspector dialog is retained
@@ -147,8 +149,8 @@ void DockManager_LayoutDockSite(DockManager* pMgr, DockSite* pSite) {
 
     if (!pSite->rootGroup) {
         // No root group. If there are panes in allPanes (e.g. from a simplified PinWindow), lay out the first one.
-        if (pSite->allPanes && List_GetCount(pSite->allPanes) > 0) {
-            DockPane* firstPane = (DockPane*)List_GetAt(pSite->allPanes, 0);
+        if (pSite->allPanes && List_GetCount(pSite->allPanes, 0) > 0) {
+            DockPane* firstPane = *(DockPane**)List_GetAt(pSite->allPanes, 0);
             // This pane should ideally be part of a rootGroup. This indicates an incomplete setup.
             // However, to prevent crashes and show something, we'll lay it out.
             DockManager_LayoutPane(pMgr, firstPane, rcClient);
@@ -318,7 +320,7 @@ void DockManager_LayoutPane(DockManager* pMgr, DockPane* pPane, RECT paneRect) {
 void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite) {
     if (!pMgr || !pSite || !pSite->allContents) return;
 
-    for (size_t i = 0; i < List_GetCount(pSite->allContents); ++i) {
+    for (size_t i = 0; i < List_GetCount(pSite->allContents, 0); ++i) {
         DockContent* content = *(DockContent**)List_GetAt(pSite->allContents, i);
         if (!content || !content->hWnd) continue;
 
@@ -383,7 +385,7 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 
 void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 {
-	DeleteObject(pDockHostWindow->hCaptionBrush_);
+	DeleteObject(pDockHostWindow->hCaptionBrush_, 0);
     DockGuideManager_Destroy(pDockHostWindow->dockGuideManager);
     // Global DockManager is not destroyed here; handle on app exit.
 }
@@ -401,7 +403,7 @@ void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush)
             FrameRect(hdc, &pane->rect, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
 
             // Draw caption for active content in this pane
-            if (pane->contents && List_GetCount(pane->contents) > 0 && pane->activeContentIndex != -1) {
+            if (pane->contents && List_GetCount(pane->contents, 0) > 0 && pane->activeContentIndex != -1) {
                  DockContent* activeContent = *(DockContent**)List_GetAt(pane->contents, pane->activeContentIndex);
                  if (activeContent) {
                     RECT rcCaptionArea = pane->rect; // Placeholder for caption area
@@ -432,7 +434,7 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 	PAINTSTRUCT ps = { 0 };
 	HDC hdc = BeginPaint(hWnd, &ps);
 
-	if (pDockHostWindow->dockSite && (pDockHostWindow->dockSite->rootGroup || List_GetCount(pDockHostWindow->dockSite->allContents) > 0) ) {
+	if (pDockHostWindow->dockSite && (pDockHostWindow->dockSite->rootGroup || List_GetCount(pDockHostWindow->dockSite->allContents, 0) > 0) ) {
         DockHostWindow_PaintContent(pDockHostWindow->dockSite, hdc, pDockHostWindow->hCaptionBrush_);
 	}
 	else { // Draw background if no content or site not fully initialized
@@ -485,7 +487,7 @@ void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndCont
 
 void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
 {
-	HWND hWndDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
+	HWND hWndDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE, 0);
 	if (hWndDialog && IsWindow(hWndDialog))
 	{
 		ShowWindow(hWndDialog, SW_SHOW);
@@ -683,12 +685,12 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
         if (pDockHostWindow->dockSite && pDockHostWindow->dockSite->allPanes) {
             LPNMHDR lpnmhdr = (LPNMHDR)lParam;
             // Check if it's from one of our pane's tab controls
-            for(size_t i=0; i < List_GetCount(pDockHostWindow->dockSite->allPanes); ++i) {
+            for(size_t i=0; i < List_GetCount(pDockHostWindow->dockSite->allPanes, 0); ++i) {
                 DockPane* pane = *(DockPane**)List_GetAt(pDockHostWindow->dockSite->allPanes, i);
                 if (pane->hTabControl && pane->hTabControl == lpnmhdr->hwndFrom) {
                     if (lpnmhdr->code == TCN_SELCHANGE) {
                         int sel = TabCtrl_GetCurSel(pane->hTabControl);
-                        if (sel != -1 && sel < (int)List_GetCount(pane->contents)) {
+                        if (sel != -1 && sel < (int)List_GetCount(pane->contents, 0)) {
                             pane->activeContentIndex = sel;
                             // DockContent* newActiveContent = (DockContent*)List_GetAt(pane->contents, sel);
                             // TODO: Potentially bring newActiveContent's HWND to top among siblings if needed,
