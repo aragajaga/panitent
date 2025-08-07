@@ -170,7 +170,7 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
         return; // Failed to create list
     }
 
-    List_Add(pTargetPane->contents, pContent);
+    List_Add(pTargetPane->contents, &pContent);
     pContent->parentPane = pTargetPane;
     pContent->state = CONTENT_STATE_DOCKED;
     pTargetPane->activeContentIndex = List_GetCount(pTargetPane->contents) - 1; // Make new content active
@@ -179,7 +179,7 @@ void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* 
     DockSite* site = GetSiteForPane(pMgr, pTargetPane);
 
     if (site && List_IndexOfPointer(site->allContents, pContent) == -1) {
-        List_Add(site->allContents, pContent);
+        List_Add(site->allContents, &pContent);
     }
 
 
@@ -335,14 +335,14 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
     initialPane->parentGroup = rootGroup;
 
     pFltWnd->dockSite->rootGroup = rootGroup;
-    List_Add(pFltWnd->dockSite->allPanes, initialPane);
+    List_Add(pFltWnd->dockSite->allPanes, &initialPane);
 
     // Parent the actual content HWND to the floating window
     SetParent(pContentToHost->hWnd, pFltWnd->hFloatWnd);
     DockManager_AddContent(pMgr, pContentToHost, initialPane, DOCK_POSITION_TABBED);
     pContentToHost->state = CONTENT_STATE_FLOATING; // Update state
 
-    List_Add(pMgr->floatingWindows, pFltWnd);
+    List_Add(pMgr->floatingWindows, &pFltWnd);
     DockManager_LayoutDockSite(pMgr, pFltWnd->dockSite); // Layout the new floating window
     ShowWindow(pFltWnd->hFloatWnd, SW_SHOW);
     UpdateWindow(pFltWnd->hFloatWnd);
@@ -979,7 +979,7 @@ static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockSite* p
             } else if (wcsstr(lineBuffer, L"DockPane")) {
                 pGroup->child1 = LoadDockPane(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild1Group = FALSE;
-                if(pGroup->child1) List_Add(pSite->allPanes, pGroup->child1); // Add to correct site's list
+                if(pGroup->child1) List_Add(pSite->allPanes, &pGroup->child1); // Add to correct site's list
             }
         }
         ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}" for Child1
@@ -994,7 +994,7 @@ static DockGroup* LoadDockGroupRecursive(FILE* f, DockManager* pMgr, DockSite* p
             } else if (wcsstr(lineBuffer, L"DockPane")) {
                 pGroup->child2 = LoadDockPane(f, pMgr, pSite, pGroup, indentLevel + 2);
                 pGroup->isChild2Group = FALSE;
-                 if(pGroup->child2) List_Add(pSite->allPanes, pGroup->child2); // Add to correct site's list
+                 if(pGroup->child2) List_Add(pSite->allPanes, &pGroup->child2); // Add to correct site's list
             }
         }
         ReadLine(f, lineBuffer, _countof(lineBuffer)); // Read closing "}" for Child2
@@ -1078,7 +1078,7 @@ static DockPane* LoadDockPane(FILE* f, DockManager* pMgr, DockSite* pSite, DockG
                     SetParent(hWndContent, pSite->hWnd);
 
 					// Add to the site's global content list
-					List_Add(pSite->allContents, pContent);
+					List_Add(pSite->allContents, &pContent);
 
                     // Add content to the pane. AddContent will handle adding to the pane's list.
                     DockManager_AddContent(pMgr, pContent, pPane, DOCK_POSITION_TABBED);
