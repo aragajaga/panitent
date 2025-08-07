@@ -116,29 +116,29 @@ int PanitentApp_Run(PanitentApp* pPanitentApp)
 
 void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    // // The DockManager is already initialized within DockHostWindow_OnCreate.
-    // // The root DockGroup is created when the first content is added via DockHostWindow_PinWindow.
-    // // This function will now simply create and pin the initial windows.
-    // 
-    // // For each window, we need:
-    // // 1. Its HWND (after creation)
-    // // 2. A title string (for tabs/captions)
-    // // 3. A unique ID string (for layout persistence)
-    // // 4. Its PaneType (PANE_TYPE_TOOL or PANE_TYPE_DOCUMENT)
-    // 
-    // ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
-    // if (pToolboxWindow) {
-    //     HWND hToolbox = Window_CreateWindow((Window*)pToolboxWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if (hToolbox) {
-    //         DockHostWindow_PinWindow(pDockHostWindow, hToolbox, L"Toolbox", L"ID_Toolbox", PANE_TYPE_TOOL);
-    //     }
-    // }
-    // 
+    // The DockManager is already initialized within DockHostWindow_OnCreate.
+    // The root DockGroup is created when the first content is added via DockHostWindow_PinWindow.
+    // This function will now simply create and pin the initial windows.
+    
+    // For each window, we need:
+    // 1. Its HWND (after creation)
+    // 2. A title string (for tabs/captions)
+    // 3. A unique ID string (for layout persistence)
+    // 4. Its PaneType (PANE_TYPE_TOOL or PANE_TYPE_DOCUMENT)
+    
+    ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
+    if (pToolboxWindow) {
+        HWND hToolbox = Window_CreateWindow((Window*)pToolboxWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hToolbox) {
+            DockHostWindow_PinWindow(pDockHostWindow, hToolbox, L"Toolbox", L"ID_Toolbox", PANE_TYPE_TOOL);
+        }
+    }
+    
     // WorkspaceContainer is the main document area in this app.
     // It was previously m_pWorkspaceContainer, ensure it's still created and assigned if needed.
     // If it's already created in PanitentApp_Init, just get its HWND.
     // For this example, let's assume it's created here or its HWND is available.
-    // WorkspaceContainer* pWorkspaceContainer = pPanitentApp->m_pWorkspaceContainer; // Already created in PanitentApp_Init
+    WorkspaceContainer* pWorkspaceContainer = pPanitentApp->m_pWorkspaceContainer; // Already created in PanitentApp_Init
     if (pPanitentApp->m_pWorkspaceContainer) {
          // Window_CreateWindow for m_pWorkspaceContainer is called in its own setup or when a document is opened.
          // Here, we assume it's already created or will be created and then pinned.
@@ -158,50 +158,50 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
              DockHostWindow_PinWindow(pDockHostWindow, hWorkspace, L"Canvas", L"ID_WorkspaceContainer", PANE_TYPE_DOCUMENT);
         }
     }
-    // 
-    // 
-    // GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
-    // if (pGLWindow) {
-    //     HWND hGL = Window_CreateWindow((Window*)pGLWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if (hGL) {
-    //         DockHostWindow_PinWindow(pDockHostWindow, hGL, L"OpenGL View", L"ID_GLWindow", PANE_TYPE_TOOL);
-    //     }
-    // }
-    // 
-    // PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
-    // if (pPaletteWindow) {
-    //     HWND hPalette = Window_CreateWindow((Window*)pPaletteWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if (hPalette) {
-    //         DockHostWindow_PinWindow(pDockHostWindow, hPalette, L"Palette", L"ID_Palette", PANE_TYPE_TOOL);
-    //     }
-    // }
-    // 
-    // LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
-    // if (pLayersWindow) {
-    //     HWND hLayers = Window_CreateWindow((Window*)pLayersWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if (hLayers) {
-    //         DockHostWindow_PinWindow(pDockHostWindow, hLayers, L"Layers", L"ID_Layers", PANE_TYPE_TOOL);
-    //     }
-    // }
-    // 
-    // OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)pPanitentApp);
-    // if (pOptionBarWindow) {
-    //     HWND hOptBar = Window_CreateWindow((Window*)pOptionBarWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if (hOptBar) {
-    //         // OptionBar might be special (e.g. always top, not really dockable in the same way)
-    //         // For now, treat as a tool window. A more complex system might have dedicated regions.
-    //         DockHostWindow_PinWindow(pDockHostWindow, hOptBar, L"Options", L"ID_OptionBar", PANE_TYPE_TOOL);
-    //     }
-    // }
-    // 
-    // LogWindow* pLogWindow = LogWindow_Create();
-    // if(pLogWindow) {
-    //     HWND hLog = Window_CreateWindow((Window*)pLogWindow, Window_GetHWND((Window*)pDockHostWindow));
-    //     if(hLog) {
-    //         DockHostWindow_PinWindow(pDockHostWindow, hLog, L"Log", L"ID_LogWindow", PANE_TYPE_TOOL);
-    //         ShowWindow(hLog, SW_SHOW); // Show it by default
-    //     }
-    // }
+    
+    
+    GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
+    if (pGLWindow) {
+        HWND hGL = Window_CreateWindow((Window*)pGLWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hGL) {
+            DockHostWindow_PinWindow(pDockHostWindow, hGL, L"OpenGL View", L"ID_GLWindow", PANE_TYPE_TOOL);
+        }
+    }
+    
+    PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
+    if (pPaletteWindow) {
+        HWND hPalette = Window_CreateWindow((Window*)pPaletteWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hPalette) {
+            DockHostWindow_PinWindow(pDockHostWindow, hPalette, L"Palette", L"ID_Palette", PANE_TYPE_TOOL);
+        }
+    }
+    
+    LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
+    if (pLayersWindow) {
+        HWND hLayers = Window_CreateWindow((Window*)pLayersWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hLayers) {
+            DockHostWindow_PinWindow(pDockHostWindow, hLayers, L"Layers", L"ID_Layers", PANE_TYPE_TOOL);
+        }
+    }
+    
+    OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)pPanitentApp);
+    if (pOptionBarWindow) {
+        HWND hOptBar = Window_CreateWindow((Window*)pOptionBarWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hOptBar) {
+            // OptionBar might be special (e.g. always top, not really dockable in the same way)
+            // For now, treat as a tool window. A more complex system might have dedicated regions.
+            DockHostWindow_PinWindow(pDockHostWindow, hOptBar, L"Options", L"ID_OptionBar", PANE_TYPE_TOOL);
+        }
+    }
+    
+    LogWindow* pLogWindow = LogWindow_Create();
+    if(pLogWindow) {
+        HWND hLog = Window_CreateWindow((Window*)pLogWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if(hLog) {
+            DockHostWindow_PinWindow(pDockHostWindow, hLog, L"Log", L"ID_LogWindow", PANE_TYPE_TOOL);
+            ShowWindow(hLog, SW_SHOW); // Show it by default
+        }
+    }
 
 
     // The complex nested split layout is NOT replicated here.
