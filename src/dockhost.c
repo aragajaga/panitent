@@ -592,33 +592,27 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
             POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
             ClientToScreen(hWnd, &ptCurrent);
 
-            // Check if we should start floating
             int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
-            if (abs(ptCurrent.x - pMgr->ptTabDragStart.x) > dragThreshold ||
-                abs(ptCurrent.y - pMgr->ptTabDragStart.y) > dragThreshold)
+            if (!pMgr->isFloatingTab && (abs(ptCurrent.x - pMgr->ptTabDragStart.x) > dragThreshold ||
+                abs(ptCurrent.y - pMgr->ptTabDragStart.y) > dragThreshold))
             {
                 DockContent* contentToFloat = *(DockContent**)List_GetAt(pMgr->draggedTabPane->contents, pMgr->draggedTabIndexOriginal);
                 if (contentToFloat) {
-                    RECT floatRect = { ptCurrent.x - 150, ptCurrent.y - 20, ptCurrent.x + 150, ptCurrent.y + 200 };
-
-                    // Undock the content but keep it owned by the manager
-                    DockManager_RemoveContent(pMgr, contentToFloat, FALSE);
-
-                    // Create the floating window
-                    FloatingWindow* pFltWnd = FloatingWindow_Create(pMgr, contentToFloat, floatRect);
-
-                    if (pFltWnd) {
-                        pMgr->isDraggingTab = FALSE;
-                        pMgr->isFloatingTab = TRUE; // New state!
-
-                        // Trick the system into thinking we are dragging the new floating window's caption
-                        ReleaseCapture();
-                        SendMessage(pFltWnd->hFloatWnd, WM_SYSCOMMAND, SC_MOVE | 0x0002, MAKELPARAM(ptCurrent.x, ptCurrent.y));
-                    }
+                    pMgr->isFloatingTab = TRUE;
+                    pMgr->draggedFloatingWindow = DockManager_FloatContent(pMgr, contentToFloat, (RECT){0,0,300,200});
                 }
-            } else {
-                 DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
             }
+
+            DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
+            return 0;
+        }
+        else if (pMgr && pMgr->isFloatingTab) {
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptCurrent);
+            if (pMgr->draggedFloatingWindow) {
+                SetWindowPos(pMgr->draggedFloatingWindow->hFloatWnd, HWND_TOPMOST, ptCurrent.x - 150, ptCurrent.y - 10, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+            DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
             return 0;
         }
         else if (pMgr && pMgr->isDraggingSplitter) {
@@ -657,11 +651,23 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 
     case WM_LBUTTONUP:
         if (pMgr && pMgr->isFloatingTab) {
-            // If we were floating a tab, the drop logic is different.
-            // We need to check if the final position is over a valid dock guide.
-            // For now, we'll just end the float state. A full implementation would re-dock here.
+            DockGuideManager_Hide(pDockHostWindow->dockGuideManager);
+            ReleaseCapture();
+
+            DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
+            if (dropArea != DOCK_DROP_AREA_NONE) {
+                // Re-dock the window
+                FloatingWindow* pFltWnd = pMgr->draggedFloatingWindow;
+                DockContent* contentToDock = *(DockContent**)List_GetAt(pFltWnd->dockSite->allContents, 0);
+
+                List_RemovePointer(pMgr->floatingWindows, pFltWnd);
+                DockHostWindow_PinWindow(pDockHostWindow, contentToDock->hWnd, contentToDock->title, contentToDock->id, contentToDock->contentType, dropArea);
+                DestroyWindow(pFltWnd->hFloatWnd);
+                free(pFltWnd);
+            }
+
             pMgr->isFloatingTab = FALSE;
-            // The OS handles the move, so we don't need to do much here except reset state.
+            pMgr->draggedFloatingWindow = NULL;
             return 0;
         }
         else if (pMgr && pMgr->isDraggingTab) {
