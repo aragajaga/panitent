@@ -180,8 +180,7 @@ void Test_PinMultipleWindows() {
     assert(List_GetCount(pMgr->mainDockSite->allContents) == 3);
 
     DockManager_LayoutDockSite(pMgr, pMgr->mainDockSite);
-    assert(targetPane->hTabControl != NULL); // Tab control should be created
-    assert(TabCtrl_GetItemCount(targetPane->hTabControl) == 3);
+    assert(List_GetCount(targetPane->tabRects) == 3);
 
     // Check visibility (conceptual - relies on UpdateContentWindowPositions logic)
     // For true check, would need GetWindowLong(hWnd, GWL_STYLE) & WS_VISIBLE
@@ -237,9 +236,8 @@ void Test_TabSelection() {
     DockManager_AddContent(pMgr, pContent2, targetPane, DOCK_POSITION_TABBED); // pContent2 is now active (index 1)
     assert(targetPane->activeContentIndex == 1);
 
-    // Simulate TCN_SELCHANGE by directly setting active index and re-layouting
+    // Simulate tab selection by directly setting active index and re-layouting
     targetPane->activeContentIndex = 0;
-    if(targetPane->hTabControl) TabCtrl_SetCurSel(targetPane->hTabControl, 0); // Also update visual tab
     DockManager_LayoutDockSite(pMgr, pMgr->mainDockSite);
     // In a real scenario with message loop, WM_NOTIFY would trigger this.
     // Here we test the consequence of activeContentIndex changing.

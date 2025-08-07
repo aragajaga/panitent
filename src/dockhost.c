@@ -267,7 +267,6 @@ void DockManager_LayoutPane(DockManager* pMgr, DockPane* pPane, RECT paneRect) {
     pPane->rect = paneRect;
 
     if (IsRectEmpty(&paneRect)) {
-        if(pPane->hTabControl) ShowWindow(pPane->hTabControl, SW_HIDE);
         if(pPane->contents) { // Hide all content windows if pane is empty
             for(size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
                 DockContent* content = (DockContent*)List_GetAt(pPane->contents, i);
@@ -279,39 +278,25 @@ void DockManager_LayoutPane(DockManager* pMgr, DockPane* pPane, RECT paneRect) {
 
     BOOL tabsShouldBeVisible = pPane->showTabs && pPane->contents && List_GetCount(pPane->contents) > 0;
 
-    if (pPane->hTabControl) { // If tab control exists, position or hide it
-        if (tabsShouldBeVisible) {
-            RECT rcTabCtrl = paneRect; // Tab control takes the top part of the paneRect
-            rcTabCtrl.bottom = rcTabCtrl.top + DEFAULT_TAB_HEIGHT;
-            if (rcTabCtrl.bottom > paneRect.bottom) rcTabCtrl.bottom = paneRect.bottom; // Clamp to pane bottom
+    if (tabsShouldBeVisible) {
+        RECT rcTabStrip = paneRect;
+        rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
+        if (rcTabStrip.bottom > paneRect.bottom) rcTabStrip.bottom = paneRect.bottom;
 
-            SetWindowPos(pPane->hTabControl, NULL, rcTabCtrl.left, rcTabCtrl.top,
-                         rcTabCtrl.right - rcTabCtrl.left, rcTabCtrl.bottom - rcTabCtrl.top,
-                         SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        } else {
-            ShowWindow(pPane->hTabControl, SW_HIDE);
+        while (List_GetCount(pPane->tabRects) > 0) {
+            List_RemoveAt(pPane->tabRects, 0);
         }
-    } else if (tabsShouldBeVisible) {
-        pPane->hTabControl = CreateWindowEx(0, WC_TABCONTROLW, L"", // Use WC_TABCONTROLW for Unicode
-                                         WS_CHILD | WS_CLIPSIBLINGS | WS_VISIBLE | TCS_FOCUSNEVER | TCS_TOOLTIPS,
-                                         paneRect.left, paneRect.top, paneRect.right - paneRect.left, DEFAULT_TAB_HEIGHT,
-                                         pMgr->mainDockSite->hWnd,
-                                         (HMENU)(UINT_PTR)(pPane), // Using pane pointer as ID, ensure this is safe/unique enough
-                                         GetModuleHandle(NULL), NULL);
-        if (pPane->hTabControl) {
-            SendMessage(pPane->hTabControl, WM_SETFONT, (WPARAM)pMgr->uiFont, TRUE);
-            TabCtrl_DeleteAllItems(pPane->hTabControl); // Clear old tabs before repopulating
-            for (size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
-                DockContent* dc = (DockContent*)List_GetAt(pPane->contents, i);
-                TCITEMW tcItem = { 0 };
-                tcItem.mask = TCIF_TEXT | TCIF_PARAM;
-                tcItem.pszText = dc->title;
-                tcItem.lParam = (LPARAM)dc;
-                TabCtrl_InsertItem(pPane->hTabControl, i, &tcItem);
-            }
-            if (pPane->activeContentIndex >=0 && pPane->activeContentIndex < (int)List_GetCount(pPane->contents)) {
-                 TabCtrl_SetCurSel(pPane->hTabControl, pPane->activeContentIndex);
-            }
+        int count = (int)List_GetCount(pPane->contents);
+        int tabWidth = (rcTabStrip.right - rcTabStrip.left) / (count > 0 ? count : 1);
+        int x = rcTabStrip.left;
+        for (int i = 0; i < count; ++i) {
+            RECT rc = { x, rcTabStrip.top, x + tabWidth, rcTabStrip.bottom };
+            List_Add(pPane->tabRects, &rc);
+            x += tabWidth;
+        }
+    } else if (pPane->tabRects) {
+        while (List_GetCount(pPane->tabRects) > 0) {
+            List_RemoveAt(pPane->tabRects, 0);
         }
     }
     // Actual content HWNDs are positioned in DockManager_UpdateContentWindowPositions
@@ -400,6 +385,25 @@ void DockPane_Paint(DockPane* pPane, HDC hdc, HBRUSH hCaptionBrush)
 
     // Draw border
     FrameRect(hdc, &pPane->rect, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
+
+    // Draw tabs if any
+    if (pPane->showTabs && List_GetCount(pPane->contents) > 0) {
+        HFONT hOldFont = (HFONT)SelectObject(hdc, GetDockManager()->uiFont);
+        for (size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
+            RECT rcTab = *(RECT*)List_GetAt(pPane->tabRects, i);
+            DockContent* dc = *(DockContent**)List_GetAt(pPane->contents, i);
+            HBRUSH hbr = (i == (size_t)pPane->activeContentIndex) ? (HBRUSH)GetStockObject(WHITE_BRUSH) : GetSysColorBrush(COLOR_BTNFACE);
+            FillRect(hdc, &rcTab, hbr);
+            FrameRect(hdc, &rcTab, (HBRUSH)GetStockObject(BLACK_BRUSH));
+            if (dc) {
+                RECT rcText = rcTab;
+                rcText.left += 4; rcText.right -= 4;
+                SetBkMode(hdc, TRANSPARENT);
+                DrawText(hdc, dc->title, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            }
+        }
+        SelectObject(hdc, hOldFont);
+    }
 
     // Draw caption if needed
     BOOL shouldShowCaption = pPane->showCaption || (pPane->showTabs && List_GetCount(pPane->contents) <= 1);
@@ -676,32 +680,36 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
             POINT ptDrop = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
             ClientToScreen(hWnd, &ptDrop);
 
-			DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
+                        DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
             DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop); // Also need the pane context
-			DockPane* sourcePane = pMgr->draggedTabPane;
-			int sourceIndex = pMgr->draggedTabIndexOriginal;
-			DockContent* contentToMove = *(DockContent**)List_GetAt(sourcePane->contents, sourceIndex);
+                        DockPane* sourcePane = pMgr->draggedTabPane;
+                        int sourceIndex = pMgr->draggedTabIndexOriginal;
+                        DockContent* contentToMove = *(DockContent**)List_GetAt(sourcePane->contents, sourceIndex);
 
-			if (contentToMove && dropArea != DOCK_DROP_AREA_NONE) {
+                        if (contentToMove && dropArea != DOCK_DROP_AREA_NONE) {
                 if (dropArea == DOCK_DROP_AREA_TAB_STRIP || dropArea == DOCK_DROP_AREA_CENTER)
                 {
-				    DockPane* destPane = dropTarget.pane;
-				    int destIndex = dropTarget.tabIndex;
+                                    DockPane* destPane = dropTarget.pane;
+                                    int destIndex = dropTarget.tabIndex;
 
-				// If dropping on the same pane, just reorder
-				if (sourcePane == destPane) {
-					if (sourceIndex != destIndex) {
-						List_RemoveAt(sourcePane->contents, sourceIndex);
-						if (destIndex > sourceIndex) destIndex--; // Adjust index after removal
-						if (destIndex < 0) destIndex = 0;
-						if (destIndex > (int)List_GetCount(sourcePane->contents)) destIndex = List_GetCount(sourcePane->contents);
-						List_InsertAt(sourcePane->contents, &contentToMove, destIndex);
-						sourcePane->activeContentIndex = destIndex; // Make dropped tab active
+                                // If dropping on the same pane, reorder or select
+                                if (sourcePane == destPane) {
+                                        if (sourceIndex != destIndex) {
+                                                List_RemoveAt(sourcePane->contents, sourceIndex);
+                                                if (destIndex > sourceIndex) destIndex--; // Adjust index after removal
+                                                if (destIndex < 0) destIndex = 0;
+                                                if (destIndex > (int)List_GetCount(sourcePane->contents)) destIndex = List_GetCount(sourcePane->contents);
+                                                List_InsertAt(sourcePane->contents, &contentToMove, destIndex);
+                                                sourcePane->activeContentIndex = destIndex; // Make dropped tab active
 
-						DockSite* site = GetSiteForPane(pMgr, sourcePane);
-						if (site) DockManager_LayoutDockSite(pMgr, site);
-					}
-				} else { // Dropping on a different pane
+                                                DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                                if (site) DockManager_LayoutDockSite(pMgr, site);
+                                        } else {
+                                                sourcePane->activeContentIndex = destIndex;
+                                                DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                                if (site) DockManager_LayoutDockSite(pMgr, site);
+                                        }
+                                } else { // Dropping on a different pane
 					DockSite* sourceSite = GetSiteForPane(pMgr, sourcePane);
 					DockSite* destSite = GetSiteForPane(pMgr, destPane);
 
@@ -736,17 +744,21 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
                     DockManager_RemoveContent(pMgr, contentToMove, FALSE);
                     // This is a simplified re-pin, a full implementation would be more complex
                     DockHostWindow_PinWindow(pDockHostWindow, contentToMove->hWnd, contentToMove->title, contentToMove->id, contentToMove->contentType, dropArea);
-                    if(sourceSite) DockManager_LayoutDockSite(pMgr, sourceSite);
+                                        if(sourceSite) DockManager_LayoutDockSite(pMgr, sourceSite);
                 }
 
-			} else if (contentToMove) { // Dropped somewhere else, float it
-				int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
-				if (abs(ptDrop.x - pMgr->ptTabDragStart.x) > dragThreshold ||
-					abs(ptDrop.y - pMgr->ptTabDragStart.y) > dragThreshold) {
-					RECT floatRect = { ptDrop.x - 150, ptDrop.y - 20, ptDrop.x + 150, ptDrop.y + 200 };
-					DockManager_FloatContent(pMgr, contentToMove, floatRect);
-				}
-			}
+                        } else if (contentToMove) { // Dropped somewhere else, float it or select
+                                int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
+                                if (abs(ptDrop.x - pMgr->ptTabDragStart.x) > dragThreshold ||
+                                        abs(ptDrop.y - pMgr->ptTabDragStart.y) > dragThreshold) {
+                                        RECT floatRect = { ptDrop.x - 150, ptDrop.y - 20, ptDrop.x + 150, ptDrop.y + 200 };
+                                        DockManager_FloatContent(pMgr, contentToMove, floatRect);
+                                } else {
+                                        sourcePane->activeContentIndex = sourceIndex;
+                                        DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                        if (site) DockManager_LayoutDockSite(pMgr, site);
+                                }
+                        }
 
             pMgr->isDraggingTab = FALSE;
             pMgr->draggedTabPane = NULL;
@@ -777,31 +789,9 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
         }
         break;
 
-    case WM_NOTIFY: // For tab control notifications
-        if (pDockHostWindow->dockSite && pDockHostWindow->dockSite->allPanes) {
-            LPNMHDR lpnmhdr = (LPNMHDR)lParam;
-            // Check if it's from one of our pane's tab controls
-            for(size_t i=0; i < List_GetCount(pDockHostWindow->dockSite->allPanes); ++i) {
-                DockPane* pane = *(DockPane**)List_GetAt(pDockHostWindow->dockSite->allPanes, i);
-                if (pane->hTabControl && pane->hTabControl == lpnmhdr->hwndFrom) {
-                    if (lpnmhdr->code == TCN_SELCHANGE) {
-                        int sel = TabCtrl_GetCurSel(pane->hTabControl);
-                        if (sel != -1 && sel < (int)List_GetCount(pane->contents)) {
-                            pane->activeContentIndex = sel;
-                            // DockContent* newActiveContent = (DockContent*)List_GetAt(pane->contents, sel);
-                            // TODO: Potentially bring newActiveContent's HWND to top among siblings if needed,
-                            // though ShowWindow/HideWindow in UpdateContentWindowPositions might be enough.
-                            DockManager_LayoutDockSite(pDockHostWindow->dockManager, pDockHostWindow->dockSite); // Re-layout to show/hide windows
-                        }
-                    }
-                    return 0; // Handled
-                }
-            }
         }
-        break;
-	}
 
-	return Window_UserProcDefault((Window *)pDockHostWindow, hWnd, message, wParam, lParam);
+        return Window_UserProcDefault((Window *)pDockHostWindow, hWnd, message, wParam, lParam);
 }
 
 void DockHostWindow_PreRegister(LPWNDCLASSEX lpwcex)
@@ -972,6 +962,22 @@ void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, c
     DockManager_LayoutDockSite(pMgr, mainSite);
     // ShowWindow(hWndToPin, SW_SHOWNA); // Show without activating, LayoutDockSite will handle visibility
     // UpdateWindow(hWndToPin);
+}
+
+void DockHostWindow_UnpinWindow(DockHostWindow* pDockHostWindow, HWND hWndToUnpin) {
+    if (!pDockHostWindow || !pDockHostWindow->dockManager || !hWndToUnpin) {
+        return;
+    }
+
+    DockManager* pMgr = pDockHostWindow->dockManager;
+    DockContent* content = DockManager_FindContentByHwnd(pMgr, hWndToUnpin);
+    if (!content) {
+        return;
+    }
+
+    RECT rc;
+    GetWindowRect(hWndToUnpin, &rc);
+    DockManager_FloatContent(pMgr, content, rc);
 }
 
 
