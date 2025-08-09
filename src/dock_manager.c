@@ -1067,7 +1067,7 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
                                 if (!pane) continue;
                                 RECT rcTabStrip = pane->rect;
                                 rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
-                                if (PtInRect(&rcTabStrip, ptClient)) {
+                                if (pane->showTabs && PtInRect(&rcTabStrip, ptClient)) {
                                         target.pane = pane;
                                         target.area = DOCK_DROP_AREA_TAB_STRIP;
                                         target.tabIndex = -1; // Default to end of tab strip
@@ -1080,6 +1080,19 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
                                         }
                                         return target;
                                 }
+
+								BOOL shouldShowCaption = pane->showCaption || (pane->showTabs == FALSE && List_GetCount(pane->contents) > 0);
+								if (shouldShowCaption)
+								{
+									RECT rcCaption = pane->rect;
+									rcCaption.bottom = rcCaption.top + DEFAULT_CAPTION_HEIGHT;
+									if (PtInRect(&rcCaption, ptClient)) {
+										target.pane = pane;
+										target.area = DOCK_DROP_AREA_CAPTION;
+										target.tabIndex = pane->activeContentIndex;
+										return target;
+									}
+								}
                         }
                 }
         }
@@ -1093,7 +1106,7 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
                         if (!pane) continue;
                         RECT rcTabStrip = pane->rect;
                         rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
-                        if (PtInRect(&rcTabStrip, ptClient)) {
+                        if (pane->showTabs && PtInRect(&rcTabStrip, ptClient)) {
                                 target.pane = pane;
                                 target.area = DOCK_DROP_AREA_TAB_STRIP;
                                 target.tabIndex = -1; // Default to end of tab strip
@@ -1106,6 +1119,19 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
                                 }
                                 return target;
                         }
+
+						BOOL shouldShowCaption = pane->showCaption || (pane->showTabs == FALSE && List_GetCount(pane->contents) > 0);
+						if (shouldShowCaption)
+						{
+							RECT rcCaption = pane->rect;
+							rcCaption.bottom = rcCaption.top + DEFAULT_CAPTION_HEIGHT;
+							if (PtInRect(&rcCaption, ptClient)) {
+								target.pane = pane;
+								target.area = DOCK_DROP_AREA_CAPTION;
+								target.tabIndex = pane->activeContentIndex;
+								return target;
+							}
+						}
                 }
         }
 

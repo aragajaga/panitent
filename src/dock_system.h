@@ -198,6 +198,7 @@ void DockManager_SetAppCreateContentCallback(DockManager* pMgr, AppCreateContent
 typedef enum {
 	DOCK_DROP_AREA_NONE,
 	DOCK_DROP_AREA_TAB_STRIP,
+	DOCK_DROP_AREA_CAPTION,
 	DOCK_DROP_AREA_CENTER,
 	DOCK_DROP_AREA_LEFT,
 	DOCK_DROP_AREA_RIGHT,
