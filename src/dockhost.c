@@ -610,6 +610,8 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 						{
 							ReleaseCapture();
 							SendMessage(pMgr->draggedFloatingWindow->hFloatWnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(ptCurrent.x, ptCurrent.y));
+							pMgr->isDraggingTab = FALSE;
+							pMgr->draggedTabPane = NULL;
 						}
 					}
 				}
