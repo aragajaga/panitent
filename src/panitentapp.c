@@ -111,179 +111,110 @@ int PanitentApp_Run(PanitentApp* pPanitentApp)
     return Application_Run(pPanitentApp);
 }
 
-TreeNode* CreateToolboxNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
-{
-    TreeNode* pNodeToolbox = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataToolbox = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataToolbox)
-    {
-        memset(pDockDataToolbox, 0, sizeof(DockData));
-        pNodeToolbox->data = (void*)pDockDataToolbox;
-        wcscpy_s(pDockDataToolbox->lpszName, MAX_PATH, L"Toolbox");
-        ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
-        Window_CreateWindow((Window*)pToolboxWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataToolbox, (Window*)pToolboxWindow);
-    }
+// Old helper functions like CreateToolboxNode, CreateViewportNode, CreateSplitNode are removed
+// as the docking structure is now managed by DockManager and initial windows are pinned directly.
 
-    return pNodeToolbox;
-}
-
-TreeNode* CreateViewportNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
+void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeViewport = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataViewport = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataViewport)
-    {
-        memset(pDockDataViewport, 0, sizeof(DockData));
-        pNodeViewport->data = (void*)pDockDataViewport;
-        wcscpy_s(pDockDataViewport->lpszName, MAX_PATH, L"WorkspaceContainer");
-        WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)pPanitentApp);
-        HWND hWndWorkspaceContainer = Window_CreateWindow((Window*)pWorkspaceContainer, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataViewport, (Window*)pWorkspaceContainer);
-        pPanitentApp->m_pWorkspaceContainer = pWorkspaceContainer;
+    // The DockManager is already initialized within DockHostWindow_OnCreate.
+    // The root DockGroup is created when the first content is added via DockHostWindow_PinWindow.
+    // This function will now simply create and pin the initial windows.
+    
+    // For each window, we need:
+    // 1. Its HWND (after creation)
+    // 2. A title string (for tabs/captions)
+    // 3. A unique ID string (for layout persistence)
+    // 4. Its PaneType (PANE_TYPE_TOOL or PANE_TYPE_DOCUMENT)
+    
+    ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
+    if (pToolboxWindow) {
+        HWND hToolbox = Window_CreateWindow((Window*)pToolboxWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hToolbox) {
+            DockHostWindow_PinWindow(pDockHostWindow, hToolbox, L"Toolbox", L"ID_Toolbox", PANE_TYPE_TOOL, DOCK_POSITION_LEFT);
+        }
     }
     
-    return pNodeViewport;
-}
-
-TreeNode* CreateGLWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
-{
-    TreeNode* pNodeGLWindow = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataGLWindow = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataGLWindow)
-    {
-        memset(pDockDataGLWindow, 0, sizeof(DockData));
-        pNodeGLWindow->data = (void*)pDockDataGLWindow;
-        wcscpy_s(pDockDataGLWindow->lpszName, MAX_PATH, L"GLWindow");
-        GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
-        HWND hwndGLWindow = Window_CreateWindow((Window*)pGLWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataGLWindow, (Window*)pGLWindow);
-    }
-
-    return pNodeGLWindow;
-}
-
-TreeNode* CreatePaletteWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
-{
-    TreeNode* pNodePalette = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataPalette = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataPalette)
-    {
-        memset(pDockDataPalette, 0, sizeof(DockData));
-        pNodePalette->data = (void*)pDockDataPalette;
-        wcscpy_s(pDockDataPalette->lpszName, MAX_PATH, L"Palette");
-        PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
-        HWND hwndPalette = Window_CreateWindow((Window*)pPaletteWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataPalette, (Window*)pPaletteWindow);
+    // WorkspaceContainer is the main document area in this app.
+    // It was previously m_pWorkspaceContainer, ensure it's still created and assigned if needed.
+    // If it's already created in PanitentApp_Init, just get its HWND.
+    // For this example, let's assume it's created here or its HWND is available.
+    WorkspaceContainer* pWorkspaceContainer = pPanitentApp->m_pWorkspaceContainer; // Already created in PanitentApp_Init
+    if (pPanitentApp->m_pWorkspaceContainer) {
+         // Window_CreateWindow for m_pWorkspaceContainer is called in its own setup or when a document is opened.
+         // Here, we assume it's already created or will be created and then pinned.
+         // For initial setup, if it's meant to be the central document area,
+         // it might be added with a specific flag or to a specific initial "document host" pane.
+         // The current PinWindow logic will place it based on its simple rules.
+         // Let's assume its HWND is obtained after its creation.
+         // HWND hWorkspace = Window_GetHWND((Window*)pPanitentApp->m_pWorkspaceContainer);
+         // if(hWorkspace) { // Check if window is created
+         //    DockHostWindow_PinWindow(pDockHostWindow, hWorkspace, L"Workspace", L"ID_Workspace", PANE_TYPE_DOCUMENT);
+         // }
+         // For now, let's defer pinning workspace until a document is actually loaded,
+         // or ensure it's created and pinned as a document type if it's a permanent fixture.
+         // The old code pinned it. Let's try to replicate.
+        HWND hWorkspace = Window_CreateWindow((Window*)pPanitentApp->m_pWorkspaceContainer, Window_GetHWND((Window*)pDockHostWindow));
+        if (hWorkspace) {
+             DockHostWindow_PinWindow(pDockHostWindow, hWorkspace, L"Canvas", L"ID_WorkspaceContainer", PANE_TYPE_DOCUMENT, DOCK_POSITION_TABBED);
+        }
     }
     
-    return pNodePalette;
-}
-
-TreeNode* CreateLayersWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
-{
-    TreeNode* pNodeLayers = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataLayers = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataLayers)
-    {
-        memset(pDockDataLayers, 0, sizeof(DockData));
-        pNodeLayers->data = (void*)pDockDataLayers;
-        wcscpy_s(pDockDataLayers->lpszName, MAX_PATH, L"Layers");
-        LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
-        HWND hwndLayers = Window_CreateWindow((Window*)pLayersWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataLayers, (Window*)pLayersWindow);
-    }
-
-    return pNodeLayers;
-}
-
-TreeNode* CreateOptionBarNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
-{
-    TreeNode* pNodeOptionBar = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataOptionBar = (DockData*)malloc(sizeof(DockData));
-    if (pDockDataOptionBar)
-    {
-        memset(pDockDataOptionBar, 0, sizeof(DockData));
-        pNodeOptionBar->data = (void*)pDockDataOptionBar;
-        _tcscpy_s(pDockDataOptionBar->lpszName, MAX_PATH, _T("Option Bar"));
-        OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)pPanitentApp);
-        HWND hwndLayers = Window_CreateWindow((Window*)pOptionBarWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataOptionBar, (Window*)pOptionBarWindow);
-    }
-
-    return pNodeOptionBar;
-}
-
-TreeNode* CreateSplitNode(PanitentApp* pPanitentApp, LPTSTR pszName, DWORD dwStyle, int iGripPos, TreeNode* pNode1, TreeNode* pNode2)
-{
-    TreeNode* pNodeY = BinaryTree_AllocEmptyNode();
-    DockData* pDockDataY = (DockData*)malloc(sizeof(DockData));
-
-    if (pDockDataY)
-    {
-        memset(pDockDataY, 0, sizeof(DockData));
-        pNodeY->data = (void*)pDockDataY;
-        _tcscpy_s(pDockDataY->lpszName, MAX_PATH, pszName);
-        pDockDataY->dwStyle = dwStyle;
-        pDockDataY->iGripPos = iGripPos;
-
-        pNodeY->node1 = pNode1;
-        pNodeY->node2 = pNode2;
-    }
-
-    return pNodeY;
-}
-
-void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent)
-{
-    DockData* pDockDataParent = DockData_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
-    pNodeParent->data = (void*)pDockDataParent;
-    wcscpy_s(pDockDataParent->lpszName, MAX_PATH, L"Root");
-
-    /* ======================================================================================== */
-
-    /* Toolbox node */
-    TreeNode* pNodeToolbox = CreateToolboxNode(pPanitentApp, pDockHostWindow);
-
-    /* Viewport node */
-    TreeNode* pNodeViewport = CreateViewportNode(pPanitentApp, pDockHostWindow);
     
-    /* Toolbox/Viewport node */
-    TreeNode* pNodeY = CreateSplitNode(pPanitentApp, _T("Toolbox/Viewport"), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, 86, pNodeToolbox, pNodeViewport);
+    GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
+    if (pGLWindow) {
+        HWND hGL = Window_CreateWindow((Window*)pGLWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hGL) {
+            DockHostWindow_PinWindow(pDockHostWindow, hGL, L"OpenGL View", L"ID_GLWindow", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
+        }
+    }
+    
+    PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
+    if (pPaletteWindow) {
+        HWND hPalette = Window_CreateWindow((Window*)pPaletteWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hPalette) {
+            DockHostWindow_PinWindow(pDockHostWindow, hPalette, L"Palette", L"ID_Palette", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
+        }
+    }
+    
+    LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
+    if (pLayersWindow) {
+        HWND hLayers = Window_CreateWindow((Window*)pLayersWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hLayers) {
+            DockHostWindow_PinWindow(pDockHostWindow, hLayers, L"Layers", L"ID_Layers", PANE_TYPE_TOOL, DOCK_POSITION_RIGHT);
+        }
+    }
+    
+    OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)pPanitentApp);
+    if (pOptionBarWindow) {
+        HWND hOptBar = Window_CreateWindow((Window*)pOptionBarWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if (hOptBar) {
+            // OptionBar might be special (e.g. always top, not really dockable in the same way)
+            // For now, treat as a tool window. A more complex system might have dedicated regions.
+            DockHostWindow_PinWindow(pDockHostWindow, hOptBar, L"Options", L"ID_OptionBar", PANE_TYPE_TOOL, DOCK_POSITION_TOP);
+        }
+    }
+    
+    LogWindow* pLogWindow = LogWindow_Create();
+    if(pLogWindow) {
+        HWND hLog = Window_CreateWindow((Window*)pLogWindow, Window_GetHWND((Window*)pDockHostWindow));
+        if(hLog) {
+            DockHostWindow_PinWindow(pDockHostWindow, hLog, L"Log", L"ID_LogWindow", PANE_TYPE_TOOL, DOCK_POSITION_BOTTOM);
+            ShowWindow(hLog, SW_SHOW); // Show it by default
+        }
+    }
 
-    /* ======================================================================================== */
 
-    /* GLWindow node */
-    TreeNode* pNodeGLWindow = CreateGLWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Create and pin palette window */
-    TreeNode* pNodePalette = CreatePaletteWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Create and pin layers window */
-    TreeNode* pNodeLayers = CreateLayersWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Palette/Layers node */
-    TreeNode* pNodeB = CreateSplitNode(pPanitentApp, _T("Palette/Layers"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 256, pNodePalette, pNodeLayers);
-
-    /* right bar node */
-    TreeNode* pNodeA = CreateSplitNode(pPanitentApp, _T("Right bar"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 192, pNodeGLWindow, pNodeB);
-
-
-    /* ======================================================================================== */
-
-
-    /* Main node */
-    TreeNode* pNodeZ = CreateSplitNode(pPanitentApp, _T("Main"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 192, pNodeY, pNodeA);
-
-    /* ======================================================================================== */
-
-    TreeNode* pNodeOptionBar = CreateOptionBarNode(pPanitentApp, pDockHostWindow);
-
-    /* OptionBar / Other */
-    // TreeNode* pNodeOptionBarOther = CreateSplitNode(pPanitentApp, _T("OptionBar / Other"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 192, pNodeZ, pNodeOptionBar);
-
-    pNodeParent->node1 = pNodeZ;
-    pNodeParent->node2 = pNodeOptionBar;
+    // The complex nested split layout is NOT replicated here.
+    // The new system will place these windows based on DockHostWindow_PinWindow's current logic,
+    // which is to add them tabbed to the first available suitable pane or create simple splits.
+    // To achieve a specific initial layout like before, one would either:
+    // 1. Programmatically create DockGroups and DockPanes using DockManager API and then add content.
+    // 2. Implement and use DockManager_LoadLayout with a default layout file.
+    // For this refactoring, getting them pinned is the primary goal.
+    // A final call to layout the main dock site after all initial windows are pinned.
+    if (pDockHostWindow->dockManager && pDockHostWindow->dockSite) {
+        DockManager_LayoutDockSite(pDockHostWindow->dockManager, pDockHostWindow->dockSite);
+    }
 }
 
 Palette* PanitentApp_GetPalette(PanitentApp* pPanitentApp)

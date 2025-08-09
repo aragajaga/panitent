@@ -5,8 +5,8 @@
 typedef struct PanitentApp PanitentApp;
 typedef struct MSTheme MSTheme;
 
-typedef struct PanitentWindow PanitentWindow;
-struct PanitentWindow
+typedef struct _PanitentWindow PanitentWindow;
+struct _PanitentWindow
 {
 	Window base;
 

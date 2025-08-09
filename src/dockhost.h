@@ -1,50 +1,53 @@
 #pragma once
 
 #include "precomp.h"
+#include "dock_system.h" // Include the new docking system definitions
+#include "win32/window.h" // Ensure Window base class is known
+#include "panitentapp.h"
 
-#include "util/tree.h"
-
-#define DGA_START 0
-#define DGA_END 1
-
-#define DGP_ABSOLUTE 0
-#define DGP_RELATIVE 2
-
-#define DGD_HORIZONTAL 0
-#define DGD_VERTICAL 4
-
-typedef struct DockData DockData;
-struct DockData {
-	HWND hWnd;
-	DWORD dwStyle;
-	WCHAR lpszCaption[MAX_PATH];
-	WCHAR lpszName[MAX_PATH];
-	RECT rc;
-	float fGripPos;
-	short iGripPos;
-	BOOL bShowCaption;
-};
-
-typedef struct DockInspectorDialog DockInspectorDialog;
-
-typedef struct DockHostWindow DockHostWindow;
-struct DockHostWindow {
-	Window base;
-
-	BOOL fCaptionDrag;
-	DockData* m_pSubjectNode;
-	HBRUSH hCaptionBrush_;
-	TreeNode* pRoot_;
-	POINT ptDragPos_;
-	BOOL fDrag_;
-	DockInspectorDialog* m_pDockInspectorDialog;
-};
-
-extern TreeNode* g_pRoot;
-
+// Forward declare PanitentApp if it's used in function signatures
 typedef struct PanitentApp PanitentApp;
+typedef struct DockInspectorDialog DockInspectorDialog;
+typedef struct _DockGuideManager DockGuideManager;
 
-DockHostWindow* DockHostWindow_Create(PanitentApp* app);
-void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
-DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
-TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
+// DockHostWindow will now act as the main DockSite or be closely tied to it.
+// The old tree structure (TreeNode, DockData) is being replaced by DockGroup, DockPane, DockContent.
+struct _DockHostWindow {
+	Window base; // Inherits from a base Window class
+
+	DockManager* dockManager; // Pointer to the global dock manager
+	DockSite* dockSite;       // This window represents the main dock site
+
+	// Keep UI elements if they are still relevant at this level
+	HBRUSH hCaptionBrush_; // Example: if DockHostWindow still paints some global elements
+
+	// Fields related to drag operations might move to DockManager or be handled via it
+	// BOOL fCaptionDrag;
+	// DockContent* m_pSubjectContent; // Instead of DockData*
+	// POINT ptDragPos_;
+	// BOOL fDrag_;
+
+	DockInspectorDialog* m_pDockInspectorDialog; // If the inspector is still part of this window
+    DockGuideManager* dockGuideManager;
+};
+
+// Global instance of the DockManager will likely replace g_pRoot.
+// extern DockManager* g_pDockManager; // To be defined in a .c file
+
+// --- Function Prototypes ---
+
+// DockHostWindow now primarily manages the DockSite and interacts with DockManager
+DockHostWindow* DockHostWindow_Create(PanitentApp* pApp); // pApp might be needed to get main HWND for DockManager
+
+void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType, DockPosition position);
+void DockHostWindow_UnpinWindow(DockHostWindow* pDockHostWindow, HWND hWndToUnpin);
+
+// Functions for creating nodes and data are now part of DockManager or helpers in dock_system.c
+// DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
+// TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
+
+// Rearrange and other layout logic will be driven by DockManager_LayoutDockSite
+void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy); // Will likely trigger DockManager_LayoutDockSite
+
+// Other event handlers (OnPaint, OnLButtonDown, etc.) will need to be adapted
+// to use the new structures and delegate logic to DockManager where appropriate.

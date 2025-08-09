@@ -6,11 +6,11 @@
 #include "settings.h"
 #include "appcmd.h"
 
-typedef struct PanitentWindow PanitentWindow;
+typedef struct _PanitentWindow PanitentWindow;
 typedef struct Tool Tool;
 typedef struct WorkspaceContainer WorkspaceContainer;
 typedef struct PaletteWindow PaletteWindow;
-typedef struct DockHostWindow DockHostWindow;
+typedef struct _DockHostWindow DockHostWindow;
 typedef struct TreeNode TreeNode;
 typedef struct ActivitySharingManager ActivitySharingManager;
 typedef struct ViewportWindow ViewportWindow;
@@ -38,7 +38,7 @@ void PanitentApp_Init(PanitentApp* pPanitentApp);
 PanitentApp* PanitentApp_Create();
 int PanitentApp_Run(PanitentApp* pPanitentApp);
 
-void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent);
+void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow); // TreeNode* pNodeParent removed
 void PanitentApp_SetActivityStatus(PanitentApp* pPanitentApp, PCWSTR pszStatusText);
 Palette* PanitentApp_GetPalette(PanitentApp* pPanitentApp);
 PanitentApp* PanitentApp_Instance();

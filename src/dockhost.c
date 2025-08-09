@@ -1,62 +1,69 @@
 #include "precomp.h"
+#include "dockhost.h"
 
 #include "win32/window.h"
-#include "win32/dialog.h"
-#include "win32/util.h"
+#include "win32/dialog.h" // Keep if DockInspectorDialog or other dialogs are used
+#include "win32/util.h"   // For Win32_HexToCOLORREF etc.
+#include "util/list.h"    // For List operations
 
 #include <windowsx.h>
-#include <commctrl.h>
+#include <commctrl.h> // Keep for common controls if used by pinned windows or UI elements
 #include <strsafe.h>
 #include <assert.h>
 
-#include "util/stack.h"
-#include "util/tree.h"
-#include "dockhost.h"
-#include "resource.h"
-#include "floatingwindowcontainer.h"
-#include "dockinspectordialog.h"
-#include "toolwndframe.h"
+// #include "util/stack.h" // Old, likely not needed
+// #include "util/tree.h"  // Old tree structure, replaced by DockGroup/DockPane
 
-#include "panitentapp.h"
+#include "dockhost.h"
+#include "dock_system.h" // New docking system structures and APIs
+#include "dock_guides.h"
+#include "resource.h"    // For resource IDs like IDB_DOCKHOSTBG
+#include "floatingwindowcontainer.h" // This will likely be refactored or replaced by DockManager's FloatingWindow
+#include "dockinspectordialog.h"     // Keep if inspector dialog is retained
+#include "toolwndframe.h" // May need to be adapted or its role absorbed
+
+#include "panitentapp.h" // For PanitentApp_Instance, PanitentApp_GetUIFont
 
 static const WCHAR szClassName[] = L"__DockHostWindow";
 
-POINT captionPos;
+// Global instance of the DockManager
+static DockManager* g_pDockManager = NULL;
 
-BOOL fSuggestTop;
+DockManager* GetDockManager() {
+	if (!g_pDockManager) {
+		g_pDockManager = DockManager_Init();
+	}
+	return g_pDockManager;
+}
 
-int iCaptionHeight = 24;
-int iBorderWidth = 4;
-
-BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
-BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
-void Dock_DestroyInclusive(TreeNode*, TreeNode*);
-void DockNode_Paint(TreeNode*, HDC, HBRUSH);
-
+// Forward declarations for functions to be implemented or adapted
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
-void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
+// void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags); // To be refactored
+// void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow); // Will be replaced by DockManager_LayoutDockSite
+void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush); // New paint helper
+
+
+// --- Start of functions to be removed or heavily refactored ---
+/*
+POINT captionPos; // Old global
+BOOL fSuggestTop;   // Old global
+int iCaptionHeight = 24; // Old global, use DEFAULT_CAPTION_HEIGHT from dock_system.h
+int iBorderWidth = 4;  // Old global, use DEFAULT_BORDER_WIDTH from dock_system.h
+
+BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y); // Old
+BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y); // Old
+void Dock_DestroyInclusive(TreeNode*, TreeNode*); // Old
+void DockNode_Paint(TreeNode*, HDC, HBRUSH); // Old
+
 
 BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 {
-	if (!pDockData)
-	{
-		return FALSE;
-	}
-
+	if (!pDockData) { return FALSE; }
 	RECT rcClient = pDockData->rc;
-
-	if (pDockData->bShowCaption)
-	{
-		rcClient.top += iCaptionHeight + 1;
-	}
-
-	/* TODO: memcpy? */
+	if (pDockData->bShowCaption) { rcClient.top += iCaptionHeight + 1; }
 	*rc = rcClient;
-
 	return TRUE;
 }
-
-void DockData_Init(DockData* pDockData);
 
 void DockData_Init(DockData* pDockData)
 {
@@ -67,447 +74,296 @@ void DockData_Init(DockData* pDockData)
 
 BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 {
-	if (!pDockData->bShowCaption)
-	{
-		return FALSE;
-	}
-
+	if (!pDockData->bShowCaption) { return FALSE; }
 	RECT rcCaption = pDockData->rc;
 	rcCaption.top += iBorderWidth;
 	rcCaption.left += iBorderWidth;
 	rcCaption.right -= iBorderWidth;
 	rcCaption.bottom = rcCaption.top + iBorderWidth + iCaptionHeight;
-
 	*rc = rcCaption;
-
 	return TRUE;
 }
 
-#define DHT_UNKNOWN 0
-#define DHT_CAPTION 1
-#define DHT_CLOSEBTN 2
+#define DHT_UNKNOWN 0 // Old
+#define DHT_CAPTION 1 // Old
+#define DHT_CLOSEBTN 2 // Old
+#define WINDOWBUTTONSIZE 14 // Old
 
-#define WINDOWBUTTONSIZE 14
+BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y) { ... } // Old
+BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y) { ... } // Old
 
-BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y)
+int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y) // Old
 {
-	RECT rcCaption = { 0 };
-	DockData_GetCaptionRect(pDockData, &rcCaption);
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&rcCaption, pt);
+    // ... old implementation based on pRoot_ and TreeNode ...
+    return DHT_UNKNOWN;
 }
 
-BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y)
+void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush) // Old
 {
-	RECT rcCaption = { 0 };
-	DockData_GetCaptionRect(pDockData, &rcCaption);
-	rcCaption.left = rcCaption.right - WINDOWBUTTONSIZE;
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&rcCaption, pt);
+    // ... old implementation ...
 }
 
-int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
+
+void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow) // Old, replaced by DockManager_LayoutDockSite
 {
-	if (!pDockHostWindow->pRoot_)
-	{
-		return 0;
-	}
-
-	TreeTraversalRLOT traversal = { 0 };
-	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
-	
-	TreeNode* pCurrentNode = NULL;
-	TreeNode* pHittedNode = NULL;
-	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		POINT pt = { 0 };
-		pt.x = x;
-		pt.y = y;
-		if (PtInRect(&pDockData->rc, pt))
-		{
-			pHittedNode = (DockData*)pCurrentNode;
-			break;
-		}
-	}
-	TreeTraversalRLOT_Destroy(&traversal);
-
-	/*
-	int localX = x - pHittedDock->rc.left;
-	int localY = y - pHittedDock->rc.top;
-	*/
-
-	*ppTreeNode = pHittedNode;
-
-	if (pHittedNode && pHittedNode->data)
-	{
-		if (Dock_CloseButtonHitTest((DockData*)pHittedNode->data, x, y))
-		{
-			return DHT_CLOSEBTN;
-		}
-		else if (Dock_CaptionHitTest((DockData*)pHittedNode->data, x, y))
-		{
-			return DHT_CAPTION;
-		}
-	}
-
-	return DHT_UNKNOWN;
+    // ... old implementation ...
+	// DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_); // Old
 }
 
-void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
+TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node) // Old
 {
-	/* Break if node is invalid */
-	if (!pNodeParent)
-	{
-		return;
-	}
-
-	TreeTraversalRLOT dockNodeTraversal;
-	TreeTraversalRLOT_Init(&dockNodeTraversal, pNodeParent);
-
-	TreeNode* pCurrentNode = NULL;
-	while (pCurrentNode = TreeTraversalRLOT_GetNext(&dockNodeTraversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		if (!pDockData)
-		{
-			continue;
-		}
-
-		RECT* rc = &pDockData->rc;
-	
-		if (pDockData->bShowCaption)
-		{
-			/* Draw pinned window background */
-			SelectObject(hdc, hCaptionBrush);
-			SelectObject(hdc, GetStockObject(DC_PEN));
-			SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
-			Rectangle(hdc, rc->left, rc->top, rc->right, rc->bottom);
-	
-			/* Window title rect */
-			RECT rcCaption = { 0 };
-			rcCaption.left = rc->left + iBorderWidth;
-			rcCaption.top = rc->top + iBorderWidth;
-			rcCaption.right = rc->right - iBorderWidth;
-			rcCaption.bottom = rc->top + iBorderWidth + iCaptionHeight;
-	
-			/* ================================================================================ */
-	
-			/* Draw window caption text */
-			
-			RECT rcCaptionText = { 0 };
-			memcpy(&rcCaptionText, rc, sizeof(RECT));
-			Win32_ContractRect(&rcCaptionText, 4, 4);
-	
-			HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-			HFONT hOldFont = SelectObject(hdc, guiFont);
-	
-			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, COLORREF_WHITE);
-	
-			size_t chCount = wcsnlen_s(pDockData->lpszCaption, MAX_PATH);
-			DrawText(hdc, pDockData->lpszCaption, (int)chCount, &rcCaptionText, 0);
-	
-			SelectObject(hdc, hOldFont);
-	
-			/* ================================================================================ */
-	
-			/*
-                Draw close button
-
-				Calculate right-align of title bar buttons sex
-				rc->left is the offset of current dock area
-	
-				[ RectWidth             ]*
-								 *[ <-  ]   Button width
-			*/
-	
-			CaptionButton button = { 0 };
-			button.glyph = GLYPH_CLOSE;
-			button.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
-			DrawCaptionButton(&button, hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth, 14, 14);
-	
-			/* ================================================================================ */
-	
-			/* Redraw window */
-	
-			if (pNodeParent->data && ((DockData*)pNodeParent->data)->hWnd)
-			{
-				HWND hWnd = ((DockData*)pNodeParent->data)->hWnd;
-				InvalidateRect(hWnd, NULL, FALSE);
-			}
-		}
-	}
-	
-	TreeTraversalRLOT_Destroy(&dockNodeTraversal);
+    // ... old implementation ...
+	return NULL;
 }
 
-void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
+void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode) // Old
 {
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
-
-	if (!pRoot)
-	{
-		return;
-	}
- 
-	PostOrderTreeTraversal traversal = { 0 };
-	PostOrderTreeTraversal_Init(&traversal, pRoot);
-
-	TreeNode* pCurrentNode = NULL;
-	while (pCurrentNode = PostOrderTreeTraversal_GetNext(&traversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		TreeNode* pChildNode1 = pCurrentNode->node1;
-		TreeNode* pChildNode2 = pCurrentNode->node2;
-
-		/* Draw split if both children present */
-		if (pChildNode1 && pChildNode2)
-		{
-			RECT rcClient = { 0 };
-			DockData_GetClientRect(pDockData, &rcClient);
-
-			RECT rcNode1 = rcClient;
-
-			DWORD dwStyle = pDockData->dwStyle;
-
-			if (dwStyle & DGP_RELATIVE)
-			{
-				rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth / 2;
-			}
-			else {
-				if (dwStyle & DGA_END)
-				{
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode1.bottom = rcNode1.bottom - pDockData->iGripPos - iBorderWidth / 2;
-					}
-					else {
-						rcNode1.right = rcNode1.right - pDockData->iGripPos - iBorderWidth / 2;
-					}
-				}
-				else {
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode1.bottom = rcNode1.top + pDockData->iGripPos - iBorderWidth / 2;
-					}
-					else {
-						rcNode1.right = rcNode1.left + pDockData->iGripPos - iBorderWidth / 2;
-					}
-				}
-			}
-
-			if (pChildNode1 && pChildNode1->data)
-			{
-				DockData* pDockData = (DockData*)pChildNode1->data;
-				pDockData->rc = rcNode1;
-			}
-
-			/* Second part */
-			RECT rcNode2 = rcClient;
-			if (dwStyle & DGP_RELATIVE)
-			{
-				rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth / 2;
-			}
-			else {
-				if (dwStyle & DGA_END)
-				{
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode2.top = rcNode2.bottom - pDockData->iGripPos + iBorderWidth / 2;
-					}
-					else {
-						rcNode2.left = rcNode2.right - pDockData->iGripPos + iBorderWidth / 2;
-					}
-				}
-				else {
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode2.top = rcNode2.top + pDockData->iGripPos + iBorderWidth / 2;
-					}
-					else {
-						rcNode2.left = rcNode2.left + pDockData->iGripPos + iBorderWidth / 2;
-					}
-				}
-			}
-
-			if (pChildNode2 && pChildNode2->data)
-			{
-				DockData* pDockData = (DockData*)pChildNode2->data;
-				pDockData->rc = rcNode2;
-			}
-		}
-		else if (pChildNode1 || pChildNode2) {
-			TreeNode* child = pChildNode1 ? pChildNode1 : pChildNode2;
-
-			RECT rcClient = { 0 };
-			DockData_GetClientRect(pDockData, &rcClient);
-
-			((DockData*)child->data)->rc = rcClient;
-		}
-
-		if (pDockData && pDockData->hWnd)
-		{
-			RECT rc = { 0 };
-			DockData_GetClientRect(pDockData, &rc);
-
-			Win32_ContractRect(&rc, 4, 4);
-
-			SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, 0);
-			UpdateWindow(pDockData->hWnd);
-		}
-	}
-
-	PostOrderTreeTraversal_Destroy(&traversal);
-
-	Window_Invalidate((Window *)pDockHostWindow);
-
-	DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_);
+    // ... old implementation ...
+	// DockHostWindow_Rearrange(pDockHostWindow); // Old
 }
 
-TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node)
+void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode) // Old
 {
-	if (!root || !node)
-	{
-		return NULL;
-	}
+    // ... old implementation ...
+	// DockHostWindow_Rearrange(pDockHostWindow); // Old
+}
+*/
+// --- End of functions to be removed or heavily refactored ---
 
-	TreeNode* pFoundNode = NULL;
 
-	if (root->node1)
-	{
-		if (root->node1 == node)
-		{
-			return root;
-		}
-		else {
-			pFoundNode = DockNode_FindParent(root->node1, node);
-		}
-	}
+// Forward declaration
+void DockManager_LayoutGroupRecursive(DockManager* pMgr, DockGroup* pGroup, RECT groupRect);
+void DockManager_LayoutPane(DockManager* pMgr, DockPane* pPane, RECT paneRect);
 
-	if (!pFoundNode && root->node2)
-	{
-		if (root->node2 == node)
-		{
-			return root;
-		}
-		else {
-			pFoundNode = DockNode_FindParent(root->node2, node);
-		}
-	}
+// Main layout function for a DockSite
+void DockManager_LayoutDockSite(DockManager* pMgr, DockSite* pSite) {
+    if (!pMgr || !pSite) {
+        return;
+    }
 
-	return pFoundNode;
+    RECT rcClient;
+    GetClientRect(pSite->hWnd, &rcClient);
+
+    // TODO: Account for AutoHideAreas first, reducing rcClient accordingly.
+    // For now, AutoHideAreas are not laid out.
+
+    if (!pSite->rootGroup) {
+        // No root group. If there are panes in allPanes (e.g. from a simplified PinWindow), lay out the first one.
+        if (pSite->allPanes && List_GetCount(pSite->allPanes) > 0) {
+            DockPane* firstPane = *(DockPane**)List_GetAt(pSite->allPanes, 0);
+            // This pane should ideally be part of a rootGroup. This indicates an incomplete setup.
+            // However, to prevent crashes and show something, we'll lay it out.
+            DockManager_LayoutPane(pMgr, firstPane, rcClient);
+        } else {
+            // No root group and no panes, nothing to lay out. Invalidate to draw background.
+            InvalidateRect(pSite->hWnd, NULL, TRUE);
+        }
+    } else {
+        // Start recursive layout from the root group
+        DockManager_LayoutGroupRecursive(pMgr, pSite->rootGroup, rcClient);
+    }
+
+    // After all calculations, update the actual HWND positions
+    DockManager_UpdateContentWindowPositions(pMgr, pSite);
+
+    // Redraw the entire dock site to reflect changes, splitters, etc.
+    InvalidateRect(pSite->hWnd, NULL, TRUE); // Use TRUE to erase background for full repaint
 }
 
-void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
-{
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
+// Recursive function to lay out a DockGroup and its children
+void DockManager_LayoutGroupRecursive(DockManager* pMgr, DockGroup* pGroup, RECT groupRect) {
+    if (!pGroup) return;
+    pGroup->rect = groupRect;
 
-	DestroyWindow(((DockData*)pTargetNode->data)->hWnd);
-	TreeNode* pParentOfTarget = DockNode_FindParent(pRoot, pTargetNode);
+    if (IsRectEmpty(&groupRect)) {
+        if(pGroup->child1) { // If group is empty, its children effectively are too
+            if (pGroup->isChild1Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child1, groupRect);
+            else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child1, groupRect);
+        }
+        if(pGroup->child2) {
+            if (pGroup->isChild2Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child2, groupRect);
+            else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child2, groupRect);
+        }
+        return;
+    }
 
-	TreeNode* pDetachedNode = NULL;
-	if (pParentOfTarget)
-	{
-		if (pTargetNode == pParentOfTarget->node1)
-		{
-			free(pParentOfTarget->node1);
-			pParentOfTarget->node1 = NULL;
+    if (!pGroup->child1) { // No children
+        return;
+    }
 
-			pDetachedNode = pParentOfTarget->node2;
-		}
-		else if (pTargetNode == pParentOfTarget->node2) {
-			free(pParentOfTarget->node2);
-			pParentOfTarget->node2 = NULL;
+    if (!pGroup->child2) { // Only one child, it takes the whole groupRect
+        if (pGroup->isChild1Group) {
+            DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child1, groupRect);
+        } else {
+            DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child1, groupRect);
+        }
+        return;
+    }
 
-			pDetachedNode = pParentOfTarget->node1;
-		}
+    // Two children, split the groupRect
+    RECT rect1 = groupRect;
+    RECT rect2 = groupRect;
+    int splitterEffectiveWidth = pGroup->splitterWidth;
 
-		TreeNode* pGrandparentOfTarget = DockNode_FindParent(pRoot, pParentOfTarget);
-		if (pGrandparentOfTarget)
-		{
-			if (pParentOfTarget == pGrandparentOfTarget->node1)
-			{
-				pGrandparentOfTarget->node1 = pDetachedNode;
-				free(pParentOfTarget);
-				pParentOfTarget = NULL;
-			}
-			else if (pParentOfTarget == pGrandparentOfTarget->node2) {
-				pGrandparentOfTarget->node2 = pDetachedNode;
-				free(pParentOfTarget);
-				pParentOfTarget = NULL;
-			}
-		}
+    if (pGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+        int totalWidth = groupRect.right - groupRect.left;
+        if (totalWidth <= splitterEffectiveWidth) {
+             if (pGroup->isChild1Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child1, groupRect); // Child1 gets all space
+             else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child1, groupRect);
+             // Child2 gets no space
+             RECT emptyRect = {0,0,0,0};
+             if (pGroup->isChild2Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child2, emptyRect);
+             else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child2, emptyRect);
+            return;
+        }
+        int width1 = (int)((totalWidth - splitterEffectiveWidth) * pGroup->splitRatio);
+        if (width1 < 0) width1 = 0;
+        if (width1 > totalWidth - splitterEffectiveWidth) width1 = totalWidth - splitterEffectiveWidth;
 
-	}
-	else {
-		free(pTargetNode);
-	}
+        rect1.right = rect1.left + width1;
+        rect2.left = rect1.right + splitterEffectiveWidth;
+        // Ensure rect2 does not exceed groupRect boundaries due to rounding
+        if(rect2.left > groupRect.right) rect2.left = groupRect.right;
+        if(rect2.right < rect2.left) rect2.right = rect2.left; // Correct if width becomes negative
 
-	DockHostWindow_Rearrange(pDockHostWindow);
+    } else { // GROUP_ORIENTATION_VERTICAL
+        int totalHeight = groupRect.bottom - groupRect.top;
+         if (totalHeight <= splitterEffectiveWidth) {
+             if (pGroup->isChild1Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child1, groupRect); // Child1 gets all space
+             else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child1, groupRect);
+             // Child2 gets no space
+             RECT emptyRect = {0,0,0,0};
+             if (pGroup->isChild2Group) DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child2, emptyRect);
+             else DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child2, emptyRect);
+            return;
+        }
+        int height1 = (int)((totalHeight - splitterEffectiveWidth) * pGroup->splitRatio);
+        if (height1 < 0) height1 = 0;
+        if (height1 > totalHeight - splitterEffectiveWidth) height1 = totalHeight - splitterEffectiveWidth;
+
+        rect1.bottom = rect1.top + height1;
+        rect2.top = rect1.bottom + splitterEffectiveWidth;
+        // Ensure rect2 does not exceed groupRect boundaries
+        if(rect2.top > groupRect.bottom) rect2.top = groupRect.bottom;
+        if(rect2.bottom < rect2.top) rect2.bottom = rect2.top; // Correct if height becomes negative
+    }
+
+    if (pGroup->isChild1Group) {
+        DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child1, rect1);
+    } else {
+        DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child1, rect1);
+    }
+
+    if (pGroup->isChild2Group) {
+        DockManager_LayoutGroupRecursive(pMgr, (DockGroup*)pGroup->child2, rect2);
+    } else {
+        DockManager_LayoutPane(pMgr, (DockPane*)pGroup->child2, rect2);
+    }
 }
 
-void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
-{
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
+// Function to lay out a DockPane and its contents
+void DockManager_LayoutPane(DockManager* pMgr, DockPane* pPane, RECT paneRect) {
+    if (!pPane) return;
+    pPane->rect = paneRect;
 
-	if (!pRoot || !pTargetNode)
-	{
-		return;
-	}
+    if (IsRectEmpty(&paneRect)) {
+        if(pPane->contents) { // Hide all content windows if pane is empty
+            for(size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
+                DockContent* content = (DockContent*)List_GetAt(pPane->contents, i);
+                if (content && content->hWnd) ShowWindow(content->hWnd, SW_HIDE);
+            }
+        }
+        return;
+    }
 
-	TreeNode* pParentOfTarget = DockNode_FindParent(pRoot, pTargetNode);
-	if (!pParentOfTarget)
-	{
-		return;
-	}
+    BOOL tabsShouldBeVisible = pPane->showTabs && pPane->contents && List_GetCount(pPane->contents) > 0;
 
-	TreeNode* pNodeSibling = NULL;
-	TreeNode* pNodeDetached = NULL;
-	if (pTargetNode == pParentOfTarget->node1)
-	{
-		pNodeDetached = pParentOfTarget->node1;
-		pParentOfTarget->node1 = NULL;
+    if (tabsShouldBeVisible) {
+        RECT rcTabStrip = paneRect;
+        rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
+        if (rcTabStrip.bottom > paneRect.bottom) rcTabStrip.bottom = paneRect.bottom;
 
-		pNodeSibling = pParentOfTarget->node2;
-		
-	}
-	else if (pTargetNode == pParentOfTarget->node2) {
-		pNodeDetached = pParentOfTarget->node2;
-		pParentOfTarget->node2 = NULL;
-
-		pNodeSibling = pParentOfTarget->node1;
-	}
-
-	TreeNode* pGrandparentOfTarget = DockNode_FindParent(pRoot, pParentOfTarget);
-	if (pGrandparentOfTarget)
-	{
-		if (pGrandparentOfTarget->node1 == pParentOfTarget)
-		{
-			pGrandparentOfTarget->node1 = pNodeSibling;
-			free(pParentOfTarget);
-		}
-		else if (pGrandparentOfTarget->node2 == pParentOfTarget) {
-			pGrandparentOfTarget->node2 = pNodeSibling;
-			free(pParentOfTarget);
-		}
-	}
-
-	DockHostWindow_Rearrange(pDockHostWindow);
+        while (List_GetCount(pPane->tabRects) > 0) {
+            List_RemoveAt(pPane->tabRects, 0);
+        }
+        int count = (int)List_GetCount(pPane->contents);
+        int tabWidth = (rcTabStrip.right - rcTabStrip.left) / (count > 0 ? count : 1);
+        int x = rcTabStrip.left;
+        for (int i = 0; i < count; ++i) {
+            RECT rc = { x, rcTabStrip.top, x + tabWidth, rcTabStrip.bottom };
+            List_Add(pPane->tabRects, &rc);
+            x += tabWidth;
+        }
+    } else if (pPane->tabRects) {
+        while (List_GetCount(pPane->tabRects) > 0) {
+            List_RemoveAt(pPane->tabRects, 0);
+        }
+    }
+    // Actual content HWNDs are positioned in DockManager_UpdateContentWindowPositions
 }
+
+void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite) {
+    if (!pMgr || !pSite || !pSite->allContents) return;
+
+    for (size_t i = 0; i < List_GetCount(pSite->allContents); ++i) {
+        DockContent* content = *(DockContent**)List_GetAt(pSite->allContents, i);
+        if (!content || !content->hWnd) continue;
+
+        if (content->parentPane) {
+            DockPane* pane = content->parentPane;
+            if (IsRectEmpty(&pane->rect)) { // If parent pane has no size, hide content
+                ShowWindow(content->hWnd, SW_HIDE);
+                continue;
+            }
+
+            BOOL isActive = (List_IndexOfPointer(pane->contents, content) == pane->activeContentIndex);
+
+            if (isActive) {
+                RECT contentAreaRect = pane->rect;
+                BOOL tabsVisible = pane->showTabs && pane->contents && List_GetCount(pane->contents) > 0;
+
+                if (tabsVisible) {
+                    contentAreaRect.top += DEFAULT_TAB_HEIGHT;
+                }
+                if (pane->showCaption) {
+                    contentAreaRect.top += DEFAULT_CAPTION_HEIGHT;
+                }
+                InflateRect(&contentAreaRect, -DEFAULT_BORDER_WIDTH, -DEFAULT_BORDER_WIDTH);
+
+                if (contentAreaRect.right < contentAreaRect.left) contentAreaRect.right = contentAreaRect.left;
+                if (contentAreaRect.bottom < contentAreaRect.top) contentAreaRect.bottom = contentAreaRect.top;
+
+                if (!IsRectEmpty(&contentAreaRect)) {
+                     SetWindowPos(content->hWnd, NULL,
+                                 contentAreaRect.left, contentAreaRect.top,
+                                 contentAreaRect.right - contentAreaRect.left,
+                                 contentAreaRect.bottom - contentAreaRect.top,
+                                 SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                    InvalidateRect(content->hWnd, NULL, TRUE);
+                    UpdateWindow(content->hWnd);
+                } else { // Not enough space for content
+                    ShowWindow(content->hWnd, SW_HIDE);
+                }
+            } else {
+                ShowWindow(content->hWnd, SW_HIDE);
+            }
+        } else if (content->state == CONTENT_STATE_AUTO_HIDDEN) {
+            ShowWindow(content->hWnd, SW_HIDE);
+        }
+    }
+}
+
 
 BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs)
 {
-	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be"));
+	UNREFERENCED_PARAMETER(lpcs);
+	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be")); // Keep for now
+
+    pDockHostWindow->dockManager = GetDockManager();
+    pDockHostWindow->dockGuideManager = DockGuideManager_Create();
+    // The DockHostWindow's HWND is the main dock site.
+    DockManager_SetMainDockSite(pDockHostWindow->dockManager, Window_GetHWND((Window*)pDockHostWindow));
+    pDockHostWindow->dockSite = pDockHostWindow->dockManager->mainDockSite; // Store direct pointer
 
 	return TRUE;
 }
@@ -515,489 +371,463 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 {
 	DeleteObject(pDockHostWindow->hCaptionBrush_);
+    DockGuideManager_Destroy(pDockHostWindow->dockGuideManager);
+    // Global DockManager is not destroyed here; handle on app exit.
 }
 
 #define DOCKHOSTBGMARGIN 16
 
+void DockPane_Paint(DockPane* pPane, HDC hdc, HBRUSH hCaptionBrush)
+{
+    if (!pPane || IsRectEmpty(&pPane->rect)) return;
+
+    // Draw border
+    FrameRect(hdc, &pPane->rect, (HBRUSH)GetStockObject(DKGRAY_BRUSH));
+
+    // Draw tabs if any
+    if (pPane->showTabs && List_GetCount(pPane->contents) > 0) {
+        HFONT hOldFont = (HFONT)SelectObject(hdc, GetDockManager()->uiFont);
+        for (size_t i = 0; i < List_GetCount(pPane->contents); ++i) {
+            RECT rcTab = *(RECT*)List_GetAt(pPane->tabRects, i);
+            DockContent* dc = *(DockContent**)List_GetAt(pPane->contents, i);
+            HBRUSH hbr = (i == (size_t)pPane->activeContentIndex) ? (HBRUSH)GetStockObject(WHITE_BRUSH) : GetSysColorBrush(COLOR_BTNFACE);
+            FillRect(hdc, &rcTab, hbr);
+            FrameRect(hdc, &rcTab, (HBRUSH)GetStockObject(BLACK_BRUSH));
+            if (dc) {
+                RECT rcText = rcTab;
+                rcText.left += 4; rcText.right -= 4;
+                SetBkMode(hdc, TRANSPARENT);
+                DrawText(hdc, dc->title, -1, &rcText, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            }
+        }
+        SelectObject(hdc, hOldFont);
+    }
+
+    // Draw caption if needed
+    BOOL shouldShowCaption = pPane->showCaption || (pPane->showTabs && List_GetCount(pPane->contents) <= 1);
+    if (shouldShowCaption && List_GetCount(pPane->contents) > 0) {
+        DockContent* activeContent = *(DockContent**)List_GetAt(pPane->contents, pPane->activeContentIndex);
+        if (activeContent) {
+            RECT rcCaptionArea = pPane->rect;
+            rcCaptionArea.bottom = rcCaptionArea.top + DEFAULT_CAPTION_HEIGHT;
+
+            FillRect(hdc, &rcCaptionArea, hCaptionBrush);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, RGB(0xff, 0xff, 0xff));
+            HFONT hOldFont = (HFONT)SelectObject(hdc, GetDockManager()->uiFont);
+            DrawText(hdc, activeContent->title, -1, &rcCaptionArea, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+            SelectObject(hdc, hOldFont);
+        }
+    }
+}
+
+void DockGroup_PaintRecursive(DockGroup* pGroup, HDC hdc, HBRUSH hCaptionBrush)
+{
+    if (!pGroup) return;
+
+    // Recurse to children
+    if (pGroup->isChild1Group) {
+        DockGroup_PaintRecursive((DockGroup*)pGroup->child1, hdc, hCaptionBrush);
+    } else if (pGroup->child1) {
+        DockPane_Paint((DockPane*)pGroup->child1, hdc, hCaptionBrush);
+    }
+
+    if (pGroup->isChild2Group) {
+        DockGroup_PaintRecursive((DockGroup*)pGroup->child2, hdc, hCaptionBrush);
+    } else if (pGroup->child2) {
+        DockPane_Paint((DockPane*)pGroup->child2, hdc, hCaptionBrush);
+    }
+
+    // Draw splitter
+    if (pGroup->child1 && pGroup->child2) {
+        RECT rcSplitter;
+        RECT rcChild1, rcChild2;
+
+        if (pGroup->isChild1Group) rcChild1 = ((DockGroup*)pGroup->child1)->rect;
+        else rcChild1 = ((DockPane*)pGroup->child1)->rect;
+
+        if (pGroup->isChild2Group) rcChild2 = ((DockGroup*)pGroup->child2)->rect;
+        else rcChild2 = ((DockPane*)pGroup->child2)->rect;
+
+        if (pGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+            rcSplitter.left = rcChild1.right;
+            rcSplitter.right = rcChild2.left;
+            rcSplitter.top = pGroup->rect.top;
+            rcSplitter.bottom = pGroup->rect.bottom;
+        } else { // VERTICAL
+            rcSplitter.top = rcChild1.bottom;
+            rcSplitter.bottom = rcChild2.top;
+            rcSplitter.left = pGroup->rect.left;
+            rcSplitter.right = pGroup->rect.right;
+        }
+        FillRect(hdc, &rcSplitter, (HBRUSH)GetStockObject(LTGRAY_BRUSH));
+    }
+}
+
+void DockHostWindow_PaintContent(DockSite* pSite, HDC hdc, HBRUSH hCaptionBrush) {
+    if (!pSite || !pSite->rootGroup) return;
+    DockGroup_PaintRecursive(pSite->rootGroup, hdc, hCaptionBrush);
+}
+
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 {
 	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
-
 	PAINTSTRUCT ps = { 0 };
 	HDC hdc = BeginPaint(hWnd, &ps);
 
-	if (pDockHostWindow->pRoot_) {
-		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+	if (pDockHostWindow->dockSite && (pDockHostWindow->dockSite->rootGroup || List_GetCount(pDockHostWindow->dockSite->allContents) > 0) ) {
+        DockHostWindow_PaintContent(pDockHostWindow->dockSite, hdc, pDockHostWindow->hCaptionBrush_);
 	}
-	else {
+	else { // Draw background if no content or site not fully initialized
 		HDC hdcLogo = CreateCompatibleDC(hdc);
 		HBITMAP hBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_DOCKHOSTBG));
-
 		BITMAP bm;
 		GetObject(hBitmap, sizeof(BITMAP), &bm);
-		int width = bm.bmWidth;
-		int height = bm.bmHeight;
-
 		HBITMAP hOldBitmap = SelectObject(hdcLogo, hBitmap);
-
-		BLENDFUNCTION blendFunc;
-		blendFunc.BlendOp = AC_SRC_OVER;
-		blendFunc.BlendFlags = 0;
-		blendFunc.SourceConstantAlpha = 0xFF;
-		blendFunc.AlphaFormat = AC_SRC_ALPHA;
-
+		BLENDFUNCTION blendFunc = { AC_SRC_OVER, 0, 255, 0 }; // AC_SRC_ALPHA if bitmap has alpha
 		RECT rcClient;
-		Window_GetClientRect(pDockHostWindow, &rcClient);
-
-		int clientWidth = rcClient.right - rcClient.left;
-		int clientHeight = rcClient.bottom - rcClient.top;
-
-		int x = clientWidth - width - DOCKHOSTBGMARGIN;
-		int y = clientHeight - height - DOCKHOSTBGMARGIN;
-		AlphaBlend(hdc, x, y, width, height, hdcLogo, 0, 0, width, height, blendFunc);
-
+		Window_GetClientRect((Window*)pDockHostWindow, &rcClient);
+		int x = (rcClient.right - bm.bmWidth) - DOCKHOSTBGMARGIN;
+		int y = (rcClient.bottom - bm.bmHeight) - DOCKHOSTBGMARGIN;
+		AlphaBlend(hdc, x, y, bm.bmWidth, bm.bmHeight, hdcLogo, 0, 0, bm.bmWidth, bm.bmHeight, blendFunc);
 		SelectObject(hdcLogo, hOldBitmap);
+        DeleteObject(hBitmap);
 		DeleteDC(hdcLogo);
 	}
-
 	EndPaint(hWnd, &ps);
 }
 
 void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy)
 {
 	UNREFERENCED_PARAMETER(state);
+	UNREFERENCED_PARAMETER(cx);
+	UNREFERENCED_PARAMETER(cy);
 
-	if (pDockHostWindow->pRoot_ && pDockHostWindow->pRoot_->data)
+	if (pDockHostWindow->dockManager && pDockHostWindow->dockSite)
 	{
-		RECT rcRoot = { 0 };
-		rcRoot.right = cx;
-		rcRoot.bottom = cy;
-		((DockData*)pDockHostWindow->pRoot_->data)->rc = rcRoot;
-
-		DockHostWindow_Rearrange(pDockHostWindow);
+		DockManager_LayoutDockSite(pDockHostWindow->dockManager, pDockHostWindow->dockSite);
 	}
 }
 
-HWND g_hWndDragOverlay;
+// HWND g_hWndDragOverlay; // Old global, move to DockManager if used for drag visuals
 
-void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode)
-{
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
-	DockHostWindow_Undock(pDockHostWindow, pNode);
+// --- Old Drag/HitTest related functions - To be refactored into DockManager ---
+/*
+void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode) { ... }
+void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) { ... }
+LRESULT CALLBACK DragOverlayWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) { ... }
+float smoothstepf(float edge0, float edge1, float x) { ... }
+float clampf(float value, int min, int max) { ... }
+void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y) { ... }
+void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags) { ... }
+void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) { ... }
+void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndContext, int x, int y) { ... }
+*/
+// --- End of Old Drag/HitTest related functions ---
 
-	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-	Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
-	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, ((DockData*)pNode->data)->hWnd);
-	DockHostWindow_Rearrange(pDockHostWindow);
-	DestroyWindow(g_hWndDragOverlay);
-}
-
-void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
-{
-	if (pDockHostWindow->fCaptionDrag)
-	{
-		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
-		int activateDistance = 32;
-
-		if (distance >= activateDistance)
-		{
-			DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode);
-			pDockHostWindow->fCaptionDrag = FALSE;
-
-			ReleaseCapture();
-		}
-		/*
-		else {
-			POINT pt = { 0 };
-			pt.x = pDockHostWindow->ptDragPos_.x;
-			pt.y = pDockHostWindow->ptDragPos_.y;
-			HDC hScreenDC = GetDC(NULL);
-			ClientToScreen(pDockHostWindow->base.hWnd, &pt);
-
-			Ellipse(hScreenDC, pt.x - activateDistance, pt.y - activateDistance, pt.x + activateDistance, pt.y + activateDistance);
-		}
-		*/
-	}
-}
-
-LRESULT CALLBACK DragOverlayWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-	{
-
-	}
-
-	return DefWindowProc(hWnd, message, wParam, lParam);
-}
-
-float smoothstepf(float edge0, float edge1, float x) {
-	float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);
-	return t * t * (3.0f - 2.0f * t);
-}
-
-float clampf(float value, int min, int max)
-{
-	if (value < min)
-	{
-		return min;
-	}
-	else if (value > max)
-	{
-		return max;
-	}
-	else {
-		return value;
-	}
-}
-
-void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
-{
-	WNDCLASSEX wcex = { 0 };
-	if (!GetClassInfoEx(GetModuleHandle(NULL), L"__DragOverlayClass", &wcex))
-	{
-		wcex.cbSize = sizeof(wcex);
-		wcex.lpfnWndProc = (WNDPROC)DragOverlayWndProc;
-		wcex.hInstance = GetModuleHandle(NULL);
-		wcex.lpszClassName = L"__DragOverlayClass";
-		RegisterClassEx(&wcex);
-	}
-
-	HWND g_hWndDragOverlay = CreateWindowEx(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST, L"__DragOverlayClass", L"DragOverlay", WS_VISIBLE | WS_POPUP, x - 64, y - 64, 128, 128, NULL, NULL, GetModuleHandle(NULL), NULL);
-
-	HDC hdcScreen = GetDC(NULL);
-	HDC hdcMem = CreateCompatibleDC(hdcScreen);
-
-	BLENDFUNCTION blendFunction = { 0 };
-	blendFunction.BlendOp = AC_SRC_OVER;
-	blendFunction.SourceConstantAlpha = 255;
-	blendFunction.AlphaFormat = AC_SRC_ALPHA;
-
-	BITMAPINFO bmi = { 0 };
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = 128;
-	bmi.bmiHeader.biHeight = -128;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	unsigned int* pBits;
-
-	// Create a compatible bitmap with the desired format
-	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
-	HGDIOBJ hOldObj = SelectObject(hdcMem, hBitmap);
-
-	// Draw
-	{
-		int centerX = 32;
-		int centerY = 32;
-		int radius = 32;
-
-		unsigned char* pCircle = malloc(64 * 64 * sizeof(unsigned char));
-
-		for (int y = 0; y < 64; ++y)
-		{
-			for (int x = 0; x < 64; ++x)
-			{
-				int dx = x - centerX;
-				int dy = y - centerY;
-				float distance = sqrtf((float)(dx * dx + dy * dy));
-
-				float dist = distance / (float)radius;
-
-				// Calculate alpha based on the distance
-
-				float uStripeWidth = 0.1f;
-				float stripeEdge = 0.5 * (1.0 / uStripeWidth);
-				BYTE alpha1 = (BYTE)(255.0f * smoothstepf(1.0f, 0.95f, dist));
-				BYTE alpha2 = (BYTE)(255.0f * (sinf(dist * 24.0f) * 0.5f + 0.5f));
-				BYTE alpha = min(alpha1, alpha2);
-				if (alpha > 255)
-				{
-					alpha = 255;
-				}
-				if (alpha < 0)
-				{
-					alpha = 0;
-				}
-
-				pCircle[y * 64 + x] = alpha;
-			}
-		}
-
-		unsigned int* pData = pBits;
-		pData += 128 * ((128 - 64) / 2) + ((128 - 64) / 2);
-		for (int y = 0; y < 64; ++y)
-		{
-			for (int x = 0; x < 64; ++x)
-			{
-				BYTE alpha = pCircle[y * 64 + x];
-				unsigned int color = (alpha << 24) | (alpha << 16);
-				*pData = color;
-				pData++;
-			}
-			
-			pData += 64;
-		}
-
-		free(pCircle);
-
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			for (int x = 0; x < 128; ++x)
-			{
-				unsigned int color = pBits[y * 128 + x];
-
-				// Extract RGBA components
-				BYTE alpha = (color >> 24) & 0xFF;
-				BYTE red = (color >> 16) & 0xFF;
-				BYTE green = (color >> 8) & 0xFF;
-				BYTE blue = (color) & 0xFF;
-
-				// Premultiply RGB values by alpha
-				BYTE premultRed = (BYTE)((red * alpha) / 255);
-				BYTE premultGreen = (BYTE)((green * alpha) / 255);
-				BYTE premultBlue = (BYTE)((blue * alpha) / 255);
-
-				// Store the premultiplied color back into the bitmap
-				pBits[y * 128 + x] = (premultRed << 16) | (premultGreen << 8) | premultBlue | (alpha << 24);
-			}
-		}
-		*/
-		
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			pBits[y * 128] = 0xFFFF0000;
-			pBits[y * 128 + 127] = 0xFFFF0000;
-			pBits[y] = 0xFFFF0000;
-			pBits[y + 127 * 128] = 0xFFFF0000;
-		}
-		*/
-
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			for (int x = 0; x < 128; ++x)
-			{
-				int dx = x - centerX;
-				int dy = y - centerY;
-				float distance = sqrtf((float)(dx * dx + dy * dy));
-
-				// Calculate alpha based on the distance
-				BYTE alpha = (BYTE)(255 * (1.0f - (distance / radius)));
-				if (alpha > 255)
-				{
-					alpha = 255;
-				}
-				if (alpha < 0 || distance > radius)
-				{
-					alpha = 0;
-				}
-
-				// Set the pixel color (white with varying alpha)
-				DWORD color = (alpha << 24) | (alpha << 16) | (alpha << 8) | alpha;
-				pBits[y * 128 + x] = color;
-			}
-		}
-		*/
-	}
-
-	POINT ptPos = { x, y };
-	SIZE sizeWnd = { 128, 128 };
-	POINT ptSrc = { 0, 0 };
-
-	ClientToScreen(pDockHostWindow->base.hWnd, &ptPos);
-	ptPos.x -= 64;
-	ptPos.y -= 64;
-
-	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
-
-	SelectObject(hdcMem, hOldObj);
-	DeleteDC(hdcMem);
-	ReleaseDC(NULL, hdcScreen);
-}
-
-void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)
-{
-	UNREFERENCED_PARAMETER(fDoubleClick);
-	UNREFERENCED_PARAMETER(keyFlags);
-
-	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
-
-	/* Get whole dock window client rect */
-	RECT rcClient = { 0 };
-	GetClientRect(hWnd, &rcClient);
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-	{
-		/* Do nothing. */
-	}
-	break;
-
-	case DHT_CAPTION:
-	{
-		pDockHostWindow->fCaptionDrag = TRUE;
-		pDockHostWindow->m_pSubjectNode = pTreeNode;
-
-		SetCapture(hWnd);
-
-		/* Save click position */
-		pDockHostWindow->ptDragPos_.x = x - (rcClient.left + 2);
-		pDockHostWindow->ptDragPos_.y = y - (rcClient.top + 2);
-		pDockHostWindow->fDrag_ = TRUE;
-
-		DockHostWindow_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
-	}
-	break;
-	}
-}
 
 void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
 {
 	HWND hWndDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
 	if (hWndDialog && IsWindow(hWndDialog))
 	{
-		/* Important. Idk why */
 		ShowWindow(hWndDialog, SW_SHOW);
 	}
 }
 
-void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) {
-	UNREFERENCED_PARAMETER(keyFlags);
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-	{
-		DockHostWindow_DestroyInclusive(pDockHostWindow, pTreeNode);
-		Window_Invalidate((Window*)pDockHostWindow);
-	}
-	break;
-
-	case DHT_CAPTION:
-	{
-		/* Do nothing. */
-	}
-	break;
-	}
-
-	pDockHostWindow->fDrag_ = FALSE;
-	DestroyWindow(g_hWndDragOverlay);
-	ReleaseCapture();
-}
-
-#define IDM_DOCKINSPECTOR 101
-
-void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndContext, int x, int y)
-{
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	ScreenToClient(Window_GetHWND((Window*)pDockHostWindow), &pt);
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, pt.x, pt.y);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-		{
-			/* Do nothing. */
-		}
-		break;
-
-	case DHT_CAPTION:
-		{
-			/* Do nothing. */
-		}
-		break;
-
-	case DHT_UNKNOWN:
-		{
-			HMENU hMenu = CreatePopupMenu();
-			if (hMenu)
-			{
-				InsertMenu(hMenu, -1, MF_BYPOSITION, IDM_DOCKINSPECTOR, L"Inspect Element...");
-				TrackPopupMenu(hMenu, 0, x, y, 0, Window_GetHWND((Window*)pDockHostWindow), NULL);
-			}
-		}
-		break;
-	}
-}
+#define IDM_DOCKINSPECTOR 101 // Should be in resource.h or similar
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam)
 {
+    UNREFERENCED_PARAMETER(lParam);
 	switch (LOWORD(wParam))
 	{
 	case IDM_DOCKINSPECTOR:
 		DockHostWindow_InvokeDockInspectorDialog(pDockHostWindow);
 		break;
+    // Handle other commands if necessary
 	}
+    return FALSE; // Return TRUE if command was handled
 }
 
 LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    // TODO: Refactor message handling to delegate to DockManager for relevant messages
+    // (e.g., mouse clicks for drag, splitter interaction, tab clicks)
+	DockManager* pMgr = pDockHostWindow->dockManager; // Get manager for easier access
+
 	switch (message)
 	{
-	case WM_MOUSEMOVE:
-		DockHostWindow_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
-		return 0;
-		break;
+    case WM_LBUTTONDOWN:
+        {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+			ClientToScreen(hWnd, &pt); // Convert to screen coordinates for hit testing
 
-	case WM_LBUTTONDOWN:
-		DockHostWindow_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
-		return 0;
-		break;
+			if (pMgr) {
+                // First, try to drag a tab
+				DockDropTarget target = DockManager_HitTest(pMgr, pt);
+				if ((target.area == DOCK_DROP_AREA_TAB_STRIP || target.area == DOCK_DROP_AREA_CAPTION) && target.tabIndex != -1) {
+					pMgr->isFloatingTab = FALSE;
+					pMgr->isDraggingTab = TRUE;
+					pMgr->draggedTabPane = target.pane;
+					pMgr->draggedTabIndexOriginal = target.tabIndex;
+					pMgr->ptTabDragStart = pt;
+                    DockGuideManager_Show(pDockHostWindow->dockGuideManager, NULL, pDockHostWindow->dockSite);
+					SetCapture(hWnd);
+					return 0;
+				}
 
-	case WM_LBUTTONUP:
-		DockHostWindow_OnLButtonUp(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
-		return 0;
-		break;
+                // If not a tab, try to drag a splitter
+                DockGroup* splitterGroup = DockManager_HitTestSplitter(pMgr, pt);
+                if (splitterGroup) {
+                    pMgr->isDraggingSplitter = TRUE;
+                    pMgr->draggedGroup = splitterGroup;
+                    pMgr->ptSplitterDragStart = pt;
+                    SetCapture(hWnd);
+                    return 0;
+                }
+			}
+        }
+        break;
 
-	case WM_CONTEXTMENU:
-		DockHostWindow_OnContextMenu(pDockHostWindow, (HWND)wParam, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam));
-		return 0;
-		break;
-	}
+    case WM_MOUSEMOVE:
+        if (pMgr && pMgr->isDraggingTab) {
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptCurrent);
 
-	return Window_UserProcDefault((Window *)pDockHostWindow, hWnd, message, wParam, lParam);
+            int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
+            if (!pMgr->isFloatingTab && (abs(ptCurrent.x - pMgr->ptTabDragStart.x) > dragThreshold ||
+                abs(ptCurrent.y - pMgr->ptTabDragStart.y) > dragThreshold))
+            {
+				if (pMgr->draggedTabPane && pMgr->draggedTabPane->contents && (size_t)pMgr->draggedTabIndexOriginal < List_GetCount(pMgr->draggedTabPane->contents))
+				{
+					DockContent* contentToFloat = *(DockContent**)List_GetAt(pMgr->draggedTabPane->contents, pMgr->draggedTabIndexOriginal);
+					if (contentToFloat) {
+						pMgr->isFloatingTab = TRUE;
+						RECT floatRect = { ptCurrent.x - 150, ptCurrent.y - 20, ptCurrent.x + 150, ptCurrent.y + 200 };
+						pMgr->draggedFloatingWindow = DockManager_FloatContent(pMgr, contentToFloat, floatRect);
+						if (pMgr->draggedFloatingWindow)
+						{
+							ReleaseCapture();
+							SendMessage(pMgr->draggedFloatingWindow->hFloatWnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(ptCurrent.x, ptCurrent.y));
+						}
+					}
+				}
+            }
+
+            DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
+            return 0;
+        }
+        else if (pMgr && pMgr->isFloatingTab) {
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptCurrent);
+            if (pMgr->draggedFloatingWindow) {
+                SetWindowPos(pMgr->draggedFloatingWindow->hFloatWnd, HWND_TOPMOST, ptCurrent.x - 150, ptCurrent.y - 10, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+            }
+            DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
+            return 0;
+        }
+        else if (pMgr && pMgr->isDraggingSplitter) {
+            POINT ptCurrent = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+
+            DockGroup* group = pMgr->draggedGroup;
+            RECT groupRect = group->rect;
+            float newRatio = group->splitRatio;
+
+            if (group->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+                int totalWidth = groupRect.right - groupRect.left - group->splitterWidth;
+                if (totalWidth > 0) {
+                    newRatio = (float)(ptCurrent.x - groupRect.left) / totalWidth;
+                }
+            } else { // VERTICAL
+                int totalHeight = groupRect.bottom - groupRect.top - group->splitterWidth;
+                if (totalHeight > 0) {
+                    newRatio = (float)(ptCurrent.y - groupRect.top) / totalHeight;
+                }
+            }
+
+            // Clamp ratio to avoid panes disappearing
+            if (newRatio < 0.1f) newRatio = 0.1f;
+            if (newRatio > 0.9f) newRatio = 0.9f;
+
+            group->splitRatio = newRatio;
+
+            DockPane* paneToFindSite = DockGroup_GetFirstPane(group);
+            DockSite* site = GetSiteForPane(pMgr, paneToFindSite);
+            if(site) {
+                DockManager_LayoutDockSite(pMgr, site);
+            }
+            return 0;
+        }
+        break;
+
+    case WM_LBUTTONUP:
+        if (pMgr && pMgr->isFloatingTab) {
+            DockGuideManager_Hide(pDockHostWindow->dockGuideManager);
+            ReleaseCapture();
+
+            DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
+            if (dropArea != DOCK_DROP_AREA_NONE) {
+                // Re-dock the window
+                FloatingWindow* pFltWnd = pMgr->draggedFloatingWindow;
+                DockContent* contentToDock = *(DockContent**)List_GetAt(pFltWnd->dockSite->allContents, 0);
+
+                List_RemovePointer(pMgr->floatingWindows, pFltWnd);
+                DockHostWindow_PinWindow(pDockHostWindow, contentToDock->hWnd, contentToDock->title, contentToDock->id, contentToDock->contentType, dropArea);
+                DestroyWindow(pFltWnd->hFloatWnd);
+                free(pFltWnd);
+            }
+
+            pMgr->isFloatingTab = FALSE;
+            pMgr->draggedFloatingWindow = NULL;
+            return 0;
+        }
+        else if (pMgr && pMgr->isDraggingTab) {
+            DockGuideManager_Hide(pDockHostWindow->dockGuideManager);
+            ReleaseCapture();
+            POINT ptDrop = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            ClientToScreen(hWnd, &ptDrop);
+
+                        DockDropArea dropArea = DockGuideManager_GetDropTarget(pDockHostWindow->dockGuideManager);
+            DockDropTarget dropTarget = DockManager_HitTest(pMgr, ptDrop); // Also need the pane context
+                        DockPane* sourcePane = pMgr->draggedTabPane;
+                        int sourceIndex = pMgr->draggedTabIndexOriginal;
+                        DockContent* contentToMove = *(DockContent**)List_GetAt(sourcePane->contents, sourceIndex);
+
+                        if (contentToMove && dropArea != DOCK_DROP_AREA_NONE) {
+                if (dropArea == DOCK_DROP_AREA_TAB_STRIP || dropArea == DOCK_DROP_AREA_CENTER)
+                {
+                                    DockPane* destPane = dropTarget.pane;
+                                    int destIndex = dropTarget.tabIndex;
+
+                                // If dropping on the same pane, reorder or select
+                                if (sourcePane == destPane) {
+                                        if (sourceIndex != destIndex) {
+                                                List_RemoveAt(sourcePane->contents, sourceIndex);
+                                                if (destIndex > sourceIndex) destIndex--; // Adjust index after removal
+                                                if (destIndex < 0) destIndex = 0;
+                                                if (destIndex > (int)List_GetCount(sourcePane->contents)) destIndex = List_GetCount(sourcePane->contents);
+                                                List_InsertAt(sourcePane->contents, &contentToMove, destIndex);
+                                                sourcePane->activeContentIndex = destIndex; // Make dropped tab active
+
+                                                DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                                if (site) DockManager_LayoutDockSite(pMgr, site);
+                                        } else {
+                                                sourcePane->activeContentIndex = destIndex;
+                                                DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                                if (site) DockManager_LayoutDockSite(pMgr, site);
+                                        }
+                                } else { // Dropping on a different pane
+					DockSite* sourceSite = GetSiteForPane(pMgr, sourcePane);
+					DockSite* destSite = GetSiteForPane(pMgr, destPane);
+
+					// 1. Remove from source
+					DockManager_RemoveContent(pMgr, contentToMove, FALSE); // FALSE = don't destroy HWND
+
+					// 2. Reparent HWND if moving between sites
+					if (sourceSite && destSite && sourceSite->hWnd != destSite->hWnd) {
+						SetParent(contentToMove->hWnd, destSite->hWnd);
+					}
+
+					// 3. Add to destination
+					DockManager_AddContent(pMgr, contentToMove, destPane, DOCK_POSITION_TABBED);
+					// TODO: Insert at specific index, not just at the end.
+
+					// 4. Layout destination site
+					if (destSite) DockManager_LayoutDockSite(pMgr, destSite);
+
+					// 5. Handle source pane
+					if (sourceSite) {
+						if (List_GetCount(sourcePane->contents) == 0) {
+							DockManager_RemovePane(pMgr, sourcePane); // This will trigger its own layout
+						} else {
+							DockManager_LayoutDockSite(pMgr, sourceSite);
+						}
+					}
+                }
+				}
+                else // Dropped on an edge guide
+                {
+                    DockSite* sourceSite = GetSiteForPane(pMgr, sourcePane);
+                    DockManager_RemoveContent(pMgr, contentToMove, FALSE);
+                    // This is a simplified re-pin, a full implementation would be more complex
+                    DockHostWindow_PinWindow(pDockHostWindow, contentToMove->hWnd, contentToMove->title, contentToMove->id, contentToMove->contentType, dropArea);
+                                        if(sourceSite) DockManager_LayoutDockSite(pMgr, sourceSite);
+                }
+
+                        } else if (contentToMove) { // Dropped somewhere else, float it or select
+                                int dragThreshold = GetSystemMetrics(SM_CXDRAG) * 2;
+                                if (abs(ptDrop.x - pMgr->ptTabDragStart.x) > dragThreshold ||
+                                        abs(ptDrop.y - pMgr->ptTabDragStart.y) > dragThreshold) {
+                                        RECT floatRect = { ptDrop.x - 150, ptDrop.y - 20, ptDrop.x + 150, ptDrop.y + 200 };
+                                        DockManager_FloatContent(pMgr, contentToMove, floatRect);
+                                } else {
+                                        sourcePane->activeContentIndex = sourceIndex;
+                                        DockSite* site = GetSiteForPane(pMgr, sourcePane);
+                                        if (site) DockManager_LayoutDockSite(pMgr, site);
+                                }
+                        }
+
+            pMgr->isDraggingTab = FALSE;
+            pMgr->draggedTabPane = NULL;
+            return 0;
+        }
+        else if (pMgr && pMgr->isDraggingSplitter) {
+            ReleaseCapture();
+            pMgr->isDraggingSplitter = FALSE;
+            pMgr->draggedGroup = NULL;
+            return 0;
+        }
+        break;
+
+    case WM_SETCURSOR:
+        {
+            POINT pt;
+            GetCursorPos(&pt);
+
+            DockGroup* splitterGroup = DockManager_HitTestSplitter(pMgr, pt);
+            if (splitterGroup) {
+                if (splitterGroup->orientation == GROUP_ORIENTATION_HORIZONTAL) {
+                    SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+                } else {
+                    SetCursor(LoadCursor(NULL, IDC_SIZENS));
+                }
+                return TRUE;
+            }
+        }
+        break;
+
+        }
+
+        return Window_UserProcDefault((Window *)pDockHostWindow, hWnd, message, wParam, lParam);
 }
 
 void DockHostWindow_PreRegister(LPWNDCLASSEX lpwcex)
 {
-	lpwcex->style = CS_VREDRAW | CS_HREDRAW;
+	lpwcex->style = CS_VREDRAW | CS_HREDRAW | CS_DBLCLKS;
 	lpwcex->hCursor = LoadCursor(NULL, IDC_ARROW);
-	lpwcex->hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+	lpwcex->hbrBackground = (HBRUSH)(COLOR_WINDOW + 1); // Changed to COLOR_WINDOW for a more standard background
 	lpwcex->lpszClassName = szClassName;
 }
 
 void DockHostWindow_PreCreate(LPCREATESTRUCT lpcs)
 {
-	lpcs->dwExStyle = 0;
+	lpcs->dwExStyle = WS_EX_CONTROLPARENT; // Important for tab navigation to child windows
 	lpcs->lpszClass = szClassName;
-	lpcs->lpszName = L"DockHost";
-	lpcs->style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN;
-	lpcs->x = 0;
-	lpcs->y = 0;
-	lpcs->cx = 0;
-	lpcs->cy = 0;
+	lpcs->lpszName = L"Panitent Dock Host"; // More descriptive name
+	lpcs->style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN; // WS_CLIPCHILDREN is important
+	lpcs->x = CW_USEDEFAULT;
+	lpcs->y = CW_USEDEFAULT;
+	lpcs->cx = 800; // Default size
+	lpcs->cy = 600; // Default size
 }
 
 void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp)
 {
+    UNREFERENCED_PARAMETER(pPanitentApp); // pPanitentApp might be used later for global app settings
+
 	Window_Init(&pDockHostWindow->base);
-
 	pDockHostWindow->base.szClassName = szClassName;
-
 	pDockHostWindow->base.OnCreate = (FnWindowOnCreate)DockHostWindow_OnCreate;
 	pDockHostWindow->base.OnDestroy = (FnWindowOnDestroy)DockHostWindow_OnDestroy;
 	pDockHostWindow->base.OnPaint = (FnWindowOnPaint)DockHostWindow_OnPaint;
@@ -1008,68 +838,174 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitent
 	_WindowInitHelper_SetPreCreateRoutine((Window *)pDockHostWindow, (FnWindowPreCreate)DockHostWindow_PreCreate);
 	_WindowInitHelper_SetUserProcRoutine((Window *)pDockHostWindow, (FnWindowUserProc)DockHostWindow_UserProc);
 
-	pDockHostWindow->pRoot_ = NULL;
+    // DockManager and DockSite are initialized in OnCreate after HWND is available.
+	pDockHostWindow->dockManager = NULL;
+	pDockHostWindow->dockSite = NULL;
 
-	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
+	// pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
+    // Ensure DockManager's UI font is set, e.g., in GetDockManager() or DockManager_Init()
+    // GetDockManager()->uiFont = PanitentApp_GetUIFont(PanitentApp_Instance()); // Example
 }
+
+/* FORWARD DECL */
+void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp);
 
 DockHostWindow* DockHostWindow_Create(PanitentApp* pPanitentApp)
 {
-	DockHostWindow* pDockHostWindow = (DockHostWindow*)malloc(sizeof(DockHostWindow));
+	DockHostWindow* pDockHostWindow = (DockHostWindow*)calloc(1, sizeof(DockHostWindow)); // Use calloc for zero-init
 
 	if (pDockHostWindow)
 	{
-		memset(pDockHostWindow, 0, sizeof(DockHostWindow));
+		// memset(pDockHostWindow, 0, sizeof(DockHostWindow)); // calloc already zeros
 		DockHostWindow_Init(pDockHostWindow, pPanitentApp);
 	}
-
 	return pDockHostWindow;
 }
 
-TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot)
-{
-	TreeNode* pOldRoot = pDockHostWindow->pRoot_;
-	pDockHostWindow->pRoot_ = pNewRoot;
-	return pOldRoot;
+// TreeNode* DockHostWindow_SetRoot(...) // Old, replaced by DockManager interaction
+// TreeNode* DockHostWindow_GetRoot(...) // Old
+
+// New function to add a window to the docking system.
+// Replaces DockData_PinWindow and old TreeNode logic.
+void DockHostWindow_PinWindow(DockHostWindow* pDockHostWindow, HWND hWndToPin, const wchar_t* title, const wchar_t* id, PaneType contentType, DockPosition position) {
+    if (!pDockHostWindow || !pDockHostWindow->dockManager || !hWndToPin) {
+        return;
+    }
+
+    DockManager* pMgr = pDockHostWindow->dockManager;
+    DockContent* pContent = DockManager_CreateContent(pMgr, hWndToPin, title, id, contentType);
+    if (!pContent) return;
+
+    SetParent(hWndToPin, Window_GetHWND((Window*)pDockHostWindow)); // Parent to DockSite
+    DWORD dwStyle = GetWindowLong(hWndToPin, GWL_STYLE);
+    dwStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_POPUP | WS_SYSMENU); // Remove typical frame styles
+    dwStyle |= WS_CHILD;
+    SetWindowLong(hWndToPin, GWL_STYLE, dwStyle);
+    // Ensure WS_CLIPSIBLINGS is on sibling windows if overlap is an issue.
+    // WS_CLIPCHILDREN should be on the parent (DockHostWindow).
+
+    // Add content to the docking system.
+    // This is a simplified initial add. A real system might have more complex logic
+    // for determining the target pane or creating splits.
+    DockSite* mainSite = pMgr->mainDockSite;
+    if (!mainSite) return; // Should not happen if OnCreate ran.
+
+    DockPane* targetPane = NULL;
+
+    // If no root group, create one with a single pane.
+    if (!mainSite->rootGroup) {
+        targetPane = DockPane_Create(contentType, NULL);
+        DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
+        newRoot->child1 = targetPane;
+        targetPane->parentGroup = newRoot;
+        mainSite->rootGroup = newRoot;
+        List_Add(mainSite->allPanes, &targetPane);
+    } else if (position != DOCK_POSITION_TABBED) {
+        // Create a new pane for the content
+        DockPane* newPane = DockPane_Create(contentType, NULL);
+        if (!newPane) { free(pContent); return; }
+
+        // Get the existing root and wrap it
+        DockGroup* oldRoot = mainSite->rootGroup;
+        DockGroup* newRoot = DockGroup_Create(NULL,
+            (position == DOCK_POSITION_LEFT || position == DOCK_POSITION_RIGHT) ? GROUP_ORIENTATION_VERTICAL : GROUP_ORIENTATION_HORIZONTAL);
+
+        if (position == DOCK_POSITION_LEFT || position == DOCK_POSITION_TOP) {
+            newRoot->child1 = newPane;
+            newRoot->isChild1Group = FALSE;
+            newRoot->child2 = oldRoot;
+            newRoot->isChild2Group = TRUE;
+        } else { // RIGHT or BOTTOM
+            newRoot->child1 = oldRoot;
+            newRoot->isChild1Group = TRUE;
+            newRoot->child2 = newPane;
+            newRoot->isChild2Group = FALSE;
+        }
+
+        oldRoot->parentGroup = newRoot;
+        newPane->parentGroup = newRoot;
+
+        mainSite->rootGroup = newRoot;
+        targetPane = newPane;
+        List_Add(mainSite->allPanes, &targetPane);
+    }
+    else { // DOCK_POSITION_TABBED
+        // Find the first available pane of a compatible type. This is still simplistic.
+        // A better implementation would allow specifying a target pane ID.
+        for (size_t i = 0; i < List_GetCount(mainSite->allPanes); ++i) {
+            DockPane* p = *(DockPane**)List_GetAt(mainSite->allPanes, i);
+            if (p->type == contentType || (contentType == PANE_TYPE_TOOL && p->type == PANE_TYPE_DOCUMENT)) {
+                targetPane = p;
+                break;
+            }
+        }
+        // If no suitable pane exists, we could create a new one in a default location.
+        // For now, we'll just fail silently if no tabbed location is found.
+        if (!targetPane) {
+             // As a fallback, just split the root.
+            DockPane* newPane = DockPane_Create(contentType, NULL);
+            DockGroup* oldRoot = mainSite->rootGroup;
+            DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
+            newRoot->child1 = oldRoot;
+            newRoot->isChild1Group = TRUE;
+            oldRoot->parentGroup = newRoot;
+            newRoot->child2 = newPane;
+            newRoot->isChild2Group = FALSE;
+            newPane->parentGroup = newRoot;
+            mainSite->rootGroup = newRoot;
+            targetPane = newPane;
+            List_Add(mainSite->allPanes, &targetPane);
+        }
+    }
+
+    if (targetPane) {
+        DockManager_AddContent(pMgr, pContent, targetPane, DOCK_POSITION_TABBED);
+    } else {
+        // Should not be reached if logic above is correct
+        OutputDebugString(L"DockHostWindow_PinWindow: Failed to find or create a target pane.\n");
+        free(pContent);
+        return;
+    }
+
+    DockManager_LayoutDockSite(pMgr, mainSite);
+    // ShowWindow(hWndToPin, SW_SHOWNA); // Show without activating, LayoutDockSite will handle visibility
+    // UpdateWindow(hWndToPin);
 }
 
-TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
-{
-	return pDockHostWindow->pRoot_;
+void DockHostWindow_UnpinWindow(DockHostWindow* pDockHostWindow, HWND hWndToUnpin) {
+    if (!pDockHostWindow || !pDockHostWindow->dockManager || !hWndToUnpin) {
+        return;
+    }
+
+    DockManager* pMgr = pDockHostWindow->dockManager;
+    DockContent* content = DockManager_FindContentByHwnd(pMgr, hWndToUnpin);
+    if (!content) {
+        return;
+    }
+
+    DockManager_RemoveContent(pMgr, content, FALSE);
+    SetParent(hWndToUnpin, NULL);
+    DWORD style = GetWindowLong(hWndToUnpin, GWL_STYLE);
+    style |= WS_OVERLAPPEDWINDOW;
+    SetWindowLong(hWndToUnpin, GWL_STYLE, style);
+    ShowWindow(hWndToUnpin, SW_SHOW);
 }
 
-void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)
-{
-	HWND hWnd = Window_GetHWND(window);
 
-	GetWindowText(hWnd, pDockData->lpszCaption, MAX_PATH);
-
-	SetParent(hWnd, pDockHostWindow->base.hWnd);
-
-	DWORD dwStyle = Window_GetStyle(window);
-	dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
-	dwStyle |= WS_CHILD;
-	Window_SetStyle(window, dwStyle);
-
-	pDockData->bShowCaption = TRUE;
-	pDockData->hWnd = hWnd;
-}
-
+// DockData* DockData_Create(...) // Old
+// TreeNode* DockNode_Create(...) // Old
+/*
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 {
 	DockData* pDockData = (DockData*)malloc(sizeof(DockData));
-
 	if (pDockData)
 	{
 		memset(pDockData, 0, sizeof(DockData));
-
 		pDockData->dwStyle = dwStyle;
 		pDockData->iGripPos = iGripPos;
 		pDockData->bShowCaption = bShowCaption;
-
 		return pDockData;
 	}
-
 	return NULL;
 }
 
@@ -1077,8 +1013,7 @@ TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 {
 	TreeNode* pTreeNode = BinaryTree_AllocEmptyNode();
 	DockData* pDockData = DockData_Create(iGripPos, dwStyle, bShowCaption);
-
 	pTreeNode->data = pDockData;
-
 	return pTreeNode;
 }
+*/
