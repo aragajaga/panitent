@@ -64,6 +64,7 @@
 #include <commctrl.h>
 #include <strsafe.h>
 #include <knownfolders.h>
+#include <math.h>
 
 #include <stdint.h>
 #include <assert.h>
