@@ -14,78 +14,116 @@ if(MINGW)
         "<CMAKE_RC_COMPILER> <FLAGS> -O coff <DEFINES> -i <SOURCE> -o <OBJECT>")
 endif()
 
+add_subdirectory(src/win32)
+
 set(C_SOURCES
-    src/bresenham.c
+    src/binview/audioplayer.c
+    src/binview/audiosource.c
+    src/binview/binview.c
+    src/binview/binviewdlg.c
+    src/experimental/bubble.c
+    src/experimental/captionglyphs.c
+    src/experimental/dockhostcomposite.c
+    src/experimental/dockpanel.c
+    src/experimental/dockwindow.c
+    src/grimstroke/bresenhamshapestrategy.c
+    src/grimstroke/msaa.c
+    src/grimstroke/msaaplotterproxy.c
+    src/grimstroke/pixelbuffer.c
+    src/grimstroke/plotter.c
+    src/grimstroke/polygon.c
+    src/grimstroke/shapecontext.c
+    src/grimstroke/shapestrategy.c
+    src/grimstroke/wushapestrategy.c
+    src/s11n/bsonserializer.c
+    src/s11n/jsonserializer.c
+    src/s11n/serializable_example.c
+    src/s11n/xmlserializer.c
+    src/sharing/activitysharingclient.c
+    src/sharing/activitysharingmanager.c
+    src/sharing/activitystubdialog.c
+    src/sharing/discordasp.c
+    src/shell/args.c
+    src/shell/pathutil.c
+    src/tools/brushtool.c
+    src/tools/circletool.c
+    src/tools/erasertool.c
+    src/tools/filltool.c
+    src/tools/linetool.c
+    src/tools/penciltool.c
+    src/tools/pickertool.c
+    src/tools/pointertool.c
+    src/tools/rectangletool.c
+    src/tools/texttool.c
+    src/util/bytestream.c
+    src/util/hashmap.c
+    src/util/list.c
+    src/util/pntrtti.c
+    src/util/pntstring.c
+    src/util/queue.c
+    src/util/rbhashmap.c
+    src/util/stack.c
+    src/util/tree.c
+    src/util/utf.c
+    src/util/vector.c
+    src/aboutbox.c
+    src/appcmd.c
     src/brush.c
+    src/brush_context.c
     src/canvas.c
+    src/checker.c
     src/color_context.c
+    src/controllibrary.c
+    src/crashhandler.c
+    src/crefptr.c
     src/debug.c
     src/dockhost.c
+    src/dockinspectordialog.c
     src/document.c
     src/file_open.c
+    src/flexible.c
+    src/floatingwindowcontainer.c
+    src/glwindow.c
+    src/history.c
+    src/layeredwindow.c
+    src/layerswindow.c
+    src/log.c
+    src/log_window.c
+    src/msthemeloader.c
     src/new.c
     src/option_bar.c
     src/palette.c
+    src/palette_settings_dlg.c
+    src/palette_window.c
     src/panitent.c
-    src/primitives_context.c
+    src/panitentapp.c
+    src/panitentwindow.c
+    src/pentablet.c
+    src/playground.c
+    src/pntini.c
+    src/pntxml.c
+    src/propgriddialog.c
+    src/rbhashmapviz.c
     src/settings.c
+    src/settings_dialog.c
+    src/settings_wnd.c
+    src/splittercontainer.c
     src/swatch.c
     src/swatch2.c
     src/toolbox.c
-    src/viewport.c
-    src/wu_primitives.c
-    src/crefptr.c
-    src/wic.c
-    src/history.c
-    src/checker.c
-    src/pentablet.c
-    src/flexible.c
-    src/settings_dialog.c
+    src/toolwndframe.c
     src/util.c
-    src/log.c
-    src/log_window.c
+    src/verifycheck.c
+    src/viewport.c
+    src/wic.c
+    src/windowstub.c
+    src/workspacecontainer.c
     )
 
 set(SOURCE_EXE ${C_SOURCES} res/panitent.rc)
 
 if(MSVC)
   set(SOURCE_EXE ${SOURCE_EXE} res/panitent.exe.manifest)
-
-  set(HEADERS
-      src/bresenham.h
-      src/brush.h
-      src/brush_context.h
-      src/canvas.h
-      src/checker.h
-      src/color_context.h
-      src/crefptr.h
-      src/debug.h
-      src/discordsdk.h
-      src/dockhost.h
-      src/document.h
-      src/file_open.h
-      src/flexible.h
-      src/history.h
-      src/new.h
-      src/option_bar.h
-      src/palette.h
-      src/pencil_tool.h
-      src/pentablet.h
-      src/precomp.h
-      src/primitives_context.h
-      src/resource.h
-      src/settings.h
-      src/settings_dialog.h
-      src/swatch.h
-      src/swatch2.h
-      src/test.h
-      src/tool.h
-      src/toolbox.h
-      src/util.h
-      src/viewport.h
-      src/wic.h
-      src/wu_primitives.h
-      )
 
   source_group("Headers" FILES ${HEADERS})
 
@@ -118,10 +156,8 @@ if (MINGW)
 endif(MINGW)
 
 if (MSVC)
-  target_compile_options(${PROJECT_NAME} PRIVATE /W4 /WX)
-  target_link_options(${PROJECT_NAME} PRIVATE /WX)
+  target_compile_options(${PROJECT_NAME} PRIVATE /W3)
+  # target_link_options(${PROJECT_NAME} PRIVATE /WX)
 endif(MSVC)
 
-target_link_libraries(${PROJECT_NAME} shlwapi comctl32 msimg32 uxtheme
-    windowscodecs dbghelp)
-
+target_link_libraries(${PROJECT_NAME} win32fw shlwapi comctl32 uxtheme msimg32 windowscodecs dbghelp opengl32 dwmapi)
