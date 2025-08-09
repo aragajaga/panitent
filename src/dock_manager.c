@@ -520,6 +520,11 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
         oldPane->activeContentIndex = -1;
     }
 
+    if (List_GetCount(oldPane->contents) == 0) {
+        DockManager_RemovePane(pMgr, oldPane);
+        siteOfOldPane = NULL; // Prevent layout call at the end, RemovePane already did it.
+    }
+
     if (siteOfOldPane) {
         // Remove content from site's global list as it will be floated separately
         if (List_IndexOfPointer(siteOfOldPane->allContents, pContent) != -1) {

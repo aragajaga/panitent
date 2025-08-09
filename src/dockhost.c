@@ -567,6 +567,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
                 // First, try to drag a tab
 				DockDropTarget target = DockManager_HitTest(pMgr, pt);
 				if ((target.area == DOCK_DROP_AREA_TAB_STRIP || target.area == DOCK_DROP_AREA_CAPTION) && target.tabIndex != -1) {
+					pMgr->isFloatingTab = FALSE;
 					pMgr->isDraggingTab = TRUE;
 					pMgr->draggedTabPane = target.pane;
 					pMgr->draggedTabIndexOriginal = target.tabIndex;
