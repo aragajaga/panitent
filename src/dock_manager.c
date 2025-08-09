@@ -532,21 +532,21 @@ BOOL DockManager_UndockContent(DockManager* pMgr, DockContent* pContent) {
     return TRUE;
 }
 
-void DockManager_FloatContent(DockManager* pMgr, DockContent* pContentToFloat, RECT initialScreenRect) {
-    if (!pMgr || !pContentToFloat) return;
+FloatingWindow* DockManager_FloatContent(DockManager* pMgr, DockContent* pContentToFloat, RECT initialScreenRect) {
+    if (!pMgr || !pContentToFloat) return NULL;
 
     if (pContentToFloat->state == CONTENT_STATE_DOCKED) {
         if (!DockManager_UndockContent(pMgr, pContentToFloat)) {
             // Failed to undock, cannot float
-            return;
+            return NULL;
         }
     } else if (pContentToFloat->state == CONTENT_STATE_FLOATING) {
         // Already floating, maybe just move/resize? For now, do nothing.
-        return;
+        return NULL;
     }
     // TODO: Handle CONTENT_STATE_AUTO_HIDDEN
 
-    FloatingWindow_Create(pMgr, pContentToFloat, initialScreenRect);
+    return FloatingWindow_Create(pMgr, pContentToFloat, initialScreenRect);
     // The FloatingWindow_Create function now handles changing state and layout.
 }
 

@@ -169,6 +169,7 @@ DockContent* DockManager_CreateContent(DockManager* pMgr, HWND hContentWnd, cons
 void DockManager_AddContent(DockManager* pMgr, DockContent* pContent, DockPane* pTargetPane /*optional*/, DockPosition position /*optional*/);
 BOOL DockManager_RemoveContent(DockManager* pMgr, DockContent* pContentToRemove, BOOL bDestroyContentHwnd); // This should also handle cleanup of empty panes/groups
 DockContent* DockManager_FindContentByHwnd(DockManager* pMgr, HWND hWnd);
+FloatingWindow* DockManager_FloatContent(DockManager* pMgr, DockContent* pContentToFloat, RECT initialScreenRect);
 // ... other content functions
 
 // Layout and Operations
