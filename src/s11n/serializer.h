@@ -16,6 +16,11 @@ struct ISerializer {
 
 inline void ISerializer_Serialize(ISerializer* pSerializer, PropertyTreeNode* pPropTree)
 {
+    if (!pSerializer || !pSerializer->pVtbl || !pSerializer->pVtbl->Serialize)
+    {
+        return;
+    }
+
     pSerializer->pVtbl->Serialize(pSerializer, pPropTree);
 }
 
