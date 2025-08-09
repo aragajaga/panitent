@@ -600,11 +600,15 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
             if (!pMgr->isFloatingTab && (abs(ptCurrent.x - pMgr->ptTabDragStart.x) > dragThreshold ||
                 abs(ptCurrent.y - pMgr->ptTabDragStart.y) > dragThreshold))
             {
-                DockContent* contentToFloat = *(DockContent**)List_GetAt(pMgr->draggedTabPane->contents, pMgr->draggedTabIndexOriginal);
-                if (contentToFloat) {
-                    pMgr->isFloatingTab = TRUE;
-                    pMgr->draggedFloatingWindow = DockManager_FloatContent(pMgr, contentToFloat, (RECT){0,0,300,200});
-                }
+				if (pMgr->draggedTabPane && pMgr->draggedTabPane->contents && (size_t)pMgr->draggedTabIndexOriginal < List_GetCount(pMgr->draggedTabPane->contents))
+				{
+					DockContent* contentToFloat = *(DockContent**)List_GetAt(pMgr->draggedTabPane->contents, pMgr->draggedTabIndexOriginal);
+					if (contentToFloat) {
+						pMgr->isFloatingTab = TRUE;
+						RECT floatRect = { ptCurrent.x - 150, ptCurrent.y - 20, ptCurrent.x + 150, ptCurrent.y + 200 };
+						pMgr->draggedFloatingWindow = DockManager_FloatContent(pMgr, contentToFloat, floatRect);
+					}
+				}
             }
 
             DockGuideManager_UpdateHighlight(pDockHostWindow->dockGuideManager, ptCurrent);
