@@ -309,7 +309,7 @@ void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite
         DockContent* content = *(DockContent**)List_GetAt(pSite->allContents, i);
         if (!content || !content->hWnd) continue;
 
-        if (content->state == CONTENT_STATE_DOCKED && content->parentPane) {
+        if (content->parentPane) {
             DockPane* pane = content->parentPane;
             if (IsRectEmpty(&pane->rect)) { // If parent pane has no size, hide content
                 ShowWindow(content->hWnd, SW_HIDE);
@@ -347,8 +347,6 @@ void DockManager_UpdateContentWindowPositions(DockManager* pMgr, DockSite* pSite
             } else {
                 ShowWindow(content->hWnd, SW_HIDE);
             }
-        } else if (content->state == CONTENT_STATE_FLOATING) {
-            // Floating window positioning is handled by the FloatingWindow's own WM_SIZE/WM_MOVE.
         } else if (content->state == CONTENT_STATE_AUTO_HIDDEN) {
             ShowWindow(content->hWnd, SW_HIDE);
         }
