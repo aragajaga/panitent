@@ -314,6 +314,7 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
     ShowWindow(pFltWnd->hFloatWnd, SW_SHOW);
     UpdateWindow(pFltWnd->hFloatWnd);
 
+	InvalidateRect(pFltWnd->hFloatWnd, NULL, TRUE);
     return pFltWnd;
 }
 

@@ -607,6 +607,11 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 						pMgr->isFloatingTab = TRUE;
 						RECT floatRect = { ptCurrent.x - 150, ptCurrent.y - 20, ptCurrent.x + 150, ptCurrent.y + 200 };
 						pMgr->draggedFloatingWindow = DockManager_FloatContent(pMgr, contentToFloat, floatRect);
+						if (pMgr->draggedFloatingWindow)
+						{
+							ReleaseCapture();
+							SendMessage(pMgr->draggedFloatingWindow->hFloatWnd, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(ptCurrent.x, ptCurrent.y));
+						}
 					}
 				}
             }
