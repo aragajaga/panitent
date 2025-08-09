@@ -1057,18 +1057,19 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
 
         // Check floating windows first, as they are on top
         for (size_t i = 0; i < List_GetCount(pMgr->floatingWindows); ++i) {
-                FloatingWindow* pFltWnd = (FloatingWindow*)List_GetAt(pMgr->floatingWindows, i);
-                if (pFltWnd->dockSite) {
+                FloatingWindow* pFltWnd = *(FloatingWindow**)List_GetAt(pMgr->floatingWindows, i);
+                if (pFltWnd && pFltWnd->dockSite) {
                         POINT ptClient = screenPt;
                         ScreenToClient(pFltWnd->dockSite->hWnd, &ptClient);
                         for (size_t j = 0; j < List_GetCount(pFltWnd->dockSite->allPanes); ++j) {
                                 DockPane* pane = *(DockPane**)List_GetAt(pFltWnd->dockSite->allPanes, j);
+                                if (!pane) continue;
                                 RECT rcTabStrip = pane->rect;
                                 rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
                                 if (PtInRect(&rcTabStrip, ptClient)) {
                                         target.pane = pane;
                                         target.area = DOCK_DROP_AREA_TAB_STRIP;
-                                        target.tabIndex = List_GetCount(pane->contents);
+                                        target.tabIndex = -1; // Default to end of tab strip
                                         for (size_t k = 0; k < List_GetCount(pane->tabRects); ++k) {
                                                 RECT r = *(RECT*)List_GetAt(pane->tabRects, k);
                                                 if (PtInRect(&r, ptClient)) {
@@ -1087,13 +1088,14 @@ DockDropTarget DockManager_HitTest(DockManager* pMgr, POINT screenPt)
                 POINT ptClient = screenPt;
                 ScreenToClient(pMgr->mainDockSite->hWnd, &ptClient);
                 for (size_t i = 0; i < List_GetCount(pMgr->mainDockSite->allPanes); ++i) {
-                        DockPane* pane = (DockPane*)List_GetAt(pMgr->mainDockSite->allPanes, i);
+                        DockPane* pane = *(DockPane**)List_GetAt(pMgr->mainDockSite->allPanes, i);
+                        if (!pane) continue;
                         RECT rcTabStrip = pane->rect;
                         rcTabStrip.bottom = rcTabStrip.top + DEFAULT_TAB_HEIGHT;
                         if (PtInRect(&rcTabStrip, ptClient)) {
                                 target.pane = pane;
                                 target.area = DOCK_DROP_AREA_TAB_STRIP;
-                                target.tabIndex = List_GetCount(pane->contents);
+                                target.tabIndex = -1; // Default to end of tab strip
                                 for (size_t k = 0; k < List_GetCount(pane->tabRects); ++k) {
                                         RECT r = *(RECT*)List_GetAt(pane->tabRects, k);
                                         if (PtInRect(&r, ptClient)) {
