@@ -988,20 +988,26 @@ void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane)
 	if (!site) return; // Should not happen for a pane in the tree
 
 	DockGroup* parentGroup = pPane->parentGroup;
-	if (!parentGroup) { // Pane is likely the root of a site, which shouldn't be empty.
-		// Or it's a logic error.
+	if (!parentGroup) {
+		// This pane is not in a group, which shouldn't happen in a valid tree.
+		// If it's the only pane in the site, it should be wrapped in a root group.
+		// We can try to clean it up.
+		List_RemovePointer(site->allPanes, pPane);
+		DockPane_Destroy(pPane);
+		DockManager_LayoutDockSite(pMgr, site);
 		return;
 	}
 
-	// Find which child of the parent group is the pane to be removed and get the other child.
-	void* otherChild = NULL;
-	BOOL otherChildIsGroup = FALSE;
+	void* sibling = NULL;
+	BOOL siblingIsGroup = FALSE;
+
+	// Determine which child is being removed and get the sibling.
 	if (parentGroup->child1 == pPane) {
-		otherChild = parentGroup->child2;
-		otherChildIsGroup = parentGroup->isChild2Group;
+		sibling = parentGroup->child2;
+		siblingIsGroup = parentGroup->isChild2Group;
 	} else if (parentGroup->child2 == pPane) {
-		otherChild = parentGroup->child1;
-		otherChildIsGroup = parentGroup->isChild1Group;
+		sibling = parentGroup->child1;
+		siblingIsGroup = parentGroup->isChild1Group;
 	} else {
 		// This pane is not a direct child of its parent? Logic error.
 		return;
@@ -1010,38 +1016,38 @@ void DockManager_RemovePane(DockManager* pMgr, DockPane* pPane)
 	DockGroup* grandparentGroup = parentGroup->parentGroup;
 
 	if (grandparentGroup) {
-		// The parent group has a parent. We replace the parent group with the "other child".
+		// The parent group has a parent. We replace the parent group with the sibling.
 		if (grandparentGroup->child1 == parentGroup) {
-			grandparentGroup->child1 = otherChild;
-			grandparentGroup->isChild1Group = otherChildIsGroup;
+			grandparentGroup->child1 = sibling;
+			grandparentGroup->isChild1Group = siblingIsGroup;
 		} else { // It must be child2
-			grandparentGroup->child2 = otherChild;
-			grandparentGroup->isChild2Group = otherChildIsGroup;
+			grandparentGroup->child2 = sibling;
+			grandparentGroup->isChild2Group = siblingIsGroup;
 		}
-		// Update the other child's parent pointer
-		if (otherChild) {
-			if (otherChildIsGroup) {
-				((DockGroup*)otherChild)->parentGroup = grandparentGroup;
+		// Update the sibling's parent pointer
+		if (sibling) {
+			if (siblingIsGroup) {
+				((DockGroup*)sibling)->parentGroup = grandparentGroup;
 			} else {
-				((DockPane*)otherChild)->parentGroup = grandparentGroup;
+				((DockPane*)sibling)->parentGroup = grandparentGroup;
 			}
 		}
 	} else {
-		// The parent group is the root of the site. The "other child" becomes the new root.
-		if (otherChild) {
-			if (otherChildIsGroup) {
-				site->rootGroup = (DockGroup*)otherChild;
-				((DockGroup*)otherChild)->parentGroup = NULL;
+		// The parent group is the root of the site. The sibling becomes the new root.
+		if (sibling) {
+			if (siblingIsGroup) {
+				site->rootGroup = (DockGroup*)sibling;
+				((DockGroup*)sibling)->parentGroup = NULL;
 			} else {
-				// The new root is a single pane. It must be wrapped in a group to be a valid root.
+				// The new root is a single pane. It must be wrapped in a new root group.
 				DockGroup* newRoot = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
-				newRoot->child1 = otherChild;
+				newRoot->child1 = sibling;
 				newRoot->isChild1Group = FALSE;
-				((DockPane*)otherChild)->parentGroup = newRoot;
+				((DockPane*)sibling)->parentGroup = newRoot;
 				site->rootGroup = newRoot;
 			}
 		} else {
-			// The parent group had only one child (the pane being removed), so the site is now empty.
+			// The parent group had no other children, so the site is now empty.
 			site->rootGroup = NULL;
 		}
 	}
