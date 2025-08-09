@@ -310,9 +310,9 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
     pContentToHost->state = CONTENT_STATE_FLOATING; // Update state
 
     List_Add(pMgr->floatingWindows, &pFltWnd);
-    DockManager_LayoutDockSite(pMgr, pFltWnd->dockSite); // Layout the new floating window
     ShowWindow(pFltWnd->hFloatWnd, SW_SHOW);
     UpdateWindow(pFltWnd->hFloatWnd);
+    DockManager_LayoutDockSite(pMgr, pFltWnd->dockSite); // Layout the new floating window
 
 	InvalidateRect(pFltWnd->hFloatWnd, NULL, TRUE);
     return pFltWnd;
