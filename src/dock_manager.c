@@ -284,17 +284,17 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
         free(pFltWnd);
         return NULL;
     }
-    // The DockSite's hWnd should be the floating window itself.
-    // pFltWnd->dockSite->hWnd = pFltWnd->hFloatWnd; // Done in DockSite_Create
 
-    StringCchCopy(pFltWnd->id, MAX_PATH, pContentToHost->id); // Or generate a unique ID for the float window itself
+    StringCchCopy(pFltWnd->id, MAX_PATH, pContentToHost->id);
+
+    // Add the floating window to the manager's list FIRST so GetSiteForPane can find it.
+    List_Add(pMgr->floatingWindows, &pFltWnd);
 
     // Add the content to this new floating site
-    // This requires adapting AddContent or having a helper to set up initial pane/group
-    DockPane* initialPane = DockPane_Create(pContentToHost->contentType, NULL); // No parent group initially for the pane
+    DockPane* initialPane = DockPane_Create(pContentToHost->contentType, NULL);
     if (!initialPane) { /* error handling */ DockSite_Destroy(pFltWnd->dockSite); DestroyWindow(pFltWnd->hFloatWnd); free(pFltWnd); return NULL; }
 
-    DockGroup* rootGroup = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL); // Root group for the floating site
+    DockGroup* rootGroup = DockGroup_Create(NULL, GROUP_ORIENTATION_HORIZONTAL);
     if (!rootGroup) { /* error handling */ free(initialPane); DockSite_Destroy(pFltWnd->dockSite); DestroyWindow(pFltWnd->hFloatWnd); free(pFltWnd); return NULL; }
 
     rootGroup->child1 = initialPane;
@@ -309,10 +309,10 @@ FloatingWindow* FloatingWindow_Create(DockManager* pMgr, DockContent* pContentTo
     DockManager_AddContent(pMgr, pContentToHost, initialPane, DOCK_POSITION_TABBED);
     pContentToHost->state = CONTENT_STATE_FLOATING; // Update state
 
-    List_Add(pMgr->floatingWindows, &pFltWnd);
+    // Show the window, then lay out the site
     ShowWindow(pFltWnd->hFloatWnd, SW_SHOW);
     UpdateWindow(pFltWnd->hFloatWnd);
-    DockManager_LayoutDockSite(pMgr, pFltWnd->dockSite); // Layout the new floating window
+    DockManager_LayoutDockSite(pMgr, pFltWnd->dockSite);
 
 	InvalidateRect(pFltWnd->hFloatWnd, NULL, TRUE);
     return pFltWnd;
