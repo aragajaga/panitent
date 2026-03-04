@@ -2,7 +2,8 @@
 
 #include "win32/window.h"
 #include "win32/util.h"
-#include "FloatingWindowContainer.h"
+#include "floatingwindowcontainer.h"
+#include "dockhost.h"
 #include "resource.h"
 #include "toolwndframe.h"
 #include "panitentapp.h"
@@ -16,6 +17,7 @@ static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 /* Private forward declarations */
 FloatingWindowContainer* FloatingWindowContainer_Create();
 void FloatingWindowContainer_Init(FloatingWindowContainer*);
+static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -31,6 +33,8 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer*, HWND
 
 BOOL FloatingWindowContainer_OnNCCreate(FloatingWindowContainer* pFloatingWindowContainer, LPCREATESTRUCT lpcs)
 {
+    UNREFERENCED_PARAMETER(lpcs);
+
     HWND hWnd = pFloatingWindowContainer->base.hWnd;
 
     SetWindowTheme(hWnd, L"", L"");
@@ -99,7 +103,7 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
 
 LRESULT CaptionRightContainerHitTest()
 {
-
+    return HTNOWHERE;
 }
 
 CaptionButton g_captionButtons[] = {
@@ -122,6 +126,8 @@ CaptionButton g_captionButtons[] = {
 
 void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowContainer, HRGN hUpdRegion)
 {
+    UNREFERENCED_PARAMETER(hUpdRegion);
+
     HWND hWnd = pFloatingWindowContainer->base.hWnd;
     HDC hdc = GetWindowDC(hWnd);
 
@@ -147,7 +153,12 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
         HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
         HFONT hOldFont = SelectObject(hdc, guiFont);
 
-        size_t nTextLen = GetWindowTextLength(pFloatingWindowContainer);
+        size_t nTextLen = 0;
+        if (pFloatingWindowContainer->hWndChild && IsWindow(pFloatingWindowContainer->hWndChild))
+        {
+            nTextLen = GetWindowTextLength(pFloatingWindowContainer->hWndChild);
+        }
+
         if (nTextLen)
         {
             PWSTR pszTitle = (PWSTR)malloc((nTextLen + 1) * sizeof(WCHAR));
@@ -158,9 +169,10 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
             pszTitle[nTextLen] = L'\0';
 
             TextOut(hdc, g_borderSize, g_borderSize, pszTitle, chLen);
-            SelectObject(hdc, hOldFont);
             free(pszTitle);
         }
+
+        SelectObject(hdc, hOldFont);
 
         int l = g_borderSize;
         for (int i = 0; i < ARRAYSIZE(g_captionButtons); ++i)
@@ -179,6 +191,8 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
             ix += pCaptionButton->size.cx + 3;
         }
     }
+
+    ReleaseDC(hWnd, hdc);
 }
 
 LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWindowContainer, int x, int y)
@@ -256,7 +270,7 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
     return HTCLIENT;
 }
 
-FloatingWindowContainer* FloatingWindowContainer_Create(struct Application* app)
+FloatingWindowContainer* FloatingWindowContainer_Create()
 {
     FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)malloc(sizeof(FloatingWindowContainer));
 
@@ -285,6 +299,8 @@ void FloatingWindowContainer_Init(FloatingWindowContainer* window)
     window->base.UserProc = (FnWindowUserProc)FloatingWindowContainer_UserProc;
 
     window->bPinned = FALSE;
+    window->pDockHostTarget = NULL;
+    window->iDockSizeHint = 280;
 }
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX lpwcex)
@@ -299,6 +315,8 @@ BOOL FloatingWindowContainer_OnCreate(FloatingWindowContainer* window, LPCREATES
 {
     UNREFERENCED_PARAMETER(window);
     UNREFERENCED_PARAMETER(lpcs);
+
+    return TRUE;
 }
 
 void FloatingWindowContainer_OnPaint(FloatingWindowContainer* window)
@@ -345,7 +363,6 @@ void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 
 LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
-    HWND hWnd = Window_GetHWND((Window *)pFloatingWindowContainer);
     DWORD dwStyle = Window_GetStyle((Window *)pFloatingWindowContainer);
 
     if (hitTestVal == HTCLOSE)
@@ -421,12 +438,14 @@ void FloatingWindowContainer_OnCloseCommand(FloatingWindowContainer* pFloatingWi
 
 LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
+    UNREFERENCED_PARAMETER(hitTestVal);
+
     if (pFloatingWindowContainer->fCaptionUnpinStarted)
     {
         const int xStart = pFloatingWindowContainer->ptCaptionUnpinStartingPoint.x;
         const int yStart = pFloatingWindowContainer->ptCaptionUnpinStartingPoint.y;
 
-        HWND hWnd = Window_GetHWND(pFloatingWindowContainer);
+        HWND hWnd = Window_GetHWND((Window*)pFloatingWindowContainer);
 
         HDC hdcDesktop = GetDC(NULL);
         HDC hdcScreenshot = CreateCompatibleDC(hdcDesktop);
@@ -439,6 +458,7 @@ LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloating
 
         SelectObject(hdcScreenshot, hbmScreenshot);
         BOOL bResult = PrintWindow(hWnd, hdcScreenshot, 0);
+        UNREFERENCED_PARAMETER(bResult);
 
         POINT pt;
         pt.x = x;
@@ -455,6 +475,10 @@ LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloating
             pFloatingWindowContainer->fCaptionUnpinStarted = FALSE;
         }
 
+        DeleteObject(hbmScreenshot);
+        DeleteDC(hdcScreenshot);
+        ReleaseDC(NULL, hdcDesktop);
+
         return TRUE;
     }
 
@@ -463,6 +487,10 @@ LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloating
 
 LRESULT FloatingWindowContainer_OnNCLButtonUp(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
+    UNREFERENCED_PARAMETER(hitTestVal);
+    UNREFERENCED_PARAMETER(x);
+    UNREFERENCED_PARAMETER(y);
+
     if (pFloatingWindowContainer->fCaptionUnpinStarted)
     {
         ReleaseCapture();
@@ -496,6 +524,8 @@ LRESULT FloatingWindowContainer_OnCommand(FloatingWindowContainer* pFloatingWind
 
 LRESULT FloatingWindowContainer_OnNCActivate(FloatingWindowContainer* pFloatingWindowContainer, BOOL fActive)
 {
+    UNREFERENCED_PARAMETER(fActive);
+
     DWORD dwStyle = Window_GetStyle((Window *)pFloatingWindowContainer);
 
     // Prevent drawing default 5px gray thick frame
@@ -509,10 +539,60 @@ LRESULT FloatingWindowContainer_OnNCActivate(FloatingWindowContainer* pFloatingW
 
 void FloatingWindowContainer_OnSize(FloatingWindowContainer* pFloatingWindowContainer, UINT state, int cx, int cy)
 {
+    UNREFERENCED_PARAMETER(state);
+
     if (pFloatingWindowContainer->hWndChild && IsWindow(pFloatingWindowContainer->hWndChild))
     {
         SetWindowPos(pFloatingWindowContainer->hWndChild, NULL, 0, 0, cx, cy, SWP_NOREDRAW);
     }
+}
+
+static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    if (!pFloatingWindowContainer ||
+        !pFloatingWindowContainer->pDockHostTarget ||
+        !pFloatingWindowContainer->hWndChild ||
+        !IsWindow(pFloatingWindowContainer->hWndChild))
+    {
+        return FALSE;
+    }
+
+    POINT ptCursor = { 0 };
+    if (!GetCursorPos(&ptCursor))
+    {
+        return FALSE;
+    }
+
+    int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCursor);
+    if (nDockSide == DKS_NONE)
+    {
+        return FALSE;
+    }
+
+    RECT rcFloating = { 0 };
+    GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
+
+    int iDockSize = pFloatingWindowContainer->iDockSizeHint;
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
+    {
+        iDockSize = max(iDockSize, Win32_Rect_GetWidth(&rcFloating));
+    }
+    else {
+        iDockSize = max(iDockSize, Win32_Rect_GetHeight(&rcFloating));
+    }
+
+    iDockSize = max(iDockSize, 180);
+
+    HWND hWndChild = pFloatingWindowContainer->hWndChild;
+    pFloatingWindowContainer->hWndChild = NULL;
+
+    if (!DockHostWindow_DockHWND(pFloatingWindowContainer->pDockHostTarget, hWndChild, nDockSide, iDockSize))
+    {
+        pFloatingWindowContainer->hWndChild = hWndChild;
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* window, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -532,7 +612,7 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
         break;
 
     case WM_NCHITTEST:
-        return FloatingWindowContainer_OnNCHitTest(window, LOWORD(lParam), HIWORD(lParam));
+        return FloatingWindowContainer_OnNCHitTest(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         break;
 
     case WM_NCMOUSEMOVE:
@@ -571,6 +651,16 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
         if (bProcessed)
         {
             return TRUE;
+        }
+    }
+        break;
+
+    case WM_EXITSIZEMOVE:
+    {
+        if (FloatingWindowContainer_AttemptDock(window))
+        {
+            DestroyWindow(window->base.hWnd);
+            return 0;
         }
     }
         break;
@@ -614,6 +704,9 @@ void FloatingWindowContainer_PinWindow(FloatingWindowContainer* pFloatingWindowC
     if (hWndChild && IsWindow(hWndChild))
     {
         HWND hWnd = Window_GetHWND((Window *)pFloatingWindowContainer);
+
+        RECT rcChildWindow = { 0 };
+        GetWindowRect(hWndChild, &rcChildWindow);
         
         RECT rcClient;
         GetClientRect(hWnd, &rcClient);
@@ -622,14 +715,26 @@ void FloatingWindowContainer_PinWindow(FloatingWindowContainer* pFloatingWindowC
         pFloatingWindowContainer->hWndPrevParent = hWndPrevParent;
 
         DWORD dwStyle = GetWindowStyle(hWndChild);
-        dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
+        dwStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_POPUP);
         dwStyle |= WS_CHILD;
         SetWindowLongPtr(hWndChild, GWL_STYLE, dwStyle);
+        SetWindowPos(hWndChild, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
         
         pFloatingWindowContainer->hWndChild = hWndChild;
         pFloatingWindowContainer->bPinned = TRUE;
+        pFloatingWindowContainer->iDockSizeHint = max(Win32_Rect_GetWidth(&rcChildWindow), 220);
 
         SetWindowPos(hWndChild, NULL, 0, 0, rcClient.right, rcClient.bottom, SWP_NOACTIVATE | SWP_NOOWNERZORDER);
         UpdateWindow(hWnd);
     }
+}
+
+void FloatingWindowContainer_SetDockTarget(FloatingWindowContainer* pFloatingWindowContainer, DockHostWindow* pDockHostWindow)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    pFloatingWindowContainer->pDockHostTarget = pDockHostWindow;
 }

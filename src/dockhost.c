@@ -32,6 +32,7 @@ BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
 void DockNode_Paint(TreeNode*, HDC, HBRUSH);
+static void DockHostWindow_DestroyDragOverlay(void);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -133,7 +134,7 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 		pt.y = y;
 		if (PtInRect(&pDockData->rc, pt))
 		{
-			pHittedNode = (DockData*)pCurrentNode;
+			pHittedNode = pCurrentNode;
 			break;
 		}
 	}
@@ -239,9 +240,9 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 	
 			/* Redraw window */
 	
-			if (pNodeParent->data && ((DockData*)pNodeParent->data)->hWnd)
+			if (pCurrentNode->data && ((DockData*)pCurrentNode->data)->hWnd)
 			{
-				HWND hWnd = ((DockData*)pNodeParent->data)->hWnd;
+				HWND hWnd = ((DockData*)pCurrentNode->data)->hWnd;
 				InvalidateRect(hWnd, NULL, FALSE);
 			}
 		}
@@ -472,17 +473,14 @@ void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNod
 	}
 
 	TreeNode* pNodeSibling = NULL;
-	TreeNode* pNodeDetached = NULL;
 	if (pTargetNode == pParentOfTarget->node1)
 	{
-		pNodeDetached = pParentOfTarget->node1;
 		pParentOfTarget->node1 = NULL;
 
 		pNodeSibling = pParentOfTarget->node2;
 		
 	}
 	else if (pTargetNode == pParentOfTarget->node2) {
-		pNodeDetached = pParentOfTarget->node2;
 		pParentOfTarget->node2 = NULL;
 
 		pNodeSibling = pParentOfTarget->node1;
@@ -507,6 +505,8 @@ void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNod
 
 BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs)
 {
+	UNREFERENCED_PARAMETER(lpcs);
+
 	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be"));
 
 	return TRUE;
@@ -580,22 +580,55 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 
 HWND g_hWndDragOverlay;
 
+static void DockHostWindow_DestroyDragOverlay(void)
+{
+	if (g_hWndDragOverlay && IsWindow(g_hWndDragOverlay))
+	{
+		DestroyWindow(g_hWndDragOverlay);
+	}
+
+	g_hWndDragOverlay = NULL;
+}
+
 void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode)
 {
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
+	if (!pDockHostWindow || !pNode || !pNode->data)
+	{
+		return;
+	}
+
+	DockData* pDockData = (DockData*)pNode->data;
 	DockHostWindow_Undock(pDockHostWindow, pNode);
 
 	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-	Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
-	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, ((DockData*)pNode->data)->hWnd);
+	HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
+	FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
+	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, pDockData->hWnd);
+
+	RECT rcFloating = pDockData->rc;
+	MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcFloating, 2);
+
+	int width = max(Win32_Rect_GetWidth(&rcFloating), 260);
+	int height = max(Win32_Rect_GetHeight(&rcFloating), 220);
+	SetWindowPos(hWndFloating, NULL, rcFloating.left, rcFloating.top, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
+
 	DockHostWindow_Rearrange(pDockHostWindow);
-	DestroyWindow(g_hWndDragOverlay);
+	DockHostWindow_DestroyDragOverlay();
 }
 
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
 {
+	UNREFERENCED_PARAMETER(keyFlags);
+
 	if (pDockHostWindow->fCaptionDrag)
 	{
+		if (g_hWndDragOverlay && IsWindow(g_hWndDragOverlay))
+		{
+			POINT pt = { x, y };
+			ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &pt);
+			SetWindowPos(g_hWndDragOverlay, HWND_TOPMOST, pt.x - 64, pt.y - 64, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
+		}
+
 		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
 		int activateDistance = 32;
 
@@ -662,7 +695,8 @@ void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
 		RegisterClassEx(&wcex);
 	}
 
-	HWND g_hWndDragOverlay = CreateWindowEx(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST, L"__DragOverlayClass", L"DragOverlay", WS_VISIBLE | WS_POPUP, x - 64, y - 64, 128, 128, NULL, NULL, GetModuleHandle(NULL), NULL);
+	DockHostWindow_DestroyDragOverlay();
+	g_hWndDragOverlay = CreateWindowEx(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST, L"__DragOverlayClass", L"DragOverlay", WS_VISIBLE | WS_POPUP, x - 64, y - 64, 128, 128, NULL, NULL, GetModuleHandle(NULL), NULL);
 
 	HDC hdcScreen = GetDC(NULL);
 	HDC hdcMem = CreateCompatibleDC(hdcScreen);
@@ -814,6 +848,7 @@ void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
 	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
 
 	SelectObject(hdcMem, hOldObj);
+	DeleteObject(hBitmap);
 	DeleteDC(hdcMem);
 	ReleaseDC(NULL, hdcScreen);
 }
@@ -891,7 +926,7 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 	}
 
 	pDockHostWindow->fDrag_ = FALSE;
-	DestroyWindow(g_hWndDragOverlay);
+	DockHostWindow_DestroyDragOverlay();
 	ReleaseCapture();
 }
 
@@ -899,6 +934,8 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 
 void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndContext, int x, int y)
 {
+	UNREFERENCED_PARAMETER(hWndContext);
+
 	POINT pt = { 0 };
 	pt.x = x;
 	pt.y = y;
@@ -936,12 +973,16 @@ void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndCont
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam)
 {
+	UNREFERENCED_PARAMETER(lParam);
+
 	switch (LOWORD(wParam))
 	{
 	case IDM_DOCKINSPECTOR:
 		DockHostWindow_InvokeDockInspectorDialog(pDockHostWindow);
-		break;
+		return TRUE;
 	}
+
+	return FALSE;
 }
 
 LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -1038,21 +1079,182 @@ TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
 	return pDockHostWindow->pRoot_;
 }
 
-void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)
+static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd)
 {
-	HWND hWnd = Window_GetHWND(window);
+	if (!pDockHostWindow || !pDockData || !hWnd || !IsWindow(hWnd))
+	{
+		return;
+	}
 
 	GetWindowText(hWnd, pDockData->lpszCaption, MAX_PATH);
+	SetParent(hWnd, Window_GetHWND((Window*)pDockHostWindow));
 
-	SetParent(hWnd, pDockHostWindow->base.hWnd);
-
-	DWORD dwStyle = Window_GetStyle(window);
-	dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
-	dwStyle |= WS_CHILD;
-	Window_SetStyle(window, dwStyle);
+	DWORD dwStyle = (DWORD)GetWindowLongPtr(hWnd, GWL_STYLE);
+	dwStyle &= ~(WS_CAPTION | WS_THICKFRAME | WS_POPUP);
+	dwStyle |= WS_CHILD | WS_CLIPSIBLINGS | WS_CLIPCHILDREN;
+	SetWindowLongPtr(hWnd, GWL_STYLE, dwStyle);
+	SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
 
 	pDockData->bShowCaption = TRUE;
 	pDockData->hWnd = hWnd;
+}
+
+int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen)
+{
+	if (!pDockHostWindow)
+	{
+		return DKS_NONE;
+	}
+
+	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
+	if (!hWndDockHost || !IsWindow(hWndDockHost))
+	{
+		return DKS_NONE;
+	}
+
+	RECT rcHost = { 0 };
+	GetWindowRect(hWndDockHost, &rcHost);
+
+	if (!PtInRect(&rcHost, ptScreen))
+	{
+		return DKS_NONE;
+	}
+
+	int width = Win32_Rect_GetWidth(&rcHost);
+	int height = Win32_Rect_GetHeight(&rcHost);
+	int threshold = min(width, height) / 4;
+	threshold = max(threshold, 48);
+	threshold = min(threshold, 140);
+
+	int distLeft = ptScreen.x - rcHost.left;
+	int distRight = rcHost.right - ptScreen.x;
+	int distTop = ptScreen.y - rcHost.top;
+	int distBottom = rcHost.bottom - ptScreen.y;
+
+	int side = DKS_LEFT;
+	int minDist = distLeft;
+	if (distRight < minDist)
+	{
+		minDist = distRight;
+		side = DKS_RIGHT;
+	}
+	if (distTop < minDist)
+	{
+		minDist = distTop;
+		side = DKS_TOP;
+	}
+	if (distBottom < minDist)
+	{
+		minDist = distBottom;
+		side = DKS_BOTTOM;
+	}
+
+	if (minDist > threshold)
+	{
+		return DKS_NONE;
+	}
+
+	return side;
+}
+
+BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize)
+{
+	if (!pDockHostWindow || !hWnd || !IsWindow(hWnd))
+	{
+		return FALSE;
+	}
+
+	TreeNode* pOldRoot = DockHostWindow_GetRoot(pDockHostWindow);
+	if (!pOldRoot)
+	{
+		return FALSE;
+	}
+
+	DWORD dwSplitStyle = 0;
+	switch (nDockSide)
+	{
+	case DKS_LEFT:
+	case DKS_RIGHT:
+		dwSplitStyle = DGP_ABSOLUTE | DGD_HORIZONTAL;
+		break;
+
+	case DKS_TOP:
+	case DKS_BOTTOM:
+		dwSplitStyle = DGP_ABSOLUTE | DGD_VERTICAL;
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	if (nDockSide == DKS_RIGHT || nDockSide == DKS_BOTTOM)
+	{
+		dwSplitStyle |= DGA_END;
+	}
+	else {
+		dwSplitStyle |= DGA_START;
+	}
+
+	if (iDockSize <= 0)
+	{
+		iDockSize = 280;
+	}
+
+	TreeNode* pLeaf = DockNode_Create(iDockSize, DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
+	TreeNode* pSplit = DockNode_Create(iDockSize, dwSplitStyle, FALSE);
+	if (!pLeaf || !pLeaf->data || !pSplit || !pSplit->data)
+	{
+		if (pLeaf)
+		{
+			if (pLeaf->data)
+			{
+				free(pLeaf->data);
+			}
+			free(pLeaf);
+		}
+
+		if (pSplit)
+		{
+			if (pSplit->data)
+			{
+				free(pSplit->data);
+			}
+			free(pSplit);
+		}
+
+		return FALSE;
+	}
+
+	DockData* pLeafData = (DockData*)pLeaf->data;
+	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
+
+	if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
+	{
+		pSplit->node1 = pLeaf;
+		pSplit->node2 = pOldRoot;
+	}
+	else {
+		pSplit->node1 = pOldRoot;
+		pSplit->node2 = pLeaf;
+	}
+
+	RECT rcClient = { 0 };
+	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
+	((DockData*)pSplit->data)->rc = rcClient;
+
+	DockHostWindow_SetRoot(pDockHostWindow, pSplit);
+	DockHostWindow_Rearrange(pDockHostWindow);
+
+	ShowWindow(hWnd, SW_SHOW);
+	UpdateWindow(hWnd);
+
+	return TRUE;
+}
+
+void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)
+{
+	HWND hWnd = Window_GetHWND(window);
+	DockData_PinHWND(pDockHostWindow, pDockData, hWnd);
 }
 
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)

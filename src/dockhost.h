@@ -48,3 +48,14 @@ DockHostWindow* DockHostWindow_Create(PanitentApp* app);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
+TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot);
+TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow);
+
+#define DKS_NONE 0
+#define DKS_LEFT 1
+#define DKS_RIGHT 2
+#define DKS_TOP 3
+#define DKS_BOTTOM 4
+
+int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen);
+BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize);
