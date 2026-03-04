@@ -33,6 +33,7 @@ BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
 void DockNode_Paint(TreeNode*, HDC, HBRUSH);
 static void DockHostWindow_DestroyDragOverlay(void);
+static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -590,7 +591,26 @@ static void DockHostWindow_DestroyDragOverlay(void)
 	g_hWndDragOverlay = NULL;
 }
 
-void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode)
+static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating)
+{
+	if (!hWndFloating || !IsWindow(hWndFloating))
+	{
+		return;
+	}
+
+	POINT ptCursor = { 0 };
+	GetCursorPos(&ptCursor);
+
+	ReleaseCapture();
+	SetForegroundWindow(hWndFloating);
+	SetActiveWindow(hWndFloating);
+
+	/* Continue drag with system non-client move loop. */
+	LPARAM lParam = MAKELPARAM((short)ptCursor.x, (short)ptCursor.y);
+	SendMessage(hWndFloating, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
+}
+
+void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode, int x, int y)
 {
 	if (!pDockHostWindow || !pNode || !pNode->data)
 	{
@@ -598,6 +618,18 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 	}
 
 	DockData* pDockData = (DockData*)pNode->data;
+	RECT rcDockLocal = pDockData->rc;
+	int dockWidth = max(Win32_Rect_GetWidth(&rcDockLocal), 1);
+	int dockHeight = max(Win32_Rect_GetHeight(&rcDockLocal), 1);
+
+	int dragOffsetX = x - rcDockLocal.left;
+	int dragOffsetY = y - rcDockLocal.top;
+	dragOffsetX = max(0, min(dragOffsetX, dockWidth - 1));
+	dragOffsetY = max(0, min(dragOffsetY, dockHeight - 1));
+
+	POINT ptCursor = { 0 };
+	GetCursorPos(&ptCursor);
+
 	DockHostWindow_Undock(pDockHostWindow, pNode);
 
 	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
@@ -605,15 +637,18 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 	FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
 	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, pDockData->hWnd);
 
-	RECT rcFloating = pDockData->rc;
+	RECT rcFloating = rcDockLocal;
 	MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcFloating, 2);
 
 	int width = max(Win32_Rect_GetWidth(&rcFloating), 260);
 	int height = max(Win32_Rect_GetHeight(&rcFloating), 220);
-	SetWindowPos(hWndFloating, NULL, rcFloating.left, rcFloating.top, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
+	int floatingX = ptCursor.x - dragOffsetX;
+	int floatingY = ptCursor.y - dragOffsetY;
+	SetWindowPos(hWndFloating, NULL, floatingX, floatingY, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
 
 	DockHostWindow_Rearrange(pDockHostWindow);
 	DockHostWindow_DestroyDragOverlay();
+	DockHostWindow_ContinueFloatingDrag(hWndFloating);
 }
 
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
@@ -634,10 +669,8 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 
 		if (distance >= activateDistance)
 		{
-			DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode);
 			pDockHostWindow->fCaptionDrag = FALSE;
-
-			ReleaseCapture();
+			DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode, x, y);
 		}
 		/*
 		else {
