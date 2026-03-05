@@ -647,6 +647,7 @@ void ViewportWindow_OnContextMenu(ViewportWindow* pViewportWindow, HWND hwndCont
     HMENU hMenu = CreatePopupMenu();
     InsertMenu(hMenu, 0, MF_BYPOSITION | MF_STRING, IDM_VIEWPORTSETTINGS, L"Settings");
     TrackPopupMenu(hMenu, 0, xPos, yPos, 0, hWnd, NULL);
+    DestroyMenu(hMenu);
 }
 
 void ViewportWindow_OnMButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)

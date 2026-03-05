@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "win32/window.h"
 #include "win32/util.h"
+#include "win32/windowmap.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "document.h"
@@ -13,6 +14,8 @@ static const WCHAR szClassName[] = L"__WorkspaceContainer";
 #define WORKSPACE_TAB_TEXT_PADDING_X 10
 #define WORKSPACE_TAB_MIN_WIDTH 72
 #define WORKSPACE_TAB_MAX_WIDTH 240
+#define WORKSPACE_TAB_FLOAT_DISTANCE 6
+#define IDM_WORKSPACE_TAB_FLOAT 41001
 
 /* Private forward declarations */
 WorkspaceContainer* WorkspaceContainer_Create();
@@ -23,7 +26,9 @@ void WorkspaceContainer_PreCreate(LPCREATESTRUCT lpcs);
 
 BOOL WorkspaceContainer_OnCreate(WorkspaceContainer* pWorkspaceContainer, LPCREATESTRUCT lpcs);
 void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer);
+void WorkspaceContainer_OnLButtonDown(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags);
 void WorkspaceContainer_OnLButtonUp(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags);
+void WorkspaceContainer_OnMouseMove(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags);
 void WorkspaceContainer_OnRButtonUp(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags);
 void WorkspaceContainer_OnContextMenu(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags);
 void WorkspaceContainer_OnSize(WorkspaceContainer* pWorkspaceContainer, UINT state, int cx, int cy);
@@ -34,11 +39,17 @@ LRESULT CALLBACK WorkspaceContainer_UserProc(WorkspaceContainer* pWorkspaceConta
 int WorkspaceContainer_GetTabHeaderHeight(WorkspaceContainer* pWorkspaceContainer);
 void WorkspaceContainer_LayoutViewports(WorkspaceContainer* pWorkspaceContainer);
 void WorkspaceContainer_SetCurrentViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, BOOL bSyncAppState);
+void WorkspaceContainer_UpdateWindowTitle(WorkspaceContainer* pWorkspaceContainer);
+BOOL WorkspaceContainer_IsFloating(WorkspaceContainer* pWorkspaceContainer);
 void WorkspaceContainer_GetViewportTitle(ViewportWindow* pViewportWindow, int nTabIndex, LPWSTR pszBuffer, size_t cchBuffer);
 int WorkspaceContainer_CalcTabWidth(WorkspaceContainer* pWorkspaceContainer, HDC hdc, ViewportWindow* pViewportWindow, int nTabIndex);
 BOOL WorkspaceContainer_GetTabRect(WorkspaceContainer* pWorkspaceContainer, HDC hdc, int nTabIndex, LPRECT prcTab);
 int WorkspaceContainer_HitTestTab(WorkspaceContainer* pWorkspaceContainer, int x, int y);
 int ViewportVector_FindIndex(ViewportVector* pViewportVector, ViewportWindow* pViewportWindow);
+void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, int xScreen, int yScreen, BOOL bStartMove);
+void WorkspaceContainer_MoveAllViewportsTo(WorkspaceContainer* pSourceWorkspace, WorkspaceContainer* pTargetWorkspace);
+WorkspaceContainer* WorkspaceContainer_FindDropTargetAtScreenPoint(WorkspaceContainer* pSourceWorkspace, POINT ptScreen);
+BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BOOL bForceMainWorkspace);
 
 struct ViewportVector {
     size_t m_capacity;
@@ -50,8 +61,18 @@ ViewportVector* ViewportVector_Create();
 void ViewportVector_Init(ViewportVector* pViewportVector);
 BOOL ViewportVector_Reserve(ViewportVector* pViewportVector, size_t newCapacity);
 BOOL ViewportVector_Add(ViewportVector* pViewportVector, ViewportWindow* pViewportWindow);
+BOOL ViewportVector_RemoveAt(ViewportVector* pViewportVector, int idx, ViewportWindow** ppViewportWindow);
 size_t ViewportVector_GetSize(ViewportVector* pViewportVector);
 ViewportWindow* ViewportVector_Get(ViewportVector* pViewportVector, int idx);
+
+typedef struct WorkspaceDropSearchContext WorkspaceDropSearchContext;
+struct WorkspaceDropSearchContext {
+    WorkspaceContainer* pSourceWorkspace;
+    POINT ptScreen;
+    WorkspaceContainer* pFoundWorkspace;
+};
+
+BOOL CALLBACK WorkspaceContainer_EnumWindows_FindDropTarget(HWND hWnd, LPARAM lParam);
 
 ViewportVector* ViewportVector_Create()
 {
@@ -109,6 +130,9 @@ void WorkspaceContainer_Init(WorkspaceContainer* pWorkspaceContainer)
     _WindowInitHelper_SetUserProcRoutine((Window*)pWorkspaceContainer, (FnWindowUserProc)WorkspaceContainer_UserProc);
 
     pWorkspaceContainer->m_pViewportVector = ViewportVector_Create();
+    pWorkspaceContainer->m_iPressedTabIndex = -1;
+    pWorkspaceContainer->m_ptTabDragStart.x = 0;
+    pWorkspaceContainer->m_ptTabDragStart.y = 0;
 }
 
 void WorkspaceContainer_PreRegister(LPWNDCLASSEX lpwcex)
@@ -227,7 +251,53 @@ void WorkspaceContainer_SetCurrentViewport(WorkspaceContainer* pWorkspaceContain
         PanitentApp_SetActiveViewport(PanitentApp_Instance(), pViewportWindow);
     }
 
+    WorkspaceContainer_UpdateWindowTitle(pWorkspaceContainer);
     Window_Invalidate((Window*)pWorkspaceContainer);
+}
+
+BOOL WorkspaceContainer_IsFloating(WorkspaceContainer* pWorkspaceContainer)
+{
+    if (!pWorkspaceContainer)
+    {
+        return FALSE;
+    }
+
+    HWND hWndWorkspace = Window_GetHWND((Window*)pWorkspaceContainer);
+    if (!hWndWorkspace || !IsWindow(hWndWorkspace))
+    {
+        return FALSE;
+    }
+
+    DWORD dwStyle = Window_GetStyle((Window*)pWorkspaceContainer);
+    return (dwStyle & WS_CHILD) == 0;
+}
+
+void WorkspaceContainer_UpdateWindowTitle(WorkspaceContainer* pWorkspaceContainer)
+{
+    if (!WorkspaceContainer_IsFloating(pWorkspaceContainer))
+    {
+        return;
+    }
+
+    WCHAR szTitle[MAX_PATH] = L"Document Group";
+    if (pWorkspaceContainer->m_pViewportWindow)
+    {
+        int nActiveIndex = ViewportVector_FindIndex(
+            pWorkspaceContainer->m_pViewportVector,
+            pWorkspaceContainer->m_pViewportWindow);
+        if (nActiveIndex < 0)
+        {
+            nActiveIndex = 0;
+        }
+
+        WorkspaceContainer_GetViewportTitle(
+            pWorkspaceContainer->m_pViewportWindow,
+            nActiveIndex,
+            szTitle,
+            ARRAYSIZE(szTitle));
+    }
+
+    SetWindowTextW(Window_GetHWND((Window*)pWorkspaceContainer), szTitle);
 }
 
 void WorkspaceContainer_GetViewportTitle(ViewportWindow* pViewportWindow, int nTabIndex, LPWSTR pszBuffer, size_t cchBuffer)
@@ -466,9 +536,72 @@ void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer)
     EndPaint(hwnd, &ps);
 }
 
+void WorkspaceContainer_OnLButtonDown(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags)
+{
+    UNREFERENCED_PARAMETER(keyFlags);
+
+    int nHitTab = WorkspaceContainer_HitTestTab(pWorkspaceContainer, x, y);
+    if (nHitTab < 0)
+    {
+        pWorkspaceContainer->m_iPressedTabIndex = -1;
+        return;
+    }
+
+    pWorkspaceContainer->m_iPressedTabIndex = nHitTab;
+    pWorkspaceContainer->m_ptTabDragStart.x = x;
+    pWorkspaceContainer->m_ptTabDragStart.y = y;
+
+    SetCapture(Window_GetHWND((Window*)pWorkspaceContainer));
+}
+
+void WorkspaceContainer_OnMouseMove(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags)
+{
+    if (pWorkspaceContainer->m_iPressedTabIndex < 0 || !(keyFlags & MK_LBUTTON))
+    {
+        return;
+    }
+
+    int dx = x - pWorkspaceContainer->m_ptTabDragStart.x;
+    int dy = y - pWorkspaceContainer->m_ptTabDragStart.y;
+    if (dx < 0)
+    {
+        dx = -dx;
+    }
+    if (dy < 0)
+    {
+        dy = -dy;
+    }
+
+    if (dx < WORKSPACE_TAB_FLOAT_DISTANCE && dy < WORKSPACE_TAB_FLOAT_DISTANCE)
+    {
+        return;
+    }
+
+    ViewportWindow* pViewportWindow = ViewportVector_Get(
+        pWorkspaceContainer->m_pViewportVector,
+        pWorkspaceContainer->m_iPressedTabIndex);
+    pWorkspaceContainer->m_iPressedTabIndex = -1;
+
+    if (!pViewportWindow)
+    {
+        return;
+    }
+
+    POINT ptScreen = { x, y };
+    ClientToScreen(Window_GetHWND((Window*)pWorkspaceContainer), &ptScreen);
+    WorkspaceContainer_FloatViewport(pWorkspaceContainer, pViewportWindow, ptScreen.x, ptScreen.y, TRUE);
+}
+
 void WorkspaceContainer_OnLButtonUp(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags)
 {
     UNREFERENCED_PARAMETER(keyFlags);
+
+    if (GetCapture() == Window_GetHWND((Window*)pWorkspaceContainer))
+    {
+        ReleaseCapture();
+    }
+
+    pWorkspaceContainer->m_iPressedTabIndex = -1;
 
     int nHitTab = WorkspaceContainer_HitTestTab(pWorkspaceContainer, x, y);
     if (nHitTab < 0)
@@ -494,9 +627,47 @@ void WorkspaceContainer_OnRButtonUp(WorkspaceContainer* pWorkspaceContainer, int
 
 void WorkspaceContainer_OnContextMenu(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags)
 {
-    UNREFERENCED_PARAMETER(pWorkspaceContainer);
-    UNREFERENCED_PARAMETER(x);
-    UNREFERENCED_PARAMETER(y);
+    UNREFERENCED_PARAMETER(keyFlags);
+
+    HWND hWndWorkspace = Window_GetHWND((Window*)pWorkspaceContainer);
+    POINT ptScreen = { x, y };
+    if (ptScreen.x == -1 && ptScreen.y == -1)
+    {
+        GetCursorPos(&ptScreen);
+    }
+
+    POINT ptClient = ptScreen;
+    ScreenToClient(hWndWorkspace, &ptClient);
+
+    int nHitTab = WorkspaceContainer_HitTestTab(pWorkspaceContainer, ptClient.x, ptClient.y);
+    if (nHitTab < 0)
+    {
+        return;
+    }
+
+    ViewportWindow* pViewportWindow = ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, nHitTab);
+    if (!pViewportWindow)
+    {
+        return;
+    }
+
+    HMENU hMenu = CreatePopupMenu();
+    AppendMenuW(hMenu, MF_STRING, IDM_WORKSPACE_TAB_FLOAT, L"Move To New Window");
+
+    int cmd = TrackPopupMenu(
+        hMenu,
+        TPM_RETURNCMD | TPM_NONOTIFY | TPM_RIGHTBUTTON,
+        ptScreen.x,
+        ptScreen.y,
+        0,
+        hWndWorkspace,
+        NULL);
+    DestroyMenu(hMenu);
+
+    if (cmd == IDM_WORKSPACE_TAB_FLOAT)
+    {
+        WorkspaceContainer_FloatViewport(pWorkspaceContainer, pViewportWindow, ptScreen.x, ptScreen.y, FALSE);
+    }
 }
 
 void WorkspaceContainer_OnCommand(WorkspaceContainer* pWorkspaceContainer, WPARAM wParam, LPARAM lParam)
@@ -514,9 +685,17 @@ void WorkspaceContainer_OnDestroy(WorkspaceContainer* pWorkspaceContainer)
 LRESULT CALLBACK WorkspaceContainer_UserProc(WorkspaceContainer* pWorkspaceContainer, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message) {
+    case WM_LBUTTONDOWN:
+        WorkspaceContainer_OnLButtonDown(pWorkspaceContainer, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (UINT)wParam);
+        return TRUE;
+        break;
+
+    case WM_MOUSEMOVE:
+        WorkspaceContainer_OnMouseMove(pWorkspaceContainer, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (UINT)wParam);
+        break;
+
     case WM_RBUTTONUP:
         WorkspaceContainer_OnRButtonUp(pWorkspaceContainer, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (UINT)wParam);
-        return TRUE;
         break;
 
     case WM_LBUTTONUP:
@@ -524,8 +703,27 @@ LRESULT CALLBACK WorkspaceContainer_UserProc(WorkspaceContainer* pWorkspaceConta
         return TRUE;
         break;
 
+    case WM_CAPTURECHANGED:
+        pWorkspaceContainer->m_iPressedTabIndex = -1;
+        break;
+
+    case WM_EXITSIZEMOVE:
+        WorkspaceContainer_TryDockFloating(pWorkspaceContainer, FALSE);
+        break;
+
+    case WM_CLOSE:
+        if (WorkspaceContainer_TryDockFloating(pWorkspaceContainer, TRUE))
+        {
+            return 0;
+        }
+        break;
+
     case WM_CONTEXTMENU:
-        WorkspaceContainer_OnContextMenu(pWorkspaceContainer, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (UINT)wParam);
+        WorkspaceContainer_OnContextMenu(
+            pWorkspaceContainer,
+            (int)(short)LOWORD(lParam),
+            (int)(short)HIWORD(lParam),
+            (UINT)wParam);
         break;
     }
 
@@ -581,6 +779,253 @@ ViewportWindow* WorkspaceContainer_GetCurrentViewport(WorkspaceContainer* pWorks
     }
 
     return pWorkspaceContainer->m_pViewportWindow;
+}
+
+void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, int xScreen, int yScreen, BOOL bStartMove)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector || !pViewportWindow)
+    {
+        return;
+    }
+
+    int nViewportIndex = ViewportVector_FindIndex(pWorkspaceContainer->m_pViewportVector, pViewportWindow);
+    if (nViewportIndex < 0)
+    {
+        return;
+    }
+
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    if (!IsWindow(hWndViewport))
+    {
+        return;
+    }
+
+    RECT rcViewport = { 0 };
+    GetWindowRect(hWndViewport, &rcViewport);
+
+    if (!ViewportVector_RemoveAt(pWorkspaceContainer->m_pViewportVector, nViewportIndex, NULL))
+    {
+        return;
+    }
+
+    BOOL bWasCurrent = pWorkspaceContainer->m_pViewportWindow == pViewportWindow;
+    if (bWasCurrent)
+    {
+        ViewportWindow* pNewCurrent = NULL;
+        int nTabs = (int)ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector);
+        if (nTabs > 0)
+        {
+            int nNextIndex = min(nViewportIndex, nTabs - 1);
+            pNewCurrent = ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, nNextIndex);
+        }
+
+        WorkspaceContainer_SetCurrentViewport(pWorkspaceContainer, pNewCurrent, TRUE);
+    }
+    else {
+        WorkspaceContainer_LayoutViewports(pWorkspaceContainer);
+        Window_Invalidate((Window*)pWorkspaceContainer);
+
+        if (PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewportWindow)
+        {
+            PanitentApp_SetActiveViewport(PanitentApp_Instance(), pWorkspaceContainer->m_pViewportWindow);
+        }
+    }
+
+    WorkspaceContainer* pFloatingWorkspace = WorkspaceContainer_Create();
+    if (!pFloatingWorkspace)
+    {
+        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        return;
+    }
+
+    HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWorkspace, NULL);
+    if (!hWndFloating || !IsWindow(hWndFloating))
+    {
+        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        free(pFloatingWorkspace);
+        return;
+    }
+
+    WorkspaceContainer_AddViewport(pFloatingWorkspace, pViewportWindow);
+    WorkspaceContainer_UpdateWindowTitle(pFloatingWorkspace);
+
+    int width = max(320, rcViewport.right - rcViewport.left);
+    int height = max(240, rcViewport.bottom - rcViewport.top);
+    int x = rcViewport.left;
+    int y = rcViewport.top;
+
+    if (xScreen >= 0 && yScreen >= 0)
+    {
+        x = xScreen - width / 2;
+        y = yScreen - 10;
+    }
+
+    SetWindowPos(
+        hWndFloating,
+        HWND_TOP,
+        x,
+        y,
+        width,
+        height,
+        SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+
+    if (bStartMove)
+    {
+        if (GetCapture() == Window_GetHWND((Window*)pWorkspaceContainer))
+        {
+            ReleaseCapture();
+        }
+
+        SetForegroundWindow(hWndFloating);
+        SendMessage(hWndFloating, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(xScreen, yScreen));
+    }
+
+    if (WorkspaceContainer_IsFloating(pWorkspaceContainer) &&
+        ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector) == 0)
+    {
+        DestroyWindow(Window_GetHWND((Window*)pWorkspaceContainer));
+    }
+}
+
+void WorkspaceContainer_MoveAllViewportsTo(WorkspaceContainer* pSourceWorkspace, WorkspaceContainer* pTargetWorkspace)
+{
+    if (!pSourceWorkspace || !pTargetWorkspace || pSourceWorkspace == pTargetWorkspace)
+    {
+        return;
+    }
+
+    ViewportWindow* pActiveSourceViewport = pSourceWorkspace->m_pViewportWindow;
+
+    while (ViewportVector_GetSize(pSourceWorkspace->m_pViewportVector) > 0)
+    {
+        ViewportWindow* pViewportWindow = ViewportVector_Get(pSourceWorkspace->m_pViewportVector, 0);
+        if (!pViewportWindow)
+        {
+            break;
+        }
+
+        ViewportVector_RemoveAt(pSourceWorkspace->m_pViewportVector, 0, NULL);
+        WorkspaceContainer_AddViewport(pTargetWorkspace, pViewportWindow);
+    }
+
+    pSourceWorkspace->m_pViewportWindow = NULL;
+    WorkspaceContainer_UpdateWindowTitle(pSourceWorkspace);
+    WorkspaceContainer_LayoutViewports(pSourceWorkspace);
+    Window_Invalidate((Window*)pSourceWorkspace);
+
+    if (pActiveSourceViewport)
+    {
+        WorkspaceContainer_SetCurrentViewport(pTargetWorkspace, pActiveSourceViewport, TRUE);
+    }
+}
+
+WorkspaceContainer* WorkspaceContainer_FindDropTargetAtScreenPoint(WorkspaceContainer* pSourceWorkspace, POINT ptScreen)
+{
+    WorkspaceDropSearchContext ctx = { 0 };
+    ctx.pSourceWorkspace = pSourceWorkspace;
+    ctx.ptScreen = ptScreen;
+    ctx.pFoundWorkspace = NULL;
+    EnumWindows(WorkspaceContainer_EnumWindows_FindDropTarget, (LPARAM)&ctx);
+    if (ctx.pFoundWorkspace)
+    {
+        return ctx.pFoundWorkspace;
+    }
+
+    WorkspaceContainer* pMainWorkspace = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
+    if (pMainWorkspace && pMainWorkspace != pSourceWorkspace)
+    {
+        HWND hWndMainWorkspace = Window_GetHWND((Window*)pMainWorkspace);
+        if (hWndMainWorkspace && IsWindow(hWndMainWorkspace))
+        {
+            RECT rcMainWorkspace = { 0 };
+            GetWindowRect(hWndMainWorkspace, &rcMainWorkspace);
+            if (PtInRect(&rcMainWorkspace, ptScreen))
+            {
+                return pMainWorkspace;
+            }
+        }
+    }
+
+    return NULL;
+}
+
+BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BOOL bForceMainWorkspace)
+{
+    if (!pSourceWorkspace || !WorkspaceContainer_IsFloating(pSourceWorkspace))
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer* pTargetWorkspace = NULL;
+    if (bForceMainWorkspace)
+    {
+        pTargetWorkspace = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
+    }
+    else {
+        POINT ptCursor = { 0 };
+        if (!GetCursorPos(&ptCursor))
+        {
+            return FALSE;
+        }
+        pTargetWorkspace = WorkspaceContainer_FindDropTargetAtScreenPoint(pSourceWorkspace, ptCursor);
+    }
+
+    if (!pTargetWorkspace || pTargetWorkspace == pSourceWorkspace)
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer_MoveAllViewportsTo(pSourceWorkspace, pTargetWorkspace);
+    DestroyWindow(Window_GetHWND((Window*)pSourceWorkspace));
+    return TRUE;
+}
+
+BOOL CALLBACK WorkspaceContainer_EnumWindows_FindDropTarget(HWND hWnd, LPARAM lParam)
+{
+    WorkspaceDropSearchContext* pCtx = (WorkspaceDropSearchContext*)lParam;
+    if (!pCtx || !hWnd || !IsWindow(hWnd))
+    {
+        return TRUE;
+    }
+
+    if (!IsWindowVisible(hWnd))
+    {
+        return TRUE;
+    }
+
+    if (hWnd == Window_GetHWND((Window*)pCtx->pSourceWorkspace))
+    {
+        return TRUE;
+    }
+
+    WCHAR szWindowClass[64] = L"";
+    GetClassNameW(hWnd, szWindowClass, ARRAYSIZE(szWindowClass));
+    if (wcscmp(szWindowClass, szClassName) != 0)
+    {
+        return TRUE;
+    }
+
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+    if (!PtInRect(&rcWindow, pCtx->ptScreen))
+    {
+        return TRUE;
+    }
+
+    Window* pWindow = WindowMap_Get(hWnd);
+    if (!pWindow)
+    {
+        return TRUE;
+    }
+
+    WorkspaceContainer* pCandidateWorkspace = (WorkspaceContainer*)pWindow;
+    if (!WorkspaceContainer_IsFloating(pCandidateWorkspace))
+    {
+        return TRUE;
+    }
+
+    pCtx->pFoundWorkspace = pCandidateWorkspace;
+    return FALSE;
 }
 
 BOOL ViewportVector_Reserve(ViewportVector* pViewportVector, size_t newCapacity)
@@ -640,6 +1085,28 @@ BOOL ViewportVector_Add(ViewportVector* pViewportVector, ViewportWindow* pViewpo
     }
 
     pViewportVector->pData[pViewportVector->m_size++] = pViewportWindow;
+    return TRUE;
+}
+
+BOOL ViewportVector_RemoveAt(ViewportVector* pViewportVector, int idx, ViewportWindow** ppViewportWindow)
+{
+    if (!pViewportVector || idx < 0 || (size_t)idx >= pViewportVector->m_size)
+    {
+        return FALSE;
+    }
+
+    if (ppViewportWindow)
+    {
+        *ppViewportWindow = pViewportVector->pData[idx];
+    }
+
+    for (size_t i = (size_t)idx; i + 1 < pViewportVector->m_size; i++)
+    {
+        pViewportVector->pData[i] = pViewportVector->pData[i + 1];
+    }
+
+    pViewportVector->m_size--;
+    pViewportVector->pData[pViewportVector->m_size] = NULL;
     return TRUE;
 }
 
