@@ -38,6 +38,7 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_ZONE_MAX_TABS 32
 #define DOCK_COLOR_ROOT_BG L"#76699f"
 #define DOCK_CAPTION_INSET 3
+#define DRAG_UNDOCK_DISTANCE 32
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
@@ -56,6 +57,7 @@ void Dock_DestroyInclusive(TreeNode*, TreeNode*);
 void DockNode_Paint(TreeNode*, HDC, HBRUSH);
 static void DockHostWindow_DestroyDragOverlay(void);
 static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
+static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
 static BOOL DockNode_HasVisibleWindow(TreeNode* pNode);
 static BOOL DockNode_HasVisibleWindowInZone(TreeNode* pNode, DockData* pZoneData);
 static BOOL DockNameStartsWith(PCWSTR pszValue, PCWSTR pszPrefix);
@@ -2414,15 +2416,9 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 
 	if (pDockHostWindow->fCaptionDrag)
 	{
-		if (g_hWndDragOverlay && IsWindow(g_hWndDragOverlay))
-		{
-			POINT pt = { x, y };
-			ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &pt);
-			SetWindowPos(g_hWndDragOverlay, HWND_TOPMOST, pt.x - 64, pt.y - 64, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
-		}
-
 		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
-		int activateDistance = 32;
+		int activateDistance = DRAG_UNDOCK_DISTANCE;
+		DockHostWindow_UpdateDragOverlayVisual(pDockHostWindow, distance);
 
 		if (distance >= activateDistance)
 		{
@@ -2466,28 +2462,115 @@ LRESULT CALLBACK DragOverlayWndProc(HWND hWnd, UINT message, WPARAM wParam, LPAR
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-float smoothstepf(float edge0, float edge1, float x) {
+static float smoothstepf(float edge0, float edge1, float x)
+{
 	float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);
 	return t * t * (3.0f - 2.0f * t);
 }
 
-float clampf(float value, int min, int max)
+static float clampf(float value, float minValue, float maxValue)
 {
-	if (value < min)
+	if (value < minValue)
 	{
-		return min;
+		return minValue;
 	}
-	else if (value > max)
+	else if (value > maxValue)
 	{
-		return max;
+		return maxValue;
 	}
 	else {
 		return value;
 	}
 }
 
+#define DRAG_OVERLAY_SIZE 128
+#define DRAG_OVERLAY_CENTER (DRAG_OVERLAY_SIZE / 2)
+
+static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius)
+{
+	if (!pDockHostWindow || !g_hWndDragOverlay || !IsWindow(g_hWndDragOverlay))
+	{
+		return;
+	}
+
+	HDC hdcScreen = GetDC(NULL);
+	HDC hdcMem = CreateCompatibleDC(hdcScreen);
+
+	BITMAPINFO bmi = { 0 };
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = DRAG_OVERLAY_SIZE;
+	bmi.bmiHeader.biHeight = -DRAG_OVERLAY_SIZE;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	unsigned int* pBits = NULL;
+	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+	HGDIOBJ hOldObj = SelectObject(hdcMem, hBitmap);
+	memset(pBits, 0, DRAG_OVERLAY_SIZE * DRAG_OVERLAY_SIZE * sizeof(unsigned int));
+
+	float radius = clampf((float)iRadius, 0.0f, (float)(DRAG_OVERLAY_CENTER - 6));
+	float readiness = clampf(radius / (float)DRAG_UNDOCK_DISTANCE, 0.0f, 1.0f);
+	float heat = smoothstepf(0.72f, 1.0f, readiness);
+	float ringHalfWidth = 2.2f + heat * 0.8f;
+	float ringFeather = 2.4f + heat * 1.2f;
+
+	const float coldR = 0x62;
+	const float coldG = 0xC6;
+	const float coldB = 0xFF;
+	const float hotR = 0xFF;
+	const float hotG = 0x8A;
+	const float hotB = 0x4A;
+	float srcR = coldR + (hotR - coldR) * heat;
+	float srcG = coldG + (hotG - coldG) * heat;
+	float srcB = coldB + (hotB - coldB) * heat;
+
+	for (int y = 0; y < DRAG_OVERLAY_SIZE; ++y)
+	{
+		for (int x = 0; x < DRAG_OVERLAY_SIZE; ++x)
+		{
+			float dx = (float)x + 0.5f - (float)DRAG_OVERLAY_CENTER;
+			float dy = (float)y + 0.5f - (float)DRAG_OVERLAY_CENTER;
+			float distance = sqrtf(dx * dx + dy * dy);
+			float ringDistance = fabsf(distance - radius);
+			float core = 1.0f - smoothstepf(ringHalfWidth, ringHalfWidth + ringFeather, ringDistance);
+			float glow = (1.0f - smoothstepf(ringHalfWidth + 1.5f, ringHalfWidth + 8.5f, ringDistance)) * 0.38f;
+			float alphaNorm = clampf(core + glow, 0.0f, 1.0f);
+			if (radius < 1.0f)
+			{
+				alphaNorm = 0.0f;
+			}
+
+			float alphaBoost = 220.0f + heat * 20.0f;
+			BYTE alpha = (BYTE)clampf(alphaBoost * alphaNorm, 0.0f, 255.0f);
+			BYTE red = (BYTE)clampf((srcR * alpha) / 255.0f, 0.0f, 255.0f);
+			BYTE green = (BYTE)clampf((srcG * alpha) / 255.0f, 0.0f, 255.0f);
+			BYTE blue = (BYTE)clampf((srcB * alpha) / 255.0f, 0.0f, 255.0f);
+			pBits[y * DRAG_OVERLAY_SIZE + x] = ((unsigned int)alpha << 24) | ((unsigned int)red << 16) | ((unsigned int)green << 8) | (unsigned int)blue;
+		}
+	}
+
+	POINT ptPos = { pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y };
+	ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptPos);
+	ptPos.x -= DRAG_OVERLAY_CENTER;
+	ptPos.y -= DRAG_OVERLAY_CENTER;
+
+	SIZE sizeWnd = { DRAG_OVERLAY_SIZE, DRAG_OVERLAY_SIZE };
+	POINT ptSrc = { 0, 0 };
+	BLENDFUNCTION blendFunction = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
+
+	SelectObject(hdcMem, hOldObj);
+	DeleteObject(hBitmap);
+	DeleteDC(hdcMem);
+	ReleaseDC(NULL, hdcScreen);
+}
+
 void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
 {
+	UNREFERENCED_PARAMETER(x);
+	UNREFERENCED_PARAMETER(y);
+
 	WNDCLASSEX wcex = { 0 };
 	if (!GetClassInfoEx(GetModuleHandle(NULL), L"__DragOverlayClass", &wcex))
 	{
@@ -2498,162 +2581,25 @@ void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
 		RegisterClassEx(&wcex);
 	}
 
+	POINT ptStart = { pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y };
+	ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptStart);
+
 	DockHostWindow_DestroyDragOverlay();
-	g_hWndDragOverlay = CreateWindowEx(WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST, L"__DragOverlayClass", L"DragOverlay", WS_VISIBLE | WS_POPUP, x - 64, y - 64, 128, 128, NULL, NULL, GetModuleHandle(NULL), NULL);
+	g_hWndDragOverlay = CreateWindowEx(
+		WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
+		L"__DragOverlayClass",
+		L"DragOverlay",
+		WS_VISIBLE | WS_POPUP,
+		ptStart.x - DRAG_OVERLAY_CENTER,
+		ptStart.y - DRAG_OVERLAY_CENTER,
+		DRAG_OVERLAY_SIZE,
+		DRAG_OVERLAY_SIZE,
+		NULL,
+		NULL,
+		GetModuleHandle(NULL),
+		NULL);
 
-	HDC hdcScreen = GetDC(NULL);
-	HDC hdcMem = CreateCompatibleDC(hdcScreen);
-
-	BLENDFUNCTION blendFunction = { 0 };
-	blendFunction.BlendOp = AC_SRC_OVER;
-	blendFunction.SourceConstantAlpha = 255;
-	blendFunction.AlphaFormat = AC_SRC_ALPHA;
-
-	BITMAPINFO bmi = { 0 };
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = 128;
-	bmi.bmiHeader.biHeight = -128;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	unsigned int* pBits;
-
-	// Create a compatible bitmap with the desired format
-	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
-	HGDIOBJ hOldObj = SelectObject(hdcMem, hBitmap);
-
-	// Draw
-	{
-		int centerX = 32;
-		int centerY = 32;
-		int radius = 32;
-
-		unsigned char* pCircle = malloc(64 * 64 * sizeof(unsigned char));
-
-		for (int y = 0; y < 64; ++y)
-		{
-			for (int x = 0; x < 64; ++x)
-			{
-				int dx = x - centerX;
-				int dy = y - centerY;
-				float distance = sqrtf((float)(dx * dx + dy * dy));
-
-				float dist = distance / (float)radius;
-
-				// Calculate alpha based on the distance
-
-				float uStripeWidth = 0.1f;
-				float stripeEdge = 0.5 * (1.0 / uStripeWidth);
-				BYTE alpha1 = (BYTE)(255.0f * smoothstepf(1.0f, 0.95f, dist));
-				BYTE alpha2 = (BYTE)(255.0f * (sinf(dist * 24.0f) * 0.5f + 0.5f));
-				BYTE alpha = min(alpha1, alpha2);
-				if (alpha > 255)
-				{
-					alpha = 255;
-				}
-				if (alpha < 0)
-				{
-					alpha = 0;
-				}
-
-				pCircle[y * 64 + x] = alpha;
-			}
-		}
-
-		unsigned int* pData = pBits;
-		pData += 128 * ((128 - 64) / 2) + ((128 - 64) / 2);
-		for (int y = 0; y < 64; ++y)
-		{
-			for (int x = 0; x < 64; ++x)
-			{
-				BYTE alpha = pCircle[y * 64 + x];
-				unsigned int color = (alpha << 24) | (alpha << 16);
-				*pData = color;
-				pData++;
-			}
-			
-			pData += 64;
-		}
-
-		free(pCircle);
-
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			for (int x = 0; x < 128; ++x)
-			{
-				unsigned int color = pBits[y * 128 + x];
-
-				// Extract RGBA components
-				BYTE alpha = (color >> 24) & 0xFF;
-				BYTE red = (color >> 16) & 0xFF;
-				BYTE green = (color >> 8) & 0xFF;
-				BYTE blue = (color) & 0xFF;
-
-				// Premultiply RGB values by alpha
-				BYTE premultRed = (BYTE)((red * alpha) / 255);
-				BYTE premultGreen = (BYTE)((green * alpha) / 255);
-				BYTE premultBlue = (BYTE)((blue * alpha) / 255);
-
-				// Store the premultiplied color back into the bitmap
-				pBits[y * 128 + x] = (premultRed << 16) | (premultGreen << 8) | premultBlue | (alpha << 24);
-			}
-		}
-		*/
-		
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			pBits[y * 128] = 0xFFFF0000;
-			pBits[y * 128 + 127] = 0xFFFF0000;
-			pBits[y] = 0xFFFF0000;
-			pBits[y + 127 * 128] = 0xFFFF0000;
-		}
-		*/
-
-		/*
-		for (int y = 0; y < 128; ++y)
-		{
-			for (int x = 0; x < 128; ++x)
-			{
-				int dx = x - centerX;
-				int dy = y - centerY;
-				float distance = sqrtf((float)(dx * dx + dy * dy));
-
-				// Calculate alpha based on the distance
-				BYTE alpha = (BYTE)(255 * (1.0f - (distance / radius)));
-				if (alpha > 255)
-				{
-					alpha = 255;
-				}
-				if (alpha < 0 || distance > radius)
-				{
-					alpha = 0;
-				}
-
-				// Set the pixel color (white with varying alpha)
-				DWORD color = (alpha << 24) | (alpha << 16) | (alpha << 8) | alpha;
-				pBits[y * 128 + x] = color;
-			}
-		}
-		*/
-	}
-
-	POINT ptPos = { x, y };
-	SIZE sizeWnd = { 128, 128 };
-	POINT ptSrc = { 0, 0 };
-
-	ClientToScreen(pDockHostWindow->base.hWnd, &ptPos);
-	ptPos.x -= 64;
-	ptPos.y -= 64;
-
-	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
-
-	SelectObject(hdcMem, hOldObj);
-	DeleteObject(hBitmap);
-	DeleteDC(hdcMem);
-	ReleaseDC(NULL, hdcScreen);
+	DockHostWindow_UpdateDragOverlayVisual(pDockHostWindow, 0);
 }
 
 void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)

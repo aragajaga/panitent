@@ -143,3 +143,5 @@
   - caption glyph mapping aligned with VS-like states: pinned uses vertical pin tile `6`, auto-hide uses diagonal pin tile `1`, floating middle button uses maximize tile `3`.
   - edge auto-hide tabs now use variable length based on measured caption text instead of fixed tab length.
   - vertical edge-tab caption drawing is centered using text metrics (cross-axis and run-axis), improving visual alignment on both left and right sides.
+  - caption-undock drag overlay now renders a single blue SDF ring centered at drag-start; ring radius follows distance from drag-start to current mouse position.
+  - drag-ring visuals now have softer edges and a dynamic heat tint (blue -> warm orange) as radius approaches the undock threshold.
