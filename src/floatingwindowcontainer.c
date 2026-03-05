@@ -15,6 +15,8 @@
 #define GLYPH_CHEVRON_TILE 0
 #define GLYPH_MAXIMIZE_TILE 3
 #define GLYPH_CLOSE_TILE 4
+#define DOCK_TARGET_GUIDE_SIZE 30
+#define DOCK_TARGET_GUIDE_GAP 10
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
@@ -228,8 +230,8 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
 	}
 
-	const int guideSize = 30;
-	const int guideGap = 10;
+	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
+	const int guideGap = DOCK_TARGET_GUIDE_GAP;
 	int cx = width / 2;
 	int cy = height / 2;
 	if (dockTarget.bLocalTarget && !IsRectEmpty(&dockTarget.rcAnchorClient))

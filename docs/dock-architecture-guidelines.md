@@ -147,3 +147,4 @@
   - drag-ring visuals now have softer edges and a dynamic heat tint (blue -> warm orange) as radius approaches the undock threshold.
   - floating drag now resolves dock targets in two stages: local panel target (left/top/right/bottom of hovered panel) first, then global host-edge target as fallback.
   - dropping a floating panel on a local target performs panel-relative docking by inserting a split around the anchor panel instead of always docking to outer host edges.
+  - local dock target hit-zones are now guide-driven (matching visible guide glyph rectangles), reducing accidental edge captures and making targeting behavior more deterministic.

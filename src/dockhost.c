@@ -39,6 +39,8 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_COLOR_ROOT_BG L"#76699f"
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
+#define DOCK_TARGET_GUIDE_SIZE 30
+#define DOCK_TARGET_GUIDE_GAP 10
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
@@ -98,6 +100,7 @@ static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
+static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient);
 static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor);
 static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y);
@@ -3068,6 +3071,46 @@ static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iTh
 	return (minDist > threshold) ? DKS_NONE : side;
 }
 
+static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient)
+{
+	if (!pHostClient || !pAnchorRect || !PtInRect(pAnchorRect, ptClient))
+	{
+		return DKS_NONE;
+	}
+
+	int guideSize = DOCK_TARGET_GUIDE_SIZE;
+	int guideGap = DOCK_TARGET_GUIDE_GAP;
+	int cx = (pAnchorRect->left + pAnchorRect->right) / 2;
+	int cy = (pAnchorRect->top + pAnchorRect->bottom) / 2;
+
+	cx = max(guideSize * 2, min(cx, pHostClient->right - guideSize * 2));
+	cy = max(guideSize * 2, min(cy, pHostClient->bottom - guideSize * 2));
+
+	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
+	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
+	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
+	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+
+	if (PtInRect(&rcGuideLeft, ptClient))
+	{
+		return DKS_LEFT;
+	}
+	if (PtInRect(&rcGuideRight, ptClient))
+	{
+		return DKS_RIGHT;
+	}
+	if (PtInRect(&rcGuideTop, ptClient))
+	{
+		return DKS_TOP;
+	}
+	if (PtInRect(&rcGuideBottom, ptClient))
+	{
+		return DKS_BOTTOM;
+	}
+
+	return DKS_NONE;
+}
+
 static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor)
 {
 	if (pRectAnchor)
@@ -3158,7 +3201,7 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 	TreeNode* pAnchorNode = DockHostWindow_FindDockAnchorAtPoint(pDockHostWindow, ptClient, &rcAnchor);
 	if (pAnchorNode && pAnchorNode->data)
 	{
-		int localSide = DockHostWindow_HitTestSideInRect(&rcAnchor, ptClient, 16, 96);
+		int localSide = DockHostWindow_HitTestLocalTargetGuide(&rcClient, &rcAnchor, ptClient);
 		if (localSide != DKS_NONE)
 		{
 			DockData* pAnchorData = (DockData*)pAnchorNode->data;
