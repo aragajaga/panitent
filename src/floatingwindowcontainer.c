@@ -15,6 +15,7 @@
 #define HTMORE 23
 
 #define GLYPH_CHEVRON_TILE 0
+#define GLYPH_MINIMIZE_TILE 2
 #define GLYPH_MAXIMIZE_TILE 3
 #define GLYPH_CLOSE_TILE 4
 #define DOCK_TARGET_GUIDE_SIZE 30
@@ -58,6 +59,21 @@ BOOL FloatingWindowContainer_OnNCCreate(FloatingWindowContainer* pFloatingWindow
 int g_borderSize = 3;
 int g_borderGripSize = 8;
 int g_captionHeight = 14;
+
+static int FloatingWindowContainer_GetCaptionHeight(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return g_captionHeight;
+    }
+
+    if (pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        return 22;
+    }
+
+    return g_captionHeight;
+}
 
 static const WCHAR szDockPreviewOverlayClassName[] = L"__DockPreviewOverlay";
 static HWND g_hWndDockPreviewOverlay = NULL;
@@ -423,6 +439,7 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
 {
     HWND hWnd = pFloatingWindowContainer->base.hWnd;
     DWORD dwStyle = GetWindowStyle(hWnd);
+    int captionHeight = FloatingWindowContainer_GetCaptionHeight(pFloatingWindowContainer);
 
     if (bProcess)
     {
@@ -444,7 +461,7 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
 
         if (dwStyle & WS_CAPTION)
         {
-            params->rgrc[0].top += g_captionHeight + g_borderSize;
+            params->rgrc[0].top += captionHeight + g_borderSize;
             if (!(dwStyle & WS_THICKFRAME))
             {
                 params->rgrc[0].top += g_borderSize;
@@ -461,7 +478,7 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
     
     if (dwStyle & WS_CAPTION)
     {
-        rc->top += g_captionHeight + g_borderSize;
+        rc->top += captionHeight + g_borderSize;
         if (!(dwStyle & WS_THICKFRAME))
         {
             rc->top += g_borderSize;
@@ -479,7 +496,7 @@ LRESULT CaptionRightContainerHitTest()
     return HTNOWHERE;
 }
 
-static int FloatingWindowContainer_BuildCaptionButtons(CaptionButton* pButtons, int cButtons)
+static int FloatingWindowContainer_BuildCaptionButtons(FloatingWindowContainer* pFloatingWindowContainer, CaptionButton* pButtons, int cButtons)
 {
     if (!pButtons || cButtons < 3)
     {
@@ -488,7 +505,14 @@ static int FloatingWindowContainer_BuildCaptionButtons(CaptionButton* pButtons, 
 
     pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CLOSE_TILE, HTCLOSE };
     pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
-    pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CHEVRON_TILE, HTMORE };
+    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_MINIMIZE_TILE, HTMINBUTTON };
+    }
+    else {
+        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CHEVRON_TILE, HTMORE };
+    }
+
     return 3;
 }
 
@@ -509,13 +533,13 @@ static BOOL FloatingWindowContainer_BuildCaptionLayout(FloatingWindowContainer* 
 
     CaptionFrameMetrics metrics = { 0 };
     metrics.borderSize = g_borderSize;
-    metrics.captionHeight = g_captionHeight;
+    metrics.captionHeight = FloatingWindowContainer_GetCaptionHeight(pFloatingWindowContainer);
     metrics.buttonSpacing = 3;
     metrics.textPaddingX = g_borderSize;
     metrics.textPaddingY = 0;
 
     CaptionButton buttons[3] = { 0 };
-    int nButtons = FloatingWindowContainer_BuildCaptionButtons(buttons, ARRAYSIZE(buttons));
+    int nButtons = FloatingWindowContainer_BuildCaptionButtons(pFloatingWindowContainer, buttons, ARRAYSIZE(buttons));
     return CaptionFrame_BuildLayout(&rcWindow, &metrics, buttons, nButtons, pLayout);
 }
 
@@ -852,6 +876,11 @@ LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloati
         else {
             ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MAXIMIZE);
         }
+        return TRUE;
+    }
+    else if (hitTestVal == HTMINBUTTON)
+    {
+        ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MINIMIZE);
         return TRUE;
     }
     else if (hitTestVal == HTMORE)
@@ -1275,5 +1304,24 @@ void FloatingWindowContainer_SetDockPolicy(FloatingWindowContainer* pFloatingWin
         return;
     }
 
+    if (pFloatingWindowContainer->nDockPolicy == nDockPolicy)
+    {
+        return;
+    }
+
     pFloatingWindowContainer->nDockPolicy = nDockPolicy;
+
+    HWND hWnd = Window_GetHWND((Window*)pFloatingWindowContainer);
+    if (hWnd && IsWindow(hWnd))
+    {
+        SetWindowPos(
+            hWnd,
+            NULL,
+            0,
+            0,
+            0,
+            0,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED);
+        RedrawWindow(hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW);
+    }
 }
