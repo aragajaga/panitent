@@ -246,6 +246,57 @@ TreeNode* CreateZoneNode(PCWSTR pszName)
     return pZoneNode;
 }
 
+static DWORD AppDock_GetZoneStackStyle(int nDockSide)
+{
+    DWORD dwStyle = DGA_END | DGP_ABSOLUTE;
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
+    {
+        dwStyle |= DGD_VERTICAL;
+    }
+    else {
+        dwStyle |= DGD_HORIZONTAL;
+    }
+
+    return dwStyle;
+}
+
+static int AppDock_GetZoneStackGrip(int nDockSide)
+{
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
+    {
+        return 220;
+    }
+
+    return 260;
+}
+
+static void AppDock_AppendPanelToZone(TreeNode* pZoneNode, TreeNode* pPanelNode, int nDockSide)
+{
+    if (!pZoneNode || !pPanelNode)
+    {
+        return;
+    }
+
+    if (!pZoneNode->node1)
+    {
+        pZoneNode->node1 = pPanelNode;
+        return;
+    }
+
+    TreeNode* pSplit = DockNode_Create(AppDock_GetZoneStackGrip(nDockSide), AppDock_GetZoneStackStyle(nDockSide), FALSE);
+    if (!pSplit || !pSplit->data)
+    {
+        return;
+    }
+
+    DockData* pDockDataSplit = (DockData*)pSplit->data;
+    wcscpy_s(pDockDataSplit->lpszName, MAX_PATH, L"DockShell.ZoneStack");
+
+    pSplit->node1 = pZoneNode->node1;
+    pSplit->node2 = pPanelNode;
+    pZoneNode->node1 = pSplit;
+}
+
 void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent)
 {
     DockData* pDockDataParent = DockData_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
@@ -272,19 +323,19 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
 
     if (pZoneLeft)
     {
-        pZoneLeft->node1 = pNodeToolbox;
+        AppDock_AppendPanelToZone(pZoneLeft, pNodeToolbox, DKS_LEFT);
     }
 
     if (pZoneTop)
     {
-        pZoneTop->node1 = pNodeOptionBar;
+        AppDock_AppendPanelToZone(pZoneTop, pNodeOptionBar, DKS_TOP);
     }
 
-    TreeNode* pNodeRightStackA = CreateSplitNode(pPanitentApp, _T("DockShell.RightStackA"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 220, pNodeGLWindow, pNodePalette);
-    TreeNode* pNodeRightStackB = CreateSplitNode(pPanitentApp, _T("DockShell.RightStackB"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 220, pNodeRightStackA, pNodeLayers);
     if (pZoneRight)
     {
-        pZoneRight->node1 = pNodeRightStackB;
+        AppDock_AppendPanelToZone(pZoneRight, pNodeGLWindow, DKS_RIGHT);
+        AppDock_AppendPanelToZone(pZoneRight, pNodePalette, DKS_RIGHT);
+        AppDock_AppendPanelToZone(pZoneRight, pNodeLayers, DKS_RIGHT);
     }
 
     TreeNode* pNodeCenterRight = CreateSplitNode(pPanitentApp, _T("DockShell.CenterRight"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 300, pNodeWorkspace, pZoneRight);

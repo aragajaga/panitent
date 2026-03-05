@@ -24,6 +24,7 @@ struct DockData {
 	short iGripPos;
 	BOOL bShowCaption;
 	BOOL bCollapsed;
+	HWND hWndActiveTab;
 };
 
 typedef struct DockInspectorDialog DockInspectorDialog;
@@ -33,7 +34,7 @@ struct DockHostWindow {
 	Window base;
 
 	BOOL fCaptionDrag;
-	DockData* m_pSubjectNode;
+	TreeNode* m_pSubjectNode;
 	HBRUSH hCaptionBrush_;
 	TreeNode* pRoot_;
 	POINT ptDragPos_;
