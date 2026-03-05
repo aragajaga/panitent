@@ -9,6 +9,7 @@
 #include "resource.h"
 #include "toolwndframe.h"
 #include "workspacecontainer.h"
+#include "workspacedockpolicy.h"
 #include "panitentapp.h"
 #include "util/assert.h"
 
@@ -254,9 +255,15 @@ static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
         return FALSE;
     }
 
-    BOOL bSupportsSplit = FloatingWindowContainer_IsWorkspaceSplitDockSupported(
+    BOOL bSupportsSplitByHost = FloatingWindowContainer_IsWorkspaceSplitDockSupported(
         pFloatingWindowContainer,
         hWndTargetWorkspace);
+    int nSourceDocs = WorkspaceContainer_GetViewportCount(pWorkspaceSource);
+    int nTargetDocs = WorkspaceContainer_GetViewportCount(pWorkspaceTarget);
+    BOOL bSupportsSplit = WorkspaceDockPolicy_CanSplitTarget(
+        nSourceDocs,
+        nTargetDocs,
+        bSupportsSplitByHost);
 
     POINT ptLocal = {
         ptScreen.x - rcTargetScreen.left,

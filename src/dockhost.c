@@ -108,6 +108,7 @@ static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int 
 static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc);
 static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect);
+static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -2056,10 +2057,12 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 					continue;
 				}
 
-				RECT rc = { 0 };
-				DockData_GetClientRect(pDockData, &rc);
-
-			Win32_ContractRect(&rc, 4, 4);
+			RECT rc = { 0 };
+			DockData_GetClientRect(pDockData, &rc);
+			if (!DockHostWindow_IsWorkspaceWindow(pDockData->hWnd))
+			{
+				Win32_ContractRect(&rc, 4, 4);
+			}
 			int width = rc.right - rc.left;
 			int height = rc.bottom - rc.top;
 
@@ -3495,6 +3498,29 @@ BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
 	}
 
 	return DockHostWindow_DockHWND(pDockHostWindow, hWnd, pTargetHit->nDockSide, iDockSize);
+}
+
+BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd)
+{
+	if (!pDockHostWindow || !hWnd || !IsWindow(hWnd))
+	{
+		return FALSE;
+	}
+
+	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+	if (!pRoot)
+	{
+		return FALSE;
+	}
+
+	TreeNode* pNode = DockNode_FindByHWND(pRoot, hWnd);
+	if (!pNode)
+	{
+		return FALSE;
+	}
+
+	DockHostWindow_DestroyInclusive(pDockHostWindow, pNode);
+	return TRUE;
 }
 
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)

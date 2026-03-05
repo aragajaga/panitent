@@ -119,6 +119,7 @@ set(C_SOURCES
     src/viewport.c
     src/wic.c
     src/windowstub.c
+    src/workspacedockpolicy.c
     src/workspacecontainer.c
     )
 
@@ -172,6 +173,7 @@ if(PANITENT_BUILD_TESTS)
     tests/docklayout_tests.c
     src/docklayout.c
     src/dockpolicy.c
+    src/workspacedockpolicy.c
   )
 
   target_compile_features(panitent_dock_tests PRIVATE c_std_99)

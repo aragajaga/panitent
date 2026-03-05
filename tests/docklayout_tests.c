@@ -3,6 +3,7 @@
 
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
+#include "../src/workspacedockpolicy.h"
 
 static int test_zone_tab_rect_vertical_starts_from_top(void)
 {
@@ -206,6 +207,41 @@ static int test_core_panel_lock_policy(void)
 	return 0;
 }
 
+static int test_workspace_document_dock_split_policy(void)
+{
+	/* Single detached tab returning into its empty origin group: center-only. */
+	assert(!WorkspaceDockPolicy_CanSplitTarget(1, 0, TRUE));
+
+	/* Host/anchor cannot support split regardless of document counts. */
+	assert(!WorkspaceDockPolicy_CanSplitTarget(2, 2, FALSE));
+
+	/* Side split is still valid for non-empty target groups. */
+	assert(WorkspaceDockPolicy_CanSplitTarget(1, 1, TRUE));
+
+	/* Multi-document source may still split around an empty target group. */
+	assert(WorkspaceDockPolicy_CanSplitTarget(2, 0, TRUE));
+
+	return 0;
+}
+
+static int test_workspace_empty_group_cleanup_policy(void)
+{
+	/* Main workspace must survive even when empty. */
+	assert(!WorkspaceDockPolicy_ShouldAutoRemoveEmptyGroup(0, TRUE, TRUE));
+
+	/* Detached/floating groups are not removed by host cleanup policy. */
+	assert(!WorkspaceDockPolicy_ShouldAutoRemoveEmptyGroup(0, FALSE, FALSE));
+
+	/* Empty non-main docked groups must be removed. */
+	assert(WorkspaceDockPolicy_ShouldAutoRemoveEmptyGroup(0, FALSE, TRUE));
+	assert(WorkspaceDockPolicy_ShouldAutoRemoveEmptyGroup(-1, FALSE, TRUE));
+
+	/* Non-empty groups remain. */
+	assert(!WorkspaceDockPolicy_ShouldAutoRemoveEmptyGroup(1, FALSE, TRUE));
+
+	return 0;
+}
+
 int main(void)
 {
 	int failed = 0;
@@ -219,6 +255,8 @@ int main(void)
 	failed |= test_dock_preview_rect_behavior();
 	failed |= test_zone_tab_click_policy();
 	failed |= test_core_panel_lock_policy();
+	failed |= test_workspace_document_dock_split_policy();
+	failed |= test_workspace_empty_group_cleanup_policy();
 
 	if (failed)
 	{

@@ -95,6 +95,10 @@
 - clipping на маленьком клиентском прямоугольнике;
 - clamp для stack/split grip;
 - выбор ориентации стека по стороне.
+- workspace document drop policy:
+  - single-document self-return into empty origin group must be center-only (no side split targets);
+  - non-empty target document group may expose side split targets.
+  - empty non-main document groups docked in host must be auto-removed to prevent orphan containers.
 
 ### 7.2 Рекомендуемые интеграционные тесты
 
@@ -148,3 +152,10 @@
   - floating drag now resolves dock targets in two stages: local panel target (left/top/right/bottom of hovered panel) first, then global host-edge target as fallback.
   - dropping a floating panel on a local target performs panel-relative docking by inserting a split around the anchor panel instead of always docking to outer host edges.
   - local dock target hit-zones are now guide-driven (matching visible guide glyph rectangles), reducing accidental edge captures and making targeting behavior more deterministic.
+
+- 2026-03-06:
+  - added `workspacedockpolicy.*` to keep document-docking edge cases in one policy module.
+  - fixed single-document self-return behavior: when a detached single tab is dropped back into its empty origin document group, side targets are disabled and center-return is the only valid target.
+  - exported `WorkspaceContainer_GetViewportCount(...)` for deterministic document-dock decisions without peeking into internal vectors.
+  - added unit tests for workspace document split policy in `tests/docklayout_tests.c` and wired the new module into `panitent_dock_tests`.
+  - added host cleanup rule for empty docked document groups (non-main only) to avoid orphan/blank document containers after repeated drag/move flows.
