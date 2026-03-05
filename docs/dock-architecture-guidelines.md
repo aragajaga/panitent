@@ -145,3 +145,5 @@
   - vertical edge-tab caption drawing is centered using text metrics (cross-axis and run-axis), improving visual alignment on both left and right sides.
   - caption-undock drag overlay now renders a single blue SDF ring centered at drag-start; ring radius follows distance from drag-start to current mouse position.
   - drag-ring visuals now have softer edges and a dynamic heat tint (blue -> warm orange) as radius approaches the undock threshold.
+  - floating drag now resolves dock targets in two stages: local panel target (left/top/right/bottom of hovered panel) first, then global host-edge target as fallback.
+  - dropping a floating panel on a local target performs panel-relative docking by inserting a split around the anchor panel instead of always docking to outer host edges.

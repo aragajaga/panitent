@@ -167,8 +167,9 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 		return;
 	}
 
-	int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCursor);
-	if (nDockSide == DKS_NONE)
+	DockTargetHit dockTarget = { 0 };
+	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCursor, &dockTarget) ||
+		dockTarget.nDockSide == DKS_NONE)
 	{
 		FloatingWindowContainer_DestroyDockPreviewOverlay();
 		return;
@@ -208,7 +209,12 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 
 	RECT rcHostLocal = { 0, 0, width, height };
 	RECT rcPreview = { 0 };
-	if (DockLayout_GetDockPreviewRect(&rcHostLocal, nDockSide, &rcPreview))
+	rcPreview = dockTarget.rcPreviewClient;
+	if (IsRectEmpty(&rcPreview))
+	{
+		DockLayout_GetDockPreviewRect(&rcHostLocal, dockTarget.nDockSide, &rcPreview);
+	}
+	if (!IsRectEmpty(&rcPreview))
 	{
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcPreview, 110, 0x4d, 0x8e, 0xd6);
 
@@ -226,19 +232,40 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 	const int guideGap = 10;
 	int cx = width / 2;
 	int cy = height / 2;
+	if (dockTarget.bLocalTarget && !IsRectEmpty(&dockTarget.rcAnchorClient))
+	{
+		cx = (dockTarget.rcAnchorClient.left + dockTarget.rcAnchorClient.right) / 2;
+		cy = (dockTarget.rcAnchorClient.top + dockTarget.rcAnchorClient.bottom) / 2;
+		cx = max(guideSize * 2, min(cx, width - guideSize * 2));
+		cy = max(guideSize * 2, min(cy, height - guideSize * 2));
+
+		RECT rcAnchorOutline = dockTarget.rcAnchorClient;
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorOutline, 40, 0x5d, 0x78, 0x98);
+		RECT rcAnchorTop = { rcAnchorOutline.left, rcAnchorOutline.top, rcAnchorOutline.right, rcAnchorOutline.top + 1 };
+		RECT rcAnchorBottom = { rcAnchorOutline.left, rcAnchorOutline.bottom - 1, rcAnchorOutline.right, rcAnchorOutline.bottom };
+		RECT rcAnchorLeft = { rcAnchorOutline.left, rcAnchorOutline.top, rcAnchorOutline.left + 1, rcAnchorOutline.bottom };
+		RECT rcAnchorRight = { rcAnchorOutline.right - 1, rcAnchorOutline.top, rcAnchorOutline.right, rcAnchorOutline.bottom };
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorTop, 170, 0x78, 0xb8, 0xf8);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorBottom, 170, 0x78, 0xb8, 0xf8);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorLeft, 170, 0x78, 0xb8, 0xf8);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorRight, 170, 0x78, 0xb8, 0xf8);
+	}
 	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
 	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
 	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
 	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
 	RECT rcGuideCenter = { cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2 };
 
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 85, 0x55, 0x6b, 0x88);
+	if (!dockTarget.bLocalTarget)
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 85, 0x55, 0x6b, 0x88);
+	}
 	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 75, 0x4f, 0x62, 0x7a);
 	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 75, 0x4f, 0x62, 0x7a);
 	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 75, 0x4f, 0x62, 0x7a);
 	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 75, 0x4f, 0x62, 0x7a);
 
-	switch (nDockSide)
+	switch (dockTarget.nDockSide)
 	{
 	case DKS_LEFT:
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 190, 0x73, 0xb3, 0xf2);
@@ -594,19 +621,20 @@ static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloat
 
     RECT rcFloating = { 0 };
     GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
-    POINT ptCenter = {
-        rcFloating.left + Win32_Rect_GetWidth(&rcFloating) / 2,
-        rcFloating.top + Win32_Rect_GetHeight(&rcFloating) / 2
-    };
+	POINT ptCenter = {
+		rcFloating.left + Win32_Rect_GetWidth(&rcFloating) / 2,
+		rcFloating.top + Win32_Rect_GetHeight(&rcFloating) / 2
+	};
 
-    int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCenter);
-    if (nDockSide == DKS_NONE)
-    {
-        nDockSide = DKS_LEFT;
-    }
+	DockTargetHit dockTarget = { 0 };
+	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCenter, &dockTarget))
+	{
+		dockTarget.nDockSide = DKS_LEFT;
+	}
+	int nDockSide = dockTarget.nDockSide;
 
-    int iDockSize = pFloatingWindowContainer->iDockSizeHint;
-    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
+	int iDockSize = pFloatingWindowContainer->iDockSizeHint;
+	if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
     {
         iDockSize = max(iDockSize, Win32_Rect_GetWidth(&rcFloating));
     }
@@ -615,12 +643,12 @@ static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloat
     }
     iDockSize = max(iDockSize, 180);
 
-    HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    pFloatingWindowContainer->hWndChild = NULL;
-    if (!DockHostWindow_DockHWND(pFloatingWindowContainer->pDockHostTarget, hWndChild, nDockSide, iDockSize))
-    {
-        pFloatingWindowContainer->hWndChild = hWndChild;
-        return FALSE;
+	HWND hWndChild = pFloatingWindowContainer->hWndChild;
+	pFloatingWindowContainer->hWndChild = NULL;
+	if (!DockHostWindow_DockHWNDToTarget(pFloatingWindowContainer->pDockHostTarget, hWndChild, &dockTarget, iDockSize))
+	{
+		pFloatingWindowContainer->hWndChild = hWndChild;
+		return FALSE;
     }
 
     return TRUE;
@@ -871,16 +899,18 @@ static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloati
     }
 
     POINT ptCursor = { 0 };
-    if (!GetCursorPos(&ptCursor))
-    {
-        return FALSE;
-    }
+	if (!GetCursorPos(&ptCursor))
+	{
+		return FALSE;
+	}
 
-    int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCursor);
-    if (nDockSide == DKS_NONE)
-    {
-        return FALSE;
-    }
+	DockTargetHit dockTarget = { 0 };
+	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCursor, &dockTarget) ||
+		dockTarget.nDockSide == DKS_NONE)
+	{
+		return FALSE;
+	}
+	int nDockSide = dockTarget.nDockSide;
 
     RECT rcFloating = { 0 };
     GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
@@ -896,13 +926,13 @@ static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloati
 
     iDockSize = max(iDockSize, 180);
 
-    HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    pFloatingWindowContainer->hWndChild = NULL;
+	HWND hWndChild = pFloatingWindowContainer->hWndChild;
+	pFloatingWindowContainer->hWndChild = NULL;
 
-    if (!DockHostWindow_DockHWND(pFloatingWindowContainer->pDockHostTarget, hWndChild, nDockSide, iDockSize))
-    {
-        pFloatingWindowContainer->hWndChild = hWndChild;
-        return FALSE;
+	if (!DockHostWindow_DockHWNDToTarget(pFloatingWindowContainer->pDockHostTarget, hWndChild, &dockTarget, iDockSize))
+	{
+		pFloatingWindowContainer->hWndChild = hWndChild;
+		return FALSE;
     }
 
     return TRUE;

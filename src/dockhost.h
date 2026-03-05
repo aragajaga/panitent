@@ -68,5 +68,16 @@ TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow);
 #define DKS_TOP 3
 #define DKS_BOTTOM 4
 
+typedef struct DockTargetHit DockTargetHit;
+struct DockTargetHit {
+	int nDockSide;
+	BOOL bLocalTarget;
+	HWND hWndAnchor;
+	RECT rcAnchorClient;
+	RECT rcPreviewClient;
+};
+
 int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen);
+BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptScreen, DockTargetHit* pTargetHit);
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize);
+BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize);

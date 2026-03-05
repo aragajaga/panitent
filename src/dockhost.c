@@ -97,6 +97,9 @@ static void DockHostWindow_ShowPanelMenu(DockHostWindow* pDockHostWindow, TreeNo
 static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
+static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
+static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor);
+static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y);
 static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
 static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
@@ -3012,35 +3015,37 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 
 int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen)
 {
-	if (!pDockHostWindow)
+	DockTargetHit targetHit = { 0 };
+	if (!DockHostWindow_HitTestDockTarget(pDockHostWindow, ptScreen, &targetHit))
 	{
 		return DKS_NONE;
 	}
 
-	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
-	if (!hWndDockHost || !IsWindow(hWndDockHost))
+	return targetHit.nDockSide;
+}
+
+static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax)
+{
+	if (!pRect || !PtInRect(pRect, pt))
 	{
 		return DKS_NONE;
 	}
 
-	RECT rcHost = { 0 };
-	GetWindowRect(hWndDockHost, &rcHost);
-
-	if (!PtInRect(&rcHost, ptScreen))
+	int width = pRect->right - pRect->left;
+	int height = pRect->bottom - pRect->top;
+	if (width <= 0 || height <= 0)
 	{
 		return DKS_NONE;
 	}
 
-	int width = Win32_Rect_GetWidth(&rcHost);
-	int height = Win32_Rect_GetHeight(&rcHost);
 	int threshold = min(width, height) / 4;
-	threshold = max(threshold, 48);
-	threshold = min(threshold, 140);
+	threshold = max(threshold, iThresholdMin);
+	threshold = min(threshold, iThresholdMax);
 
-	int distLeft = ptScreen.x - rcHost.left;
-	int distRight = rcHost.right - ptScreen.x;
-	int distTop = ptScreen.y - rcHost.top;
-	int distBottom = rcHost.bottom - ptScreen.y;
+	int distLeft = pt.x - pRect->left;
+	int distRight = pRect->right - pt.x;
+	int distTop = pt.y - pRect->top;
+	int distBottom = pRect->bottom - pt.y;
 
 	int side = DKS_LEFT;
 	int minDist = distLeft;
@@ -3060,12 +3065,127 @@ int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScre
 		side = DKS_BOTTOM;
 	}
 
-	if (minDist > threshold)
+	return (minDist > threshold) ? DKS_NONE : side;
+}
+
+static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor)
+{
+	if (pRectAnchor)
 	{
-		return DKS_NONE;
+		SetRectEmpty(pRectAnchor);
 	}
 
-	return side;
+	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+	if (!pDockHostWindow || !pRoot)
+	{
+		return NULL;
+	}
+
+	TreeNode* pBestNode = NULL;
+	RECT rcBest = { 0 };
+	LONG bestArea = LONG_MAX;
+
+	TreeTraversalRLOT traversal = { 0 };
+	TreeTraversalRLOT_Init(&traversal, pRoot);
+
+	TreeNode* pCurrent = NULL;
+	while (pCurrent = TreeTraversalRLOT_GetNext(&traversal))
+	{
+		DockData* pDockData = pCurrent ? (DockData*)pCurrent->data : NULL;
+		if (!pDockData || !pDockData->hWnd || !IsWindow(pDockData->hWnd))
+		{
+			continue;
+		}
+
+		if (!DockNode_HasVisibleWindow(pCurrent))
+		{
+			continue;
+		}
+
+		RECT rc = pDockData->rc;
+		if (!PtInRect(&rc, ptClient))
+		{
+			continue;
+		}
+
+		LONG area = Win32_Rect_GetWidth(&rc) * Win32_Rect_GetHeight(&rc);
+		if (!pBestNode || area < bestArea)
+		{
+			pBestNode = pCurrent;
+			rcBest = rc;
+			bestArea = area;
+		}
+	}
+
+	TreeTraversalRLOT_Destroy(&traversal);
+
+	if (pRectAnchor && pBestNode)
+	{
+		*pRectAnchor = rcBest;
+	}
+	return pBestNode;
+}
+
+BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptScreen, DockTargetHit* pTargetHit)
+{
+	if (!pDockHostWindow || !pTargetHit)
+	{
+		return FALSE;
+	}
+
+	memset(pTargetHit, 0, sizeof(*pTargetHit));
+
+	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
+	if (!hWndDockHost || !IsWindow(hWndDockHost))
+	{
+		return FALSE;
+	}
+
+	RECT rcHostScreen = { 0 };
+	GetWindowRect(hWndDockHost, &rcHostScreen);
+	if (!PtInRect(&rcHostScreen, ptScreen))
+	{
+		return FALSE;
+	}
+
+	POINT ptClient = ptScreen;
+	ScreenToClient(hWndDockHost, &ptClient);
+
+	RECT rcClient = { 0 };
+	GetClientRect(hWndDockHost, &rcClient);
+
+	RECT rcAnchor = { 0 };
+	TreeNode* pAnchorNode = DockHostWindow_FindDockAnchorAtPoint(pDockHostWindow, ptClient, &rcAnchor);
+	if (pAnchorNode && pAnchorNode->data)
+	{
+		int localSide = DockHostWindow_HitTestSideInRect(&rcAnchor, ptClient, 16, 96);
+		if (localSide != DKS_NONE)
+		{
+			DockData* pAnchorData = (DockData*)pAnchorNode->data;
+			pTargetHit->nDockSide = localSide;
+			pTargetHit->bLocalTarget = TRUE;
+			pTargetHit->hWndAnchor = pAnchorData->hWnd;
+			pTargetHit->rcAnchorClient = rcAnchor;
+			if (!DockLayout_GetDockPreviewRect(&rcAnchor, localSide, &pTargetHit->rcPreviewClient))
+			{
+				pTargetHit->rcPreviewClient = rcAnchor;
+			}
+			return TRUE;
+		}
+	}
+
+	int globalSide = DockHostWindow_HitTestSideInRect(&rcClient, ptClient, 48, 140);
+	if (globalSide == DKS_NONE)
+	{
+		return FALSE;
+	}
+
+	pTargetHit->nDockSide = globalSide;
+	pTargetHit->bLocalTarget = FALSE;
+	SetRectEmpty(&pTargetHit->rcAnchorClient);
+	SetRectEmpty(&pTargetHit->rcPreviewClient);
+	DockLayout_GetDockPreviewRect(&rcClient, globalSide, &pTargetHit->rcPreviewClient);
+	return TRUE;
 }
 
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize)
@@ -3178,6 +3298,148 @@ BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
 	UpdateWindow(hWnd);
 
 	return TRUE;
+}
+
+static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize)
+{
+	if (!pDockHostWindow || !pAnchorNode || !pAnchorNode->data || !hWnd || !IsWindow(hWnd))
+	{
+		return FALSE;
+	}
+
+	DockData* pAnchorData = (DockData*)pAnchorNode->data;
+	if (!pAnchorData->hWnd || !IsWindow(pAnchorData->hWnd))
+	{
+		return FALSE;
+	}
+
+	DWORD dwSplitStyle = DGP_ABSOLUTE;
+	switch (nDockSide)
+	{
+	case DKS_LEFT:
+	case DKS_RIGHT:
+		dwSplitStyle |= DGD_HORIZONTAL;
+		break;
+
+	case DKS_TOP:
+	case DKS_BOTTOM:
+		dwSplitStyle |= DGD_VERTICAL;
+		break;
+
+	default:
+		return FALSE;
+	}
+
+	if (nDockSide == DKS_RIGHT || nDockSide == DKS_BOTTOM)
+	{
+		dwSplitStyle |= DGA_END;
+	}
+	else {
+		dwSplitStyle |= DGA_START;
+	}
+
+	if (iDockSize <= 0)
+	{
+		iDockSize = 280;
+	}
+
+	TreeNode* pLeaf = DockNode_Create(DockLayout_GetZoneStackGrip(nDockSide, iDockSize), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
+	TreeNode* pSplit = DockNode_Create(DockLayout_GetZoneSplitGrip(nDockSide, iDockSize), dwSplitStyle, FALSE);
+	if (!pLeaf || !pLeaf->data || !pSplit || !pSplit->data)
+	{
+		if (pLeaf)
+		{
+			if (pLeaf->data)
+			{
+				free(pLeaf->data);
+			}
+			free(pLeaf);
+		}
+		if (pSplit)
+		{
+			if (pSplit->data)
+			{
+				free(pSplit->data);
+			}
+			free(pSplit);
+		}
+		return FALSE;
+	}
+
+	DockData* pLeafData = (DockData*)pLeaf->data;
+	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
+	if (pLeafData->lpszName[0] == L'\0')
+	{
+		wcscpy_s(pLeafData->lpszName, MAX_PATH, pLeafData->lpszCaption);
+	}
+
+	DockData* pSplitData = (DockData*)pSplit->data;
+	wcscpy_s(pSplitData->lpszName, MAX_PATH, L"DockShell.PanelSplit");
+	pSplitData->rc = pAnchorData->rc;
+
+	if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
+	{
+		pSplit->node1 = pLeaf;
+		pSplit->node2 = pAnchorNode;
+	}
+	else {
+		pSplit->node1 = pAnchorNode;
+		pSplit->node2 = pLeaf;
+	}
+
+	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+	TreeNode* pParent = DockNode_FindParent(pRoot, pAnchorNode);
+	if (pParent)
+	{
+		if (pParent->node1 == pAnchorNode)
+		{
+			pParent->node1 = pSplit;
+		}
+		else if (pParent->node2 == pAnchorNode) {
+			pParent->node2 = pSplit;
+		}
+	}
+	else if (pRoot == pAnchorNode) {
+		DockHostWindow_SetRoot(pDockHostWindow, pSplit);
+	}
+	else {
+		if (pLeaf->data)
+		{
+			free(pLeaf->data);
+		}
+		free(pLeaf);
+		if (pSplit->data)
+		{
+			free(pSplit->data);
+		}
+		free(pSplit);
+		return FALSE;
+	}
+
+	DockHostWindow_Rearrange(pDockHostWindow);
+	ShowWindow(hWnd, SW_SHOW);
+	UpdateWindow(hWnd);
+	return TRUE;
+}
+
+BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize)
+{
+	if (!pDockHostWindow || !hWnd || !IsWindow(hWnd) || !pTargetHit || pTargetHit->nDockSide == DKS_NONE)
+	{
+		return FALSE;
+	}
+
+	if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))
+	{
+		TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+		TreeNode* pAnchorNode = DockNode_FindByHWND(pRoot, pTargetHit->hWndAnchor);
+		if (pAnchorNode && DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
+		{
+			return TRUE;
+		}
+	}
+
+	return DockHostWindow_DockHWND(pDockHostWindow, hWnd, pTargetHit->nDockSide, iDockSize);
 }
 
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window)
