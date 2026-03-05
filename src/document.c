@@ -18,6 +18,11 @@
 
 extern TreeNode* viewportNode;
 
+static BOOL Document_InitHistory(Document* pDocument);
+static void Document_FreeHistory(History* pHistory);
+static void Document_AssignFilePath(Document* pDocument, PCWSTR pszPath);
+static ViewportWindow* Document_CreateWorkspaceViewport();
+
 void Document_Init(Document* pDocument)
 {
     pDocument->canvas = NULL;
@@ -43,9 +48,17 @@ void Document_Destroy(Document* pDocument)
         return;
     }
 
+    if (pDocument->szFilePath)
+    {
+        free(pDocument->szFilePath);
+        pDocument->szFilePath = NULL;
+    }
+
     if (pDocument->history)
     {
+        Document_FreeHistory(pDocument->history);
         free(pDocument->history);
+        pDocument->history = NULL;
     }
 
     free(pDocument);
@@ -63,35 +76,49 @@ BOOL Document_IsFilePathSet(Document* doc)
 
 void Document_OpenFile(LPWSTR pszPath)
 {
+    if (!pszPath || !pszPath[0])
+    {
+        return;
+    }
+
     Document* pDocument = Document_Create();
     if (!pDocument)
     {
         return;
     }
 
-    pDocument->history = (History*)malloc(sizeof(History));
-    memset(pDocument->history, 0, sizeof(History));
-    if (!pDocument->history)
+    if (!Document_InitHistory(pDocument))
     {
         Document_Destroy(pDocument);
         return;
     }
 
-    HistoryRecord* initialRecord = (HistoryRecord*)malloc(sizeof(HistoryRecord));
-    memset(initialRecord, 0, sizeof(HistoryRecord));
-    pDocument->history->peak = initialRecord;
-
     /* Create and set canvas */
     ImageBuffer ib = ImageFileReader(pszPath);
+    if (!ib.bits || ib.width == 0 || ib.height == 0)
+    {
+        Document_Destroy(pDocument);
+        return;
+    }
+
     Canvas* canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
+    free(ib.bits);
+    if (!canvas)
+    {
+        Document_Destroy(pDocument);
+        return;
+    }
+
     Document_SetCanvas(pDocument, canvas);
+    Document_AssignFilePath(pDocument, pszPath);
 
-    ViewportWindow* pViewportWindow = ViewportWindow_Create();
-    Window_CreateWindow((Window*)pViewportWindow, NULL);
-
+    ViewportWindow* pViewportWindow = Document_CreateWorkspaceViewport();
+    if (!pViewportWindow)
+    {
+        Document_Destroy(pDocument);
+        return;
+    }
     ViewportWindow_SetDocument(pViewportWindow, pDocument);
-
-    // Panitent_SetActiveViewport(pViewportWindow);
 }
 
 void Document_Open(Document* prevDoc)
@@ -119,6 +146,11 @@ void Document_Open(Document* prevDoc)
 
 void Document_Save(Document* doc)
 {
+    if (!doc)
+    {
+        return;
+    }
+
     LPWSTR pszPath = NULL;
     BOOL bResult = init_save_file_dialog(&pszPath);
 
@@ -128,6 +160,12 @@ void Document_Save(Document* doc)
     }
 
     Canvas* c = doc->canvas;
+    if (!c)
+    {
+        free(pszPath);
+        return;
+    }
+
     ImageBuffer ib = { 0 };
     ib.width = c->width;
     ib.height = c->height;
@@ -135,6 +173,9 @@ void Document_Save(Document* doc)
     ib.size = c->buffer_size;
 
     ImageFileWriter(pszPath, ib);
+
+    Document_AssignFilePath(doc, pszPath);
+    Window_Invalidate((Window*)PanitentApp_GetWorkspaceContainer(PanitentApp_Instance()));
 
     free(pszPath);
 }
@@ -166,40 +207,33 @@ BOOL Document_Close(Document* doc)
 
 Document* Document_New(int width, int height)
 {
-    ViewportWindow* pViewportWindow = PanitentApp_GetActiveViewport(PanitentApp_Instance());
-
-    if (!pViewportWindow) {
-        pViewportWindow = ViewportWindow_Create();
-        Window_CreateWindow((Window*)pViewportWindow, NULL);
-
-        WorkspaceContainer* pWorkspaceContainer = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
-
-        PanitentApp_SetActiveViewport(PanitentApp_Instance(), pViewportWindow);
-    }
-
     Document* pDocument = Document_Create();
     if (!pDocument)
     {
         return NULL;
     }
 
-    pDocument->history = (History*)malloc(sizeof(History));
-    memset(pDocument->history, 0, sizeof(History));
-    if (!pDocument->history)
+    if (!Document_InitHistory(pDocument))
     {
         Document_Destroy(pDocument);
         return NULL;
     }
 
-    HistoryRecord* initialRecord = (HistoryRecord*)malloc(sizeof(HistoryRecord));
-    memset(initialRecord, 0, sizeof(HistoryRecord));
-    pDocument->history->peak = initialRecord;
-
     Canvas* pCanvas = Canvas_Create(width, height);
-    Document_SetCanvas(pDocument, pCanvas);
-    pDocument->canvas = pCanvas;
+    if (!pCanvas)
+    {
+        Document_Destroy(pDocument);
+        return NULL;
+    }
 
+    Document_SetCanvas(pDocument, pCanvas);
+
+    ViewportWindow* pViewportWindow = Document_CreateWorkspaceViewport();
+    if (!pViewportWindow)
+    {
+        Document_Destroy(pDocument);
+        return NULL;
+    }
     ViewportWindow_SetDocument(pViewportWindow, pDocument);
 
     return pDocument;
@@ -216,4 +250,114 @@ Canvas* Document_GetCanvas(Document* document)
         return NULL;
 
     return document->canvas;
+}
+
+static BOOL Document_InitHistory(Document* pDocument)
+{
+    if (!pDocument)
+    {
+        return FALSE;
+    }
+
+    pDocument->history = (History*)calloc(1, sizeof(History));
+    if (!pDocument->history)
+    {
+        return FALSE;
+    }
+
+    HistoryRecord* initialRecord = (HistoryRecord*)calloc(1, sizeof(HistoryRecord));
+    if (!initialRecord)
+    {
+        free(pDocument->history);
+        pDocument->history = NULL;
+        return FALSE;
+    }
+
+    pDocument->history->peak = initialRecord;
+    return TRUE;
+}
+
+static void Document_FreeHistory(History* pHistory)
+{
+    if (!pHistory || !pHistory->peak)
+    {
+        return;
+    }
+
+    HistoryRecord* pHead = pHistory->peak;
+    while (pHead->previous)
+    {
+        pHead = pHead->previous;
+    }
+
+    while (pHead)
+    {
+        HistoryRecord* pNext = pHead->next;
+        if (pHead->differential)
+        {
+            Canvas_Delete(pHead->differential);
+            free(pHead->differential);
+            pHead->differential = NULL;
+        }
+
+        free(pHead);
+        pHead = pNext;
+    }
+
+    pHistory->peak = NULL;
+}
+
+static void Document_AssignFilePath(Document* pDocument, PCWSTR pszPath)
+{
+    if (!pDocument)
+    {
+        return;
+    }
+
+    if (pDocument->szFilePath)
+    {
+        free(pDocument->szFilePath);
+        pDocument->szFilePath = NULL;
+    }
+
+    if (!pszPath || !pszPath[0])
+    {
+        return;
+    }
+
+    size_t cchPath = wcslen(pszPath) + 1;
+    pDocument->szFilePath = (LPWSTR)malloc(cchPath * sizeof(WCHAR));
+    if (!pDocument->szFilePath)
+    {
+        return;
+    }
+
+    wcscpy_s(pDocument->szFilePath, cchPath, pszPath);
+}
+
+static ViewportWindow* Document_CreateWorkspaceViewport()
+{
+    PanitentApp* pApp = PanitentApp_Instance();
+    WorkspaceContainer* pWorkspaceContainer = PanitentApp_GetWorkspaceContainer(pApp);
+    if (!pWorkspaceContainer)
+    {
+        return NULL;
+    }
+
+    ViewportWindow* pViewportWindow = ViewportWindow_Create();
+    if (!pViewportWindow)
+    {
+        return NULL;
+    }
+
+    HWND hWndViewport = Window_CreateWindow((Window*)pViewportWindow, NULL);
+    if (!hWndViewport || !IsWindow(hWndViewport))
+    {
+        free(pViewportWindow);
+        return NULL;
+    }
+
+    WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+    PanitentApp_SetActiveViewport(pApp, pViewportWindow);
+    return pViewportWindow;
 }
