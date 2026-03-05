@@ -27,6 +27,7 @@ BOOL fSuggestTop;
 
 int iCaptionHeight = 24;
 int iBorderWidth = 4;
+int iZoneTabGutter = 24;
 
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
@@ -44,10 +45,17 @@ static int DockHostWindow_GetZoneStackGrip(int nDockSide, int iDockSize);
 static int DockHostWindow_GetZoneSplitGrip(int nDockSide, int iDockSize);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize);
+static BOOL DockNode_HasAnyWindow(TreeNode* pNode);
+static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
+static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, RECT* pRect);
+static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y);
+static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc);
+static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
 void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
+void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
 
 BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 {
@@ -63,6 +71,11 @@ BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 		rcClient.top += iCaptionHeight + 1;
 	}
 
+	if (wcscmp(pDockData->lpszName, L"Root") == 0)
+	{
+		Win32_ContractRect(&rcClient, iZoneTabGutter, iZoneTabGutter);
+	}
+
 	/* TODO: memcpy? */
 	*rc = rcClient;
 
@@ -76,6 +89,7 @@ void DockData_Init(DockData* pDockData)
 	pDockData->iGripPos = 64;
 	pDockData->dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
 	pDockData->bShowCaption = FALSE;
+	pDockData->bCollapsed = FALSE;
 }
 
 BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
@@ -182,6 +196,11 @@ static BOOL DockNode_HasVisibleWindow(TreeNode* pNode)
 	}
 
 	DockData* pDockData = (DockData*)pNode->data;
+	if (pDockData && pDockData->bCollapsed && DockNameStartsWith(pDockData->lpszName, L"DockZone."))
+	{
+		return FALSE;
+	}
+
 	if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd))
 	{
 		return TRUE;
@@ -294,6 +313,184 @@ static int DockHostWindow_GetZoneSplitGrip(int nDockSide, int iDockSize)
 	}
 
 	return iGrip;
+}
+
+static BOOL DockNode_HasAnyWindow(TreeNode* pNode)
+{
+	if (!pNode)
+	{
+		return FALSE;
+	}
+
+	DockData* pDockData = (DockData*)pNode->data;
+	if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd))
+	{
+		return TRUE;
+	}
+
+	return DockNode_HasAnyWindow(pNode->node1) || DockNode_HasAnyWindow(pNode->node2);
+}
+
+static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide)
+{
+	if (!pDockHostWindow)
+	{
+		return NULL;
+	}
+
+	PCWSTR pszZoneName = DockHostWindow_GetZoneName(nDockSide);
+	if (!pszZoneName)
+	{
+		return NULL;
+	}
+
+	return DockNode_FindByName(DockHostWindow_GetRoot(pDockHostWindow), pszZoneName);
+}
+
+static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, RECT* pRect)
+{
+	if (!pDockHostWindow || !pRect)
+	{
+		return FALSE;
+	}
+
+	RECT rcClient = { 0 };
+	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
+	int cx = Win32_Rect_GetWidth(&rcClient);
+	int cy = Win32_Rect_GetHeight(&rcClient);
+	if (cx <= 0 || cy <= 0)
+	{
+		return FALSE;
+	}
+
+	const int kEdgeThickness = 24;
+	const int kLongSide = 96;
+
+	switch (nDockSide)
+	{
+	case DKS_LEFT:
+		pRect->left = 0;
+		pRect->right = kEdgeThickness;
+		pRect->top = max((cy - kLongSide) / 2, 0);
+		pRect->bottom = min(pRect->top + kLongSide, cy);
+		return TRUE;
+
+	case DKS_RIGHT:
+		pRect->right = cx;
+		pRect->left = max(cx - kEdgeThickness, 0);
+		pRect->top = max((cy - kLongSide) / 2, 0);
+		pRect->bottom = min(pRect->top + kLongSide, cy);
+		return TRUE;
+
+	case DKS_TOP:
+		pRect->top = 0;
+		pRect->bottom = kEdgeThickness;
+		pRect->left = max((cx - kLongSide - 20) / 2, 0);
+		pRect->right = min(pRect->left + kLongSide + 20, cx);
+		return TRUE;
+
+	case DKS_BOTTOM:
+		pRect->bottom = cy;
+		pRect->top = max(cy - kEdgeThickness, 0);
+		pRect->left = max((cx - kLongSide - 20) / 2, 0);
+		pRect->right = min(pRect->left + kLongSide + 20, cx);
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y)
+{
+	POINT pt = { x, y };
+	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
+	for (int i = 0; i < ARRAYSIZE(sides); ++i)
+	{
+		TreeNode* pZone = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
+		if (!pZone || !DockNode_HasAnyWindow(pZone))
+		{
+			continue;
+		}
+
+		RECT rcTab = { 0 };
+		if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], &rcTab))
+		{
+			continue;
+		}
+
+		if (PtInRect(&rcTab, pt))
+		{
+			return sides[i];
+		}
+	}
+
+	return DKS_NONE;
+}
+
+static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc)
+{
+	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
+	for (int i = 0; i < ARRAYSIZE(sides); ++i)
+	{
+		TreeNode* pZone = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
+		if (!pZone || !pZone->data || !DockNode_HasAnyWindow(pZone))
+		{
+			continue;
+		}
+
+		RECT rcTab = { 0 };
+		if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], &rcTab))
+		{
+			continue;
+		}
+
+		DockData* pZoneData = (DockData*)pZone->data;
+		BOOL bCollapsed = pZoneData->bCollapsed ? TRUE : FALSE;
+
+		SelectObject(hdc, GetStockObject(DC_BRUSH));
+		SelectObject(hdc, GetStockObject(DC_PEN));
+		SetDCBrushColor(hdc, bCollapsed ? Win32_HexToCOLORREF(L"#ada4ce") : Win32_HexToCOLORREF(L"#9185be"));
+		SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+		Rectangle(hdc, rcTab.left, rcTab.top, rcTab.right, rcTab.bottom);
+
+		PCWSTR pszGlyph = L"?";
+		switch (sides[i])
+		{
+		case DKS_LEFT:
+			pszGlyph = bCollapsed ? L">" : L"<";
+			break;
+		case DKS_RIGHT:
+			pszGlyph = bCollapsed ? L"<" : L">";
+			break;
+		case DKS_TOP:
+			pszGlyph = bCollapsed ? L"v" : L"^";
+			break;
+		case DKS_BOTTOM:
+			pszGlyph = bCollapsed ? L"^" : L"v";
+			break;
+		}
+
+		HFONT hFontPrev = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+		SetBkMode(hdc, TRANSPARENT);
+		SetTextColor(hdc, COLORREF_WHITE);
+		DrawText(hdc, pszGlyph, 1, &rcTab, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+		SelectObject(hdc, hFontPrev);
+	}
+}
+
+static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide)
+{
+	TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, nDockSide);
+	if (!pZoneNode || !pZoneNode->data || !DockNode_HasAnyWindow(pZoneNode))
+	{
+		return FALSE;
+	}
+
+	DockData* pZoneData = (DockData*)pZoneNode->data;
+	pZoneData->bCollapsed = pZoneData->bCollapsed ? FALSE : TRUE;
+
+	DockHostWindow_Rearrange(pDockHostWindow);
+	return TRUE;
 }
 
 void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
@@ -509,9 +706,18 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 			DockData_GetClientRect(pDockData, &rc);
 
 			Win32_ContractRect(&rc, 4, 4);
+			int width = rc.right - rc.left;
+			int height = rc.bottom - rc.top;
 
-			SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, 0);
-			UpdateWindow(pDockData->hWnd);
+			if (width <= 12 || height <= 12)
+			{
+				ShowWindow(pDockData->hWnd, SW_HIDE);
+			}
+			else {
+				ShowWindow(pDockData->hWnd, SW_SHOWNA);
+				SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, width, height, 0);
+				UpdateWindow(pDockData->hWnd);
+			}
 		}
 	}
 
@@ -668,6 +874,7 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 
 	if (pDockHostWindow->pRoot_) {
 		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+		DockHostWindow_DrawZoneTabs(pDockHostWindow, hdc);
 	}
 	else {
 		HDC hdcLogo = CreateCompatibleDC(hdc);
@@ -1036,6 +1243,13 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 	RECT rcClient = { 0 };
 	GetClientRect(hWnd, &rcClient);
 
+	int zoneSide = DockHostWindow_HitTestZoneTab(pDockHostWindow, x, y);
+	if (zoneSide != DKS_NONE)
+	{
+		DockHostWindow_ToggleZoneCollapsed(pDockHostWindow, zoneSide);
+		return;
+	}
+
 	TreeNode* pTreeNode = NULL;
 	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
 
@@ -1295,6 +1509,11 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 		return FALSE;
 	}
 
+	if (pZoneNode->data)
+	{
+		((DockData*)pZoneNode->data)->bCollapsed = FALSE;
+	}
+
 	DockHostWindow_UpdateZoneSplitGrip(pDockHostWindow, pZoneNode, nDockSide, iDockSize);
 
 	TreeNode* pLeaf = DockNode_Create(DockHostWindow_GetZoneStackGrip(nDockSide, iDockSize), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
@@ -1525,6 +1744,7 @@ DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 		pDockData->dwStyle = dwStyle;
 		pDockData->iGripPos = iGripPos;
 		pDockData->bShowCaption = bShowCaption;
+		pDockData->bCollapsed = FALSE;
 
 		return pDockData;
 	}

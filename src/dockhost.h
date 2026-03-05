@@ -23,6 +23,7 @@ struct DockData {
 	float fGripPos;
 	short iGripPos;
 	BOOL bShowCaption;
+	BOOL bCollapsed;
 };
 
 typedef struct DockInspectorDialog DockInspectorDialog;
