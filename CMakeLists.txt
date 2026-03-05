@@ -77,6 +77,7 @@ set(C_SOURCES
     src/crashhandler.c
     src/crefptr.c
     src/debug.c
+    src/docklayout.c
     src/dockhost.c
     src/dockinspectordialog.c
     src/document.c
@@ -161,3 +162,25 @@ if (MSVC)
 endif(MSVC)
 
 target_link_libraries(${PROJECT_NAME} win32fw shlwapi comctl32 uxtheme msimg32 windowscodecs dbghelp opengl32 dwmapi)
+
+option(PANITENT_BUILD_TESTS "Build unit tests for Panitent" ON)
+if(PANITENT_BUILD_TESTS)
+  enable_testing()
+
+  add_executable(panitent_dock_tests
+    tests/docklayout_tests.c
+    src/docklayout.c
+  )
+
+  target_compile_features(panitent_dock_tests PRIVATE c_std_99)
+  target_include_directories(panitent_dock_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(panitent_dock_tests PRIVATE _UNICODE UNICODE)
+
+  if(MSVC)
+    target_compile_options(panitent_dock_tests PRIVATE /W3)
+  endif()
+
+  add_test(NAME panitent_dock_layout COMMAND panitent_dock_tests)
+endif()

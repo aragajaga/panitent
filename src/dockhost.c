@@ -12,6 +12,7 @@
 #include "util/stack.h"
 #include "util/tree.h"
 #include "dockhost.h"
+#include "docklayout.h"
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
@@ -43,9 +44,6 @@ static BOOL DockNameStartsWith(PCWSTR pszValue, PCWSTR pszPrefix);
 static BOOL DockNode_IsStructural(TreeNode* pNode);
 static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName);
 static PCWSTR DockHostWindow_GetZoneName(int nDockSide);
-static DWORD DockHostWindow_GetZoneStackStyle(int nDockSide);
-static int DockHostWindow_GetZoneStackGrip(int nDockSide, int iDockSize);
-static int DockHostWindow_GetZoneSplitGrip(int nDockSide, int iDockSize);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize);
 static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
@@ -304,45 +302,6 @@ static PCWSTR DockHostWindow_GetZoneName(int nDockSide)
 	}
 }
 
-static DWORD DockHostWindow_GetZoneStackStyle(int nDockSide)
-{
-	DWORD dwStyle = DGA_END | DGP_ABSOLUTE;
-	if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
-	{
-		dwStyle |= DGD_VERTICAL;
-	}
-	else {
-		dwStyle |= DGD_HORIZONTAL;
-	}
-
-	return dwStyle;
-}
-
-static int DockHostWindow_GetZoneStackGrip(int nDockSide, int iDockSize)
-{
-	if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
-	{
-		return 220;
-	}
-
-	iDockSize = iDockSize > 0 ? iDockSize : 260;
-	return max(160, min(iDockSize, 520));
-}
-
-static int DockHostWindow_GetZoneSplitGrip(int nDockSide, int iDockSize)
-{
-	int iGrip = iDockSize > 0 ? iDockSize : 220;
-	if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
-	{
-		iGrip = max(160, min(iGrip, 500));
-	}
-	else {
-		iGrip = max(56, min(iGrip, 360));
-	}
-
-	return iGrip;
-}
-
 static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount)
 {
 	if (!pNode || !ppNodes || !pnCount || *pnCount >= cCapacity)
@@ -451,52 +410,7 @@ static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int n
 
 	RECT rcClient = { 0 };
 	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
-	int cx = Win32_Rect_GetWidth(&rcClient);
-	int cy = Win32_Rect_GetHeight(&rcClient);
-	if (cx <= 0 || cy <= 0)
-	{
-		return FALSE;
-	}
-
-	const int kEdgeThickness = 24;
-	const int kLongSide = 92;
-	const int kGap = 2;
-	int nSafeTabs = max(1, nTabs);
-	int iSafeIndex = max(0, min(iTabIndex, nSafeTabs - 1));
-	int iOffset = iSafeIndex * (kLongSide + kGap);
-
-	switch (nDockSide)
-	{
-	case DKS_LEFT:
-		pRect->left = 0;
-		pRect->right = kEdgeThickness;
-		pRect->top = iOffset;
-		pRect->bottom = min(pRect->top + kLongSide, cy);
-		return TRUE;
-
-	case DKS_RIGHT:
-		pRect->right = cx;
-		pRect->left = max(cx - kEdgeThickness, 0);
-		pRect->top = iOffset;
-		pRect->bottom = min(pRect->top + kLongSide, cy);
-		return TRUE;
-
-	case DKS_TOP:
-		pRect->top = 0;
-		pRect->bottom = kEdgeThickness;
-		pRect->left = iOffset;
-		pRect->right = min(pRect->left + kLongSide, cx);
-		return TRUE;
-
-	case DKS_BOTTOM:
-		pRect->bottom = cy;
-		pRect->top = max(cy - kEdgeThickness, 0);
-		pRect->left = iOffset;
-		pRect->right = min(pRect->left + kLongSide, cx);
-		return TRUE;
-	}
-
-	return FALSE;
+	return DockLayout_GetZoneTabRect(&rcClient, nDockSide, iTabIndex, nTabs, pRect);
 }
 
 static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab)
@@ -1669,7 +1583,7 @@ static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, 
 	}
 
 	DockData* pDockDataParent = (DockData*)pParent->data;
-	pDockDataParent->iGripPos = DockHostWindow_GetZoneSplitGrip(nDockSide, iDockSize);
+	pDockDataParent->iGripPos = DockLayout_GetZoneSplitGrip(nDockSide, iDockSize);
 }
 
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize)
@@ -1688,7 +1602,7 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 
 	DockHostWindow_UpdateZoneSplitGrip(pDockHostWindow, pZoneNode, nDockSide, iDockSize);
 
-	TreeNode* pLeaf = DockNode_Create(DockHostWindow_GetZoneStackGrip(nDockSide, iDockSize), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
+	TreeNode* pLeaf = DockNode_Create(DockLayout_GetZoneStackGrip(nDockSide, iDockSize), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
 	if (!pLeaf || !pLeaf->data)
 	{
 		return FALSE;
@@ -1712,7 +1626,7 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 		return TRUE;
 	}
 
-	TreeNode* pSplit = DockNode_Create(DockHostWindow_GetZoneStackGrip(nDockSide, iDockSize), DockHostWindow_GetZoneStackStyle(nDockSide), FALSE);
+	TreeNode* pSplit = DockNode_Create(DockLayout_GetZoneStackGrip(nDockSide, iDockSize), DockLayout_GetZoneStackStyle(nDockSide), FALSE);
 	if (!pSplit || !pSplit->data)
 	{
 		if (pLeaf->data)

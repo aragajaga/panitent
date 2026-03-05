@@ -5,6 +5,7 @@
 
 #include "panitentapp.h"
 #include "panitentwindow.h"
+#include "docklayout.h"
 
 #include "option_bar.h"
 #include "toolbox.h"
@@ -246,30 +247,6 @@ TreeNode* CreateZoneNode(PCWSTR pszName)
     return pZoneNode;
 }
 
-static DWORD AppDock_GetZoneStackStyle(int nDockSide)
-{
-    DWORD dwStyle = DGA_END | DGP_ABSOLUTE;
-    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
-    {
-        dwStyle |= DGD_VERTICAL;
-    }
-    else {
-        dwStyle |= DGD_HORIZONTAL;
-    }
-
-    return dwStyle;
-}
-
-static int AppDock_GetZoneStackGrip(int nDockSide)
-{
-    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
-    {
-        return 220;
-    }
-
-    return 260;
-}
-
 static void AppDock_AppendPanelToZone(TreeNode* pZoneNode, TreeNode* pPanelNode, int nDockSide)
 {
     if (!pZoneNode || !pPanelNode)
@@ -283,7 +260,10 @@ static void AppDock_AppendPanelToZone(TreeNode* pZoneNode, TreeNode* pPanelNode,
         return;
     }
 
-    TreeNode* pSplit = DockNode_Create(AppDock_GetZoneStackGrip(nDockSide), AppDock_GetZoneStackStyle(nDockSide), FALSE);
+    TreeNode* pSplit = DockNode_Create(
+        DockLayout_GetZoneStackGrip(nDockSide, 0),
+        DockLayout_GetZoneStackStyle(nDockSide),
+        FALSE);
     if (!pSplit || !pSplit->data)
     {
         return;
