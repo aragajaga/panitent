@@ -41,6 +41,7 @@ static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloati
 static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 static void FloatingWindowContainer_DestroyDockPreviewOverlay(void);
 static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWindowContainer* pFloatingWindowContainer);
+static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWND hWndTargetWorkspace);
 static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace);
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
@@ -191,6 +192,13 @@ static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWin
         return NULL;
     }
 
+    WCHAR szClassName[64] = L"";
+    GetClassNameW(pFloatingWindowContainer->hWndChild, szClassName, ARRAYSIZE(szClassName));
+    if (wcscmp(szClassName, L"__WorkspaceContainer") != 0)
+    {
+        return NULL;
+    }
+
     Window* pWindow = WindowMap_Get(pFloatingWindowContainer->hWndChild);
     if (!pWindow)
     {
@@ -200,25 +208,174 @@ static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWin
     return (WorkspaceContainer*)pWindow;
 }
 
+static BOOL FloatingWindowContainer_IsClassName(HWND hWnd, PCWSTR pszClassName)
+{
+    if (!hWnd || !IsWindow(hWnd) || !pszClassName)
+    {
+        return FALSE;
+    }
+
+    WCHAR szClassName[64] = L"";
+    GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
+    return wcscmp(szClassName, pszClassName) == 0;
+}
+
+static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWND hWndTargetWorkspace)
+{
+    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
+    {
+        return NULL;
+    }
+
+    HWND hWndTargetParent = GetParent(hWndTargetWorkspace);
+    if (!hWndTargetParent || !IsWindow(hWndTargetParent))
+    {
+        return NULL;
+    }
+
+    if (FloatingWindowContainer_IsClassName(hWndTargetParent, L"__DockHostWindow"))
+    {
+        Window* pDockHostWindow = WindowMap_Get(hWndTargetParent);
+        return (DockHostWindow*)pDockHostWindow;
+    }
+
+    if (!FloatingWindowContainer_IsClassName(hWndTargetParent, L"__FloatingWindowContainer"))
+    {
+        return NULL;
+    }
+
+    Window* pFloatingWindow = WindowMap_Get(hWndTargetParent);
+    if (!pFloatingWindow)
+    {
+        return NULL;
+    }
+
+    FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)pFloatingWindow;
+    if (!pFloatingWindowContainer->hWndChild || !IsWindow(pFloatingWindowContainer->hWndChild))
+    {
+        return NULL;
+    }
+
+    if (FloatingWindowContainer_IsClassName(pFloatingWindowContainer->hWndChild, L"__DockHostWindow"))
+    {
+        Window* pDockHostWindow = WindowMap_Get(pFloatingWindowContainer->hWndChild);
+        return (DockHostWindow*)pDockHostWindow;
+    }
+
+    if (pFloatingWindowContainer->hWndChild != hWndTargetWorkspace ||
+        !FloatingWindowContainer_IsClassName(hWndTargetWorkspace, L"__WorkspaceContainer"))
+    {
+        return NULL;
+    }
+
+    DockHostWindow* pLocalDockHostWindow = DockHostWindow_Create(PanitentApp_Instance());
+    if (!pLocalDockHostWindow)
+    {
+        return NULL;
+    }
+
+    HWND hWndLocalDockHostWindow = Window_CreateWindow((Window*)pLocalDockHostWindow, hWndTargetParent);
+    if (!hWndLocalDockHostWindow || !IsWindow(hWndLocalDockHostWindow))
+    {
+        free(pLocalDockHostWindow);
+        return NULL;
+    }
+
+    TreeNode* pRootNode = DockNode_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
+    TreeNode* pWorkspaceNode = DockNode_Create(220, DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, FALSE);
+    if (!pRootNode || !pRootNode->data || !pWorkspaceNode || !pWorkspaceNode->data)
+    {
+        if (pRootNode)
+        {
+            if (pRootNode->data)
+            {
+                free(pRootNode->data);
+            }
+            free(pRootNode);
+        }
+        if (pWorkspaceNode)
+        {
+            if (pWorkspaceNode->data)
+            {
+                free(pWorkspaceNode->data);
+            }
+            free(pWorkspaceNode);
+        }
+
+        DestroyWindow(hWndLocalDockHostWindow);
+        return NULL;
+    }
+
+    DockData* pRootData = (DockData*)pRootNode->data;
+    wcscpy_s(pRootData->lpszName, MAX_PATH, L"Root");
+
+    RECT rcFloatingClient = { 0 };
+    GetClientRect(hWndTargetParent, &rcFloatingClient);
+    pRootData->rc = rcFloatingClient;
+
+    Window* pTargetWorkspaceWindow = WindowMap_Get(hWndTargetWorkspace);
+    if (!pTargetWorkspaceWindow)
+    {
+        DestroyWindow(hWndLocalDockHostWindow);
+        return NULL;
+    }
+
+    DockData* pWorkspaceData = (DockData*)pWorkspaceNode->data;
+    wcscpy_s(pWorkspaceData->lpszName, MAX_PATH, L"WorkspaceContainer");
+    pWorkspaceData->bShowCaption = FALSE;
+    DockData_PinWindow(pLocalDockHostWindow, pWorkspaceData, pTargetWorkspaceWindow);
+
+    pRootNode->node1 = pWorkspaceNode;
+    pRootNode->node2 = NULL;
+    DockHostWindow_SetRoot(pLocalDockHostWindow, pRootNode);
+
+    pFloatingWindowContainer->hWndChild = hWndLocalDockHostWindow;
+
+    int width = max(0, Win32_Rect_GetWidth(&rcFloatingClient));
+    int height = max(0, Win32_Rect_GetHeight(&rcFloatingClient));
+    SetWindowPos(
+        hWndLocalDockHostWindow,
+        HWND_TOP,
+        0,
+        0,
+        width,
+        height,
+        SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+
+    return pLocalDockHostWindow;
+}
+
 static BOOL FloatingWindowContainer_IsWorkspaceSplitDockSupported(FloatingWindowContainer* pFloatingWindowContainer, HWND hWndWorkspace)
 {
-    if (!pFloatingWindowContainer || !hWndWorkspace || !IsWindow(hWndWorkspace))
+    UNREFERENCED_PARAMETER(pFloatingWindowContainer);
+
+    if (!hWndWorkspace || !IsWindow(hWndWorkspace))
     {
         return FALSE;
     }
 
-    HWND hWndDockHost = NULL;
-    if (pFloatingWindowContainer->pDockHostTarget)
-    {
-        hWndDockHost = Window_GetHWND((Window*)pFloatingWindowContainer->pDockHostTarget);
-    }
-
-    if (!hWndDockHost || !IsWindow(hWndDockHost))
+    HWND hWndParent = GetParent(hWndWorkspace);
+    if (!hWndParent || !IsWindow(hWndParent))
     {
         return FALSE;
     }
 
-    return GetParent(hWndWorkspace) == hWndDockHost;
+    if (FloatingWindowContainer_IsClassName(hWndParent, L"__DockHostWindow"))
+    {
+        return TRUE;
+    }
+
+    if (FloatingWindowContainer_IsClassName(hWndParent, L"__FloatingWindowContainer"))
+    {
+        return TRUE;
+    }
+
+    if (FloatingWindowContainer_IsClassName(hWndParent, L"__WorkspaceContainer"))
+    {
+        return FloatingWindowContainer_IsClassName(GetParent(hWndParent), L"__DockHostWindow");
+    }
+
+    return FALSE;
 }
 
 static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
@@ -1345,8 +1502,7 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
         return FALSE;
     }
 
-    if (!pFloatingWindowContainer->pDockHostTarget ||
-        !pFloatingWindowContainer->hWndChild ||
+    if (!pFloatingWindowContainer->hWndChild ||
         !IsWindow(pFloatingWindowContainer->hWndChild))
     {
         return FALSE;
@@ -1363,6 +1519,12 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
     dockTarget.bLocalTarget = TRUE;
     dockTarget.hWndAnchor = hWndTargetWorkspace;
 
+    DockHostWindow* pTargetDockHostWindow = FloatingWindowContainer_EnsureTargetWorkspaceDockHost(hWndTargetWorkspace);
+    if (!pTargetDockHostWindow)
+    {
+        return FALSE;
+    }
+
     RECT rcFloating = { 0 };
     GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
     int iDockSize = pFloatingWindowContainer->iDockSizeHint;
@@ -1377,7 +1539,7 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
 
     HWND hWndChild = pFloatingWindowContainer->hWndChild;
     pFloatingWindowContainer->hWndChild = NULL;
-    if (!DockHostWindow_DockHWNDToTarget(pFloatingWindowContainer->pDockHostTarget, hWndChild, &dockTarget, iDockSize))
+    if (!DockHostWindow_DockHWNDToTarget(pTargetDockHostWindow, hWndChild, &dockTarget, iDockSize))
     {
         pFloatingWindowContainer->hWndChild = hWndChild;
         return FALSE;
