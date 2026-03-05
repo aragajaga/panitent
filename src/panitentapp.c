@@ -234,56 +234,66 @@ TreeNode* CreateSplitNode(PanitentApp* pPanitentApp, LPTSTR pszName, DWORD dwSty
     return pNodeY;
 }
 
+TreeNode* CreateZoneNode(PCWSTR pszName)
+{
+    TreeNode* pZoneNode = DockNode_Create(200, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
+    if (pZoneNode && pZoneNode->data)
+    {
+        DockData* pDockData = (DockData*)pZoneNode->data;
+        wcscpy_s(pDockData->lpszName, MAX_PATH, pszName);
+    }
+
+    return pZoneNode;
+}
+
 void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent)
 {
     DockData* pDockDataParent = DockData_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
     pNodeParent->data = (void*)pDockDataParent;
     wcscpy_s(pDockDataParent->lpszName, MAX_PATH, L"Root");
 
-    /* ======================================================================================== */
-
-    /* Toolbox node */
+    /*
+     * Dock shell layout:
+     *   - Center: workspace/document area
+     *   - Edge zones: DockZone.Left/Right/Top/Bottom
+     *   - Any runtime docking goes into these zones, not around whole root.
+     */
+    TreeNode* pNodeWorkspace = CreateViewportNode(pPanitentApp, pDockHostWindow);
     TreeNode* pNodeToolbox = CreateToolboxNode(pPanitentApp, pDockHostWindow);
-
-    /* Viewport node */
-    TreeNode* pNodeViewport = CreateViewportNode(pPanitentApp, pDockHostWindow);
-    
-    /* Toolbox/Viewport node */
-    TreeNode* pNodeY = CreateSplitNode(pPanitentApp, _T("Toolbox/Viewport"), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, 86, pNodeToolbox, pNodeViewport);
-
-    /* ======================================================================================== */
-
-    /* GLWindow node */
     TreeNode* pNodeGLWindow = CreateGLWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Create and pin palette window */
     TreeNode* pNodePalette = CreatePaletteWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Create and pin layers window */
     TreeNode* pNodeLayers = CreateLayersWindowNode(pPanitentApp, pDockHostWindow);
-
-    /* Palette/Layers node */
-    TreeNode* pNodeB = CreateSplitNode(pPanitentApp, _T("Palette/Layers"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 256, pNodePalette, pNodeLayers);
-
-    /* right bar node */
-    TreeNode* pNodeA = CreateSplitNode(pPanitentApp, _T("Right bar"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 192, pNodeGLWindow, pNodeB);
-
-
-    /* ======================================================================================== */
-
-
-    /* Main node */
-    TreeNode* pNodeZ = CreateSplitNode(pPanitentApp, _T("Main"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 192, pNodeY, pNodeA);
-
-    /* ======================================================================================== */
-
     TreeNode* pNodeOptionBar = CreateOptionBarNode(pPanitentApp, pDockHostWindow);
 
-    /* OptionBar / Other */
-    // TreeNode* pNodeOptionBarOther = CreateSplitNode(pPanitentApp, _T("OptionBar / Other"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 192, pNodeZ, pNodeOptionBar);
+    TreeNode* pZoneLeft = CreateZoneNode(L"DockZone.Left");
+    TreeNode* pZoneRight = CreateZoneNode(L"DockZone.Right");
+    TreeNode* pZoneTop = CreateZoneNode(L"DockZone.Top");
+    TreeNode* pZoneBottom = CreateZoneNode(L"DockZone.Bottom");
 
-    pNodeParent->node1 = pNodeZ;
-    pNodeParent->node2 = pNodeOptionBar;
+    if (pZoneLeft)
+    {
+        pZoneLeft->node1 = pNodeToolbox;
+    }
+
+    if (pZoneTop)
+    {
+        pZoneTop->node1 = pNodeOptionBar;
+    }
+
+    TreeNode* pNodeRightStackA = CreateSplitNode(pPanitentApp, _T("DockShell.RightStackA"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 220, pNodeGLWindow, pNodePalette);
+    TreeNode* pNodeRightStackB = CreateSplitNode(pPanitentApp, _T("DockShell.RightStackB"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 220, pNodeRightStackA, pNodeLayers);
+    if (pZoneRight)
+    {
+        pZoneRight->node1 = pNodeRightStackB;
+    }
+
+    TreeNode* pNodeCenterRight = CreateSplitNode(pPanitentApp, _T("DockShell.CenterRight"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 300, pNodeWorkspace, pZoneRight);
+    TreeNode* pNodeMiddleBand = CreateSplitNode(pPanitentApp, _T("DockShell.MiddleBand"), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, 220, pZoneLeft, pNodeCenterRight);
+    TreeNode* pNodeTopMiddle = CreateSplitNode(pPanitentApp, _T("DockShell.TopMiddle"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 72, pZoneTop, pNodeMiddleBand);
+    TreeNode* pNodeShellRoot = CreateSplitNode(pPanitentApp, _T("DockShell.Root"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 180, pNodeTopMiddle, pZoneBottom);
+
+    pNodeParent->node1 = pNodeShellRoot;
+    pNodeParent->node2 = NULL;
 }
 
 Palette* PanitentApp_GetPalette(PanitentApp* pPanitentApp)
