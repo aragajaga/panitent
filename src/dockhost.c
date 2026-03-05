@@ -56,6 +56,13 @@ static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCap
 static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity);
 static void DockZone_EnsureActiveTab(TreeNode* pZoneNode);
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
+static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
+static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
+static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
+static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y);
+static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
+static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
+static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -584,6 +591,229 @@ static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, 
 	return TRUE;
 }
 
+static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode)
+{
+	if (!pNode || !pNode->data)
+	{
+		return FALSE;
+	}
+
+	return ((((DockData*)pNode->data)->dwStyle & DGD_VERTICAL) != 0) ? TRUE : FALSE;
+}
+
+static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect)
+{
+	if (!pNode || !pRect || !pNode->data || !pNode->node1 || !pNode->node2)
+	{
+		return FALSE;
+	}
+
+	DockData* pDockData = (DockData*)pNode->data;
+	if (pDockData->dwStyle & DGP_RELATIVE)
+	{
+		return FALSE;
+	}
+
+	if (!DockNode_HasVisibleWindow(pNode->node1) || !DockNode_HasVisibleWindow(pNode->node2))
+	{
+		return FALSE;
+	}
+
+	RECT rcClient = { 0 };
+	if (!DockData_GetClientRect(pDockData, &rcClient))
+	{
+		return FALSE;
+	}
+
+	BOOL bVertical = DockHostWindow_IsSplitVertical(pNode);
+	int iSpan = bVertical ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
+	if (iSpan <= 0)
+	{
+		return FALSE;
+	}
+
+	int iGrip = DockLayout_ClampSplitGrip(iSpan, pDockData->iGripPos, 0);
+	int iPos = 0;
+	if (pDockData->dwStyle & DGA_END)
+	{
+		iPos = bVertical ? (rcClient.bottom - iGrip) : (rcClient.right - iGrip);
+	}
+	else {
+		iPos = bVertical ? (rcClient.top + iGrip) : (rcClient.left + iGrip);
+	}
+
+	int iThickness = max(iBorderWidth, 4);
+	int iHalf = iThickness / 2;
+
+	RECT rcSplit = rcClient;
+	if (bVertical)
+	{
+		rcSplit.top = iPos - iHalf;
+		rcSplit.bottom = rcSplit.top + iThickness;
+	}
+	else {
+		rcSplit.left = iPos - iHalf;
+		rcSplit.right = rcSplit.left + iThickness;
+	}
+
+	if (!IntersectRect(pRect, &rcSplit, &rcClient))
+	{
+		return FALSE;
+	}
+
+	return Win32_Rect_GetWidth(pRect) > 0 && Win32_Rect_GetHeight(pRect) > 0;
+}
+
+static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y)
+{
+	if (!pDockHostWindow || !pDockHostWindow->pRoot_)
+	{
+		return NULL;
+	}
+
+	DockHostWindow_SyncZones(pDockHostWindow);
+
+	POINT pt = { x, y };
+	TreeTraversalRLOT traversal = { 0 };
+	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
+
+	TreeNode* pResult = NULL;
+	TreeNode* pCurrentNode = NULL;
+	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
+	{
+		RECT rcSplit = { 0 };
+		if (!DockHostWindow_GetSplitRect(pCurrentNode, &rcSplit))
+		{
+			continue;
+		}
+
+		InflateRect(&rcSplit, 3, 3);
+		if (PtInRect(&rcSplit, pt))
+		{
+			pResult = pCurrentNode;
+			break;
+		}
+	}
+
+	TreeTraversalRLOT_Destroy(&traversal);
+	return pResult;
+}
+
+static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y)
+{
+	if (!pDockHostWindow || !pSplitNode || !pSplitNode->data)
+	{
+		return;
+	}
+
+	pDockHostWindow->fSplitDrag = TRUE;
+	pDockHostWindow->pSplitNode = pSplitNode;
+	pDockHostWindow->ptSplitDragStart.x = x;
+	pDockHostWindow->ptSplitDragStart.y = y;
+	pDockHostWindow->iSplitDragStartGrip = ((DockData*)pSplitNode->data)->iGripPos;
+
+	SetCapture(Window_GetHWND((Window*)pDockHostWindow));
+}
+
+static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y)
+{
+	if (!pDockHostWindow || !pDockHostWindow->fSplitDrag || !pDockHostWindow->pSplitNode || !pDockHostWindow->pSplitNode->data)
+	{
+		return;
+	}
+
+	DockData* pDockData = (DockData*)pDockHostWindow->pSplitNode->data;
+	if (pDockData->dwStyle & DGP_RELATIVE)
+	{
+		return;
+	}
+
+	RECT rcClient = { 0 };
+	if (!DockData_GetClientRect(pDockData, &rcClient))
+	{
+		return;
+	}
+
+	BOOL bVertical = DockHostWindow_IsSplitVertical(pDockHostWindow->pSplitNode);
+	int iSpan = bVertical ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
+	if (iSpan <= 0)
+	{
+		return;
+	}
+
+	int iDelta = bVertical ? (y - pDockHostWindow->ptSplitDragStart.y) : (x - pDockHostWindow->ptSplitDragStart.x);
+	int iNextGrip = DockLayout_AdjustSplitGripFromDelta(pDockData->dwStyle, pDockHostWindow->iSplitDragStartGrip, iDelta, iSpan, 96);
+	if (iNextGrip == pDockData->iGripPos)
+	{
+		return;
+	}
+
+	pDockData->iGripPos = (short)iNextGrip;
+	DockHostWindow_Rearrange(pDockHostWindow);
+}
+
+static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow)
+{
+	if (!pDockHostWindow || !pDockHostWindow->fSplitDrag)
+	{
+		return;
+	}
+
+	pDockHostWindow->fSplitDrag = FALSE;
+	pDockHostWindow->pSplitNode = NULL;
+	pDockHostWindow->iSplitDragStartGrip = 0;
+	ReleaseCapture();
+}
+
+static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc)
+{
+	if (!pDockHostWindow || !pDockHostWindow->pRoot_)
+	{
+		return;
+	}
+
+	TreeTraversalRLOT traversal = { 0 };
+	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
+
+	TreeNode* pCurrentNode = NULL;
+	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
+	{
+		RECT rcSplit = { 0 };
+		if (!DockHostWindow_GetSplitRect(pCurrentNode, &rcSplit))
+		{
+			continue;
+		}
+
+		BOOL bVertical = DockHostWindow_IsSplitVertical(pCurrentNode);
+		SelectObject(hdc, GetStockObject(DC_BRUSH));
+		SelectObject(hdc, GetStockObject(DC_PEN));
+		SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#4f4f5c"));
+		SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#3e3e4a"));
+		Rectangle(hdc, rcSplit.left, rcSplit.top, rcSplit.right, rcSplit.bottom);
+
+		SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#8c8ca0"));
+		if (bVertical)
+		{
+			int cx = (rcSplit.left + rcSplit.right) / 2;
+			int cy = (rcSplit.top + rcSplit.bottom) / 2;
+			for (int i = -1; i <= 1; ++i)
+			{
+				Rectangle(hdc, cx - 2 + i * 8, cy - 1, cx + 2 + i * 8, cy + 1);
+			}
+		}
+		else {
+			int cx = (rcSplit.left + rcSplit.right) / 2;
+			int cy = (rcSplit.top + rcSplit.bottom) / 2;
+			for (int i = -1; i <= 1; ++i)
+			{
+				Rectangle(hdc, cx - 1, cy - 2 + i * 8, cx + 1, cy + 2 + i * 8);
+			}
+		}
+	}
+
+	TreeTraversalRLOT_Destroy(&traversal);
+}
+
 void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 {
 	/* Break if node is invalid */
@@ -968,6 +1198,7 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 	if (pDockHostWindow->pRoot_) {
 		DockHostWindow_SyncZones(pDockHostWindow);
 		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+		DockHostWindow_DrawSplitGrips(pDockHostWindow, hdc);
 		DockHostWindow_DrawZoneTabs(pDockHostWindow, hdc);
 	}
 	else {
@@ -1095,6 +1326,12 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 {
 	UNREFERENCED_PARAMETER(keyFlags);
 
+	if (pDockHostWindow->fSplitDrag)
+	{
+		DockHostWindow_UpdateSplitDrag(pDockHostWindow, x, y);
+		return;
+	}
+
 	if (pDockHostWindow->fCaptionDrag)
 	{
 		if (g_hWndDragOverlay && IsWindow(g_hWndDragOverlay))
@@ -1123,6 +1360,19 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 			Ellipse(hScreenDC, pt.x - activateDistance, pt.y - activateDistance, pt.x + activateDistance, pt.y + activateDistance);
 		}
 		*/
+		return;
+	}
+
+	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
+	if (pSplitNode && pSplitNode->data)
+	{
+		if (DockHostWindow_IsSplitVertical(pSplitNode))
+		{
+			SetCursor(LoadCursor(NULL, IDC_SIZENS));
+		}
+		else {
+			SetCursor(LoadCursor(NULL, IDC_SIZEWE));
+		}
 	}
 }
 
@@ -1345,6 +1595,13 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 		return;
 	}
 
+	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
+	if (pSplitNode)
+	{
+		DockHostWindow_BeginSplitDrag(pDockHostWindow, pSplitNode, x, y);
+		return;
+	}
+
 	TreeNode* pTreeNode = NULL;
 	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
 
@@ -1386,6 +1643,12 @@ void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
 
 void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) {
 	UNREFERENCED_PARAMETER(keyFlags);
+
+	if (pDockHostWindow->fSplitDrag)
+	{
+		DockHostWindow_EndSplitDrag(pDockHostWindow);
+		return;
+	}
 
 	TreeNode* pTreeNode = NULL;
 	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
@@ -1485,6 +1748,16 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 		return 0;
 		break;
 
+	case WM_CAPTURECHANGED:
+		if (pDockHostWindow->fSplitDrag)
+		{
+			pDockHostWindow->fSplitDrag = FALSE;
+			pDockHostWindow->pSplitNode = NULL;
+			pDockHostWindow->iSplitDragStartGrip = 0;
+		}
+		return 0;
+		break;
+
 	case WM_CONTEXTMENU:
 		DockHostWindow_OnContextMenu(pDockHostWindow, (HWND)wParam, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam));
 		return 0;
@@ -1531,6 +1804,9 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitent
 	_WindowInitHelper_SetUserProcRoutine((Window *)pDockHostWindow, (FnWindowUserProc)DockHostWindow_UserProc);
 
 	pDockHostWindow->pRoot_ = NULL;
+	pDockHostWindow->fSplitDrag = FALSE;
+	pDockHostWindow->pSplitNode = NULL;
+	pDockHostWindow->iSplitDragStartGrip = 0;
 
 	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
 }

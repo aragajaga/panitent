@@ -35,6 +35,10 @@ struct DockHostWindow {
 
 	BOOL fCaptionDrag;
 	TreeNode* m_pSubjectNode;
+	BOOL fSplitDrag;
+	TreeNode* pSplitNode;
+	POINT ptSplitDragStart;
+	int iSplitDragStartGrip;
 	HBRUSH hCaptionBrush_;
 	TreeNode* pRoot_;
 	POINT ptDragPos_;

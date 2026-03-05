@@ -86,6 +86,20 @@ static int test_stack_style_and_grips(void)
 	return 0;
 }
 
+static int test_split_grip_adjustment(void)
+{
+	assert(DockLayout_ClampSplitGrip(1000, 10, 96) == 96);
+	assert(DockLayout_ClampSplitGrip(1000, 980, 96) == 904);
+	assert(DockLayout_ClampSplitGrip(120, 80, 96) == 80);
+	assert(DockLayout_ClampSplitGrip(0, 80, 96) == 0);
+
+	assert(DockLayout_AdjustSplitGripFromDelta(DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, 220, 40, 1000, 96) == 260);
+	assert(DockLayout_AdjustSplitGripFromDelta(DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 220, 40, 1000, 96) == 180);
+	assert(DockLayout_AdjustSplitGripFromDelta(DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 100, -90, 300, 96) == 96);
+
+	return 0;
+}
+
 static int test_invalid_arguments(void)
 {
 	RECT rc = { 0 };
@@ -169,6 +183,7 @@ int main(void)
 	failed |= test_zone_tab_rect_horizontal_starts_from_left();
 	failed |= test_zone_tab_rect_clips_when_outside_client();
 	failed |= test_stack_style_and_grips();
+	failed |= test_split_grip_adjustment();
 	failed |= test_invalid_arguments();
 	failed |= test_dock_preview_rect_behavior();
 	failed |= test_zone_tab_click_policy();

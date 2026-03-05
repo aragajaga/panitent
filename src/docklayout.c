@@ -140,3 +140,35 @@ BOOL DockLayout_GetDockPreviewRect(const RECT* pHostRect, int nDockSide, RECT* p
 
 	return FALSE;
 }
+
+int DockLayout_ClampSplitGrip(int iSpan, int iGrip, int iMinPaneSize)
+{
+	if (iSpan <= 0)
+	{
+		return 0;
+	}
+
+	int iMinGrip = max(iMinPaneSize, 0);
+	int iMaxGrip = iSpan - iMinGrip;
+	if (iMaxGrip < iMinGrip)
+	{
+		iMinGrip = 0;
+		iMaxGrip = iSpan;
+	}
+
+	return max(iMinGrip, min(iGrip, iMaxGrip));
+}
+
+int DockLayout_AdjustSplitGripFromDelta(DWORD dwStyle, int iStartGrip, int iDelta, int iSpan, int iMinPaneSize)
+{
+	int iNext = iStartGrip;
+	if (dwStyle & DGA_END)
+	{
+		iNext -= iDelta;
+	}
+	else {
+		iNext += iDelta;
+	}
+
+	return DockLayout_ClampSplitGrip(iSpan, iNext, iMinPaneSize);
+}
