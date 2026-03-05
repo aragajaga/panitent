@@ -122,3 +122,7 @@
   - поправлено выравнивание текста на правых вертикальных вкладках;
   - добавлены интерактивные sizing grips для split-узлов в dock host;
   - добавлены unit-тесты `tests/docklayout_tests.c` для layout и behavior policy + запуск через `ctest`.
+
+- 2026-03-05 (continued):
+  - reduced dock resize flicker: WM_ERASEBKGND suppressed + backbuffer painting in dockhost.
+  - added dock caption pin/unpin button that toggles owning zone collapsed state.

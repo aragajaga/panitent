@@ -11,4 +11,5 @@ struct DockPolicyZoneTabClickResult
 
 BOOL DockPolicy_CanUndockPanelName(PCWSTR pszName);
 BOOL DockPolicy_CanClosePanelName(PCWSTR pszName);
+BOOL DockPolicy_CanPinPanelName(PCWSTR pszName);
 void DockPolicy_ResolveZoneTabClick(BOOL bHasClickedTab, BOOL bClickedIsActive, BOOL bWasCollapsed, DockPolicyZoneTabClickResult* pResult);

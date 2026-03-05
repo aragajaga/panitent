@@ -53,6 +53,11 @@ BOOL DockPolicy_CanClosePanelName(PCWSTR pszName)
 	return DockPolicy_IsCorePanelName(pszName) ? FALSE : TRUE;
 }
 
+BOOL DockPolicy_CanPinPanelName(PCWSTR pszName)
+{
+	return DockPolicy_IsCorePanelName(pszName) ? FALSE : TRUE;
+}
+
 void DockPolicy_ResolveZoneTabClick(BOOL bHasClickedTab, BOOL bClickedIsActive, BOOL bWasCollapsed, DockPolicyZoneTabClickResult* pResult)
 {
 	if (!pResult)

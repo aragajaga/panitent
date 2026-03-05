@@ -32,9 +32,14 @@ int iBorderWidth = 4;
 int iZoneTabGutter = 24;
 
 #define DOCK_ZONE_MAX_TABS 32
+#define DOCK_COLOR_ROOT_BG L"#76699f"
+#define WINDOWBUTTONSIZE 14
+#define WINDOWBUTTONSPACING 3
 
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
+BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y);
+TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
 void DockNode_Paint(TreeNode*, HDC, HBRUSH);
 static void DockHostWindow_DestroyDragOverlay(void);
@@ -56,6 +61,8 @@ static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCap
 static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity);
 static void DockZone_EnsureActiveTab(TreeNode* pZoneNode);
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
+static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
+static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
@@ -63,6 +70,7 @@ static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeN
 static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
 static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc);
+static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -126,8 +134,78 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 #define DHT_UNKNOWN 0
 #define DHT_CAPTION 1
 #define DHT_CLOSEBTN 2
+#define DHT_PINBTN 3
 
-#define WINDOWBUTTONSIZE 14
+#define DCB_NONE 0
+#define DCB_CLOSE 1
+#define DCB_PIN 2
+
+static int Dock_GetCaptionButtonCount(DockData* pDockData)
+{
+	if (!pDockData)
+	{
+		return 0;
+	}
+
+	int nCount = 0;
+	if (DockPolicy_CanClosePanelName(pDockData->lpszName))
+	{
+		++nCount;
+	}
+
+	if (DockPolicy_CanPinPanelName(pDockData->lpszName))
+	{
+		++nCount;
+	}
+
+	return nCount;
+}
+
+static BOOL Dock_GetCaptionButtonRect(DockData* pDockData, int nButtonType, RECT* pRect)
+{
+	if (!pDockData || !pRect || nButtonType == DCB_NONE)
+	{
+		return FALSE;
+	}
+
+	RECT rcCaption = { 0 };
+	if (!DockData_GetCaptionRect(pDockData, &rcCaption))
+	{
+		return FALSE;
+	}
+
+	int nButtonOrder[2] = { DCB_NONE, DCB_NONE };
+	int nButtons = 0;
+	if (DockPolicy_CanClosePanelName(pDockData->lpszName))
+	{
+		nButtonOrder[nButtons++] = DCB_CLOSE;
+	}
+
+	if (DockPolicy_CanPinPanelName(pDockData->lpszName))
+	{
+		nButtonOrder[nButtons++] = DCB_PIN;
+	}
+
+	int xRight = rcCaption.right;
+	for (int i = 0; i < nButtons; ++i)
+	{
+		RECT rcButton = { 0 };
+		rcButton.right = xRight;
+		rcButton.left = rcButton.right - WINDOWBUTTONSIZE;
+		rcButton.top = rcCaption.top;
+		rcButton.bottom = rcButton.top + WINDOWBUTTONSIZE;
+
+		if (nButtonOrder[i] == nButtonType)
+		{
+			*pRect = rcButton;
+			return TRUE;
+		}
+
+		xRight = rcButton.left - WINDOWBUTTONSPACING;
+	}
+
+	return FALSE;
+}
 
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y)
 {
@@ -142,14 +220,30 @@ BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y)
 
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y)
 {
-	RECT rcCaption = { 0 };
-	DockData_GetCaptionRect(pDockData, &rcCaption);
-	rcCaption.left = rcCaption.right - WINDOWBUTTONSIZE;
+	RECT rcButton = { 0 };
+	if (!Dock_GetCaptionButtonRect(pDockData, DCB_CLOSE, &rcButton))
+	{
+		return FALSE;
+	}
 
 	POINT pt = { 0 };
 	pt.x = x;
 	pt.y = y;
-	return PtInRect(&rcCaption, pt);
+	return PtInRect(&rcButton, pt);
+}
+
+BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y)
+{
+	RECT rcButton = { 0 };
+	if (!Dock_GetCaptionButtonRect(pDockData, DCB_PIN, &rcButton))
+	{
+		return FALSE;
+	}
+
+	POINT pt = { 0 };
+	pt.x = x;
+	pt.y = y;
+	return PtInRect(&rcButton, pt);
 }
 
 int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
@@ -192,6 +286,10 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 		if (Dock_CloseButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanClosePanelName(pDockDataHit->lpszName))
 		{
 			return DHT_CLOSEBTN;
+		}
+		else if (Dock_PinButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanPinPanelName(pDockDataHit->lpszName))
+		{
+			return DHT_PINBTN;
 		}
 		else if (Dock_CaptionHitTest(pDockDataHit, x, y) && DockPolicy_CanUndockPanelName(pDockDataHit->lpszName))
 		{
@@ -408,6 +506,70 @@ static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow)
 		TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
 		DockZone_EnsureActiveTab(pZoneNode);
 	}
+}
+
+static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
+{
+	if (!pDockHostWindow || !pPanelNode)
+	{
+		return NULL;
+	}
+
+	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+	if (!pRoot)
+	{
+		return NULL;
+	}
+
+	TreeNode* pCurrent = pPanelNode;
+	while (pCurrent && pCurrent != pRoot)
+	{
+		TreeNode* pParent = DockNode_FindParent(pRoot, pCurrent);
+		if (!pParent || !pParent->data)
+		{
+			break;
+		}
+
+		DockData* pDockDataParent = (DockData*)pParent->data;
+		if (DockNameStartsWith(pDockDataParent->lpszName, L"DockZone."))
+		{
+			return pParent;
+		}
+
+		pCurrent = pParent;
+	}
+
+	return NULL;
+}
+
+static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
+{
+	if (!pDockHostWindow || !pPanelNode || !pPanelNode->data)
+	{
+		return FALSE;
+	}
+
+	DockData* pPanelData = (DockData*)pPanelNode->data;
+	if (!DockPolicy_CanPinPanelName(pPanelData->lpszName))
+	{
+		return FALSE;
+	}
+
+	TreeNode* pZoneNode = DockHostWindow_FindOwningZoneNode(pDockHostWindow, pPanelNode);
+	if (!pZoneNode || !pZoneNode->data)
+	{
+		return FALSE;
+	}
+
+	DockData* pZoneData = (DockData*)pZoneNode->data;
+	if (pPanelData->hWnd && IsWindow(pPanelData->hWnd))
+	{
+		pZoneData->hWndActiveTab = pPanelData->hWnd;
+	}
+	pZoneData->bCollapsed = pZoneData->bCollapsed ? FALSE : TRUE;
+
+	DockHostWindow_Rearrange(pDockHostWindow);
+	return TRUE;
 }
 
 static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iTabIndex, int nTabs, RECT* pRect)
@@ -852,16 +1014,25 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 			rcCaption.right = rc->right - iBorderWidth;
 			rcCaption.bottom = rc->top + iBorderWidth + iCaptionHeight;
 	
-			/* ================================================================================ */
-	
-			/* Draw window caption text */
-			
-			RECT rcCaptionText = { 0 };
-			memcpy(&rcCaptionText, rc, sizeof(RECT));
-			Win32_ContractRect(&rcCaptionText, 4, 4);
-	
-			HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-			HFONT hOldFont = SelectObject(hdc, guiFont);
+				/* ================================================================================ */
+
+				/* Draw window caption text */
+				RECT rcCaptionText = { 0 };
+				memcpy(&rcCaptionText, rc, sizeof(RECT));
+				Win32_ContractRect(&rcCaptionText, 4, 4);
+				int nCaptionButtons = Dock_GetCaptionButtonCount(pDockData);
+				if (nCaptionButtons > 0)
+				{
+					int nButtonsWidth = nCaptionButtons * WINDOWBUTTONSIZE + (nCaptionButtons - 1) * WINDOWBUTTONSPACING;
+					rcCaptionText.right -= nButtonsWidth + 4;
+					if (rcCaptionText.right < rcCaptionText.left)
+					{
+						rcCaptionText.right = rcCaptionText.left;
+					}
+				}
+
+				HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
+				HFONT hOldFont = SelectObject(hdc, guiFont);
 	
 			SetBkMode(hdc, TRANSPARENT);
 			SetTextColor(hdc, COLORREF_WHITE);
@@ -871,22 +1042,25 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 	
 			SelectObject(hdc, hOldFont);
 	
-			/* ================================================================================ */
-	
-			/*
-                Draw close button
+				/* ================================================================================ */
 
-				Calculate right-align of title bar buttons sex
-				rc->left is the offset of current dock area
-	
-				[ RectWidth             ]*
-								 *[ <-  ]   Button width
-			*/
-	
-			CaptionButton button = { 0 };
-			button.glyph = GLYPH_CLOSE;
-			button.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
-			DrawCaptionButton(&button, hdc, rc->left + Win32_Rect_GetWidth(rc) - WINDOWBUTTONSIZE - iBorderWidth, rc->top + iBorderWidth, 14, 14);
+				CaptionButton closeButton = { 0 };
+				closeButton.glyph = GLYPH_CLOSE;
+				closeButton.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
+				RECT rcCloseButton = { 0 };
+				if (Dock_GetCaptionButtonRect(pDockData, DCB_CLOSE, &rcCloseButton))
+				{
+					DrawCaptionButton(&closeButton, hdc, rcCloseButton.left, rcCloseButton.top, WINDOWBUTTONSIZE, WINDOWBUTTONSIZE);
+				}
+
+				CaptionButton pinButton = { 0 };
+				pinButton.glyph = GLYPH_PIN;
+				pinButton.size = (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE };
+				RECT rcPinButton = { 0 };
+				if (Dock_GetCaptionButtonRect(pDockData, DCB_PIN, &rcPinButton))
+				{
+					DrawCaptionButton(&pinButton, hdc, rcPinButton.left, rcPinButton.top, WINDOWBUTTONSIZE, WINDOWBUTTONSIZE);
+				}
 	
 			/* ================================================================================ */
 	
@@ -1038,8 +1212,8 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 			}
 			else {
 				ShowWindow(pDockData->hWnd, SW_SHOWNA);
-				SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, width, height, 0);
-				UpdateWindow(pDockData->hWnd);
+				SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, width, height,
+					SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
 			}
 		}
 	}
@@ -1188,12 +1362,11 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 
 #define DOCKHOSTBGMARGIN 16
 
-void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
+static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect)
 {
-	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
-
-	PAINTSTRUCT ps = { 0 };
-	HDC hdc = BeginPaint(hWnd, &ps);
+	SelectObject(hdc, GetStockObject(DC_BRUSH));
+	SetDCBrushColor(hdc, Win32_HexToCOLORREF(DOCK_COLOR_ROOT_BG));
+	FillRect(hdc, pClientRect, (HBRUSH)GetStockObject(DC_BRUSH));
 
 	if (pDockHostWindow->pRoot_) {
 		DockHostWindow_SyncZones(pDockHostWindow);
@@ -1205,31 +1378,82 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 		HDC hdcLogo = CreateCompatibleDC(hdc);
 		HBITMAP hBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_DOCKHOSTBG));
 
-		BITMAP bm;
-		GetObject(hBitmap, sizeof(BITMAP), &bm);
-		int width = bm.bmWidth;
-		int height = bm.bmHeight;
+		if (hdcLogo && hBitmap)
+		{
+			BITMAP bm = { 0 };
+			GetObject(hBitmap, sizeof(BITMAP), &bm);
+			int width = bm.bmWidth;
+			int height = bm.bmHeight;
 
-		HBITMAP hOldBitmap = SelectObject(hdcLogo, hBitmap);
+			HBITMAP hOldBitmap = SelectObject(hdcLogo, hBitmap);
 
-		BLENDFUNCTION blendFunc;
-		blendFunc.BlendOp = AC_SRC_OVER;
-		blendFunc.BlendFlags = 0;
-		blendFunc.SourceConstantAlpha = 0xFF;
-		blendFunc.AlphaFormat = AC_SRC_ALPHA;
+			BLENDFUNCTION blendFunc = { 0 };
+			blendFunc.BlendOp = AC_SRC_OVER;
+			blendFunc.SourceConstantAlpha = 0xFF;
+			blendFunc.AlphaFormat = AC_SRC_ALPHA;
 
-		RECT rcClient;
-		Window_GetClientRect(pDockHostWindow, &rcClient);
+			int clientWidth = pClientRect->right - pClientRect->left;
+			int clientHeight = pClientRect->bottom - pClientRect->top;
 
-		int clientWidth = rcClient.right - rcClient.left;
-		int clientHeight = rcClient.bottom - rcClient.top;
+			int x = clientWidth - width - DOCKHOSTBGMARGIN;
+			int y = clientHeight - height - DOCKHOSTBGMARGIN;
+			AlphaBlend(hdc, x, y, width, height, hdcLogo, 0, 0, width, height, blendFunc);
 
-		int x = clientWidth - width - DOCKHOSTBGMARGIN;
-		int y = clientHeight - height - DOCKHOSTBGMARGIN;
-		AlphaBlend(hdc, x, y, width, height, hdcLogo, 0, 0, width, height, blendFunc);
+			SelectObject(hdcLogo, hOldBitmap);
+		}
 
-		SelectObject(hdcLogo, hOldBitmap);
-		DeleteDC(hdcLogo);
+		if (hBitmap)
+		{
+			DeleteObject(hBitmap);
+		}
+		if (hdcLogo)
+		{
+			DeleteDC(hdcLogo);
+		}
+	}
+}
+
+void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
+{
+	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
+	PAINTSTRUCT ps = { 0 };
+	HDC hdc = BeginPaint(hWnd, &ps);
+
+	RECT rcClient = { 0 };
+	GetClientRect(hWnd, &rcClient);
+	int width = Win32_Rect_GetWidth(&rcClient);
+	int height = Win32_Rect_GetHeight(&rcClient);
+
+	HDC hdcTarget = hdc;
+	HDC hdcBuffer = NULL;
+	HBITMAP hbmBuffer = NULL;
+	HGDIOBJ hOldBitmap = NULL;
+	if (width > 0 && height > 0)
+	{
+		hdcBuffer = CreateCompatibleDC(hdc);
+		if (hdcBuffer)
+		{
+			hbmBuffer = CreateCompatibleBitmap(hdc, width, height);
+			if (hbmBuffer)
+			{
+				hOldBitmap = SelectObject(hdcBuffer, hbmBuffer);
+				hdcTarget = hdcBuffer;
+			}
+		}
+	}
+
+	DockHostWindow_PaintContent(pDockHostWindow, hdcTarget, &rcClient);
+
+	if (hdcTarget == hdcBuffer)
+	{
+		BitBlt(hdc, 0, 0, width, height, hdcBuffer, 0, 0, SRCCOPY);
+		SelectObject(hdcBuffer, hOldBitmap);
+		DeleteObject(hbmBuffer);
+		DeleteDC(hdcBuffer);
+	}
+	else if (hdcBuffer)
+	{
+		DeleteDC(hdcBuffer);
 	}
 
 	EndPaint(hWnd, &ps);
@@ -1608,6 +1832,7 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 	switch (htType)
 	{
 	case DHT_CLOSEBTN:
+	case DHT_PINBTN:
 	{
 		/* Do nothing. */
 	}
@@ -1662,6 +1887,12 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 	}
 	break;
 
+	case DHT_PINBTN:
+	{
+		DockHostWindow_TogglePanelPinned(pDockHostWindow, pTreeNode);
+	}
+	break;
+
 	case DHT_CAPTION:
 	{
 		/* Do nothing. */
@@ -1691,10 +1922,11 @@ void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndCont
 	switch (htType)
 	{
 	case DHT_CLOSEBTN:
-		{
-			/* Do nothing. */
-		}
-		break;
+	case DHT_PINBTN:
+			{
+				/* Do nothing. */
+			}
+			break;
 
 	case DHT_CAPTION:
 		{
@@ -1733,6 +1965,11 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 {
 	switch (message)
 	{
+	case WM_ERASEBKGND:
+		/* Full background is painted in OnPaint using a backbuffer. */
+		return 1;
+		break;
+
 	case WM_MOUSEMOVE:
 		DockHostWindow_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
 		return 0;

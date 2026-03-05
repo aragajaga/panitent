@@ -165,13 +165,17 @@ static int test_core_panel_lock_policy(void)
 {
 	assert(!DockPolicy_CanUndockPanelName(L"WorkspaceContainer"));
 	assert(!DockPolicy_CanClosePanelName(L"WorkspaceContainer"));
+	assert(!DockPolicy_CanPinPanelName(L"WorkspaceContainer"));
 	assert(!DockPolicy_CanUndockPanelName(L"Root"));
 	assert(!DockPolicy_CanUndockPanelName(L"DockZone.Left"));
 	assert(!DockPolicy_CanClosePanelName(L"DockShell.Root"));
+	assert(!DockPolicy_CanPinPanelName(L"DockShell.Root"));
 
 	assert(DockPolicy_CanUndockPanelName(L"Palette"));
 	assert(DockPolicy_CanClosePanelName(L"Layers"));
+	assert(DockPolicy_CanPinPanelName(L"Layers"));
 	assert(DockPolicy_CanUndockPanelName(NULL));
+	assert(DockPolicy_CanPinPanelName(NULL));
 
 	return 0;
 }
