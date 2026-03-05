@@ -10,8 +10,11 @@
 #include "panitentapp.h"
 #include "util/assert.h"
 
-#define HTPIN 22
 #define HTMORE 23
+
+#define GLYPH_CHEVRON_TILE 0
+#define GLYPH_MAXIMIZE_TILE 3
+#define GLYPH_CLOSE_TILE 4
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
@@ -331,9 +334,9 @@ static int FloatingWindowContainer_BuildCaptionButtons(CaptionButton* pButtons, 
         return 0;
     }
 
-    pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CLOSE, HTCLOSE };
-    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_PIN, HTPIN };
-    pButtons[2] = (CaptionButton){ (SIZE){ 24, 14 }, GLYPH_MORE, HTMORE };
+    pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CLOSE_TILE, HTCLOSE };
+    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
+    pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CHEVRON_TILE, HTMORE };
     return 3;
 }
 
@@ -574,8 +577,96 @@ void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 }
 
 
-#define IDM_UNPIN 1001
-#define IDM_CLOSE 1002
+#define IDM_FLOAT_DOCK 1001
+#define IDM_FLOAT_AUTOHIDE 1002
+#define IDM_FLOAT_MOVETONEW 1003
+#define IDM_FLOAT_CLOSE 1004
+
+static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    if (!pFloatingWindowContainer ||
+        !pFloatingWindowContainer->pDockHostTarget ||
+        !pFloatingWindowContainer->hWndChild ||
+        !IsWindow(pFloatingWindowContainer->hWndChild))
+    {
+        return FALSE;
+    }
+
+    RECT rcFloating = { 0 };
+    GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
+    POINT ptCenter = {
+        rcFloating.left + Win32_Rect_GetWidth(&rcFloating) / 2,
+        rcFloating.top + Win32_Rect_GetHeight(&rcFloating) / 2
+    };
+
+    int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCenter);
+    if (nDockSide == DKS_NONE)
+    {
+        nDockSide = DKS_LEFT;
+    }
+
+    int iDockSize = pFloatingWindowContainer->iDockSizeHint;
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_RIGHT)
+    {
+        iDockSize = max(iDockSize, Win32_Rect_GetWidth(&rcFloating));
+    }
+    else {
+        iDockSize = max(iDockSize, Win32_Rect_GetHeight(&rcFloating));
+    }
+    iDockSize = max(iDockSize, 180);
+
+    HWND hWndChild = pFloatingWindowContainer->hWndChild;
+    pFloatingWindowContainer->hWndChild = NULL;
+    if (!DockHostWindow_DockHWND(pFloatingWindowContainer->pDockHostTarget, hWndChild, nDockSide, iDockSize))
+    {
+        pFloatingWindowContainer->hWndChild = hWndChild;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+static void FloatingWindowContainer_ShowPanelMenu(FloatingWindowContainer* pFloatingWindowContainer, POINT ptScreen)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    HMENU hPopup = CreatePopupMenu();
+    if (!hPopup)
+    {
+        return;
+    }
+
+    BOOL bCanDock = (pFloatingWindowContainer->pDockHostTarget &&
+        pFloatingWindowContainer->hWndChild &&
+        IsWindow(pFloatingWindowContainer->hWndChild));
+
+    AppendMenu(hPopup, MF_STRING | (bCanDock ? MF_ENABLED : MF_GRAYED), IDM_FLOAT_DOCK, L"Doc&k");
+    AppendMenu(hPopup, MF_STRING | MF_GRAYED, IDM_FLOAT_AUTOHIDE, L"&Auto Hide");
+    AppendMenu(hPopup, MF_STRING | MF_GRAYED, IDM_FLOAT_MOVETONEW, L"Move To &New Window");
+    AppendMenu(hPopup, MF_SEPARATOR, 0, NULL);
+    AppendMenu(hPopup, MF_STRING, IDM_FLOAT_CLOSE, L"&Close\tShift+Esc");
+
+    UINT uCmd = (UINT)TrackPopupMenu(hPopup, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_TOPALIGN | TPM_LEFTALIGN,
+        ptScreen.x, ptScreen.y, 0, pFloatingWindowContainer->base.hWnd, NULL);
+    DestroyMenu(hPopup);
+
+    switch (uCmd)
+    {
+    case IDM_FLOAT_DOCK:
+        if (FloatingWindowContainer_DockByCenter(pFloatingWindowContainer))
+        {
+            DestroyWindow(pFloatingWindowContainer->base.hWnd);
+        }
+        break;
+
+    case IDM_FLOAT_CLOSE:
+        Window_Destroy((Window*)pFloatingWindowContainer);
+        break;
+    }
+}
 
 LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
@@ -583,21 +674,24 @@ LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloati
 
     if (hitTestVal == HTCLOSE)
     {
-        Window_Destroy(pFloatingWindowContainer);
+        Window_Destroy((Window*)pFloatingWindowContainer);
         return TRUE;
     }
-    else if (hitTestVal == HTPIN)
+    else if (hitTestVal == HTMAXBUTTON)
     {
-        SendMessage(pFloatingWindowContainer->base.hWnd, WM_COMMAND, MAKEWPARAM(IDM_UNPIN, 0), NULL);
+        if (IsZoomed(pFloatingWindowContainer->base.hWnd))
+        {
+            ShowWindow(pFloatingWindowContainer->base.hWnd, SW_RESTORE);
+        }
+        else {
+            ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MAXIMIZE);
+        }
         return TRUE;
     }
     else if (hitTestVal == HTMORE)
     {
-        HMENU hPopup = CreatePopupMenu();
-        InsertMenu(hPopup, 0, 0, IDM_UNPIN, L"Unpin");
-        InsertMenu(hPopup, 0, 0, IDM_CLOSE, L"Close");
-
-        TrackPopupMenu(hPopup, 0, x, y, 0, pFloatingWindowContainer->base.hWnd, NULL);
+        POINT ptScreen = { x, y };
+        FloatingWindowContainer_ShowPanelMenu(pFloatingWindowContainer, ptScreen);
         return TRUE;
     }
     else if (dwStyle & WS_CHILD && hitTestVal == HTCAPTION)
@@ -649,7 +743,7 @@ void FloatingWindowContainer_OnUnpinCommand(FloatingWindowContainer* pFloatingWi
 
 void FloatingWindowContainer_OnCloseCommand(FloatingWindowContainer* pFloatingWindowContainer)
 {
-    Window_Destroy(pFloatingWindowContainer);
+    Window_Destroy((Window*)pFloatingWindowContainer);
 }
 
 LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
@@ -718,24 +812,27 @@ LRESULT FloatingWindowContainer_OnNCLButtonUp(FloatingWindowContainer* pFloating
 
 LRESULT FloatingWindowContainer_OnCommand(FloatingWindowContainer* pFloatingWindowContainer, WPARAM wParam, LPARAM lParam)
 {
+    UNREFERENCED_PARAMETER(lParam);
+
     switch (LOWORD(wParam))
     {
-    case IDM_UNPIN:
-    {
-        FloatingWindowContainer_OnUnpinCommand(pFloatingWindowContainer);
-    }
+    case IDM_FLOAT_DOCK:
+        if (FloatingWindowContainer_DockByCenter(pFloatingWindowContainer))
+        {
+            DestroyWindow(pFloatingWindowContainer->base.hWnd);
+        }
         return 0;
-        break;
 
-    case IDM_CLOSE:
-    {
+    case IDM_FLOAT_CLOSE:
         FloatingWindowContainer_OnCloseCommand(pFloatingWindowContainer);
-    }
         return 0;
-        break;
+
+    case IDM_FLOAT_AUTOHIDE:
+    case IDM_FLOAT_MOVETONEW:
+        return 0;
     }
 
-    return DefWindowProc(pFloatingWindowContainer->base.hWnd, WM_COMMAND, wParam, lParam);
+    return FALSE;
 }
 
 LRESULT FloatingWindowContainer_OnNCActivate(FloatingWindowContainer* pFloatingWindowContainer, BOOL fActive)
@@ -906,7 +1003,7 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
         break;
     }
 
-    return Window_UserProcDefault(window, hWnd, message, wParam, lParam);
+    return Window_UserProcDefault((Window*)window, hWnd, message, wParam, lParam);
 }
 
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT lpcs)

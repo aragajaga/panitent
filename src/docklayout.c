@@ -48,6 +48,19 @@ BOOL DockLayout_GetZoneTabRect(const RECT* pClientRect, int nDockSide, int iTabI
 		return FALSE;
 	}
 
+	int nSafeTabs = max(1, nTabs);
+	int iSafeIndex = max(0, min(iTabIndex, nSafeTabs - 1));
+	int iOffset = iSafeIndex * (DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP);
+	return DockLayout_GetZoneTabRectByOffset(pClientRect, nDockSide, iOffset, DOCKLAYOUT_ZONE_TAB_LENGTH, pRect);
+}
+
+BOOL DockLayout_GetZoneTabRectByOffset(const RECT* pClientRect, int nDockSide, int iOffset, int iTabLength, RECT* pRect)
+{
+	if (!pClientRect || !pRect)
+	{
+		return FALSE;
+	}
+
 	int cx = pClientRect->right - pClientRect->left;
 	int cy = pClientRect->bottom - pClientRect->top;
 	if (cx <= 0 || cy <= 0)
@@ -55,9 +68,8 @@ BOOL DockLayout_GetZoneTabRect(const RECT* pClientRect, int nDockSide, int iTabI
 		return FALSE;
 	}
 
-	int nSafeTabs = max(1, nTabs);
-	int iSafeIndex = max(0, min(iTabIndex, nSafeTabs - 1));
-	int iOffset = iSafeIndex * (DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP);
+	int iSafeOffset = max(0, iOffset);
+	int iSafeTabLength = max(0, iTabLength);
 	int iInset = min(DOCKLAYOUT_ZONE_TAB_INSET, min(cx, cy) / 2);
 	int iUsableWidth = max(0, cx - iInset * 2);
 	int iUsableHeight = max(0, cy - iInset * 2);
@@ -67,32 +79,32 @@ BOOL DockLayout_GetZoneTabRect(const RECT* pClientRect, int nDockSide, int iTabI
 	case DKS_LEFT:
 		pRect->left = 0;
 		pRect->right = DOCKLAYOUT_ZONE_TAB_THICKNESS;
-		pRect->top = iInset + min(iOffset, iUsableHeight);
-		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy - iInset);
+		pRect->top = iInset + min(iSafeOffset, iUsableHeight);
+		pRect->bottom = min(pRect->top + iSafeTabLength, cy - iInset);
 		pRect->top = min(pRect->top, pRect->bottom);
 		return TRUE;
 
 	case DKS_RIGHT:
 		pRect->right = cx;
 		pRect->left = max(cx - DOCKLAYOUT_ZONE_TAB_THICKNESS, 0);
-		pRect->top = iInset + min(iOffset, iUsableHeight);
-		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy - iInset);
+		pRect->top = iInset + min(iSafeOffset, iUsableHeight);
+		pRect->bottom = min(pRect->top + iSafeTabLength, cy - iInset);
 		pRect->top = min(pRect->top, pRect->bottom);
 		return TRUE;
 
 	case DKS_TOP:
 		pRect->top = 0;
 		pRect->bottom = DOCKLAYOUT_ZONE_TAB_THICKNESS;
-		pRect->left = iInset + min(iOffset, iUsableWidth);
-		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx - iInset);
+		pRect->left = iInset + min(iSafeOffset, iUsableWidth);
+		pRect->right = min(pRect->left + iSafeTabLength, cx - iInset);
 		pRect->left = min(pRect->left, pRect->right);
 		return TRUE;
 
 	case DKS_BOTTOM:
 		pRect->bottom = cy;
 		pRect->top = max(cy - DOCKLAYOUT_ZONE_TAB_THICKNESS, 0);
-		pRect->left = iInset + min(iOffset, iUsableWidth);
-		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx - iInset);
+		pRect->left = iInset + min(iSafeOffset, iUsableWidth);
+		pRect->right = min(pRect->left + iSafeTabLength, cx - iInset);
 		pRect->left = min(pRect->left, pRect->right);
 		return TRUE;
 	}

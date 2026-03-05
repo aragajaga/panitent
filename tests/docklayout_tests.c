@@ -68,6 +68,32 @@ static int test_zone_tab_rect_clips_when_outside_client(void)
 	return 0;
 }
 
+static int test_zone_tab_rect_by_offset_and_length(void)
+{
+	RECT rcClient = { 0, 0, 800, 600 };
+	RECT rcTab = { 0 };
+
+	assert(DockLayout_GetZoneTabRectByOffset(&rcClient, DKS_TOP, 0, 40, &rcTab));
+	assert(rcTab.left == DOCKLAYOUT_ZONE_TAB_INSET);
+	assert(rcTab.right == DOCKLAYOUT_ZONE_TAB_INSET + 40);
+
+	assert(DockLayout_GetZoneTabRectByOffset(&rcClient, DKS_TOP, 42, 120, &rcTab));
+	assert(rcTab.left == DOCKLAYOUT_ZONE_TAB_INSET + 42);
+	assert(rcTab.right == DOCKLAYOUT_ZONE_TAB_INSET + 162);
+
+	assert(DockLayout_GetZoneTabRectByOffset(&rcClient, DKS_LEFT, 30, 77, &rcTab));
+	assert(rcTab.top == DOCKLAYOUT_ZONE_TAB_INSET + 30);
+	assert(rcTab.bottom == DOCKLAYOUT_ZONE_TAB_INSET + 107);
+
+	rcClient.right = 120;
+	rcClient.bottom = 100;
+	assert(DockLayout_GetZoneTabRectByOffset(&rcClient, DKS_TOP, 80, 120, &rcTab));
+	assert(rcTab.left == 96);
+	assert(rcTab.right == 96);
+
+	return 0;
+}
+
 static int test_stack_style_and_grips(void)
 {
 	assert((DockLayout_GetZoneStackStyle(DKS_LEFT) & DGD_VERTICAL) != 0);
@@ -186,6 +212,7 @@ int main(void)
 	failed |= test_zone_tab_rect_vertical_starts_from_top();
 	failed |= test_zone_tab_rect_horizontal_starts_from_left();
 	failed |= test_zone_tab_rect_clips_when_outside_client();
+	failed |= test_zone_tab_rect_by_offset_and_length();
 	failed |= test_stack_style_and_grips();
 	failed |= test_split_grip_adjustment();
 	failed |= test_invalid_arguments();

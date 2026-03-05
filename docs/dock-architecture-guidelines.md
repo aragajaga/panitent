@@ -138,3 +138,8 @@
   - auto-hide caption button order differs from pinned windows: pin is drawn at the outer edge, close sits next to it.
   - auto-hide granularity moved to individual panels inside a dock side (no longer collapses the whole dock site at once).
   - caption/button chrome code for pinned, auto-hide and floating windows is unified through shared frame layout/draw/hit-test helpers to avoid divergent behavior.
+  - added caption chevron button for docked, auto-hide and floating panels with a unified panel menu (`Doc&k`, `Auto Hide`, `Move To New Window`, `Close`).
+  - menu item enable/disable policy now depends on panel state: `Doc&k` disabled for pinned, `Auto Hide` disabled for auto-hide/floating, `Move To New Window` disabled for floating.
+  - caption glyph mapping aligned with VS-like states: pinned uses vertical pin tile `6`, auto-hide uses diagonal pin tile `1`, floating middle button uses maximize tile `3`.
+  - edge auto-hide tabs now use variable length based on measured caption text instead of fixed tab length.
+  - vertical edge-tab caption drawing is centered using text metrics (cross-axis and run-axis), improving visual alignment on both left and right sides.

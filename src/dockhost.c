@@ -27,7 +27,7 @@ POINT captionPos;
 
 BOOL fSuggestTop;
 
-int iCaptionHeight = 24;
+int iCaptionHeight = 14;
 int iBorderWidth = 4;
 int iZoneTabGutter = 24;
 static int g_iZoneTabGutterLeft = 0;
@@ -37,13 +37,20 @@ static int g_iZoneTabGutterBottom = 0;
 
 #define DOCK_ZONE_MAX_TABS 32
 #define DOCK_COLOR_ROOT_BG L"#76699f"
+#define DOCK_CAPTION_INSET 3
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
 
+#define GLYPH_CHEVRON_TILE 0
+#define GLYPH_PIN_DIAGONAL_TILE 1
+#define GLYPH_CLOSE_TILE 4
+#define GLYPH_PIN_VERTICAL_TILE 6
+
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y);
+BOOL Dock_MoreButtonHitTest(DockData* pDockData, int x, int y);
 TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
 void DockNode_Paint(TreeNode*, HDC, HBRUSH);
@@ -58,9 +65,11 @@ static PCWSTR DockHostWindow_GetZoneName(int nDockSide);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize);
 static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
-static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iTabIndex, int nTabs, RECT* pRect);
+static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iOffset, int iTabLength, RECT* pRect);
 static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab);
 static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc);
+static void DockHostWindow_GetPanelTabLabel(DockData* pDockData, WCHAR* pszLabel, int cchLabel);
+static int DockHostWindow_GetZoneTabLengthFromLabel(HDC hdc, PCWSTR pszLabel);
 static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide, HWND hWndTab);
 static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount);
 static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity);
@@ -81,6 +90,8 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWND hWnd);
 static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
+static BOOL DockHostWindow_MovePanelToNewWindow(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
+static void DockHostWindow_ShowPanelMenu(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode, POINT ptScreen);
 static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
@@ -151,10 +162,10 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 	}
 
 	CaptionFrameMetrics metrics = { 0 };
-	metrics.borderSize = iBorderWidth;
+	metrics.borderSize = DOCK_CAPTION_INSET;
 	metrics.captionHeight = iCaptionHeight;
 	metrics.buttonSpacing = WINDOWBUTTONSPACING;
-	metrics.textPaddingX = 4;
+	metrics.textPaddingX = DOCK_CAPTION_INSET;
 	metrics.textPaddingY = 0;
 	CaptionFrameLayout layout = { 0 };
 	if (!CaptionFrame_BuildLayout(&pDockData->rc, &metrics, NULL, 0, &layout))
@@ -170,10 +181,12 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 #define DHT_CAPTION 1
 #define DHT_CLOSEBTN 2
 #define DHT_PINBTN 3
+#define DHT_MOREBTN 4
 
 #define DCB_NONE 0
 #define DCB_CLOSE 1
 #define DCB_PIN 2
+#define DCB_MORE 3
 
 static void Dock_GetCaptionMetrics(CaptionFrameMetrics* pMetrics)
 {
@@ -182,14 +195,14 @@ static void Dock_GetCaptionMetrics(CaptionFrameMetrics* pMetrics)
 		return;
 	}
 
-	pMetrics->borderSize = iBorderWidth;
+	pMetrics->borderSize = DOCK_CAPTION_INSET;
 	pMetrics->captionHeight = iCaptionHeight;
 	pMetrics->buttonSpacing = WINDOWBUTTONSPACING;
-	pMetrics->textPaddingX = 4;
+	pMetrics->textPaddingX = DOCK_CAPTION_INSET;
 	pMetrics->textPaddingY = 0;
 }
 
-static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, CaptionButton* pButtons, int cButtons)
+static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, int iPinGlyph, BOOL bIncludeChevron, CaptionButton* pButtons, int cButtons)
 {
 	if (!pDockData || !pButtons || cButtons <= 0)
 	{
@@ -202,15 +215,19 @@ static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, Caption
 
 	if (bPinFirst && bCanPin && nCount < cButtons)
 	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_PIN, DCB_PIN };
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, iPinGlyph, DCB_PIN };
 	}
 	if (bCanClose && nCount < cButtons)
 	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE, DCB_CLOSE };
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE_TILE, DCB_CLOSE };
 	}
 	if (!bPinFirst && bCanPin && nCount < cButtons)
 	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_PIN, DCB_PIN };
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, iPinGlyph, DCB_PIN };
+	}
+	if (bIncludeChevron && nCount < cButtons)
+	{
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CHEVRON_TILE, DCB_MORE };
 	}
 
 	return nCount;
@@ -226,8 +243,14 @@ static BOOL Dock_BuildCaptionLayout(DockData* pDockData, BOOL bPinFirst, Caption
 	CaptionFrameMetrics metrics = { 0 };
 	Dock_GetCaptionMetrics(&metrics);
 
-	CaptionButton buttons[2] = { 0 };
-	int nButtons = Dock_BuildCaptionButtons(pDockData, bPinFirst, buttons, ARRAYSIZE(buttons));
+	CaptionButton buttons[3] = { 0 };
+	int nButtons = Dock_BuildCaptionButtons(
+		pDockData,
+		bPinFirst,
+		bPinFirst ? GLYPH_PIN_DIAGONAL_TILE : GLYPH_PIN_VERTICAL_TILE,
+		TRUE,
+		buttons,
+		ARRAYSIZE(buttons));
 	return CaptionFrame_BuildLayout(&pDockData->rc, &metrics, buttons, nButtons, pLayout);
 }
 
@@ -289,6 +312,20 @@ BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y)
 	return PtInRect(&rcButton, pt);
 }
 
+BOOL Dock_MoreButtonHitTest(DockData* pDockData, int x, int y)
+{
+	RECT rcButton = { 0 };
+	if (!Dock_GetCaptionButtonRect(pDockData, DCB_MORE, &rcButton))
+	{
+		return FALSE;
+	}
+
+	POINT pt = { 0 };
+	pt.x = x;
+	pt.y = y;
+	return PtInRect(&rcButton, pt);
+}
+
 int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
 {
 	if (!pDockHostWindow->pRoot_)
@@ -333,6 +370,10 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 		else if (Dock_PinButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanPinPanelName(pDockDataHit->lpszName))
 		{
 			return DHT_PINBTN;
+		}
+		else if (Dock_MoreButtonHitTest(pDockDataHit, x, y))
+		{
+			return DHT_MOREBTN;
 		}
 		else if (Dock_CaptionHitTest(pDockDataHit, x, y) && DockPolicy_CanUndockPanelName(pDockDataHit->lpszName))
 		{
@@ -953,17 +994,21 @@ static BOOL DockHostWindow_BuildAutoHideOverlayLayout(DockHostWindow* pDockHostW
 		}
 	}
 
-	CaptionButton buttons[2] = { 0 };
+	CaptionButton buttons[3] = { 0 };
 	int nButtons = 0;
 
-	/* Auto-hide caption order intentionally differs from pinned: pin first, then close. */
-	if (bShowPin)
+	/* Keep button ordering consistent with pinned/floating: close, pin, chevron (right to left in layout builder). */
+	if (bShowClose && nButtons < ARRAYSIZE(buttons))
 	{
-		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_PIN, DCB_PIN };
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE_TILE, DCB_CLOSE };
 	}
-	if (bShowClose)
+	if (bShowPin && nButtons < ARRAYSIZE(buttons))
 	{
-		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE, DCB_CLOSE };
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_PIN_DIAGONAL_TILE, DCB_PIN };
+	}
+	if (nButtons < ARRAYSIZE(buttons))
+	{
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CHEVRON_TILE, DCB_MORE };
 	}
 
 	CaptionFrameMetrics metrics = { 0 };
@@ -1091,6 +1136,16 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 			{
 				DockHostWindow_DestroyInclusive(pDockHostWindow, pPanelNode);
 			}
+			return 0;
+		}
+
+		if (nHitButton == DCB_MORE)
+		{
+			TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+			TreeNode* pPanelNode = DockNode_FindByHWND(pRoot, pDockHostWindow->hWndAutoHideOverlay);
+			POINT ptScreen = pt;
+			ClientToScreen(hWnd, &ptScreen);
+			DockHostWindow_ShowPanelMenu(pDockHostWindow, pPanelNode, ptScreen);
 			return 0;
 		}
 
@@ -1244,7 +1299,148 @@ static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, Tr
 	return TRUE;
 }
 
-static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iTabIndex, int nTabs, RECT* pRect)
+#define IDM_PANEL_DOCK 4101
+#define IDM_PANEL_AUTOHIDE 4102
+#define IDM_PANEL_MOVETONEW 4103
+#define IDM_PANEL_CLOSE 4104
+
+static BOOL DockHostWindow_MovePanelToNewWindow(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
+{
+	if (!pDockHostWindow || !pPanelNode || !pPanelNode->data)
+	{
+		return FALSE;
+	}
+
+	DockData* pPanelData = (DockData*)pPanelNode->data;
+	HWND hWndPanel = pPanelData->hWnd;
+	if (!hWndPanel || !IsWindow(hWndPanel))
+	{
+		return FALSE;
+	}
+
+	RECT rcPanelLocal = pPanelData->rc;
+	RECT rcPanelScreen = rcPanelLocal;
+	MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcPanelScreen, 2);
+
+	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
+	DockHostWindow_Undock(pDockHostWindow, pPanelNode);
+
+	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
+	HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
+	FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
+	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndPanel);
+
+	int width = max(Win32_Rect_GetWidth(&rcPanelScreen), 260);
+	int height = max(Win32_Rect_GetHeight(&rcPanelScreen), 220);
+	int x = rcPanelScreen.left;
+	int y = rcPanelScreen.top;
+	SetWindowPos(hWndFloating, NULL, x, y, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
+
+	DockHostWindow_Rearrange(pDockHostWindow);
+	return TRUE;
+}
+
+static void DockHostWindow_ShowPanelMenu(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode, POINT ptScreen)
+{
+	if (!pDockHostWindow || !pPanelNode || !pPanelNode->data)
+	{
+		return;
+	}
+
+	DockData* pPanelData = (DockData*)pPanelNode->data;
+	BOOL bCanPin = DockPolicy_CanPinPanelName(pPanelData->lpszName);
+	BOOL bCanUndock = DockPolicy_CanUndockPanelName(pPanelData->lpszName);
+	BOOL bCanClose = DockPolicy_CanClosePanelName(pPanelData->lpszName);
+	BOOL bAutoHide = pPanelData->bCollapsed ? TRUE : FALSE;
+
+	HMENU hMenu = CreatePopupMenu();
+	if (!hMenu)
+	{
+		return;
+	}
+
+	AppendMenu(hMenu, MF_STRING | (bAutoHide ? MF_ENABLED : MF_GRAYED), IDM_PANEL_DOCK, L"Doc&k");
+	AppendMenu(hMenu, MF_STRING | ((bCanPin && !bAutoHide) ? MF_ENABLED : MF_GRAYED), IDM_PANEL_AUTOHIDE, L"&Auto Hide");
+	AppendMenu(hMenu, MF_STRING | (bCanUndock ? MF_ENABLED : MF_GRAYED), IDM_PANEL_MOVETONEW, L"Move To &New Window");
+	AppendMenu(hMenu, MF_SEPARATOR, 0, NULL);
+	AppendMenu(hMenu, MF_STRING | (bCanClose ? MF_ENABLED : MF_GRAYED), IDM_PANEL_CLOSE, L"&Close\tShift+Esc");
+
+	UINT uCmd = (UINT)TrackPopupMenu(hMenu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_TOPALIGN | TPM_LEFTALIGN,
+		ptScreen.x, ptScreen.y, 0, Window_GetHWND((Window*)pDockHostWindow), NULL);
+	DestroyMenu(hMenu);
+
+	switch (uCmd)
+	{
+	case IDM_PANEL_DOCK:
+		if (bAutoHide)
+		{
+			DockHostWindow_TogglePanelPinned(pDockHostWindow, pPanelNode);
+		}
+		break;
+
+	case IDM_PANEL_AUTOHIDE:
+		if (bCanPin && !bAutoHide)
+		{
+			DockHostWindow_TogglePanelPinned(pDockHostWindow, pPanelNode);
+		}
+		break;
+
+	case IDM_PANEL_MOVETONEW:
+		if (bCanUndock)
+		{
+			DockHostWindow_MovePanelToNewWindow(pDockHostWindow, pPanelNode);
+		}
+		break;
+
+	case IDM_PANEL_CLOSE:
+		if (bCanClose)
+		{
+			DockHostWindow_DestroyInclusive(pDockHostWindow, pPanelNode);
+		}
+		break;
+	}
+}
+
+static void DockHostWindow_GetPanelTabLabel(DockData* pDockData, WCHAR* pszLabel, int cchLabel)
+{
+	if (!pszLabel || cchLabel <= 0)
+	{
+		return;
+	}
+
+	wcsncpy_s(pszLabel, cchLabel, L"Tab", _TRUNCATE);
+	if (!pDockData)
+	{
+		return;
+	}
+
+	PCWSTR pszSource = pDockData->lpszCaption[0] ? pDockData->lpszCaption : pDockData->lpszName;
+	if (pszSource && pszSource[0])
+	{
+		wcsncpy_s(pszLabel, cchLabel, pszSource, _TRUNCATE);
+	}
+}
+
+static int DockHostWindow_GetZoneTabLengthFromLabel(HDC hdc, PCWSTR pszLabel)
+{
+	if (!hdc || !pszLabel || !pszLabel[0])
+	{
+		return DOCKLAYOUT_ZONE_TAB_LENGTH;
+	}
+
+	int cch = (int)wcslen(pszLabel);
+	SIZE size = { 0 };
+	if (!GetTextExtentPoint32(hdc, pszLabel, cch, &size))
+	{
+		return DOCKLAYOUT_ZONE_TAB_LENGTH;
+	}
+
+	int iTabLength = max(size.cx + 16, DOCKLAYOUT_ZONE_TAB_THICKNESS * 2);
+	iTabLength = min(iTabLength, 280);
+	return iTabLength;
+}
+
+static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iOffset, int iTabLength, RECT* pRect)
 {
 	if (!pDockHostWindow || !pRect)
 	{
@@ -1253,7 +1449,7 @@ static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int n
 
 	RECT rcClient = { 0 };
 	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
-	return DockLayout_GetZoneTabRect(&rcClient, nDockSide, iTabIndex, nTabs, pRect);
+	return DockLayout_GetZoneTabRectByOffset(&rcClient, nDockSide, iOffset, iTabLength, pRect);
 }
 
 static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab)
@@ -1264,6 +1460,14 @@ static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x,
 		*phWndTab = NULL;
 	}
 
+	HWND hWndHost = Window_GetHWND((Window*)pDockHostWindow);
+	HDC hdc = hWndHost ? GetDC(hWndHost) : NULL;
+	HFONT hFontPrev = NULL;
+	if (hdc)
+	{
+		hFontPrev = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+	}
+
 	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
 	for (int i = 0; i < ARRAYSIZE(sides); ++i)
 	{
@@ -1280,13 +1484,21 @@ static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x,
 			continue;
 		}
 
+		int iOffset = 0;
 		for (int iTab = 0; iTab < nTabs; ++iTab)
 		{
+			DockData* pDockDataTab = tabs[iTab] ? (DockData*)tabs[iTab]->data : NULL;
+			WCHAR szLabel[64] = L"";
+			DockHostWindow_GetPanelTabLabel(pDockDataTab, szLabel, ARRAYSIZE(szLabel));
+			int iTabLength = DockHostWindow_GetZoneTabLengthFromLabel(hdc, szLabel);
+
 			RECT rcTab = { 0 };
-			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iTab, nTabs, &rcTab))
+			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iOffset, iTabLength, &rcTab))
 			{
+				iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
 				continue;
 			}
+			iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
 
 			if (PtInRect(&rcTab, pt))
 			{
@@ -1295,9 +1507,20 @@ static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x,
 					*phWndTab = ((DockData*)tabs[iTab]->data)->hWnd;
 				}
 
+				if (hdc)
+				{
+					SelectObject(hdc, hFontPrev);
+					ReleaseDC(hWndHost, hdc);
+				}
 				return sides[i];
 			}
 		}
+	}
+
+	if (hdc)
+	{
+		SelectObject(hdc, hFontPrev);
+		ReleaseDC(hWndHost, hdc);
 	}
 
 	return DKS_NONE;
@@ -1305,6 +1528,11 @@ static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x,
 
 static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc)
 {
+	HFONT hUIFont = PanitentApp_GetUIFont(PanitentApp_Instance());
+	HFONT hFontPrev = (HFONT)SelectObject(hdc, hUIFont);
+	SetBkMode(hdc, TRANSPARENT);
+	SetTextColor(hdc, COLORREF_WHITE);
+
 	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
 	for (int i = 0; i < ARRAYSIZE(sides); ++i)
 	{
@@ -1321,16 +1549,23 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 			continue;
 		}
 
+		int iOffset = 0;
 		for (int iTab = 0; iTab < nTabs; ++iTab)
 		{
-			RECT rcTab = { 0 };
-			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iTab, nTabs, &rcTab))
-			{
-				continue;
-			}
-
 			DockData* pDockDataTab = tabs[iTab] ? (DockData*)tabs[iTab]->data : NULL;
 			HWND hWndTab = pDockDataTab ? pDockDataTab->hWnd : NULL;
+			WCHAR szLabel[64] = L"";
+			DockHostWindow_GetPanelTabLabel(pDockDataTab, szLabel, ARRAYSIZE(szLabel));
+			int iTabLength = DockHostWindow_GetZoneTabLengthFromLabel(hdc, szLabel);
+
+			RECT rcTab = { 0 };
+			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iOffset, iTabLength, &rcTab))
+			{
+				iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
+				continue;
+			}
+			iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
+
 			BOOL bActive = pDockHostWindow->fAutoHideOverlayVisible &&
 				pDockHostWindow->nAutoHideOverlaySide == sides[i] &&
 				hWndTab &&
@@ -1342,40 +1577,36 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 			SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
 			Rectangle(hdc, rcTab.left, rcTab.top, rcTab.right, rcTab.bottom);
 
-			WCHAR szLabel[64] = L"Tab";
-			if (pDockDataTab)
+			int cchLabel = (int)wcslen(szLabel);
+			SIZE textSize = { 0 };
+			if (!GetTextExtentPoint32(hdc, szLabel, cchLabel, &textSize))
 			{
-				PCWSTR pszSource = pDockDataTab->lpszCaption[0] ? pDockDataTab->lpszCaption : pDockDataTab->lpszName;
-				if (pszSource && pszSource[0])
-				{
-					wcsncpy_s(szLabel, ARRAYSIZE(szLabel), pszSource, _TRUNCATE);
-				}
+				textSize.cx = 0;
+				textSize.cy = 0;
 			}
-
-			HFONT hFontPrev = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
-			SetBkMode(hdc, TRANSPARENT);
-			SetTextColor(hdc, COLORREF_WHITE);
 
 			if (sides[i] == DKS_LEFT || sides[i] == DKS_RIGHT)
 			{
 				LOGFONT lf = { 0 };
-				GetObject(PanitentApp_GetUIFont(PanitentApp_Instance()), sizeof(lf), &lf);
+				GetObject(hUIFont, sizeof(lf), &lf);
 				lf.lfEscapement = (sides[i] == DKS_LEFT) ? 900 : 2700;
 				lf.lfOrientation = lf.lfEscapement;
 				HFONT hVertical = CreateFontIndirect(&lf);
 				HFONT hOldVertical = (HFONT)SelectObject(hdc, hVertical);
 				UINT uPrevAlign = SetTextAlign(hdc, TA_LEFT | TA_TOP | TA_NOUPDATECP);
-				int tx = 0;
-				int ty = 0;
+
+				int iTabThickness = Win32_Rect_GetWidth(&rcTab);
+				int iTabSpan = Win32_Rect_GetHeight(&rcTab);
+				int tx = max(rcTab.left, rcTab.left + (iTabThickness - textSize.cy) / 2);
+				int ty = max(rcTab.top, rcTab.top + (iTabSpan - textSize.cx) / 2);
 				if (sides[i] == DKS_LEFT)
 				{
-					tx = rcTab.left + 7;
-					ty = rcTab.bottom - 6;
+					ty = min(rcTab.bottom, rcTab.top + (iTabSpan + textSize.cx) / 2);
 				}
 				else {
-					tx = rcTab.right - 7;
-					ty = rcTab.top + 6;
+					tx = min(rcTab.right, rcTab.right - (iTabThickness - textSize.cy) / 2);
 				}
+
 				TextOut(hdc, tx, ty, szLabel, (int)wcsnlen_s(szLabel, ARRAYSIZE(szLabel)));
 				SetTextAlign(hdc, uPrevAlign);
 				SelectObject(hdc, hOldVertical);
@@ -1384,10 +1615,10 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 			else {
 				DrawText(hdc, szLabel, -1, &rcTab, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 			}
-
-			SelectObject(hdc, hFontPrev);
 		}
 	}
+
+	SelectObject(hdc, hFontPrev);
 }
 
 static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide, HWND hWndTab)
@@ -2477,6 +2708,7 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 	{
 	case DHT_CLOSEBTN:
 	case DHT_PINBTN:
+	case DHT_MOREBTN:
 	{
 		/* Do nothing. */
 	}
@@ -2502,7 +2734,8 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 
 void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
 {
-	HWND hWndDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
+	INT_PTR hDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
+	HWND hWndDialog = (HWND)hDialog;
 	if (hWndDialog && IsWindow(hWndDialog))
 	{
 		/* Important. Idk why */
@@ -2537,6 +2770,14 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 	}
 	break;
 
+	case DHT_MOREBTN:
+	{
+		POINT ptScreen = { x, y };
+		ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptScreen);
+		DockHostWindow_ShowPanelMenu(pDockHostWindow, pTreeNode, ptScreen);
+	}
+	break;
+
 	case DHT_CAPTION:
 	{
 		/* Do nothing. */
@@ -2567,6 +2808,7 @@ void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndCont
 	{
 	case DHT_CLOSEBTN:
 	case DHT_PINBTN:
+	case DHT_MOREBTN:
 			{
 				/* Do nothing. */
 			}
