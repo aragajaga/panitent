@@ -43,6 +43,10 @@ struct DockHostWindow {
 	TreeNode* pRoot_;
 	POINT ptDragPos_;
 	BOOL fDrag_;
+	BOOL fAutoHideOverlayVisible;
+	int nAutoHideOverlaySide;
+	HWND hWndAutoHideOverlay;
+	RECT rcAutoHideOverlay;
 	DockInspectorDialog* m_pDockInspectorDialog;
 };
 

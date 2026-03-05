@@ -126,3 +126,10 @@
 - 2026-03-05 (continued):
   - reduced dock resize flicker: WM_ERASEBKGND suppressed + backbuffer painting in dockhost.
   - added dock caption pin/unpin button that toggles owning zone collapsed state.
+  - implemented VS-like auto-hide overlay for collapsed side zones: tab hover/click shows overlay without relayout;
+  - clicking active auto-hide tab while overlay is shown repins the zone (collapsed=false).
+  - auto-hide is click-only (no hover/timer open-close), with explicit close on outside click.
+  - edge tabs are shown only for collapsed (auto-hide) zones; pinned zones do not render edge tabs.
+  - adjusted auto-hide overlay frame drawing (separate content fill, caption band, border) and clickable pin on overlay caption.
+  - root/tab gutter is now side-aware and appears only for sides that actually have collapsed tabs; no empty dock-site gaps.
+  - click on auto-hide tab toggles overlay visibility only (show/hide) and never repins by itself.
