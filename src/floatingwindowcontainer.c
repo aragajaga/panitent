@@ -1,12 +1,14 @@
 #include "precomp.h"
 
 #include "win32/window.h"
+#include "win32/windowmap.h"
 #include "win32/util.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
 #include "docklayout.h"
 #include "resource.h"
 #include "toolwndframe.h"
+#include "workspacecontainer.h"
 #include "panitentapp.h"
 #include "util/assert.h"
 
@@ -26,6 +28,9 @@ void FloatingWindowContainer_Init(FloatingWindowContainer*);
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer);
 static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 static void FloatingWindowContainer_DestroyDockPreviewOverlay(void);
+static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWindowContainer* pFloatingWindowContainer);
+static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace);
+static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -147,8 +152,126 @@ static void FloatingWindowContainer_DestroyDockPreviewOverlay(void)
 	g_hWndDockPreviewOverlay = NULL;
 }
 
+static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    if (!pFloatingWindowContainer || !pFloatingWindowContainer->hWndChild || !IsWindow(pFloatingWindowContainer->hWndChild))
+    {
+        return NULL;
+    }
+
+    Window* pWindow = WindowMap_Get(pFloatingWindowContainer->hWndChild);
+    if (!pWindow)
+    {
+        return NULL;
+    }
+
+    return (WorkspaceContainer*)pWindow;
+}
+
+static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    WorkspaceContainer* pWorkspaceSource = FloatingWindowContainer_GetWorkspaceChild(pFloatingWindowContainer);
+    if (!pWorkspaceSource)
+    {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
+        return;
+    }
+
+    POINT ptCursor = { 0 };
+    if (!GetCursorPos(&ptCursor))
+    {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
+        return;
+    }
+
+    WorkspaceContainer* pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptCursor);
+    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
+    {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
+        return;
+    }
+
+    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
+    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
+    {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
+        return;
+    }
+
+    RECT rcTargetScreen = { 0 };
+    GetWindowRect(hWndTargetWorkspace, &rcTargetScreen);
+    int width = Win32_Rect_GetWidth(&rcTargetScreen);
+    int height = Win32_Rect_GetHeight(&rcTargetScreen);
+    if (width <= 0 || height <= 0)
+    {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
+        return;
+    }
+
+    HWND hWndOverlay = DockPreviewOverlay_EnsureWindow();
+    if (!hWndOverlay)
+    {
+        return;
+    }
+
+    HDC hdcScreen = GetDC(NULL);
+    HDC hdcMem = CreateCompatibleDC(hdcScreen);
+
+    BITMAPINFO bmi = { 0 };
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = width;
+    bmi.bmiHeader.biHeight = -height;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    DWORD* pBits = NULL;
+    HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+    HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
+    memset(pBits, 0, (size_t)width * (size_t)height * sizeof(DWORD));
+
+    RECT rcPreview = { 0, 0, width, height };
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcPreview, 95, 0x4d, 0x8e, 0xd6);
+
+    RECT rcBorderTop = { rcPreview.left, rcPreview.top, rcPreview.right, rcPreview.top + 2 };
+    RECT rcBorderBottom = { rcPreview.left, rcPreview.bottom - 2, rcPreview.right, rcPreview.bottom };
+    RECT rcBorderLeft = { rcPreview.left, rcPreview.top, rcPreview.left + 2, rcPreview.bottom };
+    RECT rcBorderRight = { rcPreview.right - 2, rcPreview.top, rcPreview.right, rcPreview.bottom };
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderTop, 190, 0x73, 0xb3, 0xf2);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderBottom, 190, 0x73, 0xb3, 0xf2);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderLeft, 190, 0x73, 0xb3, 0xf2);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
+
+    int guideSize = 28;
+    RECT rcGuideCenter = {
+        width / 2 - guideSize / 2,
+        height / 2 - guideSize / 2,
+        width / 2 + guideSize / 2,
+        height / 2 + guideSize / 2
+    };
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 210, 0x73, 0xb3, 0xf2);
+
+    POINT ptPos = { rcTargetScreen.left, rcTargetScreen.top };
+    SIZE sizeWnd = { width, height };
+    POINT ptSrc = { 0, 0 };
+    BLENDFUNCTION blendFunction = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+    UpdateLayeredWindow(hWndOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
+    ShowWindow(hWndOverlay, SW_SHOWNA);
+
+    SelectObject(hdcMem, hOld);
+    DeleteObject(hBitmap);
+    DeleteDC(hdcMem);
+    ReleaseDC(NULL, hdcScreen);
+}
+
 static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
 {
+    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(pFloatingWindowContainer);
+        return;
+    }
+
 	if (!pFloatingWindowContainer || !pFloatingWindowContainer->pDockHostTarget)
 	{
 		FloatingWindowContainer_DestroyDockPreviewOverlay();
@@ -548,6 +671,7 @@ void FloatingWindowContainer_Init(FloatingWindowContainer* window)
     window->bPinned = FALSE;
     window->pDockHostTarget = NULL;
     window->iDockSizeHint = 280;
+    window->nDockPolicy = FLOAT_DOCK_POLICY_PANEL;
 }
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX lpwcex)
@@ -613,6 +737,11 @@ void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 
 static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloatingWindowContainer)
 {
+    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, TRUE);
+    }
+
     if (!pFloatingWindowContainer ||
         !pFloatingWindowContainer->pDockHostTarget ||
         !pFloatingWindowContainer->hWndChild ||
@@ -669,9 +798,16 @@ static void FloatingWindowContainer_ShowPanelMenu(FloatingWindowContainer* pFloa
         return;
     }
 
-    BOOL bCanDock = (pFloatingWindowContainer->pDockHostTarget &&
-        pFloatingWindowContainer->hWndChild &&
-        IsWindow(pFloatingWindowContainer->hWndChild));
+    BOOL bCanDock = FALSE;
+    if (pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        bCanDock = (pFloatingWindowContainer->hWndChild && IsWindow(pFloatingWindowContainer->hWndChild));
+    }
+    else {
+        bCanDock = (pFloatingWindowContainer->pDockHostTarget &&
+            pFloatingWindowContainer->hWndChild &&
+            IsWindow(pFloatingWindowContainer->hWndChild));
+    }
 
     AppendMenu(hPopup, MF_STRING | (bCanDock ? MF_ENABLED : MF_GRAYED), IDM_FLOAT_DOCK, L"Doc&k");
     AppendMenu(hPopup, MF_STRING | MF_GRAYED, IDM_FLOAT_AUTOHIDE, L"&Auto Hide");
@@ -890,8 +1026,50 @@ void FloatingWindowContainer_OnSize(FloatingWindowContainer* pFloatingWindowCont
     }
 }
 
+static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer* pWorkspaceSource = FloatingWindowContainer_GetWorkspaceChild(pFloatingWindowContainer);
+    if (!pWorkspaceSource)
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer* pWorkspaceTarget = NULL;
+    if (bForceMainWorkspace)
+    {
+        pWorkspaceTarget = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
+    }
+    else {
+        POINT ptCursor = { 0 };
+        if (!GetCursorPos(&ptCursor))
+        {
+            return FALSE;
+        }
+
+        pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptCursor);
+    }
+
+    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer_MoveAllViewportsTo(pWorkspaceSource, pWorkspaceTarget);
+    return TRUE;
+}
+
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer)
 {
+    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, FALSE);
+    }
+
     if (!pFloatingWindowContainer ||
         !pFloatingWindowContainer->pDockHostTarget ||
         !pFloatingWindowContainer->hWndChild ||
@@ -1088,4 +1266,14 @@ void FloatingWindowContainer_SetDockTarget(FloatingWindowContainer* pFloatingWin
     }
 
     pFloatingWindowContainer->pDockHostTarget = pDockHostWindow;
+}
+
+void FloatingWindowContainer_SetDockPolicy(FloatingWindowContainer* pFloatingWindowContainer, int nDockPolicy)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    pFloatingWindowContainer->nDockPolicy = nDockPolicy;
 }

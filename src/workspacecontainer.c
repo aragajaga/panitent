@@ -5,7 +5,9 @@
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "document.h"
+#include "floatingwindowcontainer.h"
 #include "panitentapp.h"
+#include "panitentwindow.h"
 
 static const WCHAR szClassName[] = L"__WorkspaceContainer";
 
@@ -69,10 +71,12 @@ typedef struct WorkspaceDropSearchContext WorkspaceDropSearchContext;
 struct WorkspaceDropSearchContext {
     WorkspaceContainer* pSourceWorkspace;
     POINT ptScreen;
+    HWND hWndExcludeRoot;
     WorkspaceContainer* pFoundWorkspace;
 };
 
-BOOL CALLBACK WorkspaceContainer_EnumWindows_FindDropTarget(HWND hWnd, LPARAM lParam);
+BOOL CALLBACK WorkspaceContainer_EnumWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam);
+BOOL CALLBACK WorkspaceContainer_EnumChildWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam);
 
 ViewportVector* ViewportVector_Create()
 {
@@ -274,7 +278,7 @@ BOOL WorkspaceContainer_IsFloating(WorkspaceContainer* pWorkspaceContainer)
 
 void WorkspaceContainer_UpdateWindowTitle(WorkspaceContainer* pWorkspaceContainer)
 {
-    if (!WorkspaceContainer_IsFloating(pWorkspaceContainer))
+    if (!pWorkspaceContainer)
     {
         return;
     }
@@ -831,21 +835,44 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
         }
     }
 
-    WorkspaceContainer* pFloatingWorkspace = WorkspaceContainer_Create();
-    if (!pFloatingWorkspace)
+    FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
+    if (!pFloatingWindowContainer)
     {
         WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
         return;
     }
 
-    HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWorkspace, NULL);
+    HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
     if (!hWndFloating || !IsWindow(hWndFloating))
     {
+        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        free(pFloatingWindowContainer);
+        return;
+    }
+
+    PanitentWindow* pPanitentWindow = PanitentApp_GetWindow(PanitentApp_Instance());
+    DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
+    FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
+    FloatingWindowContainer_SetDockPolicy(pFloatingWindowContainer, FLOAT_DOCK_POLICY_DOCUMENT);
+
+    WorkspaceContainer* pFloatingWorkspace = WorkspaceContainer_Create();
+    if (!pFloatingWorkspace)
+    {
+        DestroyWindow(hWndFloating);
+        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        return;
+    }
+
+    HWND hWndFloatingWorkspace = Window_CreateWindow((Window*)pFloatingWorkspace, NULL);
+    if (!hWndFloatingWorkspace || !IsWindow(hWndFloatingWorkspace))
+    {
+        DestroyWindow(hWndFloating);
         WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
         free(pFloatingWorkspace);
         return;
     }
 
+    FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndFloatingWorkspace);
     WorkspaceContainer_AddViewport(pFloatingWorkspace, pViewportWindow);
     WorkspaceContainer_UpdateWindowTitle(pFloatingWorkspace);
 
@@ -880,10 +907,25 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
         SendMessage(hWndFloating, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(xScreen, yScreen));
     }
 
-    if (WorkspaceContainer_IsFloating(pWorkspaceContainer) &&
-        ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector) == 0)
+    if (ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector) == 0)
     {
-        DestroyWindow(Window_GetHWND((Window*)pWorkspaceContainer));
+        HWND hWndSourceWorkspace = Window_GetHWND((Window*)pWorkspaceContainer);
+        HWND hWndSourceParent = GetParent(hWndSourceWorkspace);
+        if (hWndSourceParent && IsWindow(hWndSourceParent))
+        {
+            WCHAR szParentClass[64] = L"";
+            GetClassNameW(hWndSourceParent, szParentClass, ARRAYSIZE(szParentClass));
+            if (wcscmp(szParentClass, L"__FloatingWindowContainer") == 0)
+            {
+                DestroyWindow(hWndSourceParent);
+                return;
+            }
+        }
+
+        if (WorkspaceContainer_IsFloating(pWorkspaceContainer))
+        {
+            DestroyWindow(hWndSourceWorkspace);
+        }
     }
 }
 
@@ -921,32 +963,106 @@ void WorkspaceContainer_MoveAllViewportsTo(WorkspaceContainer* pSourceWorkspace,
 
 WorkspaceContainer* WorkspaceContainer_FindDropTargetAtScreenPoint(WorkspaceContainer* pSourceWorkspace, POINT ptScreen)
 {
+    if (!pSourceWorkspace)
+    {
+        return NULL;
+    }
+
     WorkspaceDropSearchContext ctx = { 0 };
     ctx.pSourceWorkspace = pSourceWorkspace;
     ctx.ptScreen = ptScreen;
     ctx.pFoundWorkspace = NULL;
-    EnumWindows(WorkspaceContainer_EnumWindows_FindDropTarget, (LPARAM)&ctx);
-    if (ctx.pFoundWorkspace)
+
+    HWND hWndSourceWorkspace = Window_GetHWND((Window*)pSourceWorkspace);
+    if (hWndSourceWorkspace && IsWindow(hWndSourceWorkspace))
     {
-        return ctx.pFoundWorkspace;
+        ctx.hWndExcludeRoot = GetAncestor(hWndSourceWorkspace, GA_ROOT);
     }
 
-    WorkspaceContainer* pMainWorkspace = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
-    if (pMainWorkspace && pMainWorkspace != pSourceWorkspace)
+    EnumWindows(WorkspaceContainer_EnumWindows_FindWorkspaceAtPoint, (LPARAM)&ctx);
+    return ctx.pFoundWorkspace;
+}
+
+BOOL CALLBACK WorkspaceContainer_EnumWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam)
+{
+    WorkspaceDropSearchContext* pCtx = (WorkspaceDropSearchContext*)lParam;
+    if (!pCtx || !hWnd || !IsWindow(hWnd))
     {
-        HWND hWndMainWorkspace = Window_GetHWND((Window*)pMainWorkspace);
-        if (hWndMainWorkspace && IsWindow(hWndMainWorkspace))
-        {
-            RECT rcMainWorkspace = { 0 };
-            GetWindowRect(hWndMainWorkspace, &rcMainWorkspace);
-            if (PtInRect(&rcMainWorkspace, ptScreen))
-            {
-                return pMainWorkspace;
-            }
-        }
+        return TRUE;
     }
 
-    return NULL;
+    if (pCtx->pFoundWorkspace)
+    {
+        return FALSE;
+    }
+
+    if (hWnd == pCtx->hWndExcludeRoot || !IsWindowVisible(hWnd))
+    {
+        return TRUE;
+    }
+
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+    if (!PtInRect(&rcWindow, pCtx->ptScreen))
+    {
+        return TRUE;
+    }
+
+    EnumChildWindows(hWnd, WorkspaceContainer_EnumChildWindows_FindWorkspaceAtPoint, lParam);
+    if (pCtx->pFoundWorkspace)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+BOOL CALLBACK WorkspaceContainer_EnumChildWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam)
+{
+    WorkspaceDropSearchContext* pCtx = (WorkspaceDropSearchContext*)lParam;
+    if (!pCtx || !hWnd || !IsWindow(hWnd))
+    {
+        return TRUE;
+    }
+
+    if (pCtx->pFoundWorkspace)
+    {
+        return FALSE;
+    }
+
+    if (!IsWindowVisible(hWnd))
+    {
+        return TRUE;
+    }
+
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+    if (!PtInRect(&rcWindow, pCtx->ptScreen))
+    {
+        return TRUE;
+    }
+
+    WCHAR szWindowClass[64] = L"";
+    GetClassNameW(hWnd, szWindowClass, ARRAYSIZE(szWindowClass));
+    if (wcscmp(szWindowClass, szClassName) != 0)
+    {
+        return TRUE;
+    }
+
+    Window* pWindow = WindowMap_Get(hWnd);
+    if (!pWindow)
+    {
+        return TRUE;
+    }
+
+    WorkspaceContainer* pCandidateWorkspace = (WorkspaceContainer*)pWindow;
+    if (pCandidateWorkspace == pCtx->pSourceWorkspace)
+    {
+        return TRUE;
+    }
+
+    pCtx->pFoundWorkspace = pCandidateWorkspace;
+    return FALSE;
 }
 
 BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BOOL bForceMainWorkspace)
@@ -978,54 +1094,6 @@ BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BO
     WorkspaceContainer_MoveAllViewportsTo(pSourceWorkspace, pTargetWorkspace);
     DestroyWindow(Window_GetHWND((Window*)pSourceWorkspace));
     return TRUE;
-}
-
-BOOL CALLBACK WorkspaceContainer_EnumWindows_FindDropTarget(HWND hWnd, LPARAM lParam)
-{
-    WorkspaceDropSearchContext* pCtx = (WorkspaceDropSearchContext*)lParam;
-    if (!pCtx || !hWnd || !IsWindow(hWnd))
-    {
-        return TRUE;
-    }
-
-    if (!IsWindowVisible(hWnd))
-    {
-        return TRUE;
-    }
-
-    if (hWnd == Window_GetHWND((Window*)pCtx->pSourceWorkspace))
-    {
-        return TRUE;
-    }
-
-    WCHAR szWindowClass[64] = L"";
-    GetClassNameW(hWnd, szWindowClass, ARRAYSIZE(szWindowClass));
-    if (wcscmp(szWindowClass, szClassName) != 0)
-    {
-        return TRUE;
-    }
-
-    RECT rcWindow = { 0 };
-    GetWindowRect(hWnd, &rcWindow);
-    if (!PtInRect(&rcWindow, pCtx->ptScreen))
-    {
-        return TRUE;
-    }
-
-    Window* pWindow = WindowMap_Get(hWnd);
-    if (!pWindow)
-    {
-        return TRUE;
-    }
-
-    WorkspaceContainer* pCandidateWorkspace = (WorkspaceContainer*)pWindow;
-    if (!WorkspaceContainer_IsFloating(pCandidateWorkspace))
-    {
-        return TRUE;
-    }
-
-    pCtx->pFoundWorkspace = pCandidateWorkspace;
-    return FALSE;
 }
 
 BOOL ViewportVector_Reserve(ViewportVector* pViewportVector, size_t newCapacity)
