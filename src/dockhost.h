@@ -46,6 +46,7 @@ struct DockHostWindow {
 	BOOL fAutoHideOverlayVisible;
 	int nAutoHideOverlaySide;
 	HWND hWndAutoHideOverlay;
+	HWND hWndAutoHideOverlayHost;
 	RECT rcAutoHideOverlay;
 	DockInspectorDialog* m_pDockInspectorDialog;
 };

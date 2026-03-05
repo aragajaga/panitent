@@ -133,3 +133,6 @@
   - adjusted auto-hide overlay frame drawing (separate content fill, caption band, border) and clickable pin on overlay caption.
   - root/tab gutter is now side-aware and appears only for sides that actually have collapsed tabs; no empty dock-site gaps.
   - click on auto-hide tab toggles overlay visibility only (show/hide) and never repins by itself.
+  - auto-hide content now uses a dedicated overlay host window (wrapper), so controls render above pinned panes instead of behind root siblings.
+  - auto-hide wrapper is now responsible for caption/chrome painting and caption button hit-test (pin/close), instead of drawing overlay chrome on root.
+  - auto-hide caption button order differs from pinned windows: pin is drawn at the outer edge, close sits next to it.
