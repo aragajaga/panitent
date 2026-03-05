@@ -19,6 +19,8 @@ static const WCHAR szClassName[] = L"__WorkspaceContainer";
 #define WORKSPACE_TAB_MIN_WIDTH 72
 #define WORKSPACE_TAB_MAX_WIDTH 240
 #define WORKSPACE_TAB_FLOAT_DISTANCE 6
+#define WORKSPACE_TAB_CLOSE_SIZE 10
+#define WORKSPACE_TAB_CLOSE_GAP 8
 #define IDM_WORKSPACE_TAB_FLOAT 41001
 
 /* Private forward declarations */
@@ -48,8 +50,11 @@ BOOL WorkspaceContainer_IsFloating(WorkspaceContainer* pWorkspaceContainer);
 void WorkspaceContainer_GetViewportTitle(ViewportWindow* pViewportWindow, int nTabIndex, LPWSTR pszBuffer, size_t cchBuffer);
 int WorkspaceContainer_CalcTabWidth(WorkspaceContainer* pWorkspaceContainer, HDC hdc, ViewportWindow* pViewportWindow, int nTabIndex);
 BOOL WorkspaceContainer_GetTabRect(WorkspaceContainer* pWorkspaceContainer, HDC hdc, int nTabIndex, LPRECT prcTab);
+BOOL WorkspaceContainer_GetTabCloseRect(WorkspaceContainer* pWorkspaceContainer, HDC hdc, int nTabIndex, LPRECT prcClose);
 int WorkspaceContainer_HitTestTab(WorkspaceContainer* pWorkspaceContainer, int x, int y);
+int WorkspaceContainer_HitTestTabClose(WorkspaceContainer* pWorkspaceContainer, int x, int y);
 int ViewportVector_FindIndex(ViewportVector* pViewportVector, ViewportWindow* pViewportWindow);
+void WorkspaceContainer_CloseViewportAt(WorkspaceContainer* pWorkspaceContainer, int nTabIndex);
 void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, int xScreen, int yScreen, BOOL bStartMove);
 void WorkspaceContainer_MoveAllViewportsTo(WorkspaceContainer* pSourceWorkspace, WorkspaceContainer* pTargetWorkspace);
 WorkspaceContainer* WorkspaceContainer_FindDropTargetAtScreenPoint(WorkspaceContainer* pSourceWorkspace, POINT ptScreen);
@@ -141,6 +146,7 @@ void WorkspaceContainer_Init(WorkspaceContainer* pWorkspaceContainer)
 
     pWorkspaceContainer->m_pViewportVector = ViewportVector_Create();
     pWorkspaceContainer->m_iPressedTabIndex = -1;
+    pWorkspaceContainer->m_iPressedCloseTabIndex = -1;
     pWorkspaceContainer->m_ptTabDragStart.x = 0;
     pWorkspaceContainer->m_ptTabDragStart.y = 0;
 }
@@ -462,7 +468,8 @@ int WorkspaceContainer_CalcTabWidth(WorkspaceContainer* pWorkspaceContainer, HDC
     SIZE textExtent = { 0 };
     GetTextExtentPoint32W(hdc, szTitle, (int)wcslen(szTitle), &textExtent);
 
-    int width = textExtent.cx + WORKSPACE_TAB_TEXT_PADDING_X * 2;
+    int width = textExtent.cx + WORKSPACE_TAB_TEXT_PADDING_X * 2 +
+        WORKSPACE_TAB_CLOSE_GAP + WORKSPACE_TAB_CLOSE_SIZE;
     width = max(width, WORKSPACE_TAB_MIN_WIDTH);
     width = min(width, WORKSPACE_TAB_MAX_WIDTH);
     return width;
@@ -520,6 +527,36 @@ BOOL WorkspaceContainer_GetTabRect(WorkspaceContainer* pWorkspaceContainer, HDC 
     return FALSE;
 }
 
+BOOL WorkspaceContainer_GetTabCloseRect(WorkspaceContainer* pWorkspaceContainer, HDC hdc, int nTabIndex, LPRECT prcClose)
+{
+    if (!pWorkspaceContainer || !hdc || !prcClose)
+    {
+        return FALSE;
+    }
+
+    RECT rcTab = { 0 };
+    if (!WorkspaceContainer_GetTabRect(pWorkspaceContainer, hdc, nTabIndex, &rcTab))
+    {
+        return FALSE;
+    }
+
+    int closeSize = min(WORKSPACE_TAB_CLOSE_SIZE, max(6, (rcTab.bottom - rcTab.top) - 6));
+    int centerY = (rcTab.top + rcTab.bottom) / 2;
+
+    prcClose->right = rcTab.right - WORKSPACE_TAB_GAP - 4;
+    prcClose->left = prcClose->right - closeSize;
+    prcClose->top = centerY - closeSize / 2;
+    prcClose->bottom = prcClose->top + closeSize;
+
+    if (prcClose->left < rcTab.left + WORKSPACE_TAB_TEXT_PADDING_X)
+    {
+        prcClose->left = rcTab.left + WORKSPACE_TAB_TEXT_PADDING_X;
+        prcClose->right = prcClose->left + closeSize;
+    }
+
+    return TRUE;
+}
+
 int WorkspaceContainer_HitTestTab(WorkspaceContainer* pWorkspaceContainer, int x, int y)
 {
     if (!pWorkspaceContainer)
@@ -559,6 +596,117 @@ int WorkspaceContainer_HitTestTab(WorkspaceContainer* pWorkspaceContainer, int x
     SelectObject(hdc, hPrevFont);
     ReleaseDC(hWndWorkspaceContainer, hdc);
     return nHitTab;
+}
+
+int WorkspaceContainer_HitTestTabClose(WorkspaceContainer* pWorkspaceContainer, int x, int y)
+{
+    if (!pWorkspaceContainer)
+    {
+        return -1;
+    }
+
+    int headerHeight = WorkspaceContainer_GetTabHeaderHeight(pWorkspaceContainer);
+    if (headerHeight <= 0 || y < 0 || y >= headerHeight)
+    {
+        return -1;
+    }
+
+    HWND hWndWorkspaceContainer = Window_GetHWND((Window*)pWorkspaceContainer);
+    HDC hdc = GetDC(hWndWorkspaceContainer);
+    if (!hdc)
+    {
+        return -1;
+    }
+
+    HFONT hFont = PanitentApp_GetUIFont(PanitentApp_Instance());
+    HGDIOBJ hPrevFont = SelectObject(hdc, hFont);
+
+    int nHitTabClose = -1;
+    for (int i = 0; i < (int)ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector); i++)
+    {
+        RECT rcClose = { 0 };
+        if (!WorkspaceContainer_GetTabCloseRect(pWorkspaceContainer, hdc, i, &rcClose))
+        {
+            continue;
+        }
+
+        InflateRect(&rcClose, 3, 3);
+        POINT pt = { x, y };
+        if (PtInRect(&rcClose, pt))
+        {
+            nHitTabClose = i;
+            break;
+        }
+    }
+
+    SelectObject(hdc, hPrevFont);
+    ReleaseDC(hWndWorkspaceContainer, hdc);
+    return nHitTabClose;
+}
+
+void WorkspaceContainer_CloseViewportAt(WorkspaceContainer* pWorkspaceContainer, int nTabIndex)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector || nTabIndex < 0)
+    {
+        return;
+    }
+
+    int nTabCount = (int)ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector);
+    if (nTabIndex >= nTabCount)
+    {
+        return;
+    }
+
+    ViewportWindow* pViewportWindow = ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, nTabIndex);
+    if (!pViewportWindow)
+    {
+        return;
+    }
+
+    BOOL bWasCurrent = pWorkspaceContainer->m_pViewportWindow == pViewportWindow;
+    if (!ViewportVector_RemoveAt(pWorkspaceContainer->m_pViewportVector, nTabIndex, NULL))
+    {
+        return;
+    }
+
+    if (bWasCurrent)
+    {
+        ViewportWindow* pNewCurrent = NULL;
+        int nRemaining = (int)ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector);
+        if (nRemaining > 0)
+        {
+            int nNextIndex = min(nTabIndex, nRemaining - 1);
+            pNewCurrent = ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, nNextIndex);
+        }
+
+        WorkspaceContainer_SetCurrentViewport(pWorkspaceContainer, pNewCurrent, TRUE);
+    }
+    else {
+        WorkspaceContainer_LayoutViewports(pWorkspaceContainer);
+        Window_Invalidate((Window*)pWorkspaceContainer);
+
+        if (PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewportWindow)
+        {
+            PanitentApp_SetActiveViewport(PanitentApp_Instance(), pWorkspaceContainer->m_pViewportWindow);
+        }
+    }
+
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    if (hWndViewport && IsWindow(hWndViewport))
+    {
+        DestroyWindow(hWndViewport);
+    }
+
+    Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
+    if (pDocument)
+    {
+        Document_Purge(pDocument);
+        Document_Destroy(pDocument);
+    }
+
+    WorkspaceContainer_UpdateWindowTitle(pWorkspaceContainer);
+    Window_Invalidate((Window*)pWorkspaceContainer);
+    WorkspaceContainer_FinalizeEmptySourceAfterDetach(pWorkspaceContainer);
 }
 
 void WorkspaceContainer_DrawSingleTab(WorkspaceContainer* pWorkspaceContainer, HDC hdc)
@@ -615,10 +763,27 @@ void WorkspaceContainer_DrawTabs(WorkspaceContainer* pWorkspaceContainer, HDC hd
 
         RECT rcTabText = rcTab;
         rcTabText.left += WORKSPACE_TAB_TEXT_PADDING_X;
-        rcTabText.right -= WORKSPACE_TAB_TEXT_PADDING_X;
+        rcTabText.right -= WORKSPACE_TAB_TEXT_PADDING_X + WORKSPACE_TAB_CLOSE_GAP + WORKSPACE_TAB_CLOSE_SIZE;
 
         SetTextColor(hdc, RGB(0xFF, 0xFF, 0xFF));
         DrawTextW(hdc, szTitle, -1, &rcTabText, DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_END_ELLIPSIS);
+
+        RECT rcClose = { 0 };
+        if (WorkspaceContainer_GetTabCloseRect(pWorkspaceContainer, hdc, i, &rcClose))
+        {
+            HPEN hPenClose = CreatePen(PS_SOLID, 1, bActive ? RGB(0xFF, 0xFF, 0xFF) : RGB(0xE8, 0xE6, 0xF5));
+            HGDIOBJ hOldPen = SelectObject(hdc, hPenClose);
+            int x1 = rcClose.left;
+            int y1 = rcClose.top;
+            int x2 = rcClose.right - 1;
+            int y2 = rcClose.bottom - 1;
+            MoveToEx(hdc, x1, y1, NULL);
+            LineTo(hdc, x2, y2);
+            MoveToEx(hdc, x2, y1, NULL);
+            LineTo(hdc, x1, y2);
+            SelectObject(hdc, hOldPen);
+            DeleteObject(hPenClose);
+        }
     }
 
     SelectObject(hdc, hPrevFont);
@@ -646,14 +811,25 @@ void WorkspaceContainer_OnLButtonDown(WorkspaceContainer* pWorkspaceContainer, i
 {
     UNREFERENCED_PARAMETER(keyFlags);
 
+    int nHitTabClose = WorkspaceContainer_HitTestTabClose(pWorkspaceContainer, x, y);
+    if (nHitTabClose >= 0)
+    {
+        pWorkspaceContainer->m_iPressedCloseTabIndex = nHitTabClose;
+        pWorkspaceContainer->m_iPressedTabIndex = -1;
+        SetCapture(Window_GetHWND((Window*)pWorkspaceContainer));
+        return;
+    }
+
     int nHitTab = WorkspaceContainer_HitTestTab(pWorkspaceContainer, x, y);
     if (nHitTab < 0)
     {
         pWorkspaceContainer->m_iPressedTabIndex = -1;
+        pWorkspaceContainer->m_iPressedCloseTabIndex = -1;
         return;
     }
 
     pWorkspaceContainer->m_iPressedTabIndex = nHitTab;
+    pWorkspaceContainer->m_iPressedCloseTabIndex = -1;
     pWorkspaceContainer->m_ptTabDragStart.x = x;
     pWorkspaceContainer->m_ptTabDragStart.y = y;
 
@@ -662,6 +838,11 @@ void WorkspaceContainer_OnLButtonDown(WorkspaceContainer* pWorkspaceContainer, i
 
 void WorkspaceContainer_OnMouseMove(WorkspaceContainer* pWorkspaceContainer, int x, int y, UINT keyFlags)
 {
+    if (pWorkspaceContainer->m_iPressedCloseTabIndex >= 0)
+    {
+        return;
+    }
+
     if (pWorkspaceContainer->m_iPressedTabIndex < 0 || !(keyFlags & MK_LBUTTON))
     {
         return;
@@ -702,12 +883,31 @@ void WorkspaceContainer_OnLButtonUp(WorkspaceContainer* pWorkspaceContainer, int
 {
     UNREFERENCED_PARAMETER(keyFlags);
 
+    int nPressedCloseTabIndex = pWorkspaceContainer->m_iPressedCloseTabIndex;
+    int nPressedTabIndex = pWorkspaceContainer->m_iPressedTabIndex;
+
     if (GetCapture() == Window_GetHWND((Window*)pWorkspaceContainer))
     {
         ReleaseCapture();
     }
 
+    pWorkspaceContainer->m_iPressedCloseTabIndex = -1;
     pWorkspaceContainer->m_iPressedTabIndex = -1;
+
+    if (nPressedCloseTabIndex >= 0)
+    {
+        int nHitCloseTabIndex = WorkspaceContainer_HitTestTabClose(pWorkspaceContainer, x, y);
+        if (nHitCloseTabIndex == nPressedCloseTabIndex)
+        {
+            WorkspaceContainer_CloseViewportAt(pWorkspaceContainer, nPressedCloseTabIndex);
+        }
+        return;
+    }
+
+    if (nPressedTabIndex < 0)
+    {
+        return;
+    }
 
     int nHitTab = WorkspaceContainer_HitTestTab(pWorkspaceContainer, x, y);
     if (nHitTab < 0)
@@ -811,6 +1011,7 @@ LRESULT CALLBACK WorkspaceContainer_UserProc(WorkspaceContainer* pWorkspaceConta
 
     case WM_CAPTURECHANGED:
         pWorkspaceContainer->m_iPressedTabIndex = -1;
+        pWorkspaceContainer->m_iPressedCloseTabIndex = -1;
         break;
 
     case WM_EXITSIZEMOVE:

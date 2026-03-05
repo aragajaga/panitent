@@ -12,6 +12,7 @@ struct WorkspaceContainer {
     ViewportWindow* m_pViewportWindow;
     ViewportVector* m_pViewportVector;
     int m_iPressedTabIndex;
+    int m_iPressedCloseTabIndex;
     POINT m_ptTabDragStart;
 };
 
