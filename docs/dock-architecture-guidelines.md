@@ -136,3 +136,5 @@
   - auto-hide content now uses a dedicated overlay host window (wrapper), so controls render above pinned panes instead of behind root siblings.
   - auto-hide wrapper is now responsible for caption/chrome painting and caption button hit-test (pin/close), instead of drawing overlay chrome on root.
   - auto-hide caption button order differs from pinned windows: pin is drawn at the outer edge, close sits next to it.
+  - auto-hide granularity moved to individual panels inside a dock side (no longer collapses the whole dock site at once).
+  - caption/button chrome code for pinned, auto-hide and floating windows is unified through shared frame layout/draw/hit-test helpers to avoid divergent behavior.

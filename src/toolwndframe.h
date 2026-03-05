@@ -18,5 +18,38 @@ struct CaptionButton {
     int htCommand;
 };
 
+typedef struct CaptionFrameMetrics CaptionFrameMetrics;
+struct CaptionFrameMetrics {
+    int borderSize;
+    int captionHeight;
+    int buttonSpacing;
+    int textPaddingX;
+    int textPaddingY;
+};
+
+typedef struct CaptionFramePalette CaptionFramePalette;
+struct CaptionFramePalette {
+    COLORREF frameFill;
+    COLORREF border;
+    COLORREF captionFill;
+    COLORREF text;
+};
+
+#define CAPTION_FRAME_MAX_BUTTONS 4
+
+typedef struct CaptionFrameLayout CaptionFrameLayout;
+struct CaptionFrameLayout {
+    RECT rcFrame;
+    RECT rcCaption;
+    RECT rcCaptionText;
+    CaptionButton buttons[CAPTION_FRAME_MAX_BUTTONS];
+    RECT buttonRects[CAPTION_FRAME_MAX_BUTTONS];
+    int nButtons;
+};
+
 void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph);
 void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height);
+BOOL CaptionFrame_BuildLayout(const RECT* pRectFrame, const CaptionFrameMetrics* pMetrics, const CaptionButton* pButtons, int nButtons, CaptionFrameLayout* pLayout);
+int CaptionFrame_HitTestButton(const CaptionFrameLayout* pLayout, POINT pt);
+BOOL CaptionFrame_GetButtonRect(const CaptionFrameLayout* pLayout, int htCommand, RECT* pRect);
+void CaptionFrame_Draw(HDC hdc, const CaptionFrameLayout* pLayout, const CaptionFramePalette* pPalette, PCWSTR pszCaption, HFONT hFont);

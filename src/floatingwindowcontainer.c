@@ -324,23 +324,45 @@ LRESULT CaptionRightContainerHitTest()
     return HTNOWHERE;
 }
 
-CaptionButton g_captionButtons[] = {
+static int FloatingWindowContainer_BuildCaptionButtons(CaptionButton* pButtons, int cButtons)
+{
+    if (!pButtons || cButtons < 3)
     {
-        {14, 14},
-        GLYPH_CLOSE,
-        HTCLOSE
-    },
-    {
-        {14, 14},
-        GLYPH_PIN,
-        HTPIN
-    },
-    {
-        { 24, 14 },
-        GLYPH_MORE,
-        HTMORE
+        return 0;
     }
-};
+
+    pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CLOSE, HTCLOSE };
+    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_PIN, HTPIN };
+    pButtons[2] = (CaptionButton){ (SIZE){ 24, 14 }, GLYPH_MORE, HTMORE };
+    return 3;
+}
+
+static BOOL FloatingWindowContainer_BuildCaptionLayout(FloatingWindowContainer* pFloatingWindowContainer, CaptionFrameLayout* pLayout)
+{
+    if (!pFloatingWindowContainer || !pLayout)
+    {
+        return FALSE;
+    }
+
+    HWND hWnd = pFloatingWindowContainer->base.hWnd;
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+    rcWindow.right -= rcWindow.left;
+    rcWindow.bottom -= rcWindow.top;
+    rcWindow.left = 0;
+    rcWindow.top = 0;
+
+    CaptionFrameMetrics metrics = { 0 };
+    metrics.borderSize = g_borderSize;
+    metrics.captionHeight = g_captionHeight;
+    metrics.buttonSpacing = 3;
+    metrics.textPaddingX = g_borderSize;
+    metrics.textPaddingY = 0;
+
+    CaptionButton buttons[3] = { 0 };
+    int nButtons = FloatingWindowContainer_BuildCaptionButtons(buttons, ARRAYSIZE(buttons));
+    return CaptionFrame_BuildLayout(&rcWindow, &metrics, buttons, nButtons, pLayout);
+}
 
 void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowContainer, HRGN hUpdRegion)
 {
@@ -351,63 +373,40 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
 
     DWORD dwStyle = GetWindowStyle(hWnd);
 
-    RECT rc = { 0 };
-    GetWindowRect(hWnd, &rc);
-    rc.right -= rc.left;
-    rc.bottom -= rc.top;
-    rc.top = rc.left = 0;
+    CaptionFramePalette palette = { 0 };
+    palette.frameFill = Win32_HexToCOLORREF(L"#9185be");
+    palette.border = Win32_HexToCOLORREF(L"#6d648e");
+    palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
+    palette.text = COLORREF_WHITE;
 
-    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
-    SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
-    SelectObject(hdc, GetStockObject(DC_BRUSH));
-    SelectObject(hdc, GetStockObject(DC_PEN));
-    Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
-
-    SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(0xFF, 0xFF, 0xFF));
-    
     if (dwStyle & WS_CAPTION)
     {
-        HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-        HFONT hOldFont = SelectObject(hdc, guiFont);
+        CaptionFrameLayout layout = { 0 };
+        if (!FloatingWindowContainer_BuildCaptionLayout(pFloatingWindowContainer, &layout))
+        {
+            ReleaseDC(hWnd, hdc);
+            return;
+        }
 
-        size_t nTextLen = 0;
+        WCHAR szTitle[MAX_PATH] = L"";
         if (pFloatingWindowContainer->hWndChild && IsWindow(pFloatingWindowContainer->hWndChild))
         {
-            nTextLen = GetWindowTextLength(pFloatingWindowContainer->hWndChild);
+            GetWindowText(pFloatingWindowContainer->hWndChild, szTitle, ARRAYSIZE(szTitle));
         }
 
-        if (nTextLen)
-        {
-            PWSTR pszTitle = (PWSTR)malloc((nTextLen + 1) * sizeof(WCHAR));
-            ASSERT(pszTitle);
-
-            int chLen = GetWindowText(pFloatingWindowContainer->hWndChild, pszTitle, MAX_PATH);
-
-            pszTitle[nTextLen] = L'\0';
-
-            TextOut(hdc, g_borderSize, g_borderSize, pszTitle, chLen);
-            free(pszTitle);
-        }
-
-        SelectObject(hdc, hOldFont);
-
-        int l = g_borderSize;
-        for (int i = 0; i < ARRAYSIZE(g_captionButtons); ++i)
-        {
-            CaptionButton* pCaptionButton = &g_captionButtons[i];
-            l += pCaptionButton->size.cx + 3;
-        }
-        l -= 3;
-
-        int ix = g_borderSize;
-        for (int i = ARRAYSIZE(g_captionButtons) - 1; i >= 0; --i)
-        {
-            CaptionButton* pCaptionButton = &g_captionButtons[i];
-            DrawCaptionButton(pCaptionButton, hdc, rc.right - l - g_borderSize + ix, g_borderSize, pCaptionButton->size.cx, pCaptionButton->size.cy);
-
-            ix += pCaptionButton->size.cx + 3;
-        }
+        CaptionFrame_Draw(hdc, &layout, &palette, szTitle, PanitentApp_GetUIFont(PanitentApp_Instance()));
+    }
+    else {
+        RECT rc = { 0 };
+        GetWindowRect(hWnd, &rc);
+        rc.right -= rc.left;
+        rc.bottom -= rc.top;
+        rc.top = rc.left = 0;
+        SelectObject(hdc, GetStockObject(DC_BRUSH));
+        SelectObject(hdc, GetStockObject(DC_PEN));
+        SetDCBrushColor(hdc, palette.frameFill);
+        SetDCPenColor(hdc, palette.border);
+        Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);
     }
 
     ReleaseDC(hWnd, hdc);
@@ -424,22 +423,20 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
 
     if (dwStyle & WS_CAPTION)
     {
-        int ix = g_borderSize;
-        for (int i = 0; i < ARRAYSIZE(g_captionButtons); i++)
+        CaptionFrameLayout layout = { 0 };
+        if (FloatingWindowContainer_BuildCaptionLayout(pFloatingWindowContainer, &layout))
         {
-            CaptionButton* pCaptionButton = &g_captionButtons[i];
-
-            if (x >= windowRect.right - ix - pCaptionButton->size.cx && x < windowRect.right - ix && y >= windowRect.top + 3 && y < windowRect.top + 3 + pCaptionButton->size.cy)
+            POINT ptLocal = { x - windowRect.left, y - windowRect.top };
+            int nButtonHit = CaptionFrame_HitTestButton(&layout, ptLocal);
+            if (nButtonHit != HTNOWHERE)
             {
-                return pCaptionButton->htCommand;
+                return nButtonHit;
             }
 
-            ix += pCaptionButton->size.cx + 3;
-        }
-
-        if (x >= windowRect.left + g_borderSize && y >= windowRect.top + g_borderSize && x < windowRect.right - g_borderSize && y < windowRect.top + g_captionHeight + g_borderSize)
-        {
-            return HTCAPTION;
+            if (PtInRect(&layout.rcCaption, ptLocal))
+            {
+                return HTCAPTION;
+            }
         }
     }
 
