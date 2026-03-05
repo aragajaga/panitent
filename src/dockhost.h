@@ -48,6 +48,13 @@ struct DockHostWindow {
 	HWND hWndAutoHideOverlay;
 	HWND hWndAutoHideOverlayHost;
 	RECT rcAutoHideOverlay;
+	TreeNode* pCaptionHotNode;
+	TreeNode* pCaptionPressedNode;
+	int nCaptionHotButton;
+	int nCaptionPressedButton;
+	BOOL fAutoHideOverlayTrackMouse;
+	int nAutoHideOverlayHotButton;
+	int nAutoHideOverlayPressedButton;
 	DockInspectorDialog* m_pDockInspectorDialog;
 };
 

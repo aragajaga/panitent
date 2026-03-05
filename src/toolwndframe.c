@@ -8,6 +8,30 @@
 
 #define GLYPH_SIZE 8
 
+static BYTE CaptionFrame_ClampColorChannel(int value)
+{
+    if (value < 0)
+    {
+        return 0;
+    }
+    if (value > 255)
+    {
+        return 255;
+    }
+    return (BYTE)value;
+}
+
+static COLORREF CaptionFrame_AdjustColor(COLORREF color, int delta)
+{
+    int r = (int)GetRValue(color) + delta;
+    int g = (int)GetGValue(color) + delta;
+    int b = (int)GetBValue(color) + delta;
+    return RGB(
+        CaptionFrame_ClampColorChannel(r),
+        CaptionFrame_ClampColorChannel(g),
+        CaptionFrame_ClampColorChannel(b));
+}
+
 void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph)
 {
     HBITMAP hbmGlyphs = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_FLOATINGGLYPHS));
@@ -33,7 +57,7 @@ void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph)
     DeleteObject(hbmGlyphs);
 }
 
-void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height)
+void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height, COLORREF fill)
 {
     RECT rcButton = { 0 };
     rcButton.left = x;
@@ -41,12 +65,9 @@ void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int
     rcButton.right = x + pCaptionButton->size.cx;
     rcButton.bottom = y + pCaptionButton->size.cy;
 
-    SetDCPenColor(hdc, RGB(0xFF, 0xFF, 0xFF));
-    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
-    SelectObject(hdc, GetStockObject(DC_PEN));
+    SetDCBrushColor(hdc, fill);
     SelectObject(hdc, GetStockObject(DC_BRUSH));
-
-    Rectangle(hdc, rcButton.left, rcButton.top, rcButton.right, rcButton.bottom);
+    FillRect(hdc, &rcButton, (HBRUSH)GetStockObject(DC_BRUSH));
 
     RECT rc = { 0 };
     rc.left = x;
@@ -172,7 +193,14 @@ BOOL CaptionFrame_GetButtonRect(const CaptionFrameLayout* pLayout, int htCommand
     return FALSE;
 }
 
-void CaptionFrame_Draw(HDC hdc, const CaptionFrameLayout* pLayout, const CaptionFramePalette* pPalette, PCWSTR pszCaption, HFONT hFont)
+void CaptionFrame_DrawStateful(
+    HDC hdc,
+    const CaptionFrameLayout* pLayout,
+    const CaptionFramePalette* pPalette,
+    PCWSTR pszCaption,
+    HFONT hFont,
+    int nHotButton,
+    int nPressedButton)
 {
     if (!hdc || !pLayout || !pPalette)
     {
@@ -213,6 +241,20 @@ void CaptionFrame_Draw(HDC hdc, const CaptionFrameLayout* pLayout, const Caption
     {
         RECT rc = pLayout->buttonRects[i];
         CaptionButton button = pLayout->buttons[i];
-        DrawCaptionButton(&button, hdc, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top);
+        COLORREF buttonFill = pPalette->captionFill;
+        if (button.htCommand == nPressedButton)
+        {
+            buttonFill = CaptionFrame_AdjustColor(pPalette->captionFill, -18);
+        }
+        else if (button.htCommand == nHotButton) {
+            buttonFill = CaptionFrame_AdjustColor(pPalette->captionFill, 14);
+        }
+
+        DrawCaptionButton(&button, hdc, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top, buttonFill);
     }
+}
+
+void CaptionFrame_Draw(HDC hdc, const CaptionFrameLayout* pLayout, const CaptionFramePalette* pPalette, PCWSTR pszCaption, HFONT hFont)
+{
+    CaptionFrame_DrawStateful(hdc, pLayout, pPalette, pszCaption, hFont, HTNOWHERE, HTNOWHERE);
 }

@@ -49,6 +49,10 @@ void FloatingWindowContainer_Init(FloatingWindowContainer*);
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer);
 static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 static void FloatingWindowContainer_DestroyDockPreviewOverlay(void);
+static void FloatingWindowContainer_InvalidateNcFrame(FloatingWindowContainer* pFloatingWindowContainer);
+static int FloatingWindowContainer_HitTestCaptionButtonAtScreenPoint(FloatingWindowContainer* pFloatingWindowContainer, int x, int y);
+static void FloatingWindowContainer_SetCaptionButtonHot(FloatingWindowContainer* pFloatingWindowContainer, int nHotButton);
+static void FloatingWindowContainer_SetCaptionButtonPressed(FloatingWindowContainer* pFloatingWindowContainer, int nPressedButton);
 static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWND hWndTargetWorkspace);
 static int FloatingWindowContainer_CollectWorkspaceHwnds(HWND hWndRoot, HWND* pWorkspaceHwnds, int cWorkspaceHwnds);
 static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
@@ -1222,6 +1226,79 @@ static BOOL FloatingWindowContainer_BuildCaptionLayout(FloatingWindowContainer* 
     return CaptionFrame_BuildLayout(&rcWindow, &metrics, buttons, nButtons, pLayout);
 }
 
+static void FloatingWindowContainer_InvalidateNcFrame(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pFloatingWindowContainer);
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return;
+    }
+
+    RedrawWindow(hWnd, NULL, NULL, RDW_FRAME | RDW_INVALIDATE);
+}
+
+static int FloatingWindowContainer_HitTestCaptionButtonAtScreenPoint(FloatingWindowContainer* pFloatingWindowContainer, int x, int y)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return HTNOWHERE;
+    }
+
+    CaptionFrameLayout layout = { 0 };
+    if (!FloatingWindowContainer_BuildCaptionLayout(pFloatingWindowContainer, &layout))
+    {
+        return HTNOWHERE;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pFloatingWindowContainer);
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return HTNOWHERE;
+    }
+
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+    POINT ptLocal = { x - rcWindow.left, y - rcWindow.top };
+    return CaptionFrame_HitTestButton(&layout, ptLocal);
+}
+
+static void FloatingWindowContainer_SetCaptionButtonHot(FloatingWindowContainer* pFloatingWindowContainer, int nHotButton)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    if (pFloatingWindowContainer->nCaptionButtonHot == nHotButton)
+    {
+        return;
+    }
+
+    pFloatingWindowContainer->nCaptionButtonHot = nHotButton;
+    FloatingWindowContainer_InvalidateNcFrame(pFloatingWindowContainer);
+}
+
+static void FloatingWindowContainer_SetCaptionButtonPressed(FloatingWindowContainer* pFloatingWindowContainer, int nPressedButton)
+{
+    if (!pFloatingWindowContainer)
+    {
+        return;
+    }
+
+    if (pFloatingWindowContainer->nCaptionButtonPressed == nPressedButton)
+    {
+        return;
+    }
+
+    pFloatingWindowContainer->nCaptionButtonPressed = nPressedButton;
+    FloatingWindowContainer_InvalidateNcFrame(pFloatingWindowContainer);
+}
+
 void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowContainer, HRGN hUpdRegion)
 {
     UNREFERENCED_PARAMETER(hUpdRegion);
@@ -1269,7 +1346,14 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
             GetWindowText(pFloatingWindowContainer->hWndChild, szTitle, ARRAYSIZE(szTitle));
         }
 
-        CaptionFrame_Draw(hdc, &layout, &palette, szTitle, PanitentApp_GetUIFont(PanitentApp_Instance()));
+        CaptionFrame_DrawStateful(
+            hdc,
+            &layout,
+            &palette,
+            szTitle,
+            PanitentApp_GetUIFont(PanitentApp_Instance()),
+            pFloatingWindowContainer->nCaptionButtonHot,
+            pFloatingWindowContainer->nCaptionButtonPressed);
     }
     else {
         RECT rc = { 0 };
@@ -1389,6 +1473,9 @@ void FloatingWindowContainer_Init(FloatingWindowContainer* window)
     window->base.UserProc = (FnWindowUserProc)FloatingWindowContainer_UserProc;
 
     window->bPinned = FALSE;
+    window->bNcTracking = FALSE;
+    window->nCaptionButtonHot = HTNOWHERE;
+    window->nCaptionButtonPressed = HTNOWHERE;
     window->pDockHostTarget = NULL;
     window->iDockSizeHint = 280;
     window->nDockPolicy = FLOAT_DOCK_POLICY_PANEL;
@@ -1556,49 +1643,30 @@ static void FloatingWindowContainer_ShowPanelMenu(FloatingWindowContainer* pFloa
 
 LRESULT FloatingWindowContainer_OnNCLButtonDown(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
+    HWND hWnd = Window_GetHWND((Window*)pFloatingWindowContainer);
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return FALSE;
+    }
+
     DWORD dwStyle = Window_GetStyle((Window *)pFloatingWindowContainer);
 
-    if (hitTestVal == HTCLOSE)
+    if (hitTestVal == HTCLOSE ||
+        hitTestVal == HTMAXBUTTON ||
+        hitTestVal == HTMINBUTTON ||
+        hitTestVal == HTMORE)
     {
-        Window_Destroy((Window*)pFloatingWindowContainer);
+        FloatingWindowContainer_SetCaptionButtonHot(pFloatingWindowContainer, (int)hitTestVal);
+        FloatingWindowContainer_SetCaptionButtonPressed(pFloatingWindowContainer, (int)hitTestVal);
         return TRUE;
     }
-    else if (hitTestVal == HTMAXBUTTON)
-    {
-        if (IsZoomed(pFloatingWindowContainer->base.hWnd))
-        {
-            ShowWindow(pFloatingWindowContainer->base.hWnd, SW_RESTORE);
-        }
-        else {
-            ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MAXIMIZE);
-        }
-        return TRUE;
-    }
-    else if (hitTestVal == HTMINBUTTON)
-    {
-        ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MINIMIZE);
-        return TRUE;
-    }
-    else if (hitTestVal == HTMORE)
-    {
-        POINT ptScreen = { x, y };
-        FloatingWindowContainer_ShowPanelMenu(pFloatingWindowContainer, ptScreen);
-        return TRUE;
-    }
-    else if (dwStyle & WS_CHILD && hitTestVal == HTCAPTION)
+
+    if (dwStyle & WS_CHILD && hitTestVal == HTCAPTION)
     {
         // SetCapture(hWnd);
         pFloatingWindowContainer->fCaptionUnpinStarted = TRUE;
         pFloatingWindowContainer->ptCaptionUnpinStartingPoint.x = x;
         pFloatingWindowContainer->ptCaptionUnpinStartingPoint.y = y;
-        return TRUE;
-    }
-
-    switch (hitTestVal)
-    {
-    case HTCLOSE:
-    case HTMINBUTTON:
-    case HTMAXBUTTON:
         return TRUE;
     }
 
@@ -1683,14 +1751,75 @@ LRESULT FloatingWindowContainer_OnNCMouseMove(FloatingWindowContainer* pFloating
         return TRUE;
     }
 
+    if (!pFloatingWindowContainer->bNcTracking)
+    {
+        TRACKMOUSEEVENT tme = { 0 };
+        tme.cbSize = sizeof(tme);
+        tme.dwFlags = TME_NONCLIENT | TME_LEAVE;
+        tme.hwndTrack = Window_GetHWND((Window*)pFloatingWindowContainer);
+        if (TrackMouseEvent(&tme))
+        {
+            pFloatingWindowContainer->bNcTracking = TRUE;
+        }
+    }
+
+    int nHotButton = FloatingWindowContainer_HitTestCaptionButtonAtScreenPoint(
+        pFloatingWindowContainer,
+        x,
+        y);
+    FloatingWindowContainer_SetCaptionButtonHot(pFloatingWindowContainer, nHotButton);
+
     return FALSE;
 }
 
 LRESULT FloatingWindowContainer_OnNCLButtonUp(FloatingWindowContainer* pFloatingWindowContainer, UINT hitTestVal, int x, int y)
 {
     UNREFERENCED_PARAMETER(hitTestVal);
-    UNREFERENCED_PARAMETER(x);
-    UNREFERENCED_PARAMETER(y);
+
+    int nPressedButton = pFloatingWindowContainer->nCaptionButtonPressed;
+    if (nPressedButton != HTNOWHERE)
+    {
+        FloatingWindowContainer_SetCaptionButtonPressed(pFloatingWindowContainer, HTNOWHERE);
+
+        int nHotButton = FloatingWindowContainer_HitTestCaptionButtonAtScreenPoint(
+            pFloatingWindowContainer,
+            x,
+            y);
+        FloatingWindowContainer_SetCaptionButtonHot(pFloatingWindowContainer, nHotButton);
+
+        if (nHotButton != nPressedButton)
+        {
+            return TRUE;
+        }
+
+        if (nPressedButton == HTCLOSE)
+        {
+            Window_Destroy((Window*)pFloatingWindowContainer);
+            return TRUE;
+        }
+        if (nPressedButton == HTMAXBUTTON)
+        {
+            if (IsZoomed(pFloatingWindowContainer->base.hWnd))
+            {
+                ShowWindow(pFloatingWindowContainer->base.hWnd, SW_RESTORE);
+            }
+            else {
+                ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MAXIMIZE);
+            }
+            return TRUE;
+        }
+        if (nPressedButton == HTMINBUTTON)
+        {
+            ShowWindow(pFloatingWindowContainer->base.hWnd, SW_MINIMIZE);
+            return TRUE;
+        }
+        if (nPressedButton == HTMORE)
+        {
+            POINT ptScreen = { x, y };
+            FloatingWindowContainer_ShowPanelMenu(pFloatingWindowContainer, ptScreen);
+            return TRUE;
+        }
+    }
 
     if (pFloatingWindowContainer->fCaptionUnpinStarted)
     {
@@ -1948,6 +2077,13 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
     }
     break;
 
+    case WM_NCMOUSELEAVE:
+        window->bNcTracking = FALSE;
+        FloatingWindowContainer_SetCaptionButtonHot(window, HTNOWHERE);
+        FloatingWindowContainer_SetCaptionButtonPressed(window, HTNOWHERE);
+        return 0;
+        break;
+
     case WM_NCLBUTTONDOWN:
     {
         BOOL bProcessed = (BOOL)FloatingWindowContainer_OnNCLButtonDown(window, (UINT)wParam, (int)GET_X_LPARAM(lParam), (int)GET_Y_LPARAM(lParam));
@@ -1967,6 +2103,11 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
         }
     }
     break;
+
+    case WM_CAPTURECHANGED:
+        FloatingWindowContainer_SetCaptionButtonPressed(window, HTNOWHERE);
+        return 0;
+        break;
 
     case WM_NCACTIVATE:
     {

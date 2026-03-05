@@ -56,7 +56,7 @@ BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_MoreButtonHitTest(DockData* pDockData, int x, int y);
 TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
-void DockNode_Paint(TreeNode*, HDC, HBRUSH);
+void DockNode_Paint(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush);
 static void DockHostWindow_DestroyDragOverlay(void);
 static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
 static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
@@ -109,6 +109,13 @@ static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc);
 static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect);
 static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
+static int Dock_HitTypeToCaptionButton(int nHitType);
+static void DockHostWindow_SetCaptionHotButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton);
+static void DockHostWindow_SetCaptionPressedButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton);
+static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWindow);
+static void DockHostWindow_SetAutoHideHotButton(DockHostWindow* pDockHostWindow, int nButton);
+static void DockHostWindow_SetAutoHidePressedButton(DockHostWindow* pDockHostWindow, int nButton);
+static void DockHostWindow_ClearAutoHideCaptionState(DockHostWindow* pDockHostWindow);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -196,6 +203,149 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 #define DCB_CLOSE 1
 #define DCB_PIN 2
 #define DCB_MORE 3
+
+static int Dock_HitTypeToCaptionButton(int nHitType)
+{
+	switch (nHitType)
+	{
+	case DHT_CLOSEBTN:
+		return DCB_CLOSE;
+	case DHT_PINBTN:
+		return DCB_PIN;
+	case DHT_MOREBTN:
+		return DCB_MORE;
+	default:
+		return DCB_NONE;
+	}
+}
+
+static void DockHostWindow_SetCaptionHotButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	if (nButton == DCB_NONE)
+	{
+		pNode = NULL;
+	}
+
+	if (pDockHostWindow->pCaptionHotNode == pNode &&
+		pDockHostWindow->nCaptionHotButton == nButton)
+	{
+		return;
+	}
+
+	pDockHostWindow->pCaptionHotNode = pNode;
+	pDockHostWindow->nCaptionHotButton = nButton;
+	Window_Invalidate((Window*)pDockHostWindow);
+}
+
+static void DockHostWindow_SetCaptionPressedButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	if (nButton == DCB_NONE)
+	{
+		pNode = NULL;
+	}
+
+	if (pDockHostWindow->pCaptionPressedNode == pNode &&
+		pDockHostWindow->nCaptionPressedButton == nButton)
+	{
+		return;
+	}
+
+	pDockHostWindow->pCaptionPressedNode = pNode;
+	pDockHostWindow->nCaptionPressedButton = nButton;
+	Window_Invalidate((Window*)pDockHostWindow);
+}
+
+static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWindow)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	BOOL bChanged =
+		(pDockHostWindow->pCaptionHotNode != NULL) ||
+		(pDockHostWindow->nCaptionHotButton != DCB_NONE) ||
+		(pDockHostWindow->pCaptionPressedNode != NULL) ||
+		(pDockHostWindow->nCaptionPressedButton != DCB_NONE);
+
+	pDockHostWindow->pCaptionHotNode = NULL;
+	pDockHostWindow->nCaptionHotButton = DCB_NONE;
+	pDockHostWindow->pCaptionPressedNode = NULL;
+	pDockHostWindow->nCaptionPressedButton = DCB_NONE;
+
+	if (bChanged)
+	{
+		Window_Invalidate((Window*)pDockHostWindow);
+	}
+}
+
+static void DockHostWindow_SetAutoHideHotButton(DockHostWindow* pDockHostWindow, int nButton)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	if (pDockHostWindow->nAutoHideOverlayHotButton == nButton)
+	{
+		return;
+	}
+
+	pDockHostWindow->nAutoHideOverlayHotButton = nButton;
+	if (pDockHostWindow->hWndAutoHideOverlayHost && IsWindow(pDockHostWindow->hWndAutoHideOverlayHost))
+	{
+		InvalidateRect(pDockHostWindow->hWndAutoHideOverlayHost, NULL, FALSE);
+	}
+}
+
+static void DockHostWindow_SetAutoHidePressedButton(DockHostWindow* pDockHostWindow, int nButton)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	if (pDockHostWindow->nAutoHideOverlayPressedButton == nButton)
+	{
+		return;
+	}
+
+	pDockHostWindow->nAutoHideOverlayPressedButton = nButton;
+	if (pDockHostWindow->hWndAutoHideOverlayHost && IsWindow(pDockHostWindow->hWndAutoHideOverlayHost))
+	{
+		InvalidateRect(pDockHostWindow->hWndAutoHideOverlayHost, NULL, FALSE);
+	}
+}
+
+static void DockHostWindow_ClearAutoHideCaptionState(DockHostWindow* pDockHostWindow)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	BOOL bChanged =
+		pDockHostWindow->fAutoHideOverlayTrackMouse ||
+		pDockHostWindow->nAutoHideOverlayHotButton != DCB_NONE ||
+		pDockHostWindow->nAutoHideOverlayPressedButton != DCB_NONE;
+	pDockHostWindow->fAutoHideOverlayTrackMouse = FALSE;
+	pDockHostWindow->nAutoHideOverlayHotButton = DCB_NONE;
+	pDockHostWindow->nAutoHideOverlayPressedButton = DCB_NONE;
+	if (bChanged && pDockHostWindow->hWndAutoHideOverlayHost && IsWindow(pDockHostWindow->hWndAutoHideOverlayHost))
+	{
+		InvalidateRect(pDockHostWindow->hWndAutoHideOverlayHost, NULL, FALSE);
+	}
+}
 
 static void Dock_GetCaptionMetrics(CaptionFrameMetrics* pMetrics)
 {
@@ -888,6 +1038,7 @@ static void DockHostWindow_HideAutoHideOverlay(DockHostWindow* pDockHostWindow)
 	pDockHostWindow->nAutoHideOverlaySide = DKS_NONE;
 	pDockHostWindow->hWndAutoHideOverlay = NULL;
 	SetRectEmpty(&pDockHostWindow->rcAutoHideOverlay);
+	DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
 	Window_Invalidate((Window*)pDockHostWindow);
 }
 
@@ -1073,7 +1224,14 @@ static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWN
 		palette.border = Win32_HexToCOLORREF(L"#6d648e");
 		palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
 		palette.text = COLORREF_WHITE;
-		CaptionFrame_Draw(hdcTarget, &layout, &palette, szLabel, PanitentApp_GetUIFont(PanitentApp_Instance()));
+		CaptionFrame_DrawStateful(
+			hdcTarget,
+			&layout,
+			&palette,
+			szLabel,
+			PanitentApp_GetUIFont(PanitentApp_Instance()),
+			pDockHostWindow->nAutoHideOverlayHotButton,
+			pDockHostWindow->nAutoHideOverlayPressedButton);
 	}
 
 	if (hdcTarget == hdcBuffer)
@@ -1107,6 +1265,38 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 		/* Full background is painted in WM_PAINT using a backbuffer. */
 		return 1;
 
+	case WM_MOUSEMOVE:
+	{
+		if (!pDockHostWindow || !pDockHostWindow->fAutoHideOverlayVisible)
+		{
+			return 0;
+		}
+
+		if (!pDockHostWindow->fAutoHideOverlayTrackMouse)
+		{
+			TRACKMOUSEEVENT tme = { 0 };
+			tme.cbSize = sizeof(tme);
+			tme.dwFlags = TME_LEAVE;
+			tme.hwndTrack = hWnd;
+			if (TrackMouseEvent(&tme))
+			{
+				pDockHostWindow->fAutoHideOverlayTrackMouse = TRUE;
+			}
+		}
+
+		CaptionFrameLayout layout = { 0 };
+		if (!DockHostWindow_BuildAutoHideOverlayLayout(pDockHostWindow, &layout))
+		{
+			DockHostWindow_SetAutoHideHotButton(pDockHostWindow, DCB_NONE);
+			return 0;
+		}
+
+		POINT pt = { (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam) };
+		int nHitButton = CaptionFrame_HitTestButton(&layout, pt);
+		DockHostWindow_SetAutoHideHotButton(pDockHostWindow, nHitButton);
+		return 0;
+	}
+
 	case WM_LBUTTONDOWN:
 	{
 		if (!pDockHostWindow || !pDockHostWindow->fAutoHideOverlayVisible)
@@ -1122,10 +1312,59 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 
 		POINT pt = { (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam) };
 		int nHitButton = CaptionFrame_HitTestButton(&layout, pt);
-		if (nHitButton == DCB_PIN)
+		if (nHitButton == DCB_CLOSE || nHitButton == DCB_PIN || nHitButton == DCB_MORE)
 		{
-			TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-			TreeNode* pPanelNode = DockNode_FindByHWND(pRoot, pDockHostWindow->hWndAutoHideOverlay);
+			DockHostWindow_SetAutoHideHotButton(pDockHostWindow, nHitButton);
+			DockHostWindow_SetAutoHidePressedButton(pDockHostWindow, nHitButton);
+			SetCapture(hWnd);
+			return 0;
+		}
+
+		if (pDockHostWindow->hWndAutoHideOverlay && IsWindow(pDockHostWindow->hWndAutoHideOverlay))
+		{
+			SetFocus(pDockHostWindow->hWndAutoHideOverlay);
+		}
+		return 0;
+	}
+
+	case WM_LBUTTONUP:
+	{
+		if (!pDockHostWindow)
+		{
+			return 0;
+		}
+
+		int nPressedButton = pDockHostWindow->nAutoHideOverlayPressedButton;
+		if (nPressedButton == DCB_NONE)
+		{
+			return 0;
+		}
+
+		if (GetCapture() == hWnd)
+		{
+			ReleaseCapture();
+		}
+
+		CaptionFrameLayout layout = { 0 };
+		int nHitButton = DCB_NONE;
+		if (DockHostWindow_BuildAutoHideOverlayLayout(pDockHostWindow, &layout))
+		{
+			POINT pt = { (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam) };
+			nHitButton = CaptionFrame_HitTestButton(&layout, pt);
+			DockHostWindow_SetAutoHideHotButton(pDockHostWindow, nHitButton);
+		}
+
+		DockHostWindow_SetAutoHidePressedButton(pDockHostWindow, DCB_NONE);
+		if (nHitButton != nPressedButton)
+		{
+			return 0;
+		}
+
+		TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+		TreeNode* pPanelNode = DockNode_FindByHWND(pRoot, pDockHostWindow->hWndAutoHideOverlay);
+
+		if (nPressedButton == DCB_PIN)
+		{
 			if (pPanelNode)
 			{
 				DockHostWindow_TogglePanelPinned(pDockHostWindow, pPanelNode);
@@ -1136,10 +1375,8 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 			return 0;
 		}
 
-		if (nHitButton == DCB_CLOSE)
+		if (nPressedButton == DCB_CLOSE)
 		{
-			TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-			TreeNode* pPanelNode = DockNode_FindByHWND(pRoot, pDockHostWindow->hWndAutoHideOverlay);
 			DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
 			if (pPanelNode)
 			{
@@ -1148,22 +1385,31 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 			return 0;
 		}
 
-		if (nHitButton == DCB_MORE)
+		if (nPressedButton == DCB_MORE)
 		{
-			TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-			TreeNode* pPanelNode = DockNode_FindByHWND(pRoot, pDockHostWindow->hWndAutoHideOverlay);
-			POINT ptScreen = pt;
+			POINT ptScreen = { (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam) };
 			ClientToScreen(hWnd, &ptScreen);
 			DockHostWindow_ShowPanelMenu(pDockHostWindow, pPanelNode, ptScreen);
 			return 0;
 		}
 
-		if (pDockHostWindow->hWndAutoHideOverlay && IsWindow(pDockHostWindow->hWndAutoHideOverlay))
-		{
-			SetFocus(pDockHostWindow->hWndAutoHideOverlay);
-		}
 		return 0;
 	}
+
+	case WM_MOUSELEAVE:
+		if (pDockHostWindow)
+		{
+			pDockHostWindow->fAutoHideOverlayTrackMouse = FALSE;
+			DockHostWindow_SetAutoHideHotButton(pDockHostWindow, DCB_NONE);
+		}
+		return 0;
+
+	case WM_CAPTURECHANGED:
+		if (pDockHostWindow)
+		{
+			DockHostWindow_SetAutoHidePressedButton(pDockHostWindow, DCB_NONE);
+		}
+		return 0;
 
 	case WM_PAINT:
 		DockAutoHideOverlayHost_OnPaint(pDockHostWindow, hWnd);
@@ -1219,6 +1465,7 @@ static BOOL DockHostWindow_ShowAutoHideOverlay(DockHostWindow* pDockHostWindow, 
 	pDockHostWindow->fAutoHideOverlayVisible = TRUE;
 	pDockHostWindow->nAutoHideOverlaySide = nDockSide;
 	pDockHostWindow->hWndAutoHideOverlay = hWndTab;
+	DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
 
 	DockHostWindow_UpdateAutoHideOverlay(pDockHostWindow);
 	Window_Invalidate((Window*)pDockHostWindow);
@@ -1871,7 +2118,7 @@ static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC h
 	TreeTraversalRLOT_Destroy(&traversal);
 }
 
-void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
+void DockNode_Paint(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 {
 	UNREFERENCED_PARAMETER(hCaptionBrush);
 
@@ -1907,8 +2154,22 @@ void DockNode_Paint(TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
 				palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
 				palette.text = COLORREF_WHITE;
 
+				int nHotButton = DCB_NONE;
+				int nPressedButton = DCB_NONE;
+				if (pDockHostWindow)
+				{
+					if (pDockHostWindow->pCaptionHotNode == pCurrentNode)
+					{
+						nHotButton = pDockHostWindow->nCaptionHotButton;
+					}
+					if (pDockHostWindow->pCaptionPressedNode == pCurrentNode)
+					{
+						nPressedButton = pDockHostWindow->nCaptionPressedButton;
+					}
+				}
+
 				HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-				CaptionFrame_Draw(hdc, &layout, &palette, pDockData->lpszCaption, guiFont);
+				CaptionFrame_DrawStateful(hdc, &layout, &palette, pDockData->lpszCaption, guiFont, nHotButton, nPressedButton);
 			}
 	
 			/* ================================================================================ */
@@ -2127,6 +2388,12 @@ void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* 
 		return;
 	}
 
+	if (pDockHostWindow->pCaptionHotNode == pTargetNode ||
+		pDockHostWindow->pCaptionPressedNode == pTargetNode)
+	{
+		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
+	}
+
 	DockData* pDockData = (DockData*)pTargetNode->data;
 	if (pDockData->hWnd && IsWindow(pDockData->hWnd))
 	{
@@ -2237,7 +2504,7 @@ static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc
 
 	if (pDockHostWindow->pRoot_) {
 		DockHostWindow_SyncZones(pDockHostWindow);
-		DockNode_Paint(pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
+		DockNode_Paint(pDockHostWindow, pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
 		DockHostWindow_DrawSplitGrips(pDockHostWindow, hdc);
 		DockHostWindow_DrawZoneTabs(pDockHostWindow, hdc);
 	}
@@ -2416,15 +2683,22 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
 {
 	UNREFERENCED_PARAMETER(keyFlags);
+	TRACKMOUSEEVENT tme = { 0 };
+	tme.cbSize = sizeof(tme);
+	tme.dwFlags = TME_LEAVE;
+	tme.hwndTrack = Window_GetHWND((Window*)pDockHostWindow);
+	TrackMouseEvent(&tme);
 
 	if (pDockHostWindow->fSplitDrag)
 	{
+		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
 		DockHostWindow_UpdateSplitDrag(pDockHostWindow, x, y);
 		return;
 	}
 
 	if (pDockHostWindow->fCaptionDrag)
 	{
+		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
 		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
 		int activateDistance = DRAG_UNDOCK_DISTANCE;
 		DockHostWindow_UpdateDragOverlayVisual(pDockHostWindow, distance);
@@ -2447,6 +2721,10 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 		*/
 		return;
 	}
+
+	TreeNode* pHitNode = NULL;
+	int nHitType = DockHostWindow_HitTest(pDockHostWindow, &pHitNode, x, y);
+	DockHostWindow_SetCaptionHotButton(pDockHostWindow, pHitNode, Dock_HitTypeToCaptionButton(nHitType));
 
 	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
 	if (pSplitNode && pSplitNode->data)
@@ -2658,6 +2936,7 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 
 	TreeNode* pTreeNode = NULL;
 	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
+	int nHitButton = Dock_HitTypeToCaptionButton(htType);
 
 	switch (htType)
 	{
@@ -2665,12 +2944,16 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 	case DHT_PINBTN:
 	case DHT_MOREBTN:
 	{
-		/* Do nothing. */
+		DockHostWindow_SetCaptionHotButton(pDockHostWindow, pTreeNode, nHitButton);
+		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, pTreeNode, nHitButton);
+		SetCapture(hWnd);
+		return;
 	}
 	break;
 
 	case DHT_CAPTION:
 	{
+		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
 		pDockHostWindow->fCaptionDrag = TRUE;
 		pDockHostWindow->m_pSubjectNode = pTreeNode;
 
@@ -2684,6 +2967,10 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 		DockHostWindow_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
 	}
 	break;
+
+	default:
+		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
+		break;
 	}
 }
 
@@ -2701,10 +2988,56 @@ void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
 void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) {
 	UNREFERENCED_PARAMETER(keyFlags);
 
+	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
+
 	if (pDockHostWindow->fSplitDrag)
 	{
 		DockHostWindow_EndSplitDrag(pDockHostWindow);
 		return;
+	}
+
+	if (pDockHostWindow->nCaptionPressedButton != DCB_NONE)
+	{
+		TreeNode* pHitNode = NULL;
+		int htType = DockHostWindow_HitTest(pDockHostWindow, &pHitNode, x, y);
+		int nHitButton = Dock_HitTypeToCaptionButton(htType);
+
+		TreeNode* pPressedNode = pDockHostWindow->pCaptionPressedNode;
+		int nPressedButton = pDockHostWindow->nCaptionPressedButton;
+		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
+		DockHostWindow_SetCaptionHotButton(pDockHostWindow, pHitNode, nHitButton);
+
+		if (GetCapture() == hWndDockHost)
+		{
+			ReleaseCapture();
+		}
+
+		if (pHitNode != pPressedNode || nHitButton != nPressedButton)
+		{
+			pDockHostWindow->fDrag_ = FALSE;
+			DockHostWindow_DestroyDragOverlay();
+			return;
+		}
+
+		switch (nPressedButton)
+		{
+		case DCB_CLOSE:
+			DockHostWindow_DestroyInclusive(pDockHostWindow, pPressedNode);
+			Window_Invalidate((Window*)pDockHostWindow);
+			return;
+
+		case DCB_PIN:
+			DockHostWindow_TogglePanelPinned(pDockHostWindow, pPressedNode);
+			return;
+
+		case DCB_MORE:
+		{
+			POINT ptScreen = { x, y };
+			ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptScreen);
+			DockHostWindow_ShowPanelMenu(pDockHostWindow, pPressedNode, ptScreen);
+			return;
+		}
+		}
 	}
 
 	TreeNode* pTreeNode = NULL;
@@ -2742,7 +3075,10 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 
 	pDockHostWindow->fDrag_ = FALSE;
 	DockHostWindow_DestroyDragOverlay();
-	ReleaseCapture();
+	if (GetCapture() == hWndDockHost)
+	{
+		ReleaseCapture();
+	}
 }
 
 #define IDM_DOCKINSPECTOR 101
@@ -2816,6 +3152,11 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 		return 0;
 		break;
 
+	case WM_MOUSELEAVE:
+		DockHostWindow_SetCaptionHotButton(pDockHostWindow, NULL, DCB_NONE);
+		return 0;
+		break;
+
 	case WM_LBUTTONDOWN:
 		DockHostWindow_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
 		return 0;
@@ -2833,6 +3174,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 				pDockHostWindow->pSplitNode = NULL;
 				pDockHostWindow->iSplitDragStartGrip = 0;
 			}
+			DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
 			return 0;
 			break;
 
@@ -2889,6 +3231,13 @@ void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitent
 	pDockHostWindow->nAutoHideOverlaySide = DKS_NONE;
 	pDockHostWindow->hWndAutoHideOverlay = NULL;
 	SetRectEmpty(&pDockHostWindow->rcAutoHideOverlay);
+	pDockHostWindow->pCaptionHotNode = NULL;
+	pDockHostWindow->pCaptionPressedNode = NULL;
+	pDockHostWindow->nCaptionHotButton = DCB_NONE;
+	pDockHostWindow->nCaptionPressedButton = DCB_NONE;
+	pDockHostWindow->fAutoHideOverlayTrackMouse = FALSE;
+	pDockHostWindow->nAutoHideOverlayHotButton = DCB_NONE;
+	pDockHostWindow->nAutoHideOverlayPressedButton = DCB_NONE;
 
 	pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
 }

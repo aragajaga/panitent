@@ -48,8 +48,9 @@ struct CaptionFrameLayout {
 };
 
 void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph);
-void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height);
+void DrawCaptionButton(CaptionButton* pCaptionButton, HDC hdc, int x, int y, int width, int height, COLORREF fill);
 BOOL CaptionFrame_BuildLayout(const RECT* pRectFrame, const CaptionFrameMetrics* pMetrics, const CaptionButton* pButtons, int nButtons, CaptionFrameLayout* pLayout);
 int CaptionFrame_HitTestButton(const CaptionFrameLayout* pLayout, POINT pt);
 BOOL CaptionFrame_GetButtonRect(const CaptionFrameLayout* pLayout, int htCommand, RECT* pRect);
 void CaptionFrame_Draw(HDC hdc, const CaptionFrameLayout* pLayout, const CaptionFramePalette* pPalette, PCWSTR pszCaption, HFONT hFont);
+void CaptionFrame_DrawStateful(HDC hdc, const CaptionFrameLayout* pLayout, const CaptionFramePalette* pPalette, PCWSTR pszCaption, HFONT hFont, int nHotButton, int nPressedButton);

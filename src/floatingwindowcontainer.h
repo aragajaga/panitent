@@ -15,6 +15,9 @@ struct FloatingWindowContainer {
 	BOOL bPinned;
 	BOOL fCaptionUnpinStarted;
 	POINT ptCaptionUnpinStartingPoint;
+	BOOL bNcTracking;
+	int nCaptionButtonHot;
+	int nCaptionButtonPressed;
 	HWND hWndPrevParent;
 	HWND hWndChild;
 	DockHostWindow* pDockHostTarget;
