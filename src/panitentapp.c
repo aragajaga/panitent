@@ -141,6 +141,7 @@ TreeNode* CreateViewportNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHos
         WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)pPanitentApp);
         HWND hWndWorkspaceContainer = Window_CreateWindow((Window*)pWorkspaceContainer, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataViewport, (Window*)pWorkspaceContainer);
+        pDockDataViewport->bShowCaption = FALSE;
         pPanitentApp->m_pWorkspaceContainer = pWorkspaceContainer;
     }
     

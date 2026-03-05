@@ -79,6 +79,7 @@ set(C_SOURCES
     src/debug.c
     src/docklayout.c
     src/dockhost.c
+    src/dockpolicy.c
     src/dockinspectordialog.c
     src/document.c
     src/file_open.c
@@ -170,6 +171,7 @@ if(PANITENT_BUILD_TESTS)
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
     src/docklayout.c
+    src/dockpolicy.c
   )
 
   target_compile_features(panitent_dock_tests PRIVATE c_std_99)

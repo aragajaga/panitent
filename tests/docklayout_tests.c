@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "../src/docklayout.h"
+#include "../src/dockpolicy.h"
 
 static int test_zone_tab_rect_vertical_starts_from_top(void)
 {
@@ -94,6 +95,44 @@ static int test_invalid_arguments(void)
 	return 0;
 }
 
+static int test_zone_tab_click_policy(void)
+{
+	DockPolicyZoneTabClickResult result = { 0 };
+
+	DockPolicy_ResolveZoneTabClick(TRUE, TRUE, FALSE, &result);
+	assert(result.bCollapsed == TRUE);
+	assert(result.bActivateClickedTab == FALSE);
+
+	DockPolicy_ResolveZoneTabClick(TRUE, TRUE, TRUE, &result);
+	assert(result.bCollapsed == FALSE);
+	assert(result.bActivateClickedTab == FALSE);
+
+	DockPolicy_ResolveZoneTabClick(TRUE, FALSE, TRUE, &result);
+	assert(result.bCollapsed == FALSE);
+	assert(result.bActivateClickedTab == TRUE);
+
+	DockPolicy_ResolveZoneTabClick(FALSE, FALSE, FALSE, &result);
+	assert(result.bCollapsed == TRUE);
+	assert(result.bActivateClickedTab == FALSE);
+
+	return 0;
+}
+
+static int test_core_panel_lock_policy(void)
+{
+	assert(!DockPolicy_CanUndockPanelName(L"WorkspaceContainer"));
+	assert(!DockPolicy_CanClosePanelName(L"WorkspaceContainer"));
+	assert(!DockPolicy_CanUndockPanelName(L"Root"));
+	assert(!DockPolicy_CanUndockPanelName(L"DockZone.Left"));
+	assert(!DockPolicy_CanClosePanelName(L"DockShell.Root"));
+
+	assert(DockPolicy_CanUndockPanelName(L"Palette"));
+	assert(DockPolicy_CanClosePanelName(L"Layers"));
+	assert(DockPolicy_CanUndockPanelName(NULL));
+
+	return 0;
+}
+
 int main(void)
 {
 	int failed = 0;
@@ -102,6 +141,8 @@ int main(void)
 	failed |= test_zone_tab_rect_clips_when_outside_client();
 	failed |= test_stack_style_and_grips();
 	failed |= test_invalid_arguments();
+	failed |= test_zone_tab_click_policy();
+	failed |= test_core_panel_lock_policy();
 
 	if (failed)
 	{

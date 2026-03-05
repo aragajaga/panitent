@@ -13,6 +13,7 @@
 #include "util/tree.h"
 #include "dockhost.h"
 #include "docklayout.h"
+#include "dockpolicy.h"
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
@@ -180,11 +181,12 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 
 	if (pHittedNode && pHittedNode->data)
 	{
-		if (Dock_CloseButtonHitTest((DockData*)pHittedNode->data, x, y))
+		DockData* pDockDataHit = (DockData*)pHittedNode->data;
+		if (Dock_CloseButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanClosePanelName(pDockDataHit->lpszName))
 		{
 			return DHT_CLOSEBTN;
 		}
-		else if (Dock_CaptionHitTest((DockData*)pHittedNode->data, x, y))
+		else if (Dock_CaptionHitTest(pDockDataHit, x, y) && DockPolicy_CanUndockPanelName(pDockDataHit->lpszName))
 		{
 			return DHT_CAPTION;
 		}
@@ -554,20 +556,16 @@ static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, 
 	DockData* pZoneData = (DockData*)pZoneNode->data;
 	DockZone_EnsureActiveTab(pZoneNode);
 
-	if (hWndTab && IsWindow(hWndTab))
+	BOOL bHasClickedTab = (hWndTab && IsWindow(hWndTab)) ? TRUE : FALSE;
+	BOOL bClickedIsActive = (bHasClickedTab && pZoneData->hWndActiveTab == hWndTab) ? TRUE : FALSE;
+	DockPolicyZoneTabClickResult result = { 0 };
+	DockPolicy_ResolveZoneTabClick(bHasClickedTab, bClickedIsActive, pZoneData->bCollapsed, &result);
+
+	if (result.bActivateClickedTab)
 	{
-		if (pZoneData->hWndActiveTab == hWndTab)
-		{
-			pZoneData->bCollapsed = pZoneData->bCollapsed ? FALSE : TRUE;
-		}
-		else {
-			pZoneData->hWndActiveTab = hWndTab;
-			pZoneData->bCollapsed = FALSE;
-		}
+		pZoneData->hWndActiveTab = hWndTab;
 	}
-	else {
-		pZoneData->bCollapsed = pZoneData->bCollapsed ? FALSE : TRUE;
-	}
+	pZoneData->bCollapsed = result.bCollapsed;
 
 	DockHostWindow_Rearrange(pDockHostWindow);
 	return TRUE;
