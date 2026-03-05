@@ -307,11 +307,6 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
         AppDock_AppendPanelToZone(pZoneLeft, pNodeToolbox, DKS_LEFT);
     }
 
-    if (pZoneTop)
-    {
-        AppDock_AppendPanelToZone(pZoneTop, pNodeOptionBar, DKS_TOP);
-    }
-
     if (pZoneRight)
     {
         AppDock_AppendPanelToZone(pZoneRight, pNodeGLWindow, DKS_RIGHT);
@@ -319,10 +314,15 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
         AppDock_AppendPanelToZone(pZoneRight, pNodeLayers, DKS_RIGHT);
     }
 
+    if (pZoneBottom)
+    {
+        AppDock_AppendPanelToZone(pZoneBottom, pNodeOptionBar, DKS_BOTTOM);
+    }
+
     TreeNode* pNodeCenterRight = CreateSplitNode(pPanitentApp, _T("DockShell.CenterRight"), DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL, 300, pNodeWorkspace, pZoneRight);
     TreeNode* pNodeMiddleBand = CreateSplitNode(pPanitentApp, _T("DockShell.MiddleBand"), DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, 220, pZoneLeft, pNodeCenterRight);
     TreeNode* pNodeTopMiddle = CreateSplitNode(pPanitentApp, _T("DockShell.TopMiddle"), DGA_START | DGP_ABSOLUTE | DGD_VERTICAL, 72, pZoneTop, pNodeMiddleBand);
-    TreeNode* pNodeShellRoot = CreateSplitNode(pPanitentApp, _T("DockShell.Root"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 180, pNodeTopMiddle, pZoneBottom);
+    TreeNode* pNodeShellRoot = CreateSplitNode(pPanitentApp, _T("DockShell.Root"), DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, 72, pNodeTopMiddle, pZoneBottom);
 
     pNodeParent->node1 = pNodeShellRoot;
     pNodeParent->node2 = NULL;
