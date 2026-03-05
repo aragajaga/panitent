@@ -526,7 +526,20 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 				lf.lfOrientation = lf.lfEscapement;
 				HFONT hVertical = CreateFontIndirect(&lf);
 				HFONT hOldVertical = (HFONT)SelectObject(hdc, hVertical);
-				TextOut(hdc, rcTab.left + 7, rcTab.bottom - 4, szLabel, (int)wcsnlen_s(szLabel, ARRAYSIZE(szLabel)));
+				UINT uPrevAlign = SetTextAlign(hdc, TA_LEFT | TA_TOP | TA_NOUPDATECP);
+				int tx = 0;
+				int ty = 0;
+				if (sides[i] == DKS_LEFT)
+				{
+					tx = rcTab.left + 7;
+					ty = rcTab.bottom - 6;
+				}
+				else {
+					tx = rcTab.right - 7;
+					ty = rcTab.top + 6;
+				}
+				TextOut(hdc, tx, ty, szLabel, (int)wcsnlen_s(szLabel, ARRAYSIZE(szLabel)));
+				SetTextAlign(hdc, uPrevAlign);
 				SelectObject(hdc, hOldVertical);
 				DeleteObject(hVertical);
 			}

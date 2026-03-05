@@ -15,10 +15,10 @@ static int test_zone_tab_rect_vertical_starts_from_top(void)
 
 	assert(rcTab0.left == 0);
 	assert(rcTab0.right == DOCKLAYOUT_ZONE_TAB_THICKNESS);
-	assert(rcTab0.top == 0);
-	assert(rcTab0.bottom == DOCKLAYOUT_ZONE_TAB_LENGTH);
+	assert(rcTab0.top == DOCKLAYOUT_ZONE_TAB_INSET);
+	assert(rcTab0.bottom == rcTab0.top + DOCKLAYOUT_ZONE_TAB_LENGTH);
 
-	assert(rcTab1.top == DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP);
+	assert(rcTab1.top == DOCKLAYOUT_ZONE_TAB_INSET + DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP);
 	assert(rcTab1.bottom == rcTab1.top + DOCKLAYOUT_ZONE_TAB_LENGTH);
 
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_RIGHT, 0, 3, &rcTab0));
@@ -37,12 +37,12 @@ static int test_zone_tab_rect_horizontal_starts_from_left(void)
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_TOP, 0, 3, &rcTab0));
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_TOP, 2, 3, &rcTab2));
 
-	assert(rcTab0.left == 0);
-	assert(rcTab0.right == DOCKLAYOUT_ZONE_TAB_LENGTH);
+	assert(rcTab0.left == DOCKLAYOUT_ZONE_TAB_INSET);
+	assert(rcTab0.right == rcTab0.left + DOCKLAYOUT_ZONE_TAB_LENGTH);
 	assert(rcTab0.top == 0);
 	assert(rcTab0.bottom == DOCKLAYOUT_ZONE_TAB_THICKNESS);
 
-	assert(rcTab2.left == (DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP) * 2);
+	assert(rcTab2.left == DOCKLAYOUT_ZONE_TAB_INSET + (DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP) * 2);
 	assert(rcTab2.right == rcTab2.left + DOCKLAYOUT_ZONE_TAB_LENGTH);
 
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_BOTTOM, 0, 3, &rcTab0));
@@ -58,12 +58,12 @@ static int test_zone_tab_rect_clips_when_outside_client(void)
 	RECT rcTab = { 0 };
 
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_TOP, 2, 3, &rcTab));
-	assert(rcTab.left == 150);
-	assert(rcTab.right == 150);
+	assert(rcTab.left == 126);
+	assert(rcTab.right == 126);
 
 	assert(DockLayout_GetZoneTabRect(&rcClient, DKS_LEFT, 2, 3, &rcTab));
-	assert(rcTab.top == 100);
-	assert(rcTab.bottom == 100);
+	assert(rcTab.top == 76);
+	assert(rcTab.bottom == 76);
 
 	return 0;
 }
@@ -92,6 +92,35 @@ static int test_invalid_arguments(void)
 	assert(!DockLayout_GetZoneTabRect(NULL, DKS_TOP, 0, 1, &rc));
 	assert(!DockLayout_GetZoneTabRect(&rc, DKS_TOP, 0, 1, NULL));
 	assert(!DockLayout_GetZoneTabRect(&rc, DKS_NONE, 0, 1, &rc));
+	assert(!DockLayout_GetDockPreviewRect(NULL, DKS_LEFT, &rc));
+	assert(!DockLayout_GetDockPreviewRect(&rc, DKS_LEFT, NULL));
+	assert(!DockLayout_GetDockPreviewRect(&rc, DKS_NONE, &rc));
+	return 0;
+}
+
+static int test_dock_preview_rect_behavior(void)
+{
+	RECT rcHost = { 10, 20, 810, 620 };
+	RECT rc = { 0 };
+
+	assert(DockLayout_GetDockPreviewRect(&rcHost, DKS_LEFT, &rc));
+	assert(rc.left == 10);
+	assert(rc.top == 20);
+	assert(rc.bottom == 620);
+	assert(rc.right > rc.left);
+
+	assert(DockLayout_GetDockPreviewRect(&rcHost, DKS_RIGHT, &rc));
+	assert(rc.right == 810);
+	assert(rc.left < rc.right);
+
+	assert(DockLayout_GetDockPreviewRect(&rcHost, DKS_TOP, &rc));
+	assert(rc.top == 20);
+	assert(rc.bottom > rc.top);
+
+	assert(DockLayout_GetDockPreviewRect(&rcHost, DKS_BOTTOM, &rc));
+	assert(rc.bottom == 620);
+	assert(rc.top < rc.bottom);
+
 	return 0;
 }
 
@@ -141,6 +170,7 @@ int main(void)
 	failed |= test_zone_tab_rect_clips_when_outside_client();
 	failed |= test_stack_style_and_grips();
 	failed |= test_invalid_arguments();
+	failed |= test_dock_preview_rect_behavior();
 	failed |= test_zone_tab_click_policy();
 	failed |= test_core_panel_lock_policy();
 

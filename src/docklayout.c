@@ -58,35 +58,83 @@ BOOL DockLayout_GetZoneTabRect(const RECT* pClientRect, int nDockSide, int iTabI
 	int nSafeTabs = max(1, nTabs);
 	int iSafeIndex = max(0, min(iTabIndex, nSafeTabs - 1));
 	int iOffset = iSafeIndex * (DOCKLAYOUT_ZONE_TAB_LENGTH + DOCKLAYOUT_ZONE_TAB_GAP);
+	int iInset = min(DOCKLAYOUT_ZONE_TAB_INSET, min(cx, cy) / 2);
+	int iUsableWidth = max(0, cx - iInset * 2);
+	int iUsableHeight = max(0, cy - iInset * 2);
 
 	switch (nDockSide)
 	{
 	case DKS_LEFT:
 		pRect->left = 0;
 		pRect->right = DOCKLAYOUT_ZONE_TAB_THICKNESS;
-		pRect->top = min(iOffset, cy);
-		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy);
+		pRect->top = iInset + min(iOffset, iUsableHeight);
+		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy - iInset);
+		pRect->top = min(pRect->top, pRect->bottom);
 		return TRUE;
 
 	case DKS_RIGHT:
 		pRect->right = cx;
 		pRect->left = max(cx - DOCKLAYOUT_ZONE_TAB_THICKNESS, 0);
-		pRect->top = min(iOffset, cy);
-		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy);
+		pRect->top = iInset + min(iOffset, iUsableHeight);
+		pRect->bottom = min(pRect->top + DOCKLAYOUT_ZONE_TAB_LENGTH, cy - iInset);
+		pRect->top = min(pRect->top, pRect->bottom);
 		return TRUE;
 
 	case DKS_TOP:
 		pRect->top = 0;
 		pRect->bottom = DOCKLAYOUT_ZONE_TAB_THICKNESS;
-		pRect->left = min(iOffset, cx);
-		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx);
+		pRect->left = iInset + min(iOffset, iUsableWidth);
+		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx - iInset);
+		pRect->left = min(pRect->left, pRect->right);
 		return TRUE;
 
 	case DKS_BOTTOM:
 		pRect->bottom = cy;
 		pRect->top = max(cy - DOCKLAYOUT_ZONE_TAB_THICKNESS, 0);
-		pRect->left = min(iOffset, cx);
-		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx);
+		pRect->left = iInset + min(iOffset, iUsableWidth);
+		pRect->right = min(pRect->left + DOCKLAYOUT_ZONE_TAB_LENGTH, cx - iInset);
+		pRect->left = min(pRect->left, pRect->right);
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
+BOOL DockLayout_GetDockPreviewRect(const RECT* pHostRect, int nDockSide, RECT* pRect)
+{
+	if (!pHostRect || !pRect)
+	{
+		return FALSE;
+	}
+
+	int width = pHostRect->right - pHostRect->left;
+	int height = pHostRect->bottom - pHostRect->top;
+	if (width <= 0 || height <= 0)
+	{
+		return FALSE;
+	}
+
+	int edge = min(width, height) / 3;
+	edge = max(edge, 96);
+	edge = min(edge, 420);
+
+	*pRect = *pHostRect;
+	switch (nDockSide)
+	{
+	case DKS_LEFT:
+		pRect->right = min(pRect->left + edge, pHostRect->right);
+		return TRUE;
+
+	case DKS_RIGHT:
+		pRect->left = max(pRect->right - edge, pHostRect->left);
+		return TRUE;
+
+	case DKS_TOP:
+		pRect->bottom = min(pRect->top + edge, pHostRect->bottom);
+		return TRUE;
+
+	case DKS_BOTTOM:
+		pRect->top = max(pRect->bottom - edge, pHostRect->top);
 		return TRUE;
 	}
 

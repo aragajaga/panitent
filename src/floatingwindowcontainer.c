@@ -4,6 +4,7 @@
 #include "win32/util.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
+#include "docklayout.h"
 #include "resource.h"
 #include "toolwndframe.h"
 #include "panitentapp.h"
@@ -18,6 +19,8 @@ static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 FloatingWindowContainer* FloatingWindowContainer_Create();
 void FloatingWindowContainer_Init(FloatingWindowContainer*);
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer);
+static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
+static void FloatingWindowContainer_DestroyDockPreviewOverlay(void);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -45,6 +48,221 @@ BOOL FloatingWindowContainer_OnNCCreate(FloatingWindowContainer* pFloatingWindow
 int g_borderSize = 3;
 int g_borderGripSize = 8;
 int g_captionHeight = 14;
+
+static const WCHAR szDockPreviewOverlayClassName[] = L"__DockPreviewOverlay";
+static HWND g_hWndDockPreviewOverlay = NULL;
+
+static LRESULT CALLBACK DockPreviewOverlay_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(hWnd);
+	UNREFERENCED_PARAMETER(message);
+	UNREFERENCED_PARAMETER(wParam);
+	UNREFERENCED_PARAMETER(lParam);
+	return DefWindowProc(hWnd, message, wParam, lParam);
+}
+
+static BOOL DockPreviewOverlay_EnsureClass(void)
+{
+	WNDCLASSEX wcex = { 0 };
+	if (GetClassInfoEx(GetModuleHandle(NULL), szDockPreviewOverlayClassName, &wcex))
+	{
+		return TRUE;
+	}
+
+	wcex.cbSize = sizeof(wcex);
+	wcex.lpfnWndProc = DockPreviewOverlay_WndProc;
+	wcex.hInstance = GetModuleHandle(NULL);
+	wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+	wcex.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+	wcex.lpszClassName = szDockPreviewOverlayClassName;
+	return RegisterClassEx(&wcex) != 0;
+}
+
+static HWND DockPreviewOverlay_EnsureWindow(void)
+{
+	if (g_hWndDockPreviewOverlay && IsWindow(g_hWndDockPreviewOverlay))
+	{
+		return g_hWndDockPreviewOverlay;
+	}
+
+	if (!DockPreviewOverlay_EnsureClass())
+	{
+		return NULL;
+	}
+
+	g_hWndDockPreviewOverlay = CreateWindowEx(
+		WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW | WS_EX_TOPMOST,
+		szDockPreviewOverlayClassName,
+		L"DockPreviewOverlay",
+		WS_POPUP,
+		0, 0, 0, 0,
+		NULL,
+		NULL,
+		GetModuleHandle(NULL),
+		NULL);
+
+	return g_hWndDockPreviewOverlay;
+}
+
+static void DockPreviewOverlay_FillRectARGB(DWORD* pBits, int width, int height, const RECT* pRect, BYTE a, BYTE r, BYTE g, BYTE b)
+{
+	if (!pBits || !pRect || width <= 0 || height <= 0)
+	{
+		return;
+	}
+
+	RECT rc = *pRect;
+	rc.left = max(0, min(rc.left, width));
+	rc.right = max(0, min(rc.right, width));
+	rc.top = max(0, min(rc.top, height));
+	rc.bottom = max(0, min(rc.bottom, height));
+	if (rc.left >= rc.right || rc.top >= rc.bottom)
+	{
+		return;
+	}
+
+	DWORD color = ((DWORD)a << 24) | ((DWORD)r << 16) | ((DWORD)g << 8) | (DWORD)b;
+	for (int y = rc.top; y < rc.bottom; ++y)
+	{
+		DWORD* pRow = pBits + y * width;
+		for (int x = rc.left; x < rc.right; ++x)
+		{
+			pRow[x] = color;
+		}
+	}
+}
+
+static void FloatingWindowContainer_DestroyDockPreviewOverlay(void)
+{
+	if (g_hWndDockPreviewOverlay && IsWindow(g_hWndDockPreviewOverlay))
+	{
+		DestroyWindow(g_hWndDockPreviewOverlay);
+	}
+
+	g_hWndDockPreviewOverlay = NULL;
+}
+
+static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
+{
+	if (!pFloatingWindowContainer || !pFloatingWindowContainer->pDockHostTarget)
+	{
+		FloatingWindowContainer_DestroyDockPreviewOverlay();
+		return;
+	}
+
+	HWND hWndDockHost = Window_GetHWND((Window*)pFloatingWindowContainer->pDockHostTarget);
+	if (!hWndDockHost || !IsWindow(hWndDockHost))
+	{
+		FloatingWindowContainer_DestroyDockPreviewOverlay();
+		return;
+	}
+
+	POINT ptCursor = { 0 };
+	if (!GetCursorPos(&ptCursor))
+	{
+		FloatingWindowContainer_DestroyDockPreviewOverlay();
+		return;
+	}
+
+	int nDockSide = DockHostWindow_HitTestDockSide(pFloatingWindowContainer->pDockHostTarget, ptCursor);
+	if (nDockSide == DKS_NONE)
+	{
+		FloatingWindowContainer_DestroyDockPreviewOverlay();
+		return;
+	}
+
+	RECT rcHostScreen = { 0 };
+	GetWindowRect(hWndDockHost, &rcHostScreen);
+	int width = Win32_Rect_GetWidth(&rcHostScreen);
+	int height = Win32_Rect_GetHeight(&rcHostScreen);
+	if (width <= 0 || height <= 0)
+	{
+		FloatingWindowContainer_DestroyDockPreviewOverlay();
+		return;
+	}
+
+	HWND hWndOverlay = DockPreviewOverlay_EnsureWindow();
+	if (!hWndOverlay)
+	{
+		return;
+	}
+
+	HDC hdcScreen = GetDC(NULL);
+	HDC hdcMem = CreateCompatibleDC(hdcScreen);
+
+	BITMAPINFO bmi = { 0 };
+	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth = width;
+	bmi.bmiHeader.biHeight = -height;
+	bmi.bmiHeader.biPlanes = 1;
+	bmi.bmiHeader.biBitCount = 32;
+	bmi.bmiHeader.biCompression = BI_RGB;
+
+	DWORD* pBits = NULL;
+	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+	HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
+	memset(pBits, 0, (size_t)width * (size_t)height * sizeof(DWORD));
+
+	RECT rcHostLocal = { 0, 0, width, height };
+	RECT rcPreview = { 0 };
+	if (DockLayout_GetDockPreviewRect(&rcHostLocal, nDockSide, &rcPreview))
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcPreview, 110, 0x4d, 0x8e, 0xd6);
+
+		RECT rcBorderTop = { rcPreview.left, rcPreview.top, rcPreview.right, rcPreview.top + 2 };
+		RECT rcBorderBottom = { rcPreview.left, rcPreview.bottom - 2, rcPreview.right, rcPreview.bottom };
+		RECT rcBorderLeft = { rcPreview.left, rcPreview.top, rcPreview.left + 2, rcPreview.bottom };
+		RECT rcBorderRight = { rcPreview.right - 2, rcPreview.top, rcPreview.right, rcPreview.bottom };
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderTop, 190, 0x73, 0xb3, 0xf2);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderBottom, 190, 0x73, 0xb3, 0xf2);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderLeft, 190, 0x73, 0xb3, 0xf2);
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
+	}
+
+	const int guideSize = 30;
+	const int guideGap = 10;
+	int cx = width / 2;
+	int cy = height / 2;
+	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
+	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
+	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
+	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+	RECT rcGuideCenter = { cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2 };
+
+	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 85, 0x55, 0x6b, 0x88);
+	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 75, 0x4f, 0x62, 0x7a);
+	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 75, 0x4f, 0x62, 0x7a);
+	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 75, 0x4f, 0x62, 0x7a);
+	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 75, 0x4f, 0x62, 0x7a);
+
+	switch (nDockSide)
+	{
+	case DKS_LEFT:
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 190, 0x73, 0xb3, 0xf2);
+		break;
+	case DKS_RIGHT:
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 190, 0x73, 0xb3, 0xf2);
+		break;
+	case DKS_TOP:
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 190, 0x73, 0xb3, 0xf2);
+		break;
+	case DKS_BOTTOM:
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 190, 0x73, 0xb3, 0xf2);
+		break;
+	}
+
+	POINT ptPos = { rcHostScreen.left, rcHostScreen.top };
+	SIZE sizeWnd = { width, height };
+	POINT ptSrc = { 0, 0 };
+	BLENDFUNCTION blendFunction = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+	UpdateLayeredWindow(hWndOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
+	ShowWindow(hWndOverlay, SW_SHOWNA);
+
+	SelectObject(hdcMem, hOld);
+	DeleteObject(hBitmap);
+	DeleteDC(hdcMem);
+	ReleaseDC(NULL, hdcScreen);
+}
 
 LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingWindowContainer, BOOL bProcess, LPARAM lParam)
 {
@@ -355,6 +573,7 @@ void FloatingWindowContainer_OnContextMenu(FloatingWindowContainer* window, int 
 void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 {
     UNREFERENCED_PARAMETER(window);
+    FloatingWindowContainer_DestroyDockPreviewOverlay();
 }
 
 
@@ -655,8 +874,14 @@ LRESULT CALLBACK FloatingWindowContainer_UserProc(FloatingWindowContainer* windo
     }
         break;
 
+    case WM_MOVING:
+    case WM_SIZING:
+        FloatingWindowContainer_UpdateDockPreviewOverlay(window);
+        break;
+
     case WM_EXITSIZEMOVE:
     {
+        FloatingWindowContainer_DestroyDockPreviewOverlay();
         if (FloatingWindowContainer_AttemptDock(window))
         {
             DestroyWindow(window->base.hWnd);

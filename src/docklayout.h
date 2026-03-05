@@ -49,8 +49,10 @@
 #define DOCKLAYOUT_ZONE_TAB_THICKNESS 24
 #define DOCKLAYOUT_ZONE_TAB_LENGTH 92
 #define DOCKLAYOUT_ZONE_TAB_GAP 2
+#define DOCKLAYOUT_ZONE_TAB_INSET DOCKLAYOUT_ZONE_TAB_THICKNESS
 
 DWORD DockLayout_GetZoneStackStyle(int nDockSide);
 int DockLayout_GetZoneStackGrip(int nDockSide, int iDockSize);
 int DockLayout_GetZoneSplitGrip(int nDockSide, int iDockSize);
 BOOL DockLayout_GetZoneTabRect(const RECT* pClientRect, int nDockSide, int iTabIndex, int nTabs, RECT* pRect);
+BOOL DockLayout_GetDockPreviewRect(const RECT* pHostRect, int nDockSide, RECT* pRect);
