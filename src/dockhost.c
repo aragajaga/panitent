@@ -2915,6 +2915,18 @@ TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
 	return pDockHostWindow->pRoot_;
 }
 
+static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd)
+{
+	if (!hWnd || !IsWindow(hWnd))
+	{
+		return FALSE;
+	}
+
+	WCHAR szClassNameBuf[64] = L"";
+	GetClassNameW(hWnd, szClassNameBuf, ARRAYSIZE(szClassNameBuf));
+	return wcscmp(szClassNameBuf, L"__WorkspaceContainer") == 0;
+}
+
 static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd)
 {
 	if (!pDockHostWindow || !pDockData || !hWnd || !IsWindow(hWnd))
@@ -2931,7 +2943,7 @@ static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockDat
 	SetWindowLongPtr(hWnd, GWL_STYLE, dwStyle);
 	SetWindowPos(hWnd, NULL, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER);
 
-	pDockData->bShowCaption = TRUE;
+	pDockData->bShowCaption = !DockHostWindow_IsWorkspaceWindow(hWnd);
 	pDockData->hWnd = hWnd;
 }
 

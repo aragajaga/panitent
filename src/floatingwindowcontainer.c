@@ -20,8 +20,18 @@
 #define GLYPH_CLOSE_TILE 4
 #define DOCK_TARGET_GUIDE_SIZE 30
 #define DOCK_TARGET_GUIDE_GAP 10
+#define WORKSPACE_DOCK_CENTER 5
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
+
+typedef struct WorkspaceDockTargetHit WorkspaceDockTargetHit;
+struct WorkspaceDockTargetHit {
+    WorkspaceContainer* pWorkspaceTarget;
+    int nDockSide;
+    RECT rcTargetScreen;
+    RECT rcPreviewScreen;
+    BOOL bSupportsSplit;
+};
 
 /* Private forward declarations */
 FloatingWindowContainer* FloatingWindowContainer_Create();
@@ -32,6 +42,11 @@ static void FloatingWindowContainer_DestroyDockPreviewOverlay(void);
 static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWindowContainer* pFloatingWindowContainer);
 static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace);
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
+static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
+    FloatingWindowContainer* pFloatingWindowContainer,
+    WorkspaceContainer* pWorkspaceSource,
+    POINT ptScreen,
+    WorkspaceDockTargetHit* pDockHit);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -184,6 +199,159 @@ static WorkspaceContainer* FloatingWindowContainer_GetWorkspaceChild(FloatingWin
     return (WorkspaceContainer*)pWindow;
 }
 
+static BOOL FloatingWindowContainer_IsWorkspaceSplitDockSupported(FloatingWindowContainer* pFloatingWindowContainer, HWND hWndWorkspace)
+{
+    if (!pFloatingWindowContainer || !hWndWorkspace || !IsWindow(hWndWorkspace))
+    {
+        return FALSE;
+    }
+
+    HWND hWndDockHost = NULL;
+    if (pFloatingWindowContainer->pDockHostTarget)
+    {
+        hWndDockHost = Window_GetHWND((Window*)pFloatingWindowContainer->pDockHostTarget);
+    }
+
+    if (!hWndDockHost || !IsWindow(hWndDockHost))
+    {
+        return FALSE;
+    }
+
+    return GetParent(hWndWorkspace) == hWndDockHost;
+}
+
+static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
+    FloatingWindowContainer* pFloatingWindowContainer,
+    WorkspaceContainer* pWorkspaceSource,
+    POINT ptScreen,
+    WorkspaceDockTargetHit* pDockHit)
+{
+    if (!pWorkspaceSource || !pDockHit)
+    {
+        return FALSE;
+    }
+
+    memset(pDockHit, 0, sizeof(*pDockHit));
+
+    WorkspaceContainer* pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptScreen);
+    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
+    {
+        return FALSE;
+    }
+
+    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
+    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
+    {
+        return FALSE;
+    }
+
+    RECT rcTargetScreen = { 0 };
+    GetWindowRect(hWndTargetWorkspace, &rcTargetScreen);
+    int width = Win32_Rect_GetWidth(&rcTargetScreen);
+    int height = Win32_Rect_GetHeight(&rcTargetScreen);
+    if (width <= 0 || height <= 0)
+    {
+        return FALSE;
+    }
+
+    BOOL bSupportsSplit = FloatingWindowContainer_IsWorkspaceSplitDockSupported(
+        pFloatingWindowContainer,
+        hWndTargetWorkspace);
+
+    POINT ptLocal = {
+        ptScreen.x - rcTargetScreen.left,
+        ptScreen.y - rcTargetScreen.top
+    };
+
+    int guideSize = DOCK_TARGET_GUIDE_SIZE;
+    int guideGap = DOCK_TARGET_GUIDE_GAP;
+    int cx = width / 2;
+    int cy = height / 2;
+
+    RECT rcGuideCenter = {
+        cx - guideSize / 2,
+        cy - guideSize / 2,
+        cx + guideSize / 2,
+        cy + guideSize / 2
+    };
+    RECT rcGuideLeft = {
+        cx - guideGap - guideSize * 2,
+        cy - guideSize / 2,
+        cx - guideGap - guideSize,
+        cy + guideSize / 2
+    };
+    RECT rcGuideRight = {
+        cx + guideGap + guideSize,
+        cy - guideSize / 2,
+        cx + guideGap + guideSize * 2,
+        cy + guideSize / 2
+    };
+    RECT rcGuideTop = {
+        cx - guideSize / 2,
+        cy - guideGap - guideSize * 2,
+        cx + guideSize / 2,
+        cy - guideGap - guideSize
+    };
+    RECT rcGuideBottom = {
+        cx - guideSize / 2,
+        cy + guideGap + guideSize,
+        cx + guideSize / 2,
+        cy + guideGap + guideSize * 2
+    };
+
+    int nDockSide = DKS_NONE;
+    if (PtInRect(&rcGuideCenter, ptLocal))
+    {
+        nDockSide = WORKSPACE_DOCK_CENTER;
+    }
+    else if (bSupportsSplit)
+    {
+        if (PtInRect(&rcGuideLeft, ptLocal))
+        {
+            nDockSide = DKS_LEFT;
+        }
+        else if (PtInRect(&rcGuideRight, ptLocal))
+        {
+            nDockSide = DKS_RIGHT;
+        }
+        else if (PtInRect(&rcGuideTop, ptLocal))
+        {
+            nDockSide = DKS_TOP;
+        }
+        else if (PtInRect(&rcGuideBottom, ptLocal))
+        {
+            nDockSide = DKS_BOTTOM;
+        }
+    }
+    else if (PtInRect(&rcTargetScreen, ptScreen))
+    {
+        nDockSide = WORKSPACE_DOCK_CENTER;
+    }
+
+    pDockHit->pWorkspaceTarget = pWorkspaceTarget;
+    pDockHit->nDockSide = nDockSide;
+    pDockHit->rcTargetScreen = rcTargetScreen;
+    pDockHit->bSupportsSplit = bSupportsSplit;
+    SetRectEmpty(&pDockHit->rcPreviewScreen);
+
+    if (nDockSide != DKS_NONE)
+    {
+        RECT rcTargetClient = { 0 };
+        GetClientRect(hWndTargetWorkspace, &rcTargetClient);
+        RECT rcPreviewClient = rcTargetClient;
+
+        if (nDockSide != WORKSPACE_DOCK_CENTER)
+        {
+            DockLayout_GetDockPreviewRect(&rcTargetClient, nDockSide, &rcPreviewClient);
+        }
+
+        MapWindowPoints(hWndTargetWorkspace, NULL, (POINT*)&rcPreviewClient, 2);
+        pDockHit->rcPreviewScreen = rcPreviewClient;
+    }
+
+    return TRUE;
+}
+
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
 {
     WorkspaceContainer* pWorkspaceSource = FloatingWindowContainer_GetWorkspaceChild(pFloatingWindowContainer);
@@ -200,22 +368,18 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
         return;
     }
 
-    WorkspaceContainer* pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptCursor);
-    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
+    WorkspaceDockTargetHit workspaceDockHit = { 0 };
+    if (!FloatingWindowContainer_HitTestDocumentDockTarget(
+        pFloatingWindowContainer,
+        pWorkspaceSource,
+        ptCursor,
+        &workspaceDockHit))
     {
         FloatingWindowContainer_DestroyDockPreviewOverlay();
         return;
     }
 
-    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
-    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
-    {
-        FloatingWindowContainer_DestroyDockPreviewOverlay();
-        return;
-    }
-
-    RECT rcTargetScreen = { 0 };
-    GetWindowRect(hWndTargetWorkspace, &rcTargetScreen);
+    RECT rcTargetScreen = workspaceDockHit.rcTargetScreen;
     int width = Win32_Rect_GetWidth(&rcTargetScreen);
     int height = Win32_Rect_GetHeight(&rcTargetScreen);
     if (width <= 0 || height <= 0)
@@ -246,26 +410,71 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
     HGDIOBJ hOld = SelectObject(hdcMem, hBitmap);
     memset(pBits, 0, (size_t)width * (size_t)height * sizeof(DWORD));
 
-    RECT rcPreview = { 0, 0, width, height };
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcPreview, 95, 0x4d, 0x8e, 0xd6);
+    RECT rcTargetOutline = { 0, 0, width, height };
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcTargetOutline, 38, 0x5d, 0x78, 0x98);
 
-    RECT rcBorderTop = { rcPreview.left, rcPreview.top, rcPreview.right, rcPreview.top + 2 };
-    RECT rcBorderBottom = { rcPreview.left, rcPreview.bottom - 2, rcPreview.right, rcPreview.bottom };
-    RECT rcBorderLeft = { rcPreview.left, rcPreview.top, rcPreview.left + 2, rcPreview.bottom };
-    RECT rcBorderRight = { rcPreview.right - 2, rcPreview.top, rcPreview.right, rcPreview.bottom };
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderTop, 190, 0x73, 0xb3, 0xf2);
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderBottom, 190, 0x73, 0xb3, 0xf2);
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderLeft, 190, 0x73, 0xb3, 0xf2);
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
+    RECT rcOutlineTop = { rcTargetOutline.left, rcTargetOutline.top, rcTargetOutline.right, rcTargetOutline.top + 1 };
+    RECT rcOutlineBottom = { rcTargetOutline.left, rcTargetOutline.bottom - 1, rcTargetOutline.right, rcTargetOutline.bottom };
+    RECT rcOutlineLeft = { rcTargetOutline.left, rcTargetOutline.top, rcTargetOutline.left + 1, rcTargetOutline.bottom };
+    RECT rcOutlineRight = { rcTargetOutline.right - 1, rcTargetOutline.top, rcTargetOutline.right, rcTargetOutline.bottom };
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcOutlineTop, 170, 0x78, 0xb8, 0xf8);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcOutlineBottom, 170, 0x78, 0xb8, 0xf8);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcOutlineLeft, 170, 0x78, 0xb8, 0xf8);
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcOutlineRight, 170, 0x78, 0xb8, 0xf8);
 
-    int guideSize = 28;
-    RECT rcGuideCenter = {
-        width / 2 - guideSize / 2,
-        height / 2 - guideSize / 2,
-        width / 2 + guideSize / 2,
-        height / 2 + guideSize / 2
-    };
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 210, 0x73, 0xb3, 0xf2);
+    if (workspaceDockHit.nDockSide != DKS_NONE && !IsRectEmpty(&workspaceDockHit.rcPreviewScreen))
+    {
+        RECT rcPreview = workspaceDockHit.rcPreviewScreen;
+        OffsetRect(&rcPreview, -rcTargetScreen.left, -rcTargetScreen.top);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcPreview, 105, 0x4d, 0x8e, 0xd6);
+
+        RECT rcBorderTop = { rcPreview.left, rcPreview.top, rcPreview.right, rcPreview.top + 2 };
+        RECT rcBorderBottom = { rcPreview.left, rcPreview.bottom - 2, rcPreview.right, rcPreview.bottom };
+        RECT rcBorderLeft = { rcPreview.left, rcPreview.top, rcPreview.left + 2, rcPreview.bottom };
+        RECT rcBorderRight = { rcPreview.right - 2, rcPreview.top, rcPreview.right, rcPreview.bottom };
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderTop, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderBottom, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderLeft, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
+    }
+
+    int guideSize = DOCK_TARGET_GUIDE_SIZE;
+    int guideGap = DOCK_TARGET_GUIDE_GAP;
+    int cx = width / 2;
+    int cy = height / 2;
+    RECT rcGuideCenter = { cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2 };
+    RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
+    RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
+    RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
+    RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+
+    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 90, 0x55, 0x6b, 0x88);
+    if (workspaceDockHit.bSupportsSplit)
+    {
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 75, 0x4f, 0x62, 0x7a);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 75, 0x4f, 0x62, 0x7a);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 75, 0x4f, 0x62, 0x7a);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 75, 0x4f, 0x62, 0x7a);
+    }
+
+    switch (workspaceDockHit.nDockSide)
+    {
+    case DKS_LEFT:
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 190, 0x73, 0xb3, 0xf2);
+        break;
+    case DKS_RIGHT:
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 190, 0x73, 0xb3, 0xf2);
+        break;
+    case DKS_TOP:
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 190, 0x73, 0xb3, 0xf2);
+        break;
+    case DKS_BOTTOM:
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 190, 0x73, 0xb3, 0xf2);
+        break;
+    case WORKSPACE_DOCK_CENTER:
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 210, 0x73, 0xb3, 0xf2);
+        break;
+    }
 
     POINT ptPos = { rcTargetScreen.left, rcTargetScreen.top };
     SIZE sizeWnd = { width, height };
@@ -549,6 +758,23 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
 
     HWND hWnd = pFloatingWindowContainer->base.hWnd;
     HDC hdc = GetWindowDC(hWnd);
+    if (!hdc)
+    {
+        return;
+    }
+
+    /* Keep non-client painting out of the client area to avoid first-frame flash. */
+    RECT rcClient = { 0 };
+    if (GetClientRect(hWnd, &rcClient))
+    {
+        POINT ptClientOrigin = { 0, 0 };
+        RECT rcWindow = { 0 };
+        if (ClientToScreen(hWnd, &ptClientOrigin) && GetWindowRect(hWnd, &rcWindow))
+        {
+            OffsetRect(&rcClient, ptClientOrigin.x - rcWindow.left, ptClientOrigin.y - rcWindow.top);
+            ExcludeClipRect(hdc, rcClient.left, rcClient.top, rcClient.right, rcClient.bottom);
+        }
+    }
 
     DWORD dwStyle = GetWindowStyle(hWnd);
 
@@ -1068,10 +1294,12 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
         return FALSE;
     }
 
-    WorkspaceContainer* pWorkspaceTarget = NULL;
+    WorkspaceDockTargetHit workspaceDockHit = { 0 };
     if (bForceMainWorkspace)
     {
-        pWorkspaceTarget = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
+        workspaceDockHit.pWorkspaceTarget = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
+        workspaceDockHit.nDockSide = WORKSPACE_DOCK_CENTER;
+        workspaceDockHit.bSupportsSplit = FALSE;
     }
     else {
         POINT ptCursor = { 0 };
@@ -1080,15 +1308,74 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
             return FALSE;
         }
 
-        pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptCursor);
+        if (!FloatingWindowContainer_HitTestDocumentDockTarget(
+            pFloatingWindowContainer,
+            pWorkspaceSource,
+            ptCursor,
+            &workspaceDockHit))
+        {
+            return FALSE;
+        }
     }
 
+    WorkspaceContainer* pWorkspaceTarget = workspaceDockHit.pWorkspaceTarget;
     if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
     {
         return FALSE;
     }
 
-    WorkspaceContainer_MoveAllViewportsTo(pWorkspaceSource, pWorkspaceTarget);
+    if (workspaceDockHit.nDockSide == WORKSPACE_DOCK_CENTER)
+    {
+        WorkspaceContainer_MoveAllViewportsTo(pWorkspaceSource, pWorkspaceTarget);
+        return TRUE;
+    }
+
+    if (workspaceDockHit.nDockSide != DKS_LEFT &&
+        workspaceDockHit.nDockSide != DKS_RIGHT &&
+        workspaceDockHit.nDockSide != DKS_TOP &&
+        workspaceDockHit.nDockSide != DKS_BOTTOM)
+    {
+        return FALSE;
+    }
+
+    if (!pFloatingWindowContainer->pDockHostTarget ||
+        !pFloatingWindowContainer->hWndChild ||
+        !IsWindow(pFloatingWindowContainer->hWndChild))
+    {
+        return FALSE;
+    }
+
+    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
+    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
+    {
+        return FALSE;
+    }
+
+    DockTargetHit dockTarget = { 0 };
+    dockTarget.nDockSide = workspaceDockHit.nDockSide;
+    dockTarget.bLocalTarget = TRUE;
+    dockTarget.hWndAnchor = hWndTargetWorkspace;
+
+    RECT rcFloating = { 0 };
+    GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
+    int iDockSize = pFloatingWindowContainer->iDockSizeHint;
+    if (dockTarget.nDockSide == DKS_LEFT || dockTarget.nDockSide == DKS_RIGHT)
+    {
+        iDockSize = max(iDockSize, Win32_Rect_GetWidth(&rcFloating));
+    }
+    else {
+        iDockSize = max(iDockSize, Win32_Rect_GetHeight(&rcFloating));
+    }
+    iDockSize = max(iDockSize, 220);
+
+    HWND hWndChild = pFloatingWindowContainer->hWndChild;
+    pFloatingWindowContainer->hWndChild = NULL;
+    if (!DockHostWindow_DockHWNDToTarget(pFloatingWindowContainer->pDockHostTarget, hWndChild, &dockTarget, iDockSize))
+    {
+        pFloatingWindowContainer->hWndChild = hWndChild;
+        return FALSE;
+    }
+
     return TRUE;
 }
 
