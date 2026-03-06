@@ -8,6 +8,7 @@ struct Tool {
   int img;
   void (*OnLButtonUp)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
   void (*OnLButtonDown)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+  void (*OnRButtonDown)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
   void (*OnRButtonUp)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
   void (*OnMouseMove)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 };

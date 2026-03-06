@@ -19,10 +19,17 @@ typedef struct tlist$$##T {                                                    \
 tlist$$##T_t* tlist$$##T_new(int (*cmp)(T, T))                                 \
 {                                                                              \
   tlist$$##T_t* l = malloc(sizeof(tlist$$##T_t));                              \
+  if (!l)                                                                      \
+    return NULL;                                                               \
   memset(l, 0, sizeof(tlist$$##T_t));                                          \
-  l->capacity = 0;                                                             \
+  l->capacity = 16;                                                            \
   l->length = 0;                                                               \
   l->data = malloc(16 * sizeof(T));                                            \
+  if (!l->data)                                                                \
+  {                                                                            \
+    free(l);                                                                   \
+    return NULL;                                                               \
+  }                                                                            \
   memset(l->data, 0, 16 * sizeof(T));                                          \
   l->cmp = cmp;                                                                \
                                                                                \
@@ -37,7 +44,10 @@ void tlist$$##T_add(tlist$$##T_t* l, T el)                                     \
                                                                                \
   if (l->capacity <= l->length)                                                \
   {                                                                            \
-    l->data = realloc(l->data, (l->capacity + 32) * sizeof(tlist$$##T_t));     \
+    T* pData = realloc(l->data, (l->capacity + 32) * sizeof(T));               \
+    if (!pData)                                                                \
+      return;                                                                  \
+    l->data = pData;                                                           \
     l->capacity += 32;                                                         \
   }                                                                            \
                                                                                \
@@ -50,18 +60,24 @@ void tlist$$##T_remove(tlist$$##T_t* l, T el)                                  \
   if (!l || !l->length)                                                        \
     return;                                                                    \
                                                                                \
-  size_t i = l->length;                                                        \
-  while (--i)                                                                  \
+  for (size_t i = 0; i < l->length; ++i)                                       \
   {                                                                            \
     if (l->cmp(l->data[i], el) != 0)                                           \
       continue;                                                                \
                                                                                \
-    memmove(l->data + i - 1, l->data + i, l->length - i);                      \
+    if (i + 1 < l->length)                                                     \
+    {                                                                          \
+      memmove(l->data + i, l->data + i + 1, (l->length - i - 1) * sizeof(T));  \
+    }                                                                          \
+    --l->length;                                                               \
+    break;                                                                     \
   }                                                                            \
 }                                                                              \
                                                                                \
 void tlist$$##T_delete(tlist$$##T_t* l)                                        \
 {                                                                              \
+  if (!l)                                                                      \
+    return;                                                                    \
   free(l->data);                                                               \
   free(l);                                                                     \
 }
@@ -84,6 +100,9 @@ void SetForegroundColor(uint32_t color)
 {
   g_color_context.fg_color = color;
 
+  if (!g_colorObservers)
+    return;
+
   for (size_t i = 0; i < g_colorObservers->length; ++i)
   {
     color_observer_t obs = g_colorObservers->data[i];
@@ -95,6 +114,9 @@ void SetBackgroundColor(uint32_t color)
 {
   g_color_context.bg_color = color;
 
+  if (!g_colorObservers)
+    return;
+
   for (size_t i = 0; i < g_colorObservers->length; ++i)
   {
     color_observer_t obs = g_colorObservers->data[i];
@@ -105,10 +127,14 @@ void SetBackgroundColor(uint32_t color)
 void RegisterColorObserver(void (*clbk)(void*, uint32_t, uint32_t),
     void* userData)
 {
+  if (!g_colorObservers)
+    InitColorContext();
+
   color_observer_t obs = {0};
   obs.clbk = clbk;
   obs.userData = userData;
-  tlist_add(color_observer_t)(g_colorObservers, obs);
+  if (g_colorObservers)
+    tlist_add(color_observer_t)(g_colorObservers, obs);
 }
 
 void RemoveColorObserver(void (*clbk)(void*, uint32_t, uint32_t),

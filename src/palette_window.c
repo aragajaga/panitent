@@ -85,7 +85,7 @@ BOOL PaletteWindow_OnCreate(PaletteWindow* window, LPCREATESTRUCT lpcs)
     window->hbrChecker = CreateChecker(&checkerCfg, hdc);
     ReleaseDC(window->base.hWnd, hdc);
 
-    // RegisterColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
+    RegisterColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
 
     return TRUE;
 }
@@ -174,7 +174,7 @@ void PaletteWindow_OnCommand(PaletteWindow* window, WPARAM wParam, LPARAM lParam
 
 void PaletteWindow_OnDestroy(PaletteWindow* window)
 {
-    // RemoveColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
+    RemoveColorObserver(Palette_ColorChangeObserver, (void*)window->base.hWnd);
     if (window->hbrChecker)
     {
         DeleteObject(window->hbrChecker);

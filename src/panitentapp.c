@@ -37,6 +37,7 @@
 #include "history.h"
 #include "viewport.h"
 #include "aboutbox.h"
+#include "color_context.h"
 
 #include "verifycheck.h"
 #include "playground.h"
@@ -54,6 +55,7 @@ void PanitentApp_Init(PanitentApp* pPanitentApp)
     pPanitentApp->palette = Palette_Create();
     pPanitentApp->m_pActivitySharingManager = ActivitySharingManager_Create();
     pPanitentApp->m_pWorkspaceContainer = WorkspaceContainer_Create();
+    InitColorContext();
     InitializeBrushList();
 
     NONCLIENTMETRICS ncm = { 0 };

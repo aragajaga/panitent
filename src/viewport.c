@@ -64,6 +64,7 @@ void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, U
 void ViewportWindow_OnMouseWheel(ViewportWindow* pViewportWindow, int xPos, int yPos, int zDelta, UINT fwKeys);
 void ViewportWindow_OnLButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void ViewportWindow_OnLButtonUp(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void ViewportWindow_OnRButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void ViewportWindow_OnRButtonUp(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void ViewportWindow_OnContextMenu(ViewportWindow* pViewportWindow, HWND hwndContext, UINT xPos, UINT yPos);
 void ViewportWindow_OnMButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
@@ -622,17 +623,22 @@ void ViewportWindow_OnLButtonUp(ViewportWindow* pViewportWindow, int x, int y, U
     }
 }
 
+void ViewportWindow_OnRButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+{
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
+
+    if (pTool && pTool->OnRButtonDown)
+    {
+        pTool->OnRButtonDown(pTool, pViewportWindow, x, y, keyFlags);
+    }
+}
+
 void ViewportWindow_OnRButtonUp(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
-    HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
-
     Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
 
     if (pTool && pTool->OnRButtonUp)
     {
-        POINT ptCanvas;
-        ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);
-
         pTool->OnRButtonUp(pTool, pViewportWindow, x, y, keyFlags);
     }
 }
@@ -780,9 +786,18 @@ LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT
         return 0;
         break;
 
+    case WM_RBUTTONDOWN:
+        ViewportWindow_OnRButtonDown(pViewportWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)(wParam));
+        return 0;
+        break;
+
     case WM_RBUTTONUP:
         ViewportWindow_OnRButtonUp(pViewportWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)(wParam));
-        /* Let system generate WM_CONTEXTMENU message */
+        if (PanitentApp_GetTool(PanitentApp_Instance()) && PanitentApp_GetTool(PanitentApp_Instance())->OnRButtonDown)
+        {
+            return 0;
+        }
+        /* Let system generate WM_CONTEXTMENU message for non-drag tools. */
         break;
 
     case WM_MOUSEMOVE:
