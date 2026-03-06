@@ -10,6 +10,7 @@ struct RectangleTool {
 
     BOOL fDraw;
     POINT prev;
+    POINT current;
     uint32_t strokeColor;
     uint32_t fillColor;
 };

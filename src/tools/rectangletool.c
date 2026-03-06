@@ -16,9 +16,13 @@ void RectangleTool_OnLButtonDown(RectangleTool* pRectangleTool, ViewportWindow* 
 void RectangleTool_OnLButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void RectangleTool_OnRButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void RectangleTool_OnRButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void RectangleTool_OnMouseMove(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+BOOL RectangleTool_HasPreview(RectangleTool* pRectangleTool);
+void RectangleTool_DrawPreview(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void RectangleTool_BeginStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t strokeColor, uint32_t fillColor);
 static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y);
 static void RectangleTool_FillRect(Canvas* pCanvas, const RECT* pRect, uint32_t color);
+static void RectangleTool_Render(RectangleTool* pRectangleTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint);
 
 RectangleTool* RectangleTool_Create()
 {
@@ -39,6 +43,9 @@ void RectangleTool_Init(RectangleTool* pRectangleTool)
     pRectangleTool->base.OnLButtonDown = RectangleTool_OnLButtonDown;
     pRectangleTool->base.OnRButtonUp = RectangleTool_OnRButtonUp;
     pRectangleTool->base.OnRButtonDown = RectangleTool_OnRButtonDown;
+    pRectangleTool->base.OnMouseMove = RectangleTool_OnMouseMove;
+    pRectangleTool->base.HasPreview = (BOOL(*)(Tool*))RectangleTool_HasPreview;
+    pRectangleTool->base.DrawPreview = (void(*)(Tool*, ViewportWindow*, Canvas*))RectangleTool_DrawPreview;
 }
 
 void RectangleTool_OnLButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
@@ -75,8 +82,22 @@ static void RectangleTool_BeginStroke(RectangleTool* pRectangleTool, ViewportWin
     pRectangleTool->fillColor = fillColor;
     SetCapture(Window_GetHWND((Window*)pViewportWindow));
     pRectangleTool->prev = ptCanvas;
+    pRectangleTool->current = ptCanvas;
 
     History_StartDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
+}
+
+void RectangleTool_OnMouseMove(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+{
+    UNREFERENCED_PARAMETER(keyFlags);
+
+    if (!pRectangleTool->fDraw)
+    {
+        return;
+    }
+
+    ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &pRectangleTool->current);
+    Window_Invalidate((Window*)pViewportWindow);
 }
 
 static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y)
@@ -89,40 +110,67 @@ static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindo
     POINT ptCanvas = { 0 };
     ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);
 
-    RECT rc = {
-        min(pRectangleTool->prev.x, ptCanvas.x),
-        min(pRectangleTool->prev.y, ptCanvas.y),
-        max(pRectangleTool->prev.x, ptCanvas.x),
-        max(pRectangleTool->prev.y, ptCanvas.y)
-    };
-
     Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
     Canvas* pCanvas = Document_GetCanvas(pDocument);
     ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
 
     if (pCanvas && pShapeContext)
     {
-        if (ShapeContext_IsFillEnabled(pShapeContext))
-        {
-            RectangleTool_FillRect(pCanvas, &rc, pRectangleTool->fillColor);
-        }
-
-        if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
-            ShapeContext_BeginDraw(pShapeContext, pCanvas, pRectangleTool->strokeColor))
-        {
-            ShapeContext_DrawLine(pShapeContext, rc.left, rc.top, rc.right, rc.top);
-            ShapeContext_DrawLine(pShapeContext, rc.right, rc.top, rc.right, rc.bottom);
-            ShapeContext_DrawLine(pShapeContext, rc.right, rc.bottom, rc.left, rc.bottom);
-            ShapeContext_DrawLine(pShapeContext, rc.left, rc.bottom, rc.left, rc.top);
-            ShapeContext_EndDraw(pShapeContext);
-        }
-
+        RectangleTool_Render(pRectangleTool, pCanvas, pShapeContext, ptCanvas);
         Window_Invalidate((Window*)pViewportWindow);
     }
 
     pRectangleTool->fDraw = FALSE;
     ReleaseCapture();
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
+}
+
+BOOL RectangleTool_HasPreview(RectangleTool* pRectangleTool)
+{
+    return pRectangleTool && pRectangleTool->fDraw;
+}
+
+void RectangleTool_DrawPreview(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
+{
+    UNREFERENCED_PARAMETER(pViewportWindow);
+
+    if (!RectangleTool_HasPreview(pRectangleTool))
+    {
+        return;
+    }
+
+    ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+    if (!pShapeContext)
+    {
+        return;
+    }
+
+    RectangleTool_Render(pRectangleTool, pCanvas, pShapeContext, pRectangleTool->current);
+}
+
+static void RectangleTool_Render(RectangleTool* pRectangleTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint)
+{
+    RECT rc = {
+        min(pRectangleTool->prev.x, endPoint.x),
+        min(pRectangleTool->prev.y, endPoint.y),
+        max(pRectangleTool->prev.x, endPoint.x),
+        max(pRectangleTool->prev.y, endPoint.y)
+    };
+
+    if (ShapeContext_IsFillEnabled(pShapeContext))
+    {
+        RectangleTool_FillRect(pCanvas, &rc, pRectangleTool->fillColor);
+    }
+
+    if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
+        ShapeContext_BeginDraw(pShapeContext, pCanvas, pRectangleTool->strokeColor))
+    {
+        ShapeContext_DrawLine(pShapeContext, rc.left, rc.top, rc.right, rc.top);
+        ShapeContext_DrawLine(pShapeContext, rc.right, rc.top, rc.right, rc.bottom);
+        ShapeContext_DrawLine(pShapeContext, rc.right, rc.bottom, rc.left, rc.bottom);
+        ShapeContext_DrawLine(pShapeContext, rc.left, rc.bottom, rc.left, rc.top);
+        ShapeContext_EndDraw(pShapeContext);
+    }
 }
 
 static void RectangleTool_FillRect(Canvas* pCanvas, const RECT* pRect, uint32_t color)

@@ -418,6 +418,7 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
     HDC hdcBack = NULL;
     HBITMAP hbmBack = NULL;
     HGDIOBJ hOldObjBack = NULL;
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
 
     GetClientRect(hWnd, &clientRc);
 
@@ -441,7 +442,19 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
     if (document)
     {
         Canvas* canvas = Document_GetCanvas(document);
+        Canvas* previewCanvas = NULL;
+        Canvas* canvasToRender = canvas;
         assert(canvas);
+
+        if (canvas && pTool && pTool->HasPreview && pTool->DrawPreview && pTool->HasPreview(pTool))
+        {
+            previewCanvas = Canvas_Clone(canvas);
+            if (previewCanvas)
+            {
+                pTool->DrawPreview(pTool, pViewportWindow, previewCanvas);
+                canvasToRender = previewCanvas;
+            }
+        }
 
         RECT renderRc;
 
@@ -457,7 +470,7 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
         FillRect(hdcTarget, &renderRc, pViewportWindow->hbrChecker);
 
         /* Copy canvas to viewport */
-        Viewport_BlitCanvas(hdcTarget, &renderRc, document->canvas);
+        Viewport_BlitCanvas(hdcTarget, &renderRc, canvasToRender);
 
         /* Draw canvas frame */
         RECT frameRc = {
@@ -471,6 +484,13 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
         if (g_viewportSettings.showDebugInfo)
         {
             ViewportWindow_DrawDebugOverlay(pViewportWindow, hdcTarget, &clientRc);
+        }
+
+        if (previewCanvas)
+        {
+            Canvas_Delete(previewCanvas);
+            free(previewCanvas);
+            previewCanvas = NULL;
         }
 
         if (g_viewportSettings.doubleBuffered)

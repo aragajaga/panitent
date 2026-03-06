@@ -10,6 +10,7 @@ struct CircleTool {
 
     BOOL fDraw;
     POINT circCenter;
+    POINT current;
     uint32_t strokeColor;
     uint32_t fillColor;
 };

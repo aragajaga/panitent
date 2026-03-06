@@ -10,6 +10,7 @@ struct LineTool {
 
     BOOL fDraw;
     POINT prev;
+    POINT current;
     uint32_t drawColor;
 };
 

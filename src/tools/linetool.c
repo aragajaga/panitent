@@ -16,8 +16,12 @@ void LineTool_OnLButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow
 void LineTool_OnLButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void LineTool_OnRButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void LineTool_OnRButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void LineTool_OnMouseMove(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+BOOL LineTool_HasPreview(LineTool* pLineTool);
+void LineTool_DrawPreview(LineTool* pLineTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void LineTool_BeginStroke(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t drawColor);
 static void LineTool_EndStroke(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y);
+static void LineTool_Render(LineTool* pLineTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint);
 
 LineTool* LineTool_Create()
 {
@@ -38,6 +42,9 @@ void LineTool_Init(LineTool* pLineTool)
     pLineTool->base.OnLButtonDown = LineTool_OnLButtonDown;
     pLineTool->base.OnRButtonUp = LineTool_OnRButtonUp;
     pLineTool->base.OnRButtonDown = LineTool_OnRButtonDown;
+    pLineTool->base.OnMouseMove = LineTool_OnMouseMove;
+    pLineTool->base.HasPreview = (BOOL(*)(Tool*))LineTool_HasPreview;
+    pLineTool->base.DrawPreview = (void(*)(Tool*, ViewportWindow*, Canvas*))LineTool_DrawPreview;
 }
 
 void LineTool_OnLButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
@@ -75,6 +82,20 @@ static void LineTool_BeginStroke(LineTool* pLineTool, ViewportWindow* pViewportW
     pLineTool->drawColor = drawColor;
     SetCapture(Window_GetHWND((Window*)pViewportWindow));
     pLineTool->prev = ptCanvas;
+    pLineTool->current = ptCanvas;
+}
+
+void LineTool_OnMouseMove(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+{
+    UNREFERENCED_PARAMETER(keyFlags);
+
+    if (!pLineTool->fDraw)
+    {
+        return;
+    }
+
+    ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &pLineTool->current);
+    Window_Invalidate((Window*)pViewportWindow);
 }
 
 static void LineTool_EndStroke(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y)
@@ -91,15 +112,51 @@ static void LineTool_EndStroke(LineTool* pLineTool, ViewportWindow* pViewportWin
     Canvas* pCanvas = Document_GetCanvas(pDocument);
     ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
 
-    if (pCanvas && pShapeContext && ShapeContext_IsStrokeEnabled(pShapeContext) &&
-        ShapeContext_BeginDraw(pShapeContext, pCanvas, pLineTool->drawColor))
+    if (pCanvas && pShapeContext)
     {
-        ShapeContext_DrawLine(pShapeContext, pLineTool->prev.x, pLineTool->prev.y, ptCanvas.x, ptCanvas.y);
-        ShapeContext_EndDraw(pShapeContext);
+        LineTool_Render(pLineTool, pCanvas, pShapeContext, ptCanvas);
         Window_Invalidate((Window*)pViewportWindow);
     }
 
     pLineTool->fDraw = FALSE;
     ReleaseCapture();
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
+}
+
+BOOL LineTool_HasPreview(LineTool* pLineTool)
+{
+    return pLineTool && pLineTool->fDraw;
+}
+
+void LineTool_DrawPreview(LineTool* pLineTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
+{
+    UNREFERENCED_PARAMETER(pViewportWindow);
+
+    if (!LineTool_HasPreview(pLineTool))
+    {
+        return;
+    }
+
+    ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+    if (!pShapeContext)
+    {
+        return;
+    }
+
+    LineTool_Render(pLineTool, pCanvas, pShapeContext, pLineTool->current);
+}
+
+static void LineTool_Render(LineTool* pLineTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint)
+{
+    if (!pLineTool || !pCanvas || !pShapeContext)
+    {
+        return;
+    }
+
+    if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
+        ShapeContext_BeginDraw(pShapeContext, pCanvas, pLineTool->drawColor))
+    {
+        ShapeContext_DrawLine(pShapeContext, pLineTool->prev.x, pLineTool->prev.y, endPoint.x, endPoint.y);
+        ShapeContext_EndDraw(pShapeContext);
+    }
 }

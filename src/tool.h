@@ -1,6 +1,7 @@
 #pragma once
 
 typedef struct ViewportWindow ViewportWindow;
+typedef struct _Canvas Canvas;
 
 typedef struct Tool Tool;
 struct Tool {
@@ -11,4 +12,6 @@ struct Tool {
   void (*OnRButtonDown)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
   void (*OnRButtonUp)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
   void (*OnMouseMove)(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+  BOOL (*HasPreview)(Tool* pTool);
+  void (*DrawPreview)(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 };
