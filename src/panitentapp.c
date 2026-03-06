@@ -28,6 +28,7 @@
 #include "binview/binviewdlg.h"
 #include "grimstroke/shapecontext.h"
 #include "grimstroke/wushapestrategy.h"
+#include "grimstroke/bresenhamshapestrategy.h"
 
 #include "grimstroke/pixelbuffer.h"
 #include "grimstroke/polygon.h"
@@ -411,33 +412,7 @@ Tool* PanitentApp_GetTool(PanitentApp* pPanitentApp)
 
 ShapeContext* PanitentApp_GetShapeContext(PanitentApp* pPanitentApp)
 {
-    ShapeContext* pShapeContext = pPanitentApp->m_pShapeContext;
-    if (!pShapeContext->m_pPlotter)
-    {
-        Plotter* plotter = (Plotter*)calloc(1, sizeof(Plotter));
-        if (plotter == NULL)
-        {
-            return NULL;
-        }
-
-        PlotterData* plotterData = (PlotterData*)calloc(1, sizeof(PlotterData));
-        if (plotterData == NULL)
-        {
-            return NULL;
-        }
-
-        plotterData->color = 0xFFFF0000;
-
-        ViewportWindow* pViewportWindow = PanitentApp_GetCurrentViewport(pPanitentApp);
-
-        plotter->userData = plotterData;
-        plotter->fn = PixelPlotterCallback;
-
-
-        pShapeContext->m_pPlotter = plotter;
-    }
-
-    return pPanitentApp->m_pShapeContext;
+    return pPanitentApp ? pPanitentApp->m_pShapeContext : NULL;
 }
 
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp)

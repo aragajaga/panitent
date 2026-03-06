@@ -187,6 +187,7 @@ void Canvas_FillPolygon(Canvas* pCanvas, PolygonPath* pPolygonPath)
 
     pPlotterData->canvas = pCanvas;
     pPlotterData->color = 0xFF00FFFF;
+    pPlotterData->thickness = 1;
     plotter.userData = pPlotterData;
     plotter.fn = PixelPlotterCallback;
 

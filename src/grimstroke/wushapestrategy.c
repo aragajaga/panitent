@@ -51,7 +51,7 @@ void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1,
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pWuShapeStrategy->base.m_pShapeContext);
 
-    int strokeWidth = 2;
+    int strokeWidth = 1;
 
     BOOL steep = fabsf((float)(y2 - y1)) > fabsf((float)(x2 - x1));
 
@@ -67,6 +67,11 @@ void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1,
 
     float dx = (float)(x2 - x1);
     float dy = (float)(y2 - y1);
+    if (dx == 0.0f)
+    {
+        pPlotter->fn(pPlotter->userData, x1, y1, 0xFF);
+        return;
+    }
     float gradient = dy / dx;
 
     // Handle the stroke width by iterating through each offset

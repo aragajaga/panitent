@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "../tool.h"
 
 typedef struct LineTool LineTool;
@@ -8,6 +10,7 @@ struct LineTool {
 
     BOOL fDraw;
     POINT prev;
+    uint32_t drawColor;
 };
 
 LineTool* LineTool_Create();

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include "../tool.h"
 
 typedef struct CircleTool CircleTool;
@@ -8,6 +10,8 @@ struct CircleTool {
 
     BOOL fDraw;
     POINT circCenter;
+    uint32_t strokeColor;
+    uint32_t fillColor;
 };
 
 CircleTool* CircleTool_Create();

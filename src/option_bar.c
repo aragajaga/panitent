@@ -16,6 +16,10 @@
 #include <strsafe.h>
 
 #include "panitentapp.h"
+#include "grimstroke/shapecontext.h"
+#include "grimstroke/shapestrategy.h"
+#include "grimstroke/bresenhamshapestrategy.h"
+#include "grimstroke/wushapestrategy.h"
 
 static const WCHAR szClassName[] = L"__OptionBarWindow";
 
@@ -35,6 +39,29 @@ static const int kOptionBarThicknessWidth = 72;
 static const int kOptionBarTextWidth = 150;
 static const int kOptionBarBrushWidth = 64;
 static const int kOptionBarControlGap = 6;
+
+static ShapeStrategy* OptionBarWindow_GetStrategyForSelection(int selection)
+{
+	static BresenhamShapeStrategy* s_pBresenhamStrategy = NULL;
+	static WuShapeStrategy* s_pWuShapeStrategy = NULL;
+
+	switch (selection)
+	{
+	case 0:
+		if (!s_pBresenhamStrategy)
+		{
+			s_pBresenhamStrategy = BresenhamShapeStrategy_Create();
+		}
+		return (ShapeStrategy*)s_pBresenhamStrategy;
+	case 1:
+	default:
+		if (!s_pWuShapeStrategy)
+		{
+			s_pWuShapeStrategy = WuShapeStrategy_Create();
+		}
+		return (ShapeStrategy*)s_pWuShapeStrategy;
+	}
+}
 
 INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -266,59 +293,49 @@ static void OptionBarWindow_LayoutControls(OptionBarWindow* pOptionBarWindow, in
 
 LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wparam, LPARAM lparam)
 {
-	UNREFERENCED_PARAMETER(pOptionBarWindow);
-	UNREFERENCED_PARAMETER(wparam);
-	UNREFERENCED_PARAMETER(lparam);
-	/*
-	primitives_context_t* primitivesContext = PanitentApp_GetPrimitivesContext(PanitentApp_Instance());
+		UNREFERENCED_PARAMETER(pOptionBarWindow);
 
-	if (HIWORD(wparam) == BN_CLICKED)
-	{
+		ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+		if (!pShapeContext)
+		{
+			return 0;
+		}
+
+		if (HIWORD(wparam) == BN_CLICKED)
+		{
+			switch (LOWORD(wparam))
+			{
+			case IDB_SHAPESTROKE:
+				ShapeContext_SetStrokeEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				return 0;
+			case IDB_SHAPEFILL:
+				ShapeContext_SetFillEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				return 0;
+			}
+		}
+
+		if (HIWORD(wparam) != CBN_SELCHANGE)
+		{
+			return 0;
+		}
+
 		switch (LOWORD(wparam))
 		{
-		case IDB_SHAPESTROKE:
-			primitivesContext->fStroke = Button_GetCheck((HWND)lparam);
-			break;
-		case IDB_SHAPEFILL:
-			primitivesContext->fFill = Button_GetCheck((HWND)lparam);
-			break;
-		}
-	}
-
-	if (HIWORD(wparam) != LBN_SELCHANGE)
-	{
-		return 0;
-	}
-
-	switch (LOWORD(wparam))
-	{
-	case IDCB_STENCIL_ALGORITHM:
-		switch (ComboBox_GetCurSel((HWND)lparam))
+		case IDCB_STENCIL_ALGORITHM:
 		{
-		case 0:
-			PanitentApp_SetPrimitivesContext(PanitentApp_Instance(), &g_bresenham_primitives);
-			break;
-		case 1:
-			PanitentApp_SetPrimitivesContext(PanitentApp_Instance(), &g_wu_primitives);
-			break;
+			ShapeStrategy* pStrategy = OptionBarWindow_GetStrategyForSelection(ComboBox_GetCurSel((HWND)lparam));
+			if (pStrategy)
+			{
+				ShapeContext_SetStrategy(pShapeContext, pStrategy);
+			}
 		}
 		break;
-	case IDCB_THICKNESS:
-		SetThickness(ComboBox_GetCurSel((HWND)lparam) + 1);
-		break;
-	}
-
-	if (LOWORD(wparam) == IDCB_STENCIL_ALGORITHM &&
-		HIWORD(wparam) == LBN_SELCHANGE) {
-		switch (ComboBox_GetCurSel((HWND)lparam)) {
-			break;
-		default:
+		case IDCB_THICKNESS:
+			ShapeContext_SetStrokeWidth(pShapeContext, ComboBox_GetCurSel((HWND)lparam) + 1);
 			break;
 		}
-	}
-	*/
 
-	return 0;
+		return 0;
 }
 
 BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT lpcs)
@@ -376,11 +393,11 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		(HMENU)(INT_PTR)IDCB_STENCIL_ALGORITHM,
 		hInstance,
 		NULL);
-	Win32_ApplyUIFont(hAlgorithmCombo);
-	ComboBox_AddString(hAlgorithmCombo, L"Bresenham");
-	ComboBox_AddString(hAlgorithmCombo, L"Wu");
-	ComboBox_SetCurSel(hAlgorithmCombo, 0);
-	pOptionBarWindow->hWndAlgorithmCombo = hAlgorithmCombo;
+		Win32_ApplyUIFont(hAlgorithmCombo);
+		ComboBox_AddString(hAlgorithmCombo, L"Bresenham");
+		ComboBox_AddString(hAlgorithmCombo, L"Wu");
+		ComboBox_SetCurSel(hAlgorithmCombo, 1);
+		pOptionBarWindow->hWndAlgorithmCombo = hAlgorithmCombo;
 
 	HWND hThicknessCombo = CreateWindowEx(
 		0,
@@ -401,9 +418,9 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		WCHAR szThickness[4] = L"";
 		_itow_s(i, szThickness, ARRAYSIZE(szThickness), 10);
 		ComboBox_AddString(hThicknessCombo, szThickness);
-	}
-	ComboBox_SetCurSel(hThicknessCombo, 0);
-	pOptionBarWindow->hWndThicknessCombo = hThicknessCombo;
+		}
+		ComboBox_SetCurSel(hThicknessCombo, 0);
+		pOptionBarWindow->hWndThicknessCombo = hThicknessCombo;
 
 	HWND hEdit =
 		CreateWindowEx(0,
@@ -428,13 +445,23 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 	pOptionBarWindow->hWndBrushSelector = hBrushSelector;
 
 	RECT rcClient = { 0 };
-	GetClientRect(hWnd, &rcClient);
-	OptionBarWindow_LayoutControls(
-		pOptionBarWindow,
-		rcClient.right - rcClient.left,
-		rcClient.bottom - rcClient.top);
+		GetClientRect(hWnd, &rcClient);
+		OptionBarWindow_LayoutControls(
+			pOptionBarWindow,
+			rcClient.right - rcClient.left,
+			rcClient.bottom - rcClient.top);
 
-	return TRUE;
+		{
+			ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+			if (pShapeContext)
+			{
+				Button_SetCheck(hStrokeCheck, ShapeContext_IsStrokeEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
+				Button_SetCheck(hFillCheck, ShapeContext_IsFillEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
+				ComboBox_SetCurSel(hThicknessCombo, max(0, ShapeContext_GetStrokeWidth(pShapeContext) - 1));
+			}
+		}
+
+		return TRUE;
 }
 
 void OptionBarWindow_OnSize(OptionBarWindow* pOptionBarWindow, UINT state, int cx, int cy)

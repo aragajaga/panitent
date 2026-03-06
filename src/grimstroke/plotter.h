@@ -10,6 +10,7 @@ typedef struct Plotter {
 typedef struct PlotterData {
     Canvas* canvas;
     uint32_t color;
+    int thickness;
 } PlotterData;
 
 
