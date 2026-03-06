@@ -19,9 +19,20 @@
 #define GLYPH_MINIMIZE_TILE 2
 #define GLYPH_MAXIMIZE_TILE 3
 #define GLYPH_CLOSE_TILE 4
-#define DOCK_TARGET_GUIDE_SIZE 30
-#define DOCK_TARGET_GUIDE_GAP 10
-#define WORKSPACE_DOCK_CENTER 5
+#define DOCK_TARGET_GUIDE_SIZE 24
+#define DOCK_TARGET_GUIDE_GAP 8
+#define DOCK_TARGET_GUIDE_EDGE_MARGIN 12
+#define WORKSPACE_DOCK_CENTER DKS_CENTER
+
+#define DOCK_GUIDE_TILE_TOP_OUTER 0
+#define DOCK_GUIDE_TILE_TOP_SPLIT 1
+#define DOCK_GUIDE_TILE_LEFT_OUTER 2
+#define DOCK_GUIDE_TILE_LEFT_SPLIT 3
+#define DOCK_GUIDE_TILE_CENTER 4
+#define DOCK_GUIDE_TILE_RIGHT_SPLIT 5
+#define DOCK_GUIDE_TILE_RIGHT_OUTER 6
+#define DOCK_GUIDE_TILE_BOTTOM_SPLIT 7
+#define DOCK_GUIDE_TILE_BOTTOM_OUTER 8
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
@@ -117,6 +128,10 @@ static int FloatingWindowContainer_GetCaptionHeight(FloatingWindowContainer* pFl
 
 static const WCHAR szDockPreviewOverlayClassName[] = L"__DockPreviewOverlay";
 static HWND g_hWndDockPreviewOverlay = NULL;
+static HBITMAP g_hbmDockGuideIcons = NULL;
+static HDC g_hdcDockGuideIcons = NULL;
+static int g_cxDockGuideTile = DOCK_TARGET_GUIDE_SIZE;
+static int g_cDockGuideTiles = 0;
 
 static LRESULT CALLBACK DockPreviewOverlay_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
@@ -195,6 +210,145 @@ static void DockPreviewOverlay_FillRectARGB(DWORD* pBits, int width, int height,
 		{
 			pRow[x] = color;
 		}
+	}
+}
+
+static int DockPreviewOverlay_GetGuideTileSize(void)
+{
+	return (g_cxDockGuideTile > 0) ? g_cxDockGuideTile : DOCK_TARGET_GUIDE_SIZE;
+}
+
+static BOOL DockPreviewOverlay_EnsureGuideIcons(void)
+{
+	if (g_hdcDockGuideIcons && g_hbmDockGuideIcons)
+	{
+		return TRUE;
+	}
+
+	HBITMAP hBitmap = (HBITMAP)LoadImageW(
+		GetModuleHandle(NULL),
+		MAKEINTRESOURCEW(IDB_DOCK_ICONS),
+		IMAGE_BITMAP,
+		0,
+		0,
+		LR_CREATEDIBSECTION);
+	if (!hBitmap)
+	{
+		return FALSE;
+	}
+
+	BITMAP bm = { 0 };
+	if (!GetObject(hBitmap, sizeof(bm), &bm) || bm.bmHeight <= 0 || bm.bmWidth <= 0)
+	{
+		DeleteObject(hBitmap);
+		return FALSE;
+	}
+
+	HDC hdcScreen = GetDC(NULL);
+	HDC hdcIcons = CreateCompatibleDC(hdcScreen);
+	ReleaseDC(NULL, hdcScreen);
+	if (!hdcIcons)
+	{
+		DeleteObject(hBitmap);
+		return FALSE;
+	}
+
+	SelectObject(hdcIcons, hBitmap);
+
+	g_hbmDockGuideIcons = hBitmap;
+	g_hdcDockGuideIcons = hdcIcons;
+	g_cxDockGuideTile = bm.bmHeight;
+	g_cDockGuideTiles = bm.bmWidth / max(1, bm.bmHeight);
+	return TRUE;
+}
+
+static void DockPreviewOverlay_DrawGuideTile(HDC hdcDest, const RECT* pRect, int iTile)
+{
+	if (!hdcDest || !pRect || iTile < 0 || !DockPreviewOverlay_EnsureGuideIcons())
+	{
+		return;
+	}
+
+	int tileSize = DockPreviewOverlay_GetGuideTileSize();
+	if (iTile >= g_cDockGuideTiles || tileSize <= 0)
+	{
+		return;
+	}
+
+	BLENDFUNCTION blend = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
+	AlphaBlend(
+		hdcDest,
+		pRect->left,
+		pRect->top,
+		pRect->right - pRect->left,
+		pRect->bottom - pRect->top,
+		g_hdcDockGuideIcons,
+		iTile * tileSize,
+		0,
+		tileSize,
+		tileSize,
+		blend);
+}
+
+static void DockPreviewOverlay_GetGlobalGuideRects(int width, int height, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
+{
+	int guideSize = DockPreviewOverlay_GetGuideTileSize();
+	int edgeInset = DOCK_TARGET_GUIDE_EDGE_MARGIN;
+	int cx = width / 2;
+	int cy = height / 2;
+
+	if (pRectTop)
+	{
+		SetRect(pRectTop, cx - guideSize / 2, edgeInset, cx + guideSize / 2, edgeInset + guideSize);
+	}
+	if (pRectLeft)
+	{
+		SetRect(pRectLeft, edgeInset, cy - guideSize / 2, edgeInset + guideSize, cy + guideSize / 2);
+	}
+	if (pRectRight)
+	{
+		SetRect(pRectRight, width - edgeInset - guideSize, cy - guideSize / 2, width - edgeInset, cy + guideSize / 2);
+	}
+	if (pRectBottom)
+	{
+		SetRect(pRectBottom, cx - guideSize / 2, height - edgeInset - guideSize, cx + guideSize / 2, height - edgeInset);
+	}
+}
+
+static void DockPreviewOverlay_GetClusterGuideRects(const RECT* pBounds, int width, int height, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
+{
+	if (!pBounds)
+	{
+		return;
+	}
+
+	int guideSize = DockPreviewOverlay_GetGuideTileSize();
+	int guideStep = guideSize + DOCK_TARGET_GUIDE_GAP;
+	int cx = (pBounds->left + pBounds->right) / 2;
+	int cy = (pBounds->top + pBounds->bottom) / 2;
+
+	cx = max(guideStep, min(cx, width - guideStep));
+	cy = max(guideStep, min(cy, height - guideStep));
+
+	if (pRectCenter)
+	{
+		SetRect(pRectCenter, cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2);
+	}
+	if (pRectTop)
+	{
+		SetRect(pRectTop, cx - guideSize / 2, cy - guideStep - guideSize / 2, cx + guideSize / 2, cy - guideStep + guideSize / 2);
+	}
+	if (pRectLeft)
+	{
+		SetRect(pRectLeft, cx - guideStep - guideSize / 2, cy - guideSize / 2, cx - guideStep + guideSize / 2, cy + guideSize / 2);
+	}
+	if (pRectRight)
+	{
+		SetRect(pRectRight, cx + guideStep - guideSize / 2, cy - guideSize / 2, cx + guideStep + guideSize / 2, cy + guideSize / 2);
+	}
+	if (pRectBottom)
+	{
+		SetRect(pRectBottom, cx - guideSize / 2, cy + guideStep - guideSize / 2, cx + guideSize / 2, cy + guideStep + guideSize / 2);
 	}
 }
 
@@ -731,41 +885,21 @@ static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
         ptScreen.y - rcTargetScreen.top
     };
 
-    int guideSize = DOCK_TARGET_GUIDE_SIZE;
-    int guideGap = DOCK_TARGET_GUIDE_GAP;
-    int cx = width / 2;
-    int cy = height / 2;
-
-    RECT rcGuideCenter = {
-        cx - guideSize / 2,
-        cy - guideSize / 2,
-        cx + guideSize / 2,
-        cy + guideSize / 2
-    };
-    RECT rcGuideLeft = {
-        cx - guideGap - guideSize * 2,
-        cy - guideSize / 2,
-        cx - guideGap - guideSize,
-        cy + guideSize / 2
-    };
-    RECT rcGuideRight = {
-        cx + guideGap + guideSize,
-        cy - guideSize / 2,
-        cx + guideGap + guideSize * 2,
-        cy + guideSize / 2
-    };
-    RECT rcGuideTop = {
-        cx - guideSize / 2,
-        cy - guideGap - guideSize * 2,
-        cx + guideSize / 2,
-        cy - guideGap - guideSize
-    };
-    RECT rcGuideBottom = {
-        cx - guideSize / 2,
-        cy + guideGap + guideSize,
-        cx + guideSize / 2,
-        cy + guideGap + guideSize * 2
-    };
+    RECT rcBounds = { 0, 0, width, height };
+    RECT rcGuideCenter = { 0 };
+    RECT rcGuideTop = { 0 };
+    RECT rcGuideLeft = { 0 };
+    RECT rcGuideRight = { 0 };
+    RECT rcGuideBottom = { 0 };
+    DockPreviewOverlay_GetClusterGuideRects(
+        &rcBounds,
+        width,
+        height,
+        &rcGuideCenter,
+        &rcGuideTop,
+        &rcGuideLeft,
+        &rcGuideRight,
+        &rcGuideBottom);
 
     int nDockSide = DKS_NONE;
     if (PtInRect(&rcGuideCenter, ptLocal))
@@ -790,10 +924,6 @@ static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
         {
             nDockSide = DKS_BOTTOM;
         }
-    }
-    else if (PtInRect(&rcTargetScreen, ptScreen))
-    {
-        nDockSide = WORKSPACE_DOCK_CENTER;
     }
 
     pDockHit->pWorkspaceTarget = pWorkspaceTarget;
@@ -912,43 +1042,49 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
         DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
     }
 
-    int guideSize = DOCK_TARGET_GUIDE_SIZE;
-    int guideGap = DOCK_TARGET_GUIDE_GAP;
-    int cx = width / 2;
-    int cy = height / 2;
-    RECT rcGuideCenter = { cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2 };
-    RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
-    RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
-    RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
-    RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
-
-    DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 90, 0x55, 0x6b, 0x88);
-    if (workspaceDockHit.bSupportsSplit)
-    {
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 75, 0x4f, 0x62, 0x7a);
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 75, 0x4f, 0x62, 0x7a);
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 75, 0x4f, 0x62, 0x7a);
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 75, 0x4f, 0x62, 0x7a);
-    }
+    RECT rcBounds = { 0, 0, width, height };
+    RECT rcGuideCenter = { 0 };
+    RECT rcGuideTop = { 0 };
+    RECT rcGuideLeft = { 0 };
+    RECT rcGuideRight = { 0 };
+    RECT rcGuideBottom = { 0 };
+    DockPreviewOverlay_GetClusterGuideRects(
+        &rcBounds,
+        width,
+        height,
+        &rcGuideCenter,
+        &rcGuideTop,
+        &rcGuideLeft,
+        &rcGuideRight,
+        &rcGuideBottom);
 
     switch (workspaceDockHit.nDockSide)
     {
     case DKS_LEFT:
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 96, 0x73, 0xb3, 0xf2);
         break;
     case DKS_RIGHT:
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 96, 0x73, 0xb3, 0xf2);
         break;
     case DKS_TOP:
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 96, 0x73, 0xb3, 0xf2);
         break;
     case DKS_BOTTOM:
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 190, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 96, 0x73, 0xb3, 0xf2);
         break;
     case WORKSPACE_DOCK_CENTER:
-        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 210, 0x73, 0xb3, 0xf2);
+        DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 110, 0x73, 0xb3, 0xf2);
         break;
     }
+
+    if (workspaceDockHit.bSupportsSplit)
+    {
+        DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideTop, DOCK_GUIDE_TILE_TOP_SPLIT);
+        DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideLeft, DOCK_GUIDE_TILE_LEFT_SPLIT);
+        DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideRight, DOCK_GUIDE_TILE_RIGHT_SPLIT);
+        DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideBottom, DOCK_GUIDE_TILE_BOTTOM_SPLIT);
+    }
+    DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideCenter, DOCK_GUIDE_TILE_CENTER);
 
     POINT ptPos = { rcTargetScreen.left, rcTargetScreen.top };
     SIZE sizeWnd = { width, height };
@@ -1051,18 +1187,52 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBorderRight, 190, 0x73, 0xb3, 0xf2);
 	}
 
-	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
-	const int guideGap = DOCK_TARGET_GUIDE_GAP;
-	int cx = width / 2;
-	int cy = height / 2;
+	RECT rcGuideTopOuter = { 0 };
+	RECT rcGuideLeftOuter = { 0 };
+	RECT rcGuideRightOuter = { 0 };
+	RECT rcGuideBottomOuter = { 0 };
+	DockPreviewOverlay_GetGlobalGuideRects(width, height, &rcGuideTopOuter, &rcGuideLeftOuter, &rcGuideRightOuter, &rcGuideBottomOuter);
+
+	if (dockTarget.nDockSide == DKS_TOP && !dockTarget.bLocalTarget)
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTopOuter, 96, 0x73, 0xb3, 0xf2);
+	}
+	else if (dockTarget.nDockSide == DKS_LEFT && !dockTarget.bLocalTarget)
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeftOuter, 96, 0x73, 0xb3, 0xf2);
+	}
+	else if (dockTarget.nDockSide == DKS_RIGHT && !dockTarget.bLocalTarget)
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRightOuter, 96, 0x73, 0xb3, 0xf2);
+	}
+	else if (dockTarget.nDockSide == DKS_BOTTOM && !dockTarget.bLocalTarget)
+	{
+		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottomOuter, 96, 0x73, 0xb3, 0xf2);
+	}
+
+	DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideTopOuter, DOCK_GUIDE_TILE_TOP_OUTER);
+	DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideLeftOuter, DOCK_GUIDE_TILE_LEFT_OUTER);
+	DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideRightOuter, DOCK_GUIDE_TILE_RIGHT_OUTER);
+	DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideBottomOuter, DOCK_GUIDE_TILE_BOTTOM_OUTER);
+
 	if (dockTarget.bLocalTarget && !IsRectEmpty(&dockTarget.rcAnchorClient))
 	{
-		cx = (dockTarget.rcAnchorClient.left + dockTarget.rcAnchorClient.right) / 2;
-		cy = (dockTarget.rcAnchorClient.top + dockTarget.rcAnchorClient.bottom) / 2;
-		cx = max(guideSize * 2, min(cx, width - guideSize * 2));
-		cy = max(guideSize * 2, min(cy, height - guideSize * 2));
-
 		RECT rcAnchorOutline = dockTarget.rcAnchorClient;
+		RECT rcGuideCenter = { 0 };
+		RECT rcGuideTop = { 0 };
+		RECT rcGuideLeft = { 0 };
+		RECT rcGuideRight = { 0 };
+		RECT rcGuideBottom = { 0 };
+		DockPreviewOverlay_GetClusterGuideRects(
+			&rcAnchorOutline,
+			width,
+			height,
+			&rcGuideCenter,
+			&rcGuideTop,
+			&rcGuideLeft,
+			&rcGuideRight,
+			&rcGuideBottom);
+
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorOutline, 40, 0x5d, 0x78, 0x98);
 		RECT rcAnchorTop = { rcAnchorOutline.left, rcAnchorOutline.top, rcAnchorOutline.right, rcAnchorOutline.top + 1 };
 		RECT rcAnchorBottom = { rcAnchorOutline.left, rcAnchorOutline.bottom - 1, rcAnchorOutline.right, rcAnchorOutline.bottom };
@@ -1072,36 +1242,31 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorBottom, 170, 0x78, 0xb8, 0xf8);
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorLeft, 170, 0x78, 0xb8, 0xf8);
 		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcAnchorRight, 170, 0x78, 0xb8, 0xf8);
-	}
-	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
-	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
-	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
-	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
-	RECT rcGuideCenter = { cx - guideSize / 2, cy - guideSize / 2, cx + guideSize / 2, cy + guideSize / 2 };
 
-	if (!dockTarget.bLocalTarget)
-	{
-		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 85, 0x55, 0x6b, 0x88);
-	}
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 75, 0x4f, 0x62, 0x7a);
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 75, 0x4f, 0x62, 0x7a);
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 75, 0x4f, 0x62, 0x7a);
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 75, 0x4f, 0x62, 0x7a);
+		switch (dockTarget.nDockSide)
+		{
+		case DKS_CENTER:
+			DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideCenter, 110, 0x73, 0xb3, 0xf2);
+			break;
+		case DKS_LEFT:
+			DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 96, 0x73, 0xb3, 0xf2);
+			break;
+		case DKS_RIGHT:
+			DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 96, 0x73, 0xb3, 0xf2);
+			break;
+		case DKS_TOP:
+			DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 96, 0x73, 0xb3, 0xf2);
+			break;
+		case DKS_BOTTOM:
+			DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 96, 0x73, 0xb3, 0xf2);
+			break;
+		}
 
-	switch (dockTarget.nDockSide)
-	{
-	case DKS_LEFT:
-		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideLeft, 190, 0x73, 0xb3, 0xf2);
-		break;
-	case DKS_RIGHT:
-		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideRight, 190, 0x73, 0xb3, 0xf2);
-		break;
-	case DKS_TOP:
-		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideTop, 190, 0x73, 0xb3, 0xf2);
-		break;
-	case DKS_BOTTOM:
-		DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcGuideBottom, 190, 0x73, 0xb3, 0xf2);
-		break;
+		DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideTop, DOCK_GUIDE_TILE_TOP_SPLIT);
+		DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideLeft, DOCK_GUIDE_TILE_LEFT_SPLIT);
+		DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideCenter, DOCK_GUIDE_TILE_CENTER);
+		DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideRight, DOCK_GUIDE_TILE_RIGHT_SPLIT);
+		DockPreviewOverlay_DrawGuideTile(hdcMem, &rcGuideBottom, DOCK_GUIDE_TILE_BOTTOM_SPLIT);
 	}
 
 	POINT ptPos = { rcHostScreen.left, rcHostScreen.top };

@@ -74,6 +74,7 @@ TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow);
 #define DKS_RIGHT 2
 #define DKS_TOP 3
 #define DKS_BOTTOM 4
+#define DKS_CENTER 5
 
 typedef struct DockTargetHit DockTargetHit;
 struct DockTargetHit {

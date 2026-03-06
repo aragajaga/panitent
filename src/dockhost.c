@@ -39,8 +39,9 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_COLOR_ROOT_BG L"#76699f"
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
-#define DOCK_TARGET_GUIDE_SIZE 30
-#define DOCK_TARGET_GUIDE_GAP 10
+#define DOCK_TARGET_GUIDE_SIZE 24
+#define DOCK_TARGET_GUIDE_GAP 8
+#define DOCK_TARGET_GUIDE_EDGE_MARGIN 12
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
@@ -100,6 +101,8 @@ static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
+static void DockHostWindow_GetGlobalTargetGuideRects(const RECT* pHostClient, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
+static void DockHostWindow_GetLocalTargetGuideRects(const RECT* pHostClient, const RECT* pAnchorRect, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
 static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient);
 static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient);
 static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor);
@@ -3436,6 +3439,109 @@ static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iTh
 	return (minDist > threshold) ? DKS_NONE : side;
 }
 
+static void DockHostWindow_GetGlobalTargetGuideRects(const RECT* pHostClient, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
+{
+	if (!pHostClient)
+	{
+		return;
+	}
+
+	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
+	const int edgeInset = DOCK_TARGET_GUIDE_EDGE_MARGIN;
+	const int cx = (pHostClient->left + pHostClient->right) / 2;
+	const int cy = (pHostClient->top + pHostClient->bottom) / 2;
+
+	if (pRectTop)
+	{
+		SetRect(pRectTop,
+			cx - guideSize / 2,
+			pHostClient->top + edgeInset,
+			cx + guideSize / 2,
+			pHostClient->top + edgeInset + guideSize);
+	}
+	if (pRectLeft)
+	{
+		SetRect(pRectLeft,
+			pHostClient->left + edgeInset,
+			cy - guideSize / 2,
+			pHostClient->left + edgeInset + guideSize,
+			cy + guideSize / 2);
+	}
+	if (pRectRight)
+	{
+		SetRect(pRectRight,
+			pHostClient->right - edgeInset - guideSize,
+			cy - guideSize / 2,
+			pHostClient->right - edgeInset,
+			cy + guideSize / 2);
+	}
+	if (pRectBottom)
+	{
+		SetRect(pRectBottom,
+			cx - guideSize / 2,
+			pHostClient->bottom - edgeInset - guideSize,
+			cx + guideSize / 2,
+			pHostClient->bottom - edgeInset);
+	}
+}
+
+static void DockHostWindow_GetLocalTargetGuideRects(const RECT* pHostClient, const RECT* pAnchorRect, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
+{
+	if (!pHostClient || !pAnchorRect)
+	{
+		return;
+	}
+
+	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
+	const int guideStep = guideSize + DOCK_TARGET_GUIDE_GAP;
+	int cx = (pAnchorRect->left + pAnchorRect->right) / 2;
+	int cy = (pAnchorRect->top + pAnchorRect->bottom) / 2;
+
+	cx = max(guideStep, min(cx, pHostClient->right - guideStep));
+	cy = max(guideStep, min(cy, pHostClient->bottom - guideStep));
+
+	if (pRectCenter)
+	{
+		SetRect(pRectCenter,
+			cx - guideSize / 2,
+			cy - guideSize / 2,
+			cx + guideSize / 2,
+			cy + guideSize / 2);
+	}
+	if (pRectTop)
+	{
+		SetRect(pRectTop,
+			cx - guideSize / 2,
+			cy - guideStep - guideSize / 2,
+			cx + guideSize / 2,
+			cy - guideStep + guideSize / 2);
+	}
+	if (pRectLeft)
+	{
+		SetRect(pRectLeft,
+			cx - guideStep - guideSize / 2,
+			cy - guideSize / 2,
+			cx - guideStep + guideSize / 2,
+			cy + guideSize / 2);
+	}
+	if (pRectRight)
+	{
+		SetRect(pRectRight,
+			cx + guideStep - guideSize / 2,
+			cy - guideSize / 2,
+			cx + guideStep + guideSize / 2,
+			cy + guideSize / 2);
+	}
+	if (pRectBottom)
+	{
+		SetRect(pRectBottom,
+			cx - guideSize / 2,
+			cy + guideStep - guideSize / 2,
+			cx + guideSize / 2,
+			cy + guideStep + guideSize / 2);
+	}
+}
+
 static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient)
 {
 	if (!pHostClient || !PtInRect(pHostClient, ptClient))
@@ -3443,15 +3549,11 @@ static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POIN
 		return DKS_NONE;
 	}
 
-	int guideSize = DOCK_TARGET_GUIDE_SIZE;
-	int guideGap = DOCK_TARGET_GUIDE_GAP;
-	int cx = (pHostClient->left + pHostClient->right) / 2;
-	int cy = (pHostClient->top + pHostClient->bottom) / 2;
-
-	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
-	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
-	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
-	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+	RECT rcGuideTop = { 0 };
+	RECT rcGuideLeft = { 0 };
+	RECT rcGuideRight = { 0 };
+	RECT rcGuideBottom = { 0 };
+	DockHostWindow_GetGlobalTargetGuideRects(pHostClient, &rcGuideTop, &rcGuideLeft, &rcGuideRight, &rcGuideBottom);
 
 	if (PtInRect(&rcGuideLeft, ptClient))
 	{
@@ -3475,23 +3577,22 @@ static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POIN
 
 static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient)
 {
-	if (!pHostClient || !pAnchorRect || !PtInRect(pAnchorRect, ptClient))
+	if (!pHostClient || !pAnchorRect)
 	{
 		return DKS_NONE;
 	}
 
-	int guideSize = DOCK_TARGET_GUIDE_SIZE;
-	int guideGap = DOCK_TARGET_GUIDE_GAP;
-	int cx = (pAnchorRect->left + pAnchorRect->right) / 2;
-	int cy = (pAnchorRect->top + pAnchorRect->bottom) / 2;
+	RECT rcGuideCenter = { 0 };
+	RECT rcGuideTop = { 0 };
+	RECT rcGuideLeft = { 0 };
+	RECT rcGuideRight = { 0 };
+	RECT rcGuideBottom = { 0 };
+	DockHostWindow_GetLocalTargetGuideRects(pHostClient, pAnchorRect, &rcGuideCenter, &rcGuideTop, &rcGuideLeft, &rcGuideRight, &rcGuideBottom);
 
-	cx = max(guideSize * 2, min(cx, pHostClient->right - guideSize * 2));
-	cy = max(guideSize * 2, min(cy, pHostClient->bottom - guideSize * 2));
-
-	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
-	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
-	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
-	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+	if (PtInRect(&rcGuideCenter, ptClient))
+	{
+		return DKS_CENTER;
+	}
 
 	if (PtInRect(&rcGuideLeft, ptClient))
 	{
@@ -3613,16 +3714,20 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 		pTargetHit->hWndAnchor = pAnchorData->hWnd;
 		pTargetHit->rcAnchorClient = rcAnchor;
 
-		int localSide = DockHostWindow_HitTestLocalTargetGuide(&rcClient, &rcAnchor, ptClient);
-		if (localSide != DKS_NONE)
-		{
-			pTargetHit->nDockSide = localSide;
-			if (!DockLayout_GetDockPreviewRect(&rcAnchor, localSide, &pTargetHit->rcPreviewClient))
+			int localSide = DockHostWindow_HitTestLocalTargetGuide(&rcClient, &rcAnchor, ptClient);
+			if (localSide != DKS_NONE)
 			{
-				pTargetHit->rcPreviewClient = rcAnchor;
+				pTargetHit->nDockSide = localSide;
+				if (localSide == DKS_CENTER)
+				{
+					pTargetHit->rcPreviewClient = rcAnchor;
+				}
+				else if (!DockLayout_GetDockPreviewRect(&rcAnchor, localSide, &pTargetHit->rcPreviewClient))
+				{
+					pTargetHit->rcPreviewClient = rcAnchor;
+				}
+				return TRUE;
 			}
-			return TRUE;
-		}
 	}
 
 	int globalSide = DockHostWindow_HitTestGlobalTargetGuide(&rcClient, ptClient);
@@ -3888,7 +3993,17 @@ BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
 	{
 		TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
 		TreeNode* pAnchorNode = DockNode_FindByHWND(pRoot, pTargetHit->hWndAnchor);
-		if (pAnchorNode && DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
+		if (pAnchorNode && pTargetHit->nDockSide == DKS_CENTER)
+		{
+			TreeNode* pZoneNode = DockHostWindow_FindOwningZoneNode(pDockHostWindow, pAnchorNode);
+			int nZoneSide = DockHostWindow_GetPanelDockSide(pDockHostWindow, pTargetHit->hWndAnchor);
+			if (pZoneNode && nZoneSide != DKS_NONE &&
+				DockHostWindow_DockIntoZone(pDockHostWindow, pZoneNode, hWnd, nZoneSide, iDockSize))
+			{
+				return TRUE;
+			}
+		}
+		else if (pAnchorNode && DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
 		{
 			return TRUE;
 		}
