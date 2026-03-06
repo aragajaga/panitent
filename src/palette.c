@@ -88,24 +88,23 @@ void Palette_InitDefault(Palette*);
 
 Palette* Palette_Create()
 {
-  Palette* palette = (Palette*)malloc(sizeof(Palette));
-  memset(palette, 0, sizeof(Palette));
-  if (palette)
-  {
-      kv_init(*palette);
-      Palette_InitDefault(palette);
-      return palette;
-  }
-  
-  return NULL;
+    Palette* palette = (Palette*)malloc(sizeof(Palette));
+    if (!palette)
+    {
+        return NULL;
+    }
+
+    memset(palette, 0, sizeof(Palette));
+    kv_init(*palette);
+    Palette_InitDefault(palette);
+    return palette;
 }
 
 size_t Palette_GetSize(Palette* palette)
 {
     if (palette)
     {
-        // return kv_size(*palette);
-        return 16;
+        return kv_size(*palette);
     }
 
     return 0;
@@ -115,8 +114,10 @@ uint32_t Palette_At(Palette* palette, size_t idx)
 {
     if (palette)
     {
-        // return kv_a(uint32_t, *palette, idx);
-        return 0xFF0000FF;
+        if (idx < kv_size(*palette))
+        {
+            return kv_a(uint32_t, *palette, idx);
+        }
     }
 
     return 0;
