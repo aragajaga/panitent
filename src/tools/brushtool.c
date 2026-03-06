@@ -37,14 +37,21 @@ void BrushTool_Init(BrushTool* pBrushTool)
 
 void BrushTool_OnLButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    UNREFERENCED_PARAMETER(x);
+    UNREFERENCED_PARAMETER(y);
+    UNREFERENCED_PARAMETER(keyFlags);
+
     pBrushTool->fDraw = FALSE;
     ReleaseCapture();
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
     Brush_Delete(g_pBrushDraw);
+    g_pBrushDraw = NULL;
 }
 
 void BrushTool_OnLButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    UNREFERENCED_PARAMETER(keyFlags);
+
     // SetCursor(LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDC_BRUSH)));
 
     HWND hWndViewport = Window_GetHWND(pViewportWindow);
@@ -60,7 +67,14 @@ void BrushTool_OnLButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWin
     pBrushTool->prev.x = ptCanvas.x;
     pBrushTool->prev.y = ptCanvas.y;
 
+    InitializeBrushList();
     g_pBrushDraw = BrushBuilder_Build(g_pBrush, g_brushSize);
+    if (!g_pBrushDraw)
+    {
+        pBrushTool->fDraw = FALSE;
+        ReleaseCapture();
+        return;
+    }
 
     Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
     Canvas* pCanvas = Document_GetCanvas(pDocument);
@@ -71,9 +85,9 @@ void BrushTool_OnLButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWin
 
 void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
-    
+    UNREFERENCED_PARAMETER(keyFlags);
 
-    if (pBrushTool->fDraw)
+    if (pBrushTool->fDraw && g_pBrushDraw)
     {
         POINT ptCanvas = { 0 };
         ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);

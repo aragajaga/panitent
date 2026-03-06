@@ -54,14 +54,45 @@ BrushBuilder GetTextureBrushBuilder(Canvas* tex)
 
 Brush* BrushBuilder_Build(BrushBuilder* builder, int size)
 {
+    if (g_brushListLen == 0)
+    {
+        InitializeBrushList();
+    }
+
+    if (!builder)
+    {
+        builder = g_pBrush;
+    }
+    if (!builder && g_brushListLen > 0)
+    {
+        builder = &g_brushList[0];
+    }
+    if (!builder || !builder->fn)
+    {
+        return NULL;
+    }
+
+    size = max(1, size);
     return (*builder->fn)(builder, size);
 }
 
 void InitializeBrushList()
 {
-    g_brushList[g_brushListLen++] = GetPointBrushBuilder();
-    g_brushList[g_brushListLen++] = GetCircleBrushBuilder();
-    g_brushList[g_brushListLen++] = GetSquareBrushBuilder();
+    if (g_brushListLen == 0)
+    {
+        g_brushList[g_brushListLen++] = GetPointBrushBuilder();
+        g_brushList[g_brushListLen++] = GetCircleBrushBuilder();
+        g_brushList[g_brushListLen++] = GetSquareBrushBuilder();
+    }
+
+    if (!g_pBrush && g_brushListLen > 0)
+    {
+        g_pBrush = &g_brushList[0];
+    }
+    if (g_brushSize <= 0)
+    {
+        g_brushSize = 8;
+    }
 }
 
 
@@ -87,12 +118,14 @@ Brush* Brush_Create(Canvas* tex)
         return NULL;
 
     Brush* brush = (Brush*)malloc(sizeof(Brush));
-    memset(brush, 0, sizeof(Brush));
-    if (brush)
+    if (!brush)
     {
-        brush->distance = 0.25;
-        brush->tex = tex;
+        return NULL;
     }
+
+    memset(brush, 0, sizeof(Brush));
+    brush->distance = 0.25f;
+    brush->tex = tex;
 
     return brush;
 }
@@ -133,7 +166,22 @@ Brush* PointBrushBuilder_Build(BrushBuilder* builder, int size)
 Brush* CircleBrushBuilder_Build(BrushBuilder* builder, int size)
 {
     Canvas* tex = Canvas_Create(size, size);
-    // draw_filled_circle_color(tex, size / 2, size / 2, size / 2, 0xFF000000);
+    if (!tex)
+    {
+        return NULL;
+    }
+
+    uint32_t* buffer = tex->buffer;
+    for (int y = 0; y < tex->height; ++y)
+    {
+        for (int x = 0; x < tex->width; ++x)
+        {
+            float px = ((x + 0.5f) / (float)tex->width - 0.5f) * 2.0f;
+            float py = ((y + 0.5f) / (float)tex->height - 0.5f) * 2.0f;
+            float dist = sqrtf(px * px + py * py);
+            buffer[x + tex->width * y] = (dist <= 1.0f) ? 0xFF000000 : 0x00000000;
+        }
+    }
 
     Brush* brush = Brush_Create(tex);
     Brush_SetBuilder(brush, builder);
@@ -152,6 +200,11 @@ Brush* SquareBrushBuilder_Build(BrushBuilder* builder, int size)
 
 void Brush_Draw(Brush* brush, int x, int y, Canvas* target, uint32_t color)
 {
+    if (!brush || !target)
+    {
+        return;
+    }
+
     Canvas_ColorStencil(target, x - brush->tex->width / 2, y - brush->tex->height / 2,
         brush->tex, color);
 }
@@ -159,16 +212,27 @@ void Brush_Draw(Brush* brush, int x, int y, Canvas* target, uint32_t color)
 void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
     uint32_t color)
 {
+    if (!brush || !target)
+    {
+        return;
+    }
+
     int dx = abs(x1 - x0);
     int dy = abs(y1 - y0);
     int signx = sign(x1 - x0);
     int signy = sign(y1 - y0);
 
+    if (dx == 0 && dy == 0)
+    {
+        Brush_Draw(brush, x0, y0, target, color);
+        return;
+    }
+
     if (dy > dx)
     {
         float slope = dx / (float)dy;
 
-        for (int i = 0; i < dy; i++)
+        for (int i = 0; i <= dy; i++)
         {
             Brush_Draw(brush, x0 + (int)roundf((float)i * slope * (float)signx), y0 + i * signy, target, color);
         }
@@ -176,7 +240,7 @@ void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
     else {
         float slope = dy / (float)dx;
 
-        for (int i = 0; i < dx; i++)
+        for (int i = 0; i <= dx; i++)
         {
             Brush_Draw(brush, x0 + i * signx, y0 + (int)roundf((float)i * slope * (float)signy), target, color);
         }
@@ -185,7 +249,6 @@ void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
 
 void Brush_Delete(Brush* brush)
 {
-    assert(brush);
     if (!brush)
         return;
 
@@ -195,7 +258,6 @@ void Brush_Delete(Brush* brush)
 
 Canvas* Brush_GetTexture(Brush* brush)
 {
-    assert(brush);
     if (!brush)
         return NULL;
 
@@ -263,12 +325,21 @@ void Brush_BezierCurve2(Brush* brush, Canvas* canvas,
 
 void Brush_SetSize(Brush** brush, int size)
 {
+    if (!brush || !*brush)
+    {
+        return;
+    }
+
     BrushBuilder* builder = Brush_GetBuilder(*brush);
     assert(builder);
     if (!builder)
         return;
 
-    Brush* newBrush = BrushBuilder_Build(builder, size);
+    Brush* newBrush = BrushBuilder_Build(builder, max(1, size));
+    if (!newBrush)
+    {
+        return;
+    }
     Brush_Delete(*brush);
 
     *brush = newBrush;

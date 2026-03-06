@@ -37,14 +37,21 @@ void EraserTool_Init(EraserTool* pEraserTool)
 
 void EraserTool_OnLButtonUp(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    UNREFERENCED_PARAMETER(x);
+    UNREFERENCED_PARAMETER(y);
+    UNREFERENCED_PARAMETER(keyFlags);
+
     pEraserTool->fDraw = FALSE;
     ReleaseCapture();
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
     Brush_Delete(g_pBrushDraw);
+    g_pBrushDraw = NULL;
 }
 
 void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    UNREFERENCED_PARAMETER(keyFlags);
+
     // SetCursor(LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDC_BRUSH)));
 
     HWND hWndViewport = Window_GetHWND(pViewportWindow);
@@ -60,7 +67,14 @@ void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewport
     pEraserTool->prev.x = ptCanvas.x;
     pEraserTool->prev.y = ptCanvas.y;
 
+    InitializeBrushList();
     g_pBrushDraw = BrushBuilder_Build(g_pBrush, g_brushSize);
+    if (!g_pBrushDraw)
+    {
+        pEraserTool->fDraw = FALSE;
+        ReleaseCapture();
+        return;
+    }
 
     Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
     Canvas* pCanvas = Document_GetCanvas(pDocument);
@@ -71,9 +85,9 @@ void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewport
 
 void EraserTool_OnMouseMove(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
-    
+    UNREFERENCED_PARAMETER(keyFlags);
 
-    if (pEraserTool->fDraw)
+    if (pEraserTool->fDraw && g_pBrushDraw)
     {
         POINT ptCanvas = { 0 };
         ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);

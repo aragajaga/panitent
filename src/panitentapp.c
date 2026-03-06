@@ -17,6 +17,7 @@
 #include <time.h>
 #include "document.h"
 #include "canvas.h"
+#include "brush.h"
 #include "propgriddialog.h"
 #include "sharing/activitysharingmanager.h"
 #include "sharing/activitystubdialog.h"
@@ -53,6 +54,7 @@ void PanitentApp_Init(PanitentApp* pPanitentApp)
     pPanitentApp->palette = Palette_Create();
     pPanitentApp->m_pActivitySharingManager = ActivitySharingManager_Create();
     pPanitentApp->m_pWorkspaceContainer = WorkspaceContainer_Create();
+    InitializeBrushList();
 
     NONCLIENTMETRICS ncm = { 0 };
     ncm.cbSize = sizeof(NONCLIENTMETRICS);

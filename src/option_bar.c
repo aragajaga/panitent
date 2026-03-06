@@ -47,6 +47,7 @@ void BrushSel_OnCreate(HWND hwnd, LPCREATESTRUCT lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 
+	InitializeBrushList();
 	hTheme = OpenThemeData(hwnd, L"ComboBox");
 }
 
@@ -65,45 +66,45 @@ void BrushSel_OnPaint(HWND hwnd)
 		Brush* brush = BrushBuilder_Build(builder, brushSize);
 		Canvas* tex = Brush_GetTexture(brush);
 
-		/* Copy texture into GDI bitmap */
-		BITMAPINFO bmi;
-		Win32_InitGdiBitmapInfo32Bpp(&bmi, 24, 24);
-
-		uint32_t* buffer = NULL;
-
-		HDC hSampleDC = CreateCompatibleDC(hdc);
-		HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, (LPVOID*)&buffer, NULL, 0);
-		assert(hBitmap != NULL);
-		assert(buffer != NULL);
-
-		hOldObj = SelectObject(hSampleDC, hBitmap);
-		RECT rc = { 0, 0, 24, 24 };
-		FillRect(hSampleDC, &rc, GetStockObject(WHITE_BRUSH));
-
-		int offset = (24 - brushSize) / 2;
-		uint32_t* pBuffer = buffer + (size_t)offset * 24 + (size_t)offset;
-		for (int y = 0; y < brushSize; y++)
+		if (tex)
 		{
-			for (int x = 0; x < brushSize; x++)
+			/* Copy texture into GDI bitmap */
+			BITMAPINFO bmi;
+			Win32_InitGdiBitmapInfo32Bpp(&bmi, 24, 24);
+
+			uint32_t* buffer = NULL;
+
+			HDC hSampleDC = CreateCompatibleDC(hdc);
+			HBITMAP hBitmap = CreateDIBSection(hdc, &bmi, DIB_RGB_COLORS, (LPVOID*)&buffer, NULL, 0);
+			assert(hBitmap != NULL);
+			assert(buffer != NULL);
+
+			hOldObj = SelectObject(hSampleDC, hBitmap);
+			RECT rc = { 0, 0, 24, 24 };
+			FillRect(hSampleDC, &rc, GetStockObject(WHITE_BRUSH));
+
+			int offset = (24 - brushSize) / 2;
+			for (int y = 0; y < brushSize; y++)
 			{
-				pBuffer[y * brushSize + x] = mix(0xFFFFFFFF,
-					*((uint32_t*)tex->buffer + (size_t)y * (size_t)tex->width + (size_t)x));
+				uint32_t* pDst = buffer + (size_t)(offset + y) * 24 + (size_t)offset;
+				uint32_t* pSrc = ((uint32_t*)tex->buffer) + (size_t)y * (size_t)tex->width;
+				for (int x = 0; x < brushSize; x++)
+				{
+					pDst[x] = mix(0xFFFFFFFF, pSrc[x]);
+				}
 			}
 
-			pBuffer += (24 - (size_t)brushSize - (size_t)offset) + (size_t)offset;
+			/* Blit brush sample */
+			BitBlt(hdc, 0, 0, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, hSampleDC,
+				0, 0, SRCCOPY);
+
+			SelectObject(hSampleDC, hOldObj);
+
+			DeleteObject(hBitmap);
+			DeleteDC(hSampleDC);
 		}
 
-		/* As we copyed we doesn't need brush object and texture anymore */
 		Brush_Delete(brush);
-
-		/* Blit brush sample */
-		BitBlt(hdc, 0, 0, bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight, hSampleDC,
-			0, 0, SRCCOPY);
-
-		SelectObject(hSampleDC, hOldObj);
-
-		DeleteObject(hBitmap);
-		DeleteDC(hSampleDC);
 	}
 
 
@@ -116,11 +117,12 @@ void BrushSel_OnPaint(HWND hwnd)
 
 	WCHAR szBrushSize[4];
 	_itow_s(g_brushSize, szBrushSize, 4, 10);
+	int cchBrushSize = lstrlenW(szBrushSize);
 
 	SIZE sText;
-	GetTextExtentPoint32(hdc, szBrushSize, 2, &sText);
+	GetTextExtentPoint32(hdc, szBrushSize, cchBrushSize, &sText);
 
-	TextOut(hdc, 26, (clientRc.bottom - sText.cy) / 2, szBrushSize, 2);
+	TextOut(hdc, 26, (clientRc.bottom - sText.cy) / 2, szBrushSize, cchBrushSize);
 
 	SelectObject(hdc, hOldObj);
 
@@ -479,9 +481,16 @@ void DrawBrushPreview(HWND hwnd)
 	int height = data->iPvHeight;
 
 	Canvas* canvas = Canvas_Create(width, height);
+	if (!canvas)
+		return;
 	Canvas_FillSolid(canvas, 0xFFFFFFFF);
 
 	Brush* brush = BrushBuilder_Build(g_pBrush, g_brushSize);
+	if (!brush)
+	{
+		Canvas_Delete(canvas);
+		return;
+	}
 
 	Brush_BezierCurve2(brush, canvas,
 		32, height / 2,
@@ -494,6 +503,9 @@ void DrawBrushPreview(HWND hwnd)
 		memcpy(data->pPvBuffer + (size_t)y * (size_t)width, ((uint32_t*)canvas->buffer) + (size_t)y * (size_t)width,
 			(size_t)width * 4);
 	}
+
+	Brush_Delete(brush);
+	Canvas_Delete(canvas);
 }
 
 #define BRUSHSIZEMAX 128
@@ -514,6 +526,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 		SetWindowLongPtr(hwndDlg, GWLP_USERDATA, (LONG_PTR)data);
 
 		HWND hList = GetDlgItem(hwndDlg, IDC_BRUSHLIST);
+		InitializeBrushList();
 
 		/* Add brush items to list */
 		int nItem;
@@ -523,6 +536,14 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 			nItem = (int)SendMessage(hList, LB_ADDSTRING, 0, (LPARAM)NULL);
 			SendMessage(hList, LB_SETITEMDATA, (WPARAM)nItem,
 				(LPARAM)&g_brushList[i]);
+		}
+		for (size_t i = 0; i < g_brushListLen; ++i)
+		{
+			if (&g_brushList[i] == g_pBrush)
+			{
+				SendMessage(hList, LB_SETCURSEL, (WPARAM)i, 0);
+				break;
+			}
 		}
 
 		/* Create preview bitmap */
@@ -564,7 +585,7 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 		/* Initialize size slider */
 		HWND hTrack = GetDlgItem(hwndDlg, IDC_BRUSHSIZE);
 		SendMessage(hTrack, TBM_SETRANGE, (WPARAM)TRUE,
-			(LPARAM)MAKELONG(0, BRUSHSIZEMAX));
+			(LPARAM)MAKELONG(1, BRUSHSIZEMAX));
 		SendMessage(hTrack, TBM_SETPAGESIZE, 0, (LPARAM)4);
 		SendMessage(hTrack, TBM_SETPOS, (WPARAM)TRUE, (LPARAM)g_brushSize);
 
@@ -579,10 +600,10 @@ INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam,
 		case TB_PAGEDOWN:
 		case TB_THUMBTRACK:
 		{
-			DWORD dwPos = (DWORD)SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHSIZE),
-				TBM_GETPOS, 0, 0);
+				DWORD dwPos = (DWORD)SendMessage(GetDlgItem(hwndDlg, IDC_BRUSHSIZE),
+					TBM_GETPOS, 0, 0);
 
-			g_brushSize = dwPos;
+				g_brushSize = max(1, (int)dwPos);
 
 			DrawBrushPreview(hwndDlg);
 			InvalidateRect(GetDlgItem(hwndDlg, IDC_BRUSHPREVIEW), NULL, TRUE);
