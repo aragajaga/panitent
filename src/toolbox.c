@@ -69,6 +69,87 @@ enum {
 
 const BOOL bOrange = TRUE;
 
+static int ToolboxWindow_GetMinClientWidth(void)
+{
+    return btnOffset + btnSize + btnOffset;
+}
+
+static int ToolboxWindow_GetColumnCount(ToolboxWindow* pToolboxWindow)
+{
+    if (!pToolboxWindow)
+    {
+        return 1;
+    }
+
+    RECT rcClient = { 0 };
+    Window_GetClientRect((Window*)pToolboxWindow, &rcClient);
+    int clientWidth = max(0, rcClient.right - rcClient.left);
+    int extSize = btnSize + btnOffset;
+    if (extSize <= 0)
+    {
+        return 1;
+    }
+
+    int columns = (clientWidth - btnOffset) / extSize;
+    if (columns < 1)
+    {
+        columns = 1;
+    }
+    return columns;
+}
+
+static int ToolboxWindow_HitTestButton(ToolboxWindow* pToolboxWindow, int x, int y)
+{
+    if (!pToolboxWindow || pToolboxWindow->tool_count == 0)
+    {
+        return -1;
+    }
+
+    int extSize = btnSize + btnOffset;
+    if (extSize <= 0)
+    {
+        return -1;
+    }
+
+    int localX = x - btnOffset;
+    int localY = y - btnOffset;
+    if (localX < 0 || localY < 0)
+    {
+        return -1;
+    }
+
+    int columns = ToolboxWindow_GetColumnCount(pToolboxWindow);
+    int col = localX / extSize;
+    int row = localY / extSize;
+    if (col < 0 || col >= columns || row < 0)
+    {
+        return -1;
+    }
+
+    if ((localX % extSize) >= btnSize || (localY % extSize) >= btnSize)
+    {
+        return -1;
+    }
+
+    int index = row * columns + col;
+    if (index < 0 || (unsigned int)index >= pToolboxWindow->tool_count)
+    {
+        return -1;
+    }
+
+    return index;
+}
+
+static void ToolboxWindow_InvalidateNoErase(ToolboxWindow* pToolboxWindow)
+{
+    if (!pToolboxWindow)
+    {
+        return;
+    }
+
+    InvalidateRect(Window_GetHWND((Window*)pToolboxWindow), NULL, FALSE);
+}
+
 void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 {
     if (!hTheme) {
@@ -149,15 +230,11 @@ void ToolboxWindow_DrawButtons(ToolboxWindow* pToolboxWindow, HDC hdc)
     Window_GetClientRect((Window*)pToolboxWindow, &rcClient);
 
     int extSize = btnSize + btnOffset;
-    int rowCount = rcClient.right / btnSize;
-
-    if (rowCount < 1) {
-        rowCount = 1;
-    }
+    int columnCount = ToolboxWindow_GetColumnCount(pToolboxWindow);
 
     for (unsigned int i = 0; i < pToolboxWindow->tool_count; i++) {
-        int x = btnOffset + (i % rowCount) * extSize;
-        int y = btnOffset + (i / rowCount) * extSize;
+        int x = btnOffset + (i % columnCount) * extSize;
+        int y = btnOffset + (i / columnCount) * extSize;
 
         unsigned int uState = (unsigned int)i == g_uToolSelected ? PUSHED : NORMAL;
 
@@ -250,52 +327,21 @@ void ToolboxWindow_OnPaint(ToolboxWindow* pToolboxWindow)
 
 void ToolboxWindow_OnLButtonUp(ToolboxWindow* pToolboxWindow, int x, int y)
 {
-    int btnHot = btnSize + 5;
-
-    if (x >= 0 && y >= 0 && x < btnHot * 2 && y < (int)pToolboxWindow->tool_count * btnHot)
+    int pressed = ToolboxWindow_HitTestButton(pToolboxWindow, x, y);
+    if (pressed >= 0)
     {
-        size_t extSize = (size_t)btnSize + (size_t)btnOffset;
-
-        RECT rcClient = { 0 };
-        Window_GetClientRect((Window*)pToolboxWindow, &rcClient);
-
-        size_t rowCount = rcClient.right / extSize;
-        if (rowCount < 1) {
-            rowCount = 1;
-        }
-
-        unsigned int pressed = (y - btnOffset) / (int)extSize * (int)rowCount + (x - btnOffset) / (int)extSize;
-
         g_uToolPrevious = g_uToolSelected;
-        g_uToolSelected = pressed;
+        g_uToolSelected = (unsigned int)pressed;
 
-        Tool* pTool = NULL;
-
-        Tool* tools[] = {
-            (Tool*)pToolboxWindow->m_pPointerTool,
-            (Tool*)pToolboxWindow->m_pPencilTool,
-            (Tool*)pToolboxWindow->m_pCircleTool,
-            (Tool*)pToolboxWindow->m_pLineTool,
-            (Tool*)pToolboxWindow->m_pRectangleTool,
-            (Tool*)pToolboxWindow->m_pTextTool,
-            (Tool*)pToolboxWindow->m_pFillTool,
-            (Tool*)pToolboxWindow->m_pPickerTool,
-            (Tool*)pToolboxWindow->m_pBrushTool,
-            (Tool*)pToolboxWindow->m_pEraserTool
-        };
-
-        if (pressed <= pToolboxWindow->tool_count)
+        Tool* pTool = pToolboxWindow->tools[pressed];
+        if (pTool)
         {
-            pTool = (Tool*)tools[pressed];
-
             LogMessageF(LOGENTRY_TYPE_DEBUG, L"Toolbox", L"Selected tool: %s", pTool->pszLabel);
-
-            PanitentApp_SetTool(PanitentApp_Instance(), (Tool*)pTool);
-            // PanitentApp_SetActivityStatusF(pPanitentApp, L"Drawing with %s", pTool->pszLabel);
+            PanitentApp_SetTool(PanitentApp_Instance(), pTool);
         }
     }
 
-    Window_Invalidate((Window*)pToolboxWindow);
+    ToolboxWindow_InvalidateNoErase(pToolboxWindow);
 }
 
 void Toolbox_OnContextMenu(HWND hWnd, WPARAM wParam, LPARAM lParam)
@@ -329,6 +375,26 @@ LRESULT ToolboxWindow_UserProc(ToolboxWindow* pToolboxWindow, HWND hWnd, UINT me
     case WM_LBUTTONUP:
         ToolboxWindow_OnLButtonUp(pToolboxWindow, (int)GET_X_LPARAM(lParam), (int)GET_Y_LPARAM(lParam));
         return 0;
+        break;
+
+    case WM_GETMINMAXINFO:
+    {
+        LPMINMAXINFO pMMI = (LPMINMAXINFO)lParam;
+        if (pMMI)
+        {
+            RECT rc = { 0, 0, ToolboxWindow_GetMinClientWidth(), btnOffset + btnSize + btnOffset };
+            DWORD dwStyle = (DWORD)GetWindowLongPtr(hWnd, GWL_STYLE);
+            DWORD dwExStyle = (DWORD)GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+            AdjustWindowRectEx(&rc, dwStyle, FALSE, dwExStyle);
+            pMMI->ptMinTrackSize.x = max(pMMI->ptMinTrackSize.x, rc.right - rc.left);
+            pMMI->ptMinTrackSize.y = max(pMMI->ptMinTrackSize.y, rc.bottom - rc.top);
+            return 0;
+        }
+    }
+    break;
+
+    case WM_ERASEBKGND:
+        return 1;
         break;
 
         //case WM_CONTEXTMENU:
@@ -465,7 +531,7 @@ void ToolboxWindow_Init(ToolboxWindow* pToolboxWindow)
         MAKEINTRESOURCE(IDB_TOOLS24));
 
     pToolboxWindow->tools = (Tool**)malloc(16 * sizeof(Tool*));
-    memset(pToolboxWindow, 0, 16 * sizeof(Tool*));
+    memset(pToolboxWindow->tools, 0, 16 * sizeof(Tool*));
     pToolboxWindow->tool_count = 0;
 
     ToolboxWindow_AddTool(pToolboxWindow, (Tool*)pToolboxWindow->m_pPointerTool);
