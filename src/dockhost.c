@@ -100,6 +100,7 @@ static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
+static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient);
 static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient);
 static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor);
 static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize);
@@ -3435,6 +3436,43 @@ static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iTh
 	return (minDist > threshold) ? DKS_NONE : side;
 }
 
+static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient)
+{
+	if (!pHostClient || !PtInRect(pHostClient, ptClient))
+	{
+		return DKS_NONE;
+	}
+
+	int guideSize = DOCK_TARGET_GUIDE_SIZE;
+	int guideGap = DOCK_TARGET_GUIDE_GAP;
+	int cx = (pHostClient->left + pHostClient->right) / 2;
+	int cy = (pHostClient->top + pHostClient->bottom) / 2;
+
+	RECT rcGuideLeft = { cx - guideGap - guideSize * 2, cy - guideSize / 2, cx - guideGap - guideSize, cy + guideSize / 2 };
+	RECT rcGuideRight = { cx + guideGap + guideSize, cy - guideSize / 2, cx + guideGap + guideSize * 2, cy + guideSize / 2 };
+	RECT rcGuideTop = { cx - guideSize / 2, cy - guideGap - guideSize * 2, cx + guideSize / 2, cy - guideGap - guideSize };
+	RECT rcGuideBottom = { cx - guideSize / 2, cy + guideGap + guideSize, cx + guideSize / 2, cy + guideGap + guideSize * 2 };
+
+	if (PtInRect(&rcGuideLeft, ptClient))
+	{
+		return DKS_LEFT;
+	}
+	if (PtInRect(&rcGuideRight, ptClient))
+	{
+		return DKS_RIGHT;
+	}
+	if (PtInRect(&rcGuideTop, ptClient))
+	{
+		return DKS_TOP;
+	}
+	if (PtInRect(&rcGuideBottom, ptClient))
+	{
+		return DKS_BOTTOM;
+	}
+
+	return DKS_NONE;
+}
+
 static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient)
 {
 	if (!pHostClient || !pAnchorRect || !PtInRect(pAnchorRect, ptClient))
@@ -3504,6 +3542,11 @@ static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostW
 			continue;
 		}
 
+		if (DockHostWindow_IsWorkspaceWindow(pDockData->hWnd))
+		{
+			continue;
+		}
+
 		if (!DockNode_HasVisibleWindow(pCurrent))
 		{
 			continue;
@@ -3565,14 +3608,15 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 	TreeNode* pAnchorNode = DockHostWindow_FindDockAnchorAtPoint(pDockHostWindow, ptClient, &rcAnchor);
 	if (pAnchorNode && pAnchorNode->data)
 	{
+		DockData* pAnchorData = (DockData*)pAnchorNode->data;
+		pTargetHit->bLocalTarget = TRUE;
+		pTargetHit->hWndAnchor = pAnchorData->hWnd;
+		pTargetHit->rcAnchorClient = rcAnchor;
+
 		int localSide = DockHostWindow_HitTestLocalTargetGuide(&rcClient, &rcAnchor, ptClient);
 		if (localSide != DKS_NONE)
 		{
-			DockData* pAnchorData = (DockData*)pAnchorNode->data;
 			pTargetHit->nDockSide = localSide;
-			pTargetHit->bLocalTarget = TRUE;
-			pTargetHit->hWndAnchor = pAnchorData->hWnd;
-			pTargetHit->rcAnchorClient = rcAnchor;
 			if (!DockLayout_GetDockPreviewRect(&rcAnchor, localSide, &pTargetHit->rcPreviewClient))
 			{
 				pTargetHit->rcPreviewClient = rcAnchor;
@@ -3581,17 +3625,21 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 		}
 	}
 
-	int globalSide = DockHostWindow_HitTestSideInRect(&rcClient, ptClient, 48, 140);
-	if (globalSide == DKS_NONE)
+	int globalSide = DockHostWindow_HitTestGlobalTargetGuide(&rcClient, ptClient);
+	if (globalSide != DKS_NONE)
 	{
-		return FALSE;
+		pTargetHit->nDockSide = globalSide;
+		pTargetHit->bLocalTarget = FALSE;
+		SetRectEmpty(&pTargetHit->rcAnchorClient);
+		SetRectEmpty(&pTargetHit->rcPreviewClient);
+		DockLayout_GetDockPreviewRect(&rcClient, globalSide, &pTargetHit->rcPreviewClient);
+		return TRUE;
 	}
 
-	pTargetHit->nDockSide = globalSide;
-	pTargetHit->bLocalTarget = FALSE;
-	SetRectEmpty(&pTargetHit->rcAnchorClient);
-	SetRectEmpty(&pTargetHit->rcPreviewClient);
-	DockLayout_GetDockPreviewRect(&rcClient, globalSide, &pTargetHit->rcPreviewClient);
+	/*
+	 * Keep guides visible anywhere inside the host, but do not activate a drop
+	 * preview until the cursor is over a concrete guide icon.
+	 */
 	return TRUE;
 }
 

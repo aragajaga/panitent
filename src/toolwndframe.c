@@ -34,26 +34,150 @@ static COLORREF CaptionFrame_AdjustColor(COLORREF color, int delta)
 
 void DrawCaptionGlyph(HDC hdc, PRECT prc, int iGlyph)
 {
-    HBITMAP hbmGlyphs = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_FLOATINGGLYPHS));
-    HDC hdcGlyphs = CreateCompatibleDC(hdc);
+    if (!hdc || !prc)
+    {
+        return;
+    }
 
-    BITMAP bm;
-    ASSERT(GetObject(hbmGlyphs, sizeof(BITMAP), &bm));
+    HBITMAP hbmGlyphs = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_FLOATINGGLYPHS));
+    if (!hbmGlyphs)
+    {
+        return;
+    }
+
+    HDC hdcGlyphs = CreateCompatibleDC(hdc);
+    if (!hdcGlyphs)
+    {
+        DeleteObject(hbmGlyphs);
+        return;
+    }
+
+    BITMAP bm = { 0 };
+    if (!GetObject(hbmGlyphs, sizeof(BITMAP), &bm))
+    {
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
 
     int glyphSize = bm.bmHeight;
+    if (glyphSize <= 0)
+    {
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
 
-    HBITMAP hOldBm = SelectObject(hdcGlyphs, hbmGlyphs);
+    int glyphCount = bm.bmWidth / glyphSize;
+    if (glyphCount <= 0)
+    {
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
 
-    // Rectangle(hdc, x, y, x + glyphSize, y + glyphSize);
+    if (iGlyph < 0)
+    {
+        iGlyph = 0;
+    }
+    if (iGlyph >= glyphCount)
+    {
+        iGlyph = glyphCount - 1;
+    }
+
+    HBITMAP hOldBm = (HBITMAP)SelectObject(hdcGlyphs, hbmGlyphs);
+    if (!hOldBm)
+    {
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
+
+    BITMAPINFO bmi = { 0 };
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = glyphSize;
+    bmi.bmiHeader.biHeight = -glyphSize; /* top-down */
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    uint32_t* pGlyphPixels = NULL;
+    HBITMAP hbmColoredGlyph = CreateDIBSection(
+        hdc,
+        &bmi,
+        DIB_RGB_COLORS,
+        (LPVOID*)&pGlyphPixels,
+        NULL,
+        0);
+    if (!hbmColoredGlyph || !pGlyphPixels)
+    {
+        SelectObject(hdcGlyphs, hOldBm);
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
+
+    HDC hdcColoredGlyph = CreateCompatibleDC(hdc);
+    if (!hdcColoredGlyph)
+    {
+        DeleteObject(hbmColoredGlyph);
+        SelectObject(hdcGlyphs, hOldBm);
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
+
+    HBITMAP hOldColored = (HBITMAP)SelectObject(hdcColoredGlyph, hbmColoredGlyph);
+    if (!hOldColored)
+    {
+        DeleteDC(hdcColoredGlyph);
+        DeleteObject(hbmColoredGlyph);
+        SelectObject(hdcGlyphs, hOldBm);
+        DeleteDC(hdcGlyphs);
+        DeleteObject(hbmGlyphs);
+        return;
+    }
+
+    const COLORREF glyphColor = RGB(255, 255, 255);
+    const BYTE targetR = GetRValue(glyphColor);
+    const BYTE targetG = GetGValue(glyphColor);
+    const BYTE targetB = GetBValue(glyphColor);
+
+    int srcX = iGlyph * glyphSize;
+    for (int y = 0; y < glyphSize; ++y)
+    {
+        for (int x = 0; x < glyphSize; ++x)
+        {
+            COLORREF srcColor = GetPixel(hdcGlyphs, srcX + x, y);
+            BYTE mask = (BYTE)(((int)GetRValue(srcColor) + (int)GetGValue(srcColor) + (int)GetBValue(srcColor)) / 3);
+
+            /* AlphaBlend expects premultiplied RGB for AC_SRC_ALPHA. */
+            BYTE outR = (BYTE)(((int)targetR * (int)mask + 127) / 255);
+            BYTE outG = (BYTE)(((int)targetG * (int)mask + 127) / 255);
+            BYTE outB = (BYTE)(((int)targetB * (int)mask + 127) / 255);
+
+            pGlyphPixels[(size_t)y * (size_t)glyphSize + (size_t)x] =
+                ((uint32_t)mask << 24) |
+                ((uint32_t)outR << 16) |
+                ((uint32_t)outG << 8) |
+                (uint32_t)outB;
+        }
+    }
 
     int x = prc->left + ((prc->right - prc->left) - glyphSize) / 2;
     int y = prc->top + ((prc->bottom - prc->top) - glyphSize) / 2;
-    TransparentBlt(hdc, x, y, glyphSize, glyphSize, hdcGlyphs, iGlyph * glyphSize, 0, glyphSize, glyphSize, COLORREF_MAGENTA);
+    BLENDFUNCTION blend = { 0 };
+    blend.BlendOp = AC_SRC_OVER;
+    blend.BlendFlags = 0;
+    blend.SourceConstantAlpha = 0xFF;
+    blend.AlphaFormat = AC_SRC_ALPHA;
+    AlphaBlend(hdc, x, y, glyphSize, glyphSize, hdcColoredGlyph, 0, 0, glyphSize, glyphSize, blend);
 
-    // Select previous object
+    SelectObject(hdcColoredGlyph, hOldColored);
+    DeleteDC(hdcColoredGlyph);
+    DeleteObject(hbmColoredGlyph);
     SelectObject(hdcGlyphs, hOldBm);
-
-    // Free bitmap object
+    DeleteDC(hdcGlyphs);
     DeleteObject(hbmGlyphs);
 }
 

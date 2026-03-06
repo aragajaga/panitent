@@ -992,8 +992,7 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 	}
 
 	DockTargetHit dockTarget = { 0 };
-	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCursor, &dockTarget) ||
-		dockTarget.nDockSide == DKS_NONE)
+	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCursor, &dockTarget))
 	{
 		FloatingWindowContainer_DestroyDockPreviewOverlay();
 		return;
@@ -1034,7 +1033,7 @@ static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowConta
 	RECT rcHostLocal = { 0, 0, width, height };
 	RECT rcPreview = { 0 };
 	rcPreview = dockTarget.rcPreviewClient;
-	if (IsRectEmpty(&rcPreview))
+	if (dockTarget.nDockSide != DKS_NONE && IsRectEmpty(&rcPreview))
 	{
 		DockLayout_GetDockPreviewRect(&rcHostLocal, dockTarget.nDockSide, &rcPreview);
 	}
@@ -1565,7 +1564,8 @@ static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloat
 	};
 
 	DockTargetHit dockTarget = { 0 };
-	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCenter, &dockTarget))
+	if (!DockHostWindow_HitTestDockTarget(pFloatingWindowContainer->pDockHostTarget, ptCenter, &dockTarget) ||
+		dockTarget.nDockSide == DKS_NONE)
 	{
 		dockTarget.nDockSide = DKS_LEFT;
 	}
