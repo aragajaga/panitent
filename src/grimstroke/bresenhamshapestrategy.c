@@ -1,6 +1,7 @@
 #include "../precomp.h"
 
 #include "bresenhamshapestrategy.h"
+#include "shapecontext.h"
 #include "plotter.h"
 
 #include "../util/assert.h"

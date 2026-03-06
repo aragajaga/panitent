@@ -7,3 +7,6 @@ typedef struct ShapeStrategy {
     void (*DrawCircle)(ShapeStrategy* pShapeStrategy, int x, int y, int radius);
     void (*DrawLine)(ShapeStrategy* pShapeStrategy, int x1, int y1, int x2, int y2);
 } ShapeStrategy;
+
+void ShapeStrategy_Init(ShapeStrategy* pShapeStrategy);
+void ShapeStrategy_SetContext(ShapeStrategy* pShapeStrategy, ShapeContext* pShapeContext);
