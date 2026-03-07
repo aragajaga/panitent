@@ -282,6 +282,29 @@ IDC_MAINMENU MENU
         MENUITEM "&Redo", IDM_EDIT_REDO
         MENUITEM "&Clear canvas", IDM_EDIT_CLRCANVAS
     END
+    POPUP "&Filter"
+    BEGIN
+        POPUP "&Spherize"
+        BEGIN
+            MENUITEM "Panorama &Front Hemisphere", IDM_FILTER_SPHERIZE_LATLONG_FRONT
+            MENUITEM "Panorama 360 (&Latitude/Longitude)", IDM_FILTER_SPHERIZE_LATLONG
+            MENUITEM "Fisheye (&Orthographic)", IDM_FILTER_SPHERIZE_ORTHOGRAPHIC
+            MENUITEM "Fisheye (&Equidistant)", IDM_FILTER_SPHERIZE_EQUIDISTANT
+            MENUITEM "Fisheye (&Equisolid)", IDM_FILTER_SPHERIZE_EQUISOLID
+            MENUITEM "Fisheye (&Stereographic)", IDM_FILTER_SPHERIZE_STEREOGRAPHIC
+            MENUITEM "S&quare Bulge (Legacy)", IDM_FILTER_SPHERIZE_SQUARE_BULGE
+        END
+        POPUP "&Unspherize"
+        BEGIN
+            MENUITEM "Panorama &Front Hemisphere", IDM_FILTER_UNSPHERIZE_LATLONG_FRONT
+            MENUITEM "Panorama 360 (&Latitude/Longitude)", IDM_FILTER_UNSPHERIZE_LATLONG
+            MENUITEM "Fisheye (&Orthographic)", IDM_FILTER_UNSPHERIZE_ORTHOGRAPHIC
+            MENUITEM "Fisheye (&Equidistant)", IDM_FILTER_UNSPHERIZE_EQUIDISTANT
+            MENUITEM "Fisheye (&Equisolid)", IDM_FILTER_UNSPHERIZE_EQUISOLID
+            MENUITEM "Fisheye (&Stereographic)", IDM_FILTER_UNSPHERIZE_STEREOGRAPHIC
+            MENUITEM "S&quare Bulge (Legacy)", IDM_FILTER_UNSPHERIZE_SQUARE_BULGE
+        END
+    END
     POPUP "&Scripting"
     BEGIN
         MENUITEM "Run last script", IDM_FILE_RUN_SCRIPT

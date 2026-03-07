@@ -46,6 +46,56 @@
 
 void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp);
 
+typedef enum _PanitentFilterProjection
+{
+    PanitentFilterProjection_LatLong = 0,
+    PanitentFilterProjection_LatLongFront,
+    PanitentFilterProjection_Orthographic,
+    PanitentFilterProjection_Equidistant,
+    PanitentFilterProjection_Equisolid,
+    PanitentFilterProjection_Stereographic,
+    PanitentFilterProjection_SquareBulge
+} PanitentFilterProjection;
+
+typedef struct _PanitentFilterVector3
+{
+    float x;
+    float y;
+    float z;
+} PanitentFilterVector3;
+
+static float PanitentApp_FilterClampSigned1(float value);
+static float PanitentApp_FilterClamp01(float value);
+static float PanitentApp_FilterLerp(float a, float b, float t);
+static BOOL PanitentApp_FilterLatLongToDirection(float x, float y, PanitentFilterVector3* pDirection);
+static void PanitentApp_FilterDirectionToLatLong(const PanitentFilterVector3* pDirection, float* x, float* y);
+static BOOL PanitentApp_FilterFrontLatLongToDirection(float x, float y, PanitentFilterVector3* pDirection);
+static BOOL PanitentApp_FilterDirectionToFrontLatLong(const PanitentFilterVector3* pDirection, float* x, float* y);
+static BOOL PanitentApp_FilterMirrorBallToDirection(float u, float v, PanitentFilterVector3* pDirection);
+static void PanitentApp_FilterDirectionToMirrorBall(const PanitentFilterVector3* pDirection, float hintX, float hintY, float* u, float* v);
+static void PanitentApp_FilterSquareToDisk(float x, float y, float* u, float* v);
+static BOOL PanitentApp_FilterDiskToSquare(float u, float v, float* x, float* y);
+static void PanitentApp_FilterSquareBulgeToDisk(float x, float y, float* u, float* v);
+static BOOL PanitentApp_FilterDiskToSquareBulge(float u, float v, float* x, float* y);
+static float PanitentApp_FilterProjectRadius(PanitentFilterProjection projection, float radius);
+static float PanitentApp_FilterUnprojectRadius(PanitentFilterProjection projection, float radius);
+static uint32_t PanitentApp_FilterSampleBilinear(const Canvas* pCanvas, float x, float y);
+static void PanitentApp_ApplySpherizeFilter(PanitentApp* pPanitentApp, BOOL fUnspherize, PanitentFilterProjection projection);
+static void PanitentApp_CmdFilterSpherizeLatLong(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeLatLong(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeLatLongFront(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeLatLongFront(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeOrthographic(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeOrthographic(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeEquidistant(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeEquidistant(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeEquisolid(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeEquisolid(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeStereographic(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeStereographic(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterSpherizeSquareBulge(PanitentApp* pPanitentApp);
+static void PanitentApp_CmdFilterUnspherizeSquareBulge(PanitentApp* pPanitentApp);
+
 void PanitentApp_Init(PanitentApp* pPanitentApp)
 {
     Application_Init(&pPanitentApp->base);
@@ -647,6 +697,76 @@ void PanitentApp_CmdClearCanvas(PanitentApp* pPanitentApp)
     Window_Invalidate(PanitentApp_GetActiveViewport(pPanitentApp));
 }
 
+static void PanitentApp_CmdFilterSpherizeLatLong(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_LatLong);
+}
+
+static void PanitentApp_CmdFilterUnspherizeLatLong(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_LatLong);
+}
+
+static void PanitentApp_CmdFilterSpherizeLatLongFront(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_LatLongFront);
+}
+
+static void PanitentApp_CmdFilterUnspherizeLatLongFront(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_LatLongFront);
+}
+
+static void PanitentApp_CmdFilterSpherizeOrthographic(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_Orthographic);
+}
+
+static void PanitentApp_CmdFilterUnspherizeOrthographic(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_Orthographic);
+}
+
+static void PanitentApp_CmdFilterSpherizeEquidistant(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_Equidistant);
+}
+
+static void PanitentApp_CmdFilterUnspherizeEquidistant(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_Equidistant);
+}
+
+static void PanitentApp_CmdFilterSpherizeEquisolid(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_Equisolid);
+}
+
+static void PanitentApp_CmdFilterUnspherizeEquisolid(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_Equisolid);
+}
+
+static void PanitentApp_CmdFilterSpherizeStereographic(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_Stereographic);
+}
+
+static void PanitentApp_CmdFilterUnspherizeStereographic(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_Stereographic);
+}
+
+static void PanitentApp_CmdFilterSpherizeSquareBulge(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, FALSE, PanitentFilterProjection_SquareBulge);
+}
+
+static void PanitentApp_CmdFilterUnspherizeSquareBulge(PanitentApp* pPanitentApp)
+{
+    PanitentApp_ApplySpherizeFilter(pPanitentApp, TRUE, PanitentFilterProjection_SquareBulge);
+}
+
 void PanitentApp_CmdShowLog(PanitentApp* pPanitentApp)
 {
     LogWindow* pLogWindow = NULL;
@@ -850,6 +970,20 @@ void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp)
     AppCmd_AddCommand(pAppCmd, IDM_EDIT_UNDO, &PanitentApp_CmdUndo);
     AppCmd_AddCommand(pAppCmd, IDM_EDIT_REDO, &PanitentApp_CmdRedo);
     AppCmd_AddCommand(pAppCmd, IDM_EDIT_CLRCANVAS, &PanitentApp_CmdClearCanvas);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_LATLONG_FRONT, &PanitentApp_CmdFilterSpherizeLatLongFront);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_LATLONG_FRONT, &PanitentApp_CmdFilterUnspherizeLatLongFront);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_LATLONG, &PanitentApp_CmdFilterSpherizeLatLong);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_LATLONG, &PanitentApp_CmdFilterUnspherizeLatLong);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_ORTHOGRAPHIC, &PanitentApp_CmdFilterSpherizeOrthographic);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_ORTHOGRAPHIC, &PanitentApp_CmdFilterUnspherizeOrthographic);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_EQUIDISTANT, &PanitentApp_CmdFilterSpherizeEquidistant);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_EQUIDISTANT, &PanitentApp_CmdFilterUnspherizeEquidistant);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_EQUISOLID, &PanitentApp_CmdFilterSpherizeEquisolid);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_EQUISOLID, &PanitentApp_CmdFilterUnspherizeEquisolid);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_STEREOGRAPHIC, &PanitentApp_CmdFilterSpherizeStereographic);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_STEREOGRAPHIC, &PanitentApp_CmdFilterUnspherizeStereographic);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_SPHERIZE_SQUARE_BULGE, &PanitentApp_CmdFilterSpherizeSquareBulge);
+    AppCmd_AddCommand(pAppCmd, IDM_FILTER_UNSPHERIZE_SQUARE_BULGE, &PanitentApp_CmdFilterUnspherizeSquareBulge);
     AppCmd_AddCommand(pAppCmd, IDM_WINDOW_ACTIVITY_DIALOG, &PanitentApp_CmdShowActivityDialog);
     AppCmd_AddCommand(pAppCmd, IDM_WINDOW_PROPERTY_GRID, &PanitentApp_CmdShowPropertyGridDialog);
     AppCmd_AddCommand(pAppCmd, IDM_OPTIONS_SETTINGS, &PanitentApp_CmdShowSettings);
@@ -857,4 +991,593 @@ void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp)
     AppCmd_AddCommand(pAppCmd, IDM_HELP_RBTREEVIZ, &PanitentApp_CmdShowRbTreeViz);
     AppCmd_AddCommand(pAppCmd, IDM_HELP_ABOUT, &PanitentApp_CmdAbout);
     AppCmd_AddCommand(pAppCmd, IDM_HELP_DISPLAYPIXELBUFFER, &PanitentApp_CmdDisplayPixelBuffer);
+}
+
+static float PanitentApp_FilterClampSigned1(float value)
+{
+    if (value < -1.0f)
+    {
+        return -1.0f;
+    }
+    if (value > 1.0f)
+    {
+        return 1.0f;
+    }
+    return value;
+}
+
+static float PanitentApp_FilterClamp01(float value)
+{
+    if (value < 0.0f)
+    {
+        return 0.0f;
+    }
+    if (value > 1.0f)
+    {
+        return 1.0f;
+    }
+    return value;
+}
+
+static float PanitentApp_FilterLerp(float a, float b, float t)
+{
+    return a + (b - a) * t;
+}
+
+static BOOL PanitentApp_FilterLatLongToDirection(float x, float y, PanitentFilterVector3* pDirection)
+{
+    const float pi = 3.14159265359f;
+    const float halfPi = 1.57079632679f;
+    float longitude = x * pi;
+    float latitude = -y * halfPi;
+    float cosLatitude = cosf(latitude);
+
+    if (!pDirection)
+    {
+        return FALSE;
+    }
+
+    pDirection->x = cosLatitude * sinf(longitude);
+    pDirection->y = sinf(latitude);
+    pDirection->z = cosLatitude * cosf(longitude);
+    return TRUE;
+}
+
+static void PanitentApp_FilterDirectionToLatLong(const PanitentFilterVector3* pDirection, float* x, float* y)
+{
+    const float pi = 3.14159265359f;
+    const float halfPi = 1.57079632679f;
+    float longitude = 0.0f;
+    float latitude = 0.0f;
+
+    if (!pDirection)
+    {
+        return;
+    }
+
+    longitude = atan2f(pDirection->x, pDirection->z);
+    latitude = asinf(PanitentApp_FilterClampSigned1(pDirection->y));
+    if (x)
+    {
+        *x = longitude / pi;
+    }
+    if (y)
+    {
+        *y = -latitude / halfPi;
+    }
+}
+
+static BOOL PanitentApp_FilterFrontLatLongToDirection(float x, float y, PanitentFilterVector3* pDirection)
+{
+    const float halfPi = 1.57079632679f;
+    float longitude = x * halfPi;
+    float latitude = -y * halfPi;
+    float cosLatitude = cosf(latitude);
+
+    if (!pDirection)
+    {
+        return FALSE;
+    }
+
+    pDirection->x = cosLatitude * sinf(longitude);
+    pDirection->y = sinf(latitude);
+    pDirection->z = cosLatitude * cosf(longitude);
+    return TRUE;
+}
+
+static BOOL PanitentApp_FilterDirectionToFrontLatLong(const PanitentFilterVector3* pDirection, float* x, float* y)
+{
+    const float halfPi = 1.57079632679f;
+    float longitude = 0.0f;
+    float latitude = 0.0f;
+
+    if (!pDirection || pDirection->z < 0.0f)
+    {
+        return FALSE;
+    }
+
+    longitude = atan2f(pDirection->x, max(0.0f, pDirection->z));
+    latitude = asinf(PanitentApp_FilterClampSigned1(pDirection->y));
+    if (x)
+    {
+        *x = longitude / halfPi;
+    }
+    if (y)
+    {
+        *y = -latitude / halfPi;
+    }
+    return TRUE;
+}
+
+static BOOL PanitentApp_FilterMirrorBallToDirection(float u, float v, PanitentFilterVector3* pDirection)
+{
+    float diskU = u;
+    float diskV = -v;
+    float radiusSq = diskU * diskU + diskV * diskV;
+    float z = 0.0f;
+
+    if (!pDirection || radiusSq > 1.0f)
+    {
+        return FALSE;
+    }
+
+    z = sqrtf(max(0.0f, 1.0f - radiusSq));
+    pDirection->x = 2.0f * diskU * z;
+    pDirection->y = 2.0f * diskV * z;
+    pDirection->z = 2.0f * z * z - 1.0f;
+    return TRUE;
+}
+
+static void PanitentApp_FilterDirectionToMirrorBall(const PanitentFilterVector3* pDirection, float hintX, float hintY, float* u, float* v)
+{
+    float denom = 0.0f;
+    float diskU = 0.0f;
+    float diskV = 0.0f;
+
+    if (!pDirection)
+    {
+        return;
+    }
+
+    denom = sqrtf(
+        pDirection->x * pDirection->x +
+        pDirection->y * pDirection->y +
+        (pDirection->z + 1.0f) * (pDirection->z + 1.0f));
+
+    if (denom > 1.0e-6f)
+    {
+        diskU = pDirection->x / denom;
+        diskV = pDirection->y / denom;
+    }
+    else
+    {
+        float hintRadius = sqrtf(hintX * hintX + hintY * hintY);
+        if (hintRadius > 1.0e-6f)
+        {
+            diskU = hintX / hintRadius;
+            diskV = -hintY / hintRadius;
+        }
+        else
+        {
+            diskU = 1.0f;
+            diskV = 0.0f;
+        }
+    }
+
+    if (u)
+    {
+        *u = diskU;
+    }
+    if (v)
+    {
+        *v = -diskV;
+    }
+}
+
+static void PanitentApp_FilterSquareToDisk(float x, float y, float* u, float* v)
+{
+    float uu = x * sqrtf(max(0.0f, 1.0f - (y * y) * 0.5f));
+    float vv = y * sqrtf(max(0.0f, 1.0f - (x * x) * 0.5f));
+
+    if (u)
+    {
+        *u = uu;
+    }
+    if (v)
+    {
+        *v = vv;
+    }
+}
+
+static BOOL PanitentApp_FilterDiskToSquare(float u, float v, float* x, float* y)
+{
+    float radiusSq = u * u + v * v;
+    float termX = 2.0f + u * u - v * v;
+    float termY = 2.0f - u * u + v * v;
+    float sqrt2u = 2.0f * 1.41421356237f * u;
+    float sqrt2v = 2.0f * 1.41421356237f * v;
+    float xValue = 0.0f;
+    float yValue = 0.0f;
+
+    if (radiusSq > 1.0f)
+    {
+        return FALSE;
+    }
+
+    xValue = 0.5f * (sqrtf(max(0.0f, termX + sqrt2u)) - sqrtf(max(0.0f, termX - sqrt2u)));
+    yValue = 0.5f * (sqrtf(max(0.0f, termY + sqrt2v)) - sqrtf(max(0.0f, termY - sqrt2v)));
+    if (x)
+    {
+        *x = xValue;
+    }
+    if (y)
+    {
+        *y = yValue;
+    }
+    return TRUE;
+}
+
+static void PanitentApp_FilterSquareBulgeToDisk(float x, float y, float* u, float* v)
+{
+    float radius = max(fabsf(x), fabsf(y));
+    float angle = 0.0f;
+    float uu = 0.0f;
+    float vv = 0.0f;
+
+    if (radius > 1.0e-6f)
+    {
+        angle = atan2f(y, x);
+        uu = cosf(angle) * radius;
+        vv = sinf(angle) * radius;
+    }
+
+    if (u)
+    {
+        *u = uu;
+    }
+    if (v)
+    {
+        *v = vv;
+    }
+}
+
+static BOOL PanitentApp_FilterDiskToSquareBulge(float u, float v, float* x, float* y)
+{
+    float radiusSq = u * u + v * v;
+    float diskRadius = 0.0f;
+    float angle = 0.0f;
+    float dx = 0.0f;
+    float dy = 0.0f;
+    float scale = 0.0f;
+    float xValue = 0.0f;
+    float yValue = 0.0f;
+
+    if (radiusSq > 1.0f)
+    {
+        return FALSE;
+    }
+
+    diskRadius = sqrtf(radiusSq);
+    if (diskRadius > 1.0e-6f)
+    {
+        angle = atan2f(v, u);
+        dx = cosf(angle);
+        dy = sinf(angle);
+        scale = max(fabsf(dx), fabsf(dy));
+        if (scale > 1.0e-6f)
+        {
+            xValue = (dx / scale) * diskRadius;
+            yValue = (dy / scale) * diskRadius;
+        }
+    }
+
+    if (x)
+    {
+        *x = xValue;
+    }
+    if (y)
+    {
+        *y = yValue;
+    }
+    return TRUE;
+}
+
+static float PanitentApp_FilterProjectRadius(PanitentFilterProjection projection, float radius)
+{
+    const float halfPi = 1.57079632679f;
+    const float root2 = 1.41421356237f;
+
+    radius = PanitentApp_FilterClamp01(radius);
+    switch (projection)
+    {
+    case PanitentFilterProjection_LatLong:
+    case PanitentFilterProjection_LatLongFront:
+        return radius;
+    case PanitentFilterProjection_Orthographic:
+    case PanitentFilterProjection_SquareBulge:
+        return sinf(radius * halfPi);
+    case PanitentFilterProjection_Equidistant:
+        return radius;
+    case PanitentFilterProjection_Equisolid:
+        return root2 * sinf(radius * 0.78539816339f);
+    case PanitentFilterProjection_Stereographic:
+        return tanf(radius * 0.78539816339f);
+    default:
+        return radius;
+    }
+}
+
+static float PanitentApp_FilterUnprojectRadius(PanitentFilterProjection projection, float radius)
+{
+    const float halfPi = 1.57079632679f;
+    const float root2 = 1.41421356237f;
+
+    radius = PanitentApp_FilterClamp01(radius);
+    switch (projection)
+    {
+    case PanitentFilterProjection_LatLong:
+    case PanitentFilterProjection_LatLongFront:
+        return radius;
+    case PanitentFilterProjection_Orthographic:
+    case PanitentFilterProjection_SquareBulge:
+        return asinf(radius) / halfPi;
+    case PanitentFilterProjection_Equidistant:
+        return radius;
+    case PanitentFilterProjection_Equisolid:
+        return (4.0f * asinf(min(1.0f, radius / root2))) / 3.14159265359f;
+    case PanitentFilterProjection_Stereographic:
+        return (4.0f * atanf(radius)) / 3.14159265359f;
+    default:
+        return radius;
+    }
+}
+
+static uint32_t PanitentApp_FilterSampleBilinear(const Canvas* pCanvas, float x, float y)
+{
+    const uint32_t* pBuffer = NULL;
+    int width = 0;
+    int height = 0;
+    int x0 = 0;
+    int y0 = 0;
+    int x1 = 0;
+    int y1 = 0;
+    float tx = 0.0f;
+    float ty = 0.0f;
+    float a = 0.0f;
+    float r = 0.0f;
+    float g = 0.0f;
+    float b = 0.0f;
+    uint32_t p00 = 0;
+    uint32_t p10 = 0;
+    uint32_t p01 = 0;
+    uint32_t p11 = 0;
+
+    if (!pCanvas || !pCanvas->buffer || pCanvas->width <= 0 || pCanvas->height <= 0)
+    {
+        return 0;
+    }
+
+    width = pCanvas->width;
+    height = pCanvas->height;
+    x = max(0.0f, min((float)(width - 1), x));
+    y = max(0.0f, min((float)(height - 1), y));
+    x0 = (int)floorf(x);
+    y0 = (int)floorf(y);
+    x1 = min(width - 1, x0 + 1);
+    y1 = min(height - 1, y0 + 1);
+    tx = x - (float)x0;
+    ty = y - (float)y0;
+
+    pBuffer = (const uint32_t*)pCanvas->buffer;
+    p00 = pBuffer[(size_t)y0 * (size_t)width + (size_t)x0];
+    p10 = pBuffer[(size_t)y0 * (size_t)width + (size_t)x1];
+    p01 = pBuffer[(size_t)y1 * (size_t)width + (size_t)x0];
+    p11 = pBuffer[(size_t)y1 * (size_t)width + (size_t)x1];
+
+    a = PanitentApp_FilterLerp(
+        PanitentApp_FilterLerp((float)CHANNEL_A_32(p00), (float)CHANNEL_A_32(p10), tx),
+        PanitentApp_FilterLerp((float)CHANNEL_A_32(p01), (float)CHANNEL_A_32(p11), tx),
+        ty);
+    r = PanitentApp_FilterLerp(
+        PanitentApp_FilterLerp((float)CHANNEL_R_32(p00), (float)CHANNEL_R_32(p10), tx),
+        PanitentApp_FilterLerp((float)CHANNEL_R_32(p01), (float)CHANNEL_R_32(p11), tx),
+        ty);
+    g = PanitentApp_FilterLerp(
+        PanitentApp_FilterLerp((float)CHANNEL_G_32(p00), (float)CHANNEL_G_32(p10), tx),
+        PanitentApp_FilterLerp((float)CHANNEL_G_32(p01), (float)CHANNEL_G_32(p11), tx),
+        ty);
+    b = PanitentApp_FilterLerp(
+        PanitentApp_FilterLerp((float)CHANNEL_B_32(p00), (float)CHANNEL_B_32(p10), tx),
+        PanitentApp_FilterLerp((float)CHANNEL_B_32(p01), (float)CHANNEL_B_32(p11), tx),
+        ty);
+
+    return ARGB((uint8_t)(a + 0.5f), (uint8_t)(r + 0.5f), (uint8_t)(g + 0.5f), (uint8_t)(b + 0.5f));
+}
+
+static void PanitentApp_ApplySpherizeFilter(PanitentApp* pPanitentApp, BOOL fUnspherize, PanitentFilterProjection projection)
+{
+    Document* pDocument = NULL;
+    Canvas* pCanvas = NULL;
+    Canvas* pResult = NULL;
+    int width = 0;
+    int height = 0;
+
+    if (!pPanitentApp)
+    {
+        return;
+    }
+
+    pDocument = PanitentApp_GetActiveDocument(pPanitentApp);
+    if (!pDocument)
+    {
+        return;
+    }
+
+    pCanvas = Document_GetCanvas(pDocument);
+    if (!pCanvas || !pCanvas->buffer || pCanvas->width <= 0 || pCanvas->height <= 0)
+    {
+        return;
+    }
+
+    width = pCanvas->width;
+    height = pCanvas->height;
+    pResult = Canvas_Create(width, height);
+    if (!pResult)
+    {
+        return;
+    }
+
+    memset(pResult->buffer, 0, pResult->buffer_size);
+    History_StartDifferentiation(pDocument);
+
+    for (int y = 0; y < height; ++y)
+    {
+        for (int x = 0; x < width; ++x)
+        {
+            float nx = ((2.0f * ((float)x + 0.5f)) / (float)width) - 1.0f;
+            float ny = ((2.0f * ((float)y + 0.5f)) / (float)height) - 1.0f;
+            float sx = 0.0f;
+            float sy = 0.0f;
+            float dx = 0.0f;
+            float dy = 0.0f;
+            uint32_t color = 0;
+
+            if (fUnspherize)
+            {
+                float radius = 0.0f;
+
+                if (projection == PanitentFilterProjection_LatLong || projection == PanitentFilterProjection_LatLongFront)
+                {
+                    PanitentFilterVector3 direction;
+                    BOOL fOk = FALSE;
+
+                    if (projection == PanitentFilterProjection_LatLongFront)
+                    {
+                        fOk = PanitentApp_FilterFrontLatLongToDirection(nx, ny, &direction);
+                    }
+                    else
+                    {
+                        fOk = PanitentApp_FilterLatLongToDirection(nx, ny, &direction);
+                    }
+
+                    if (!fOk)
+                    {
+                        ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = 0;
+                        continue;
+                    }
+
+                    PanitentApp_FilterDirectionToMirrorBall(&direction, nx, ny, &dx, &dy);
+                    sx = ((PanitentApp_FilterClamp01((dx + 1.0f) * 0.5f)) * (float)(width - 1));
+                    sy = ((PanitentApp_FilterClamp01((dy + 1.0f) * 0.5f)) * (float)(height - 1));
+                    color = PanitentApp_FilterSampleBilinear(pCanvas, sx, sy);
+                    ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+                    continue;
+                }
+                else if (projection == PanitentFilterProjection_SquareBulge)
+                {
+                    PanitentApp_FilterSquareBulgeToDisk(nx, ny, &dx, &dy);
+                }
+                else
+                {
+                    PanitentApp_FilterSquareToDisk(nx, ny, &dx, &dy);
+                }
+                radius = sqrtf(dx * dx + dy * dy);
+                if (radius > 1.0e-6f)
+                {
+                    float bulgedRadius = PanitentApp_FilterProjectRadius(projection, radius);
+                    float scale = bulgedRadius / radius;
+                    dx *= scale;
+                    dy *= scale;
+                }
+                sx = ((dx + 1.0f) * 0.5f) * (float)(width - 1);
+                sy = ((dy + 1.0f) * 0.5f) * (float)(height - 1);
+                color = PanitentApp_FilterSampleBilinear(pCanvas, sx, sy);
+            }
+            else {
+                float radius = sqrtf(nx * nx + ny * ny);
+
+                if (radius > 1.0f)
+                {
+                    color = 0;
+                }
+                else {
+                    float unbulgedRadius = PanitentApp_FilterUnprojectRadius(projection, radius);
+                    float su = 0.0f;
+                    float sv = 0.0f;
+                    BOOL fOk = FALSE;
+
+                    if (radius > 1.0e-6f)
+                    {
+                        float scale = unbulgedRadius / radius;
+                        su = nx * scale;
+                        sv = ny * scale;
+                    }
+
+                    if (projection == PanitentFilterProjection_LatLong || projection == PanitentFilterProjection_LatLongFront)
+                    {
+                        PanitentFilterVector3 direction;
+                        BOOL fMapOk = FALSE;
+
+                        if (!PanitentApp_FilterMirrorBallToDirection(nx, ny, &direction))
+                        {
+                            color = 0;
+                            ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+                            continue;
+                        }
+
+                        if (projection == PanitentFilterProjection_LatLongFront)
+                        {
+                            fMapOk = PanitentApp_FilterDirectionToFrontLatLong(&direction, &dx, &dy);
+                        }
+                        else
+                        {
+                            PanitentApp_FilterDirectionToLatLong(&direction, &dx, &dy);
+                            fMapOk = TRUE;
+                        }
+
+                        if (!fMapOk)
+                        {
+                            color = 0;
+                            ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+                            continue;
+                        }
+                        sx = ((PanitentApp_FilterClamp01((dx + 1.0f) * 0.5f)) * (float)(width - 1));
+                        sy = ((PanitentApp_FilterClamp01((dy + 1.0f) * 0.5f)) * (float)(height - 1));
+                        color = PanitentApp_FilterSampleBilinear(pCanvas, sx, sy);
+                        ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+                        continue;
+                    }
+                    else if (projection == PanitentFilterProjection_SquareBulge)
+                    {
+                        fOk = PanitentApp_FilterDiskToSquareBulge(su, sv, &dx, &dy);
+                    }
+                    else
+                    {
+                        fOk = PanitentApp_FilterDiskToSquare(su, sv, &dx, &dy);
+                    }
+
+                    if (projection != PanitentFilterProjection_LatLong &&
+                        projection != PanitentFilterProjection_LatLongFront &&
+                        !fOk)
+                    {
+                        color = 0;
+                        ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+                        continue;
+                    }
+                    sx = ((PanitentApp_FilterClamp01((dx + 1.0f) * 0.5f)) * (float)(width - 1));
+                    sy = ((PanitentApp_FilterClamp01((dy + 1.0f) * 0.5f)) * (float)(height - 1));
+                    color = PanitentApp_FilterSampleBilinear(pCanvas, sx, sy);
+                }
+            }
+
+            ((uint32_t*)pResult->buffer)[(size_t)y * (size_t)width + (size_t)x] = color;
+        }
+    }
+
+    memcpy(pCanvas->buffer, pResult->buffer, pCanvas->buffer_size);
+    History_FinalizeDifferentiation(pDocument);
+    Window_Invalidate(PanitentApp_GetActiveViewport(pPanitentApp));
+
+    Canvas_Delete(pResult);
+    free(pResult);
 }
