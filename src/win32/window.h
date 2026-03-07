@@ -70,7 +70,7 @@ BOOL Window_IsWindow(Window* pWindow);
 
 void _WindowInitHelper_SetPreRegisterRoutine(Window* pWindow, void(*pfnPreRegister)(LPWNDCLASSEX lpwcex));
 void _WindowInitHelper_SetPreCreateRoutine(Window* pWindow, void(*pfnPreCreate)(LPCREATESTRUCT lpcs));
-void _WindowInitHelper_SetUserProcRoutine(Window* pWindow, void(*pfnUserProc)(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam));
+void _WindowInitHelper_SetUserProcRoutine(Window* pWindow, LRESULT(*pfnUserProc)(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam));
 
 int Win32_Rect_GetWidth(LPRECT lprc);
 int Win32_Rect_GetHeight(LPRECT lprc);

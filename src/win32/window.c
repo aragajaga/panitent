@@ -201,12 +201,22 @@ LRESULT CALLBACK Window_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
         {
             WindowMap_Insert(hWnd, pWndCreating);
             pWndCreating->hWnd = hWnd;
+            pWindow = pWndCreating;
         }
     }
 
     if (pWindow)
     {
-        return pWindow->UserProc(pWindow, hWnd, message, wParam, lParam);
+        LRESULT lResult = pWindow->UserProc(pWindow, hWnd, message, wParam, lParam);
+        if (message == WM_NCDESTROY)
+        {
+            if (pWindow->hWnd == hWnd)
+            {
+                pWindow->hWnd = NULL;
+            }
+            WindowMap_Erase(hWnd);
+        }
+        return lResult;
     }
     else {
         return DefWindowProc(hWnd, message, wParam, lParam);
@@ -215,10 +225,9 @@ LRESULT CALLBACK Window_WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM l
 
 BOOL Window_Register(Window* pWindow)
 {
-    WNDCLASSEX wcex = { 0 };
     BOOL bRegistered = FALSE;
 
-    bRegistered = GetClassInfoEx(GetModuleHandle(NULL), pWindow->szClassName, &wcex);
+    bRegistered = GetClassInfoEx(GetModuleHandle(NULL), pWindow->szClassName, &pWindow->wcex);
 
     if (!bRegistered && pWindow->PreRegister)
     {
@@ -254,6 +263,8 @@ HWND Window_CreateWindow(Window* pWindow, HWND hParent)
 
     pWndCreating = pWindow;
 
+    HINSTANCE hInstance = (HINSTANCE)(cs->hInstance ? cs->hInstance : lpwcex->hInstance);
+
     HWND hWindow = CreateWindowEx(
         cs->dwExStyle,
         cs->lpszClass,
@@ -265,11 +276,11 @@ HWND Window_CreateWindow(Window* pWindow, HWND hParent)
         cs->cy,
         hParent,
         cs->hMenu,
-        lpwcex->hInstance,
+        hInstance,
         (LPVOID)NULL);
 
     WNDCLASSEX wcex = { 0 };
-    GetClassInfoEx(lpwcex->hInstance, cs->lpszClass, &wcex);
+    GetClassInfoEx(hInstance, cs->lpszClass, &wcex);
     if (wcex.lpfnWndProc != (WNDPROC)Window_WndProc)
     {
         Window_Subclass(pWindow, hWindow);
@@ -342,7 +353,7 @@ void Window_Attach(Window* pWindow, HWND hWnd)
 
 LRESULT Window_SendMessage(Window* pWindow, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    SendMessage(pWindow->hWnd, message, wParam, lParam);
+    return SendMessage(pWindow->hWnd, message, wParam, lParam);
 }
 
 void Window_SetTheme(Window* pWindow, PCWSTR lpszThemeName)
@@ -403,7 +414,7 @@ void _WindowInitHelper_SetPreCreateRoutine(Window* pWindow, void(*pfnPreCreate)(
     pWindow->PreCreate = pfnPreCreate;
 }
 
-void _WindowInitHelper_SetUserProcRoutine(Window* pWindow, void(*pfnUserProc)(Window* pWindow, UINT message, WPARAM wParam, LPARAM lParam))
+void _WindowInitHelper_SetUserProcRoutine(Window* pWindow, LRESULT(*pfnUserProc)(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam))
 {
     pWindow->UserProc = pfnUserProc;
 }

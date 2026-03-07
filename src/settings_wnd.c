@@ -7,6 +7,7 @@
 #include "resource.h"
 #include "settings.h"
 #include "theme.h"
+#include "win32/windowmap.h"
 #include "win32/util.h"
 
 #include <commctrl.h>
@@ -95,6 +96,14 @@ HWND SettingsWindow_Show(void)
 {
     if (s_hSettingsWindow && IsWindow(s_hSettingsWindow))
     {
+        Window* pWindow = WindowMap_Get(s_hSettingsWindow);
+        if (pWindow)
+        {
+            SettingsWindow* pSettingsWindow = (SettingsWindow*)pWindow;
+            SettingsWindow_LoadFromSettings(pSettingsWindow);
+            InvalidateRect(s_hSettingsWindow, NULL, TRUE);
+        }
+
         ShowWindow(s_hSettingsWindow, SW_SHOWNORMAL);
         SetForegroundWindow(s_hSettingsWindow);
         return s_hSettingsWindow;
