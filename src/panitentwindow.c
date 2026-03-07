@@ -20,6 +20,7 @@
 #include <Vssym32.h>
 
 #include "panitentapp.h"
+#include "settings.h"
 #include "msthemeloader.h"
 #include <tchar.h>
 #include "rbhashmapviz.h"
@@ -38,6 +39,7 @@ void PanitentWindow_PreCreate(LPCREATESTRUCT);
 BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpcs);
 void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow);
 void PanitentWindow_OnPaint(PanitentWindow* pPanitentWindow);
+BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow);
 void PanitentWindow_OnLButtonUp(PanitentWindow* pPanitentWindow, int x, int y);
 void PanitentWindow_OnRButtonUp(PanitentWindow* pPanitentWindow, int x, int y);
 void PanitentWindow_OnContextMenu(PanitentWindow* pPanitentWindow, int x, int y);
@@ -70,6 +72,7 @@ void PanitentWindow_Init(PanitentWindow* pPanitentWindow)
     pPanitentWindow->base.szClassName = szClassName;
 
     pPanitentWindow->base.OnCreate = (FnWindowOnCreate)PanitentWindow_OnCreate;
+    pPanitentWindow->base.OnClose = (FnWindowOnClose)PanitentWindow_OnClose;
     pPanitentWindow->base.OnDestroy = (FnWindowOnDestroy)PanitentWindow_OnDestroy;
     pPanitentWindow->base.OnPaint = (FnWindowOnPaint)PanitentWindow_OnPaint;
     pPanitentWindow->base.OnSize = (FnWindowOnSize)PanitentWindow_OnSize;
@@ -132,6 +135,35 @@ void PanitentWindow_OnContextMenu(PanitentWindow* window, int x, int y)
 void PanitentWindow_OnDestroy(PanitentWindow* pPanitentWindow)
 {
     MSTheme_Destroy(pPanitentWindow->m_pMSTheme);
+    PostQuitMessage(0);
+}
+
+BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
+{
+    PanitentApp* pPanitentApp = PanitentApp_Instance();
+    PNTSETTINGS* pSettings = PanitentApp_GetSettings(pPanitentApp);
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+
+    if (pSettings && hWnd && pSettings->bRememberWindowPos)
+    {
+        WINDOWPLACEMENT wp = { 0 };
+        wp.length = sizeof(WINDOWPLACEMENT);
+        if (GetWindowPlacement(hWnd, &wp))
+        {
+            RECT rcNormal = wp.rcNormalPosition;
+            pSettings->x = rcNormal.left;
+            pSettings->y = rcNormal.top;
+            pSettings->width = max(1, rcNormal.right - rcNormal.left);
+            pSettings->height = max(1, rcNormal.bottom - rcNormal.top);
+        }
+    }
+
+    if (pSettings)
+    {
+        Panitent_WriteSettings(pSettings);
+    }
+
+    return FALSE;
 }
 
 void PanitentWindow_OnSize(PanitentWindow* pPanitentWindow, UINT state, int cx, int cy)
@@ -403,6 +435,8 @@ LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND h
 
 void PanitentWindow_PreCreate(LPCREATESTRUCT lpcs)
 {
+    PNTSETTINGS* pSettings = PanitentApp_GetSettings(PanitentApp_Instance());
+
     lpcs->dwExStyle = 0;
     lpcs->lpszClass = szClassName;
     lpcs->lpszName = L"Panit.ent";
@@ -411,6 +445,15 @@ void PanitentWindow_PreCreate(LPCREATESTRUCT lpcs)
     lpcs->y = CW_USEDEFAULT;
     lpcs->cx = CW_USEDEFAULT;
     lpcs->cy = CW_USEDEFAULT;
+
+    if (pSettings && pSettings->bRememberWindowPos &&
+        pSettings->width > 0 && pSettings->height > 0)
+    {
+        lpcs->x = pSettings->x;
+        lpcs->y = pSettings->y;
+        lpcs->cx = pSettings->width;
+        lpcs->cy = pSettings->height;
+    }
 }
 
 BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpcs)
