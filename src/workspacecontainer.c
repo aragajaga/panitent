@@ -11,6 +11,7 @@
 #include "panitentapp.h"
 #include "panitentwindow.h"
 #include "theme.h"
+#include "resource.h"
 
 static const WCHAR szClassName[] = L"__WorkspaceContainer";
 
@@ -23,6 +24,7 @@ static const WCHAR szClassName[] = L"__WorkspaceContainer";
 #define WORKSPACE_TAB_CLOSE_SIZE 10
 #define WORKSPACE_TAB_CLOSE_GAP 8
 #define IDM_WORKSPACE_TAB_FLOAT 41001
+#define WORKSPACE_EMPTY_WATERMARK_MARGIN 16
 
 /* Private forward declarations */
 WorkspaceContainer* WorkspaceContainer_Create();
@@ -64,6 +66,7 @@ static DockHostWindow* WorkspaceContainer_GetOwningDockHost(WorkspaceContainer* 
 static BOOL WorkspaceContainer_IsMainWorkspace(WorkspaceContainer* pWorkspaceContainer);
 static void WorkspaceContainer_TryRemoveEmptyDockedGroup(WorkspaceContainer* pWorkspaceContainer);
 static void WorkspaceContainer_FinalizeEmptySourceAfterDetach(WorkspaceContainer* pWorkspaceContainer);
+static BOOL WorkspaceContainer_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
 
 struct ViewportVector {
     size_t m_capacity;
@@ -87,8 +90,219 @@ struct WorkspaceDropSearchContext {
     WorkspaceContainer* pFoundWorkspace;
 };
 
+typedef struct WorkspaceWatermarkCache WorkspaceWatermarkCache;
+struct WorkspaceWatermarkCache
+{
+    HBITMAP hSourceBitmap;
+    HBITMAP hTintedBitmap;
+    int width;
+    int height;
+    COLORREF tint;
+};
+
+static WorkspaceWatermarkCache g_workspaceWatermarkCache = { 0 };
+
 BOOL CALLBACK WorkspaceContainer_EnumWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam);
 BOOL CALLBACK WorkspaceContainer_EnumChildWindows_FindWorkspaceAtPoint(HWND hWnd, LPARAM lParam);
+
+static BOOL WorkspaceContainer_EnsureWatermarkCache(HDC hdc, int idBitmap, COLORREF tint)
+{
+    HDC hdcMask = NULL;
+    HBITMAP hOldBitmap = NULL;
+    BITMAP bm = { 0 };
+    BITMAPINFO bmi = { 0 };
+    uint32_t* pPixels = NULL;
+    HDC hdcColored = NULL;
+    HBITMAP hOldColored = NULL;
+    BYTE targetR = GetRValue(tint);
+    BYTE targetG = GetGValue(tint);
+    BYTE targetB = GetBValue(tint);
+
+    if (!hdc)
+    {
+        return FALSE;
+    }
+
+    if (!g_workspaceWatermarkCache.hSourceBitmap)
+    {
+        g_workspaceWatermarkCache.hSourceBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(idBitmap));
+        if (!g_workspaceWatermarkCache.hSourceBitmap)
+        {
+            return FALSE;
+        }
+
+        if (!GetObject(g_workspaceWatermarkCache.hSourceBitmap, sizeof(BITMAP), &bm))
+        {
+            DeleteObject(g_workspaceWatermarkCache.hSourceBitmap);
+            g_workspaceWatermarkCache.hSourceBitmap = NULL;
+            return FALSE;
+        }
+
+        g_workspaceWatermarkCache.width = bm.bmWidth;
+        g_workspaceWatermarkCache.height = bm.bmHeight;
+    }
+
+    if (g_workspaceWatermarkCache.hTintedBitmap &&
+        g_workspaceWatermarkCache.tint == tint)
+    {
+        return TRUE;
+    }
+
+    if (g_workspaceWatermarkCache.hTintedBitmap)
+    {
+        DeleteObject(g_workspaceWatermarkCache.hTintedBitmap);
+        g_workspaceWatermarkCache.hTintedBitmap = NULL;
+    }
+
+    if (g_workspaceWatermarkCache.width <= 0 || g_workspaceWatermarkCache.height <= 0)
+    {
+        return FALSE;
+    }
+
+    hdcMask = CreateCompatibleDC(hdc);
+    if (!hdcMask)
+    {
+        return FALSE;
+    }
+
+    hOldBitmap = (HBITMAP)SelectObject(hdcMask, g_workspaceWatermarkCache.hSourceBitmap);
+    if (!hOldBitmap)
+    {
+        DeleteDC(hdcMask);
+        return FALSE;
+    }
+
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = g_workspaceWatermarkCache.width;
+    bmi.bmiHeader.biHeight = -g_workspaceWatermarkCache.height;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    g_workspaceWatermarkCache.hTintedBitmap = CreateDIBSection(
+        hdc,
+        &bmi,
+        DIB_RGB_COLORS,
+        (LPVOID*)&pPixels,
+        NULL,
+        0);
+    if (!g_workspaceWatermarkCache.hTintedBitmap || !pPixels)
+    {
+        g_workspaceWatermarkCache.hTintedBitmap = NULL;
+        SelectObject(hdcMask, hOldBitmap);
+        DeleteDC(hdcMask);
+        return FALSE;
+    }
+
+    hdcColored = CreateCompatibleDC(hdc);
+    if (!hdcColored)
+    {
+        DeleteObject(g_workspaceWatermarkCache.hTintedBitmap);
+        g_workspaceWatermarkCache.hTintedBitmap = NULL;
+        SelectObject(hdcMask, hOldBitmap);
+        DeleteDC(hdcMask);
+        return FALSE;
+    }
+
+    hOldColored = (HBITMAP)SelectObject(hdcColored, g_workspaceWatermarkCache.hTintedBitmap);
+    if (!hOldColored)
+    {
+        DeleteDC(hdcColored);
+        DeleteObject(g_workspaceWatermarkCache.hTintedBitmap);
+        g_workspaceWatermarkCache.hTintedBitmap = NULL;
+        SelectObject(hdcMask, hOldBitmap);
+        DeleteDC(hdcMask);
+        return FALSE;
+    }
+
+    for (int y = 0; y < g_workspaceWatermarkCache.height; ++y)
+    {
+        for (int x = 0; x < g_workspaceWatermarkCache.width; ++x)
+        {
+            COLORREF srcColor = GetPixel(hdcMask, x, y);
+            BYTE mask = (BYTE)(((int)GetRValue(srcColor) + (int)GetGValue(srcColor) + (int)GetBValue(srcColor)) / 3);
+            BYTE outR = (BYTE)(((int)targetR * (int)mask + 127) / 255);
+            BYTE outG = (BYTE)(((int)targetG * (int)mask + 127) / 255);
+            BYTE outB = (BYTE)(((int)targetB * (int)mask + 127) / 255);
+
+            pPixels[(size_t)y * (size_t)g_workspaceWatermarkCache.width + (size_t)x] =
+                ((uint32_t)mask << 24) |
+                ((uint32_t)outR << 16) |
+                ((uint32_t)outG << 8) |
+                (uint32_t)outB;
+        }
+    }
+
+    g_workspaceWatermarkCache.tint = tint;
+
+    SelectObject(hdcColored, hOldColored);
+    DeleteDC(hdcColored);
+    SelectObject(hdcMask, hOldBitmap);
+    DeleteDC(hdcMask);
+    return TRUE;
+}
+
+static BOOL WorkspaceContainer_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint)
+{
+    HDC hdcColored = NULL;
+    HBITMAP hOldColored = NULL;
+    int destWidth = 0;
+    int destHeight = 0;
+    BOOL fDrawn = FALSE;
+
+    if (!hdc || !pDestRect)
+    {
+        return FALSE;
+    }
+
+    destWidth = pDestRect->right - pDestRect->left;
+    destHeight = pDestRect->bottom - pDestRect->top;
+    if (destWidth <= 0 || destHeight <= 0)
+    {
+        return FALSE;
+    }
+
+    if (!WorkspaceContainer_EnsureWatermarkCache(hdc, idBitmap, tint))
+    {
+        return FALSE;
+    }
+
+    hdcColored = CreateCompatibleDC(hdc);
+    if (!hdcColored)
+    {
+        return FALSE;
+    }
+
+    hOldColored = (HBITMAP)SelectObject(hdcColored, g_workspaceWatermarkCache.hTintedBitmap);
+    if (!hOldColored)
+    {
+        DeleteDC(hdcColored);
+        return FALSE;
+    }
+
+    {
+        BLENDFUNCTION blend = { 0 };
+        blend.BlendOp = AC_SRC_OVER;
+        blend.SourceConstantAlpha = 0xFF;
+        blend.AlphaFormat = AC_SRC_ALPHA;
+        fDrawn = AlphaBlend(
+            hdc,
+            pDestRect->left,
+            pDestRect->top,
+            destWidth,
+            destHeight,
+            hdcColored,
+            0,
+            0,
+            g_workspaceWatermarkCache.width,
+            g_workspaceWatermarkCache.height,
+            blend);
+    }
+
+    SelectObject(hdcColored, hOldColored);
+    DeleteDC(hdcColored);
+    return fDrawn;
+}
 
 ViewportVector* ViewportVector_Create()
 {
@@ -800,6 +1014,7 @@ void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer)
     PAINTSTRUCT ps;
     HDC hdc = BeginPaint(hwnd, &ps);
     PanitentThemeColors colors = { 0 };
+    size_t nViewportCount = 0;
 
     RECT rcClient = { 0 };
     Window_GetClientRect((Window*)pWorkspaceContainer, &rcClient);
@@ -807,6 +1022,30 @@ void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer)
     SelectObject(hdc, GetStockObject(DC_BRUSH));
     SetDCBrushColor(hdc, colors.rootBackground);
     FillRect(hdc, &rcClient, (HBRUSH)GetStockObject(DC_BRUSH));
+
+    nViewportCount = pWorkspaceContainer && pWorkspaceContainer->m_pViewportVector ?
+        ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector) : 0;
+    if (nViewportCount == 0)
+    {
+        HBITMAP hBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_DOCKHOSTBG));
+        if (hBitmap)
+        {
+            BITMAP bm = { 0 };
+            GetObject(hBitmap, sizeof(BITMAP), &bm);
+            if (bm.bmWidth > 0 && bm.bmHeight > 0)
+            {
+                RECT rcLogo = { 0 };
+                SetRect(
+                    &rcLogo,
+                    rcClient.right - bm.bmWidth - WORKSPACE_EMPTY_WATERMARK_MARGIN,
+                    rcClient.bottom - bm.bmHeight - WORKSPACE_EMPTY_WATERMARK_MARGIN,
+                    rcClient.right - WORKSPACE_EMPTY_WATERMARK_MARGIN,
+                    rcClient.bottom - WORKSPACE_EMPTY_WATERMARK_MARGIN);
+                WorkspaceContainer_DrawMaskedBitmap(hdc, &rcLogo, IDB_DOCKHOSTBG, colors.accentActive);
+            }
+            DeleteObject(hBitmap);
+        }
+    }
 
     WorkspaceContainer_DrawTabs(pWorkspaceContainer, hdc);
 
