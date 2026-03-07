@@ -18,3 +18,4 @@ typedef struct PlotterData {
 
 void PixelPlotterCallback(void* userData, int x, int y, unsigned char opacity);
 void MaskPlotterCallback(void* userData, int x, int y, unsigned char opacity);
+void Plotter_PlotExact(Plotter* pPlotter, int x, int y, unsigned char opacity);

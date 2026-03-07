@@ -50,3 +50,30 @@ void MaskPlotterCallback(void* userData, int x, int y, unsigned char opacity)
         }
     }
 }
+
+void Plotter_PlotExact(Plotter* pPlotter, int x, int y, unsigned char opacity)
+{
+    if (!pPlotter || opacity == 0)
+    {
+        return;
+    }
+
+    PlotterData* data = (PlotterData*)pPlotter->userData;
+    if (!data)
+    {
+        pPlotter->fn(pPlotter->userData, x, y, opacity);
+        return;
+    }
+
+    if (data->mask)
+    {
+        AlphaMask_SetMax(data->mask, x, y, opacity);
+        return;
+    }
+
+    if (data->canvas)
+    {
+        Canvas_DrawPixel(data->canvas, x, y,
+            color_opacity(data->color, (float)opacity / 255.0f));
+    }
+}

@@ -24,6 +24,9 @@
 void WuShapeStrategy_Init(WuShapeStrategy* pWuShapeStrategy);
 void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1, int x2, int y2);
 void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y, int radius);
+static float WuShapeStrategy_Clamp01(float value);
+static float WuShapeStrategy_SignedDistanceToBox(float px, float py, float hx, float hy);
+static void WuShapeStrategy_DrawLineBox(Plotter* pPlotter, float x1, float y1, float x2, float y2, int strokeWidth);
 static void WuShapeStrategy_AccumulateCircleSymmetry(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity);
 static void WuShapeStrategy_AccumulatePoint(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity);
 
@@ -51,84 +54,17 @@ void WuShapeStrategy_Init(WuShapeStrategy* pWuShapeStrategy)
 void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1, int x2, int y2)
 {
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
-    Plotter* pPlotter = ShapeContext_GetPlotter(pWuShapeStrategy->base.m_pShapeContext);
+    ShapeContext* pShapeContext = pWuShapeStrategy->base.m_pShapeContext;
+    Plotter* pPlotter = ShapeContext_GetPlotter(pShapeContext);
+    int strokeWidth = ShapeContext_GetStrokeWidth(pShapeContext);
 
-    int strokeWidth = 1;
-
-    BOOL steep = fabsf((float)(y2 - y1)) > fabsf((float)(x2 - x1));
-
-    if (steep) {
-        ffswapT_(int, x1, y1);
-        ffswapT_(int, x2, y2);
-    }
-
-    if (x1 > x2) {
-        ffswapT_(int, x1, x2);
-        ffswapT_(int, y1, y2);
-    }
-
-    float dx = (float)(x2 - x1);
-    float dy = (float)(y2 - y1);
-    if (dx == 0.0f)
-    {
-        pPlotter->fn(pPlotter->userData, x1, y1, 0xFF);
-        return;
-    }
-    float gradient = dy / dx;
-
-    // Handle the stroke width by iterating through each offset
-    for (int i = -strokeWidth / 2; i <= strokeWidth / 2; i++) {
-        float offset = (float)i;
-
-        // Handle first endpoint
-        float xend = round_((float)x1);
-        float yend = (float)y1 + gradient * (xend - (float)x1) + offset;
-        float xgap = rfpart_((float)x1 + 0.5f);
-        int xpxl1 = (int)xend;
-        int ypxl1 = ipart_(yend);
-
-        if (steep) {
-            pPlotter->fn(pPlotter->userData, ypxl1, xpxl1, (unsigned char)(rfpart_(yend) * xgap * 255.0f));
-            pPlotter->fn(pPlotter->userData, ypxl1 + 1, xpxl1, (unsigned char)(fpart_(yend) * xgap * 255.0f));
-        }
-        else {
-            pPlotter->fn(pPlotter->userData, xpxl1, ypxl1, (unsigned char)(rfpart_(yend) * xgap * 255.0f));
-            pPlotter->fn(pPlotter->userData, xpxl1, ypxl1 + 1, (unsigned char)(fpart_(yend) * xgap * 255.0f));
-        }
-        float intery = yend + gradient;
-
-        // Handle second endpoint
-        xend = round_((float)x2);
-        yend = (float)y2 + gradient * (xend - (float)x2) + offset;
-        xgap = fpart_((float)x2 + 0.5f);
-        int xpxl2 = (int)xend;
-        int ypxl2 = ipart_(yend);
-
-        if (steep) {
-            pPlotter->fn(pPlotter->userData, ypxl2, xpxl2, (unsigned char)(rfpart_(yend) * xgap * 255.0f));
-            pPlotter->fn(pPlotter->userData, ypxl2 + 1, xpxl2, (unsigned char)(fpart_(yend) * xgap * 255.0f));
-        }
-        else {
-            pPlotter->fn(pPlotter->userData, xpxl2, ypxl2, (unsigned char)(rfpart_(yend) * xgap * 255.0f));
-            pPlotter->fn(pPlotter->userData, xpxl2, ypxl2 + 1, (unsigned char)(fpart_(yend) * xgap * 255.0f));
-        }
-
-        // Plot the line
-        if (steep) {
-            for (int x = xpxl1 + 1; x < xpxl2; x++) {
-                pPlotter->fn(pPlotter->userData, ipart_(intery), x, (unsigned char)(rfpart_(intery) * 255.0f));
-                pPlotter->fn(pPlotter->userData, ipart_(intery) + 1, x, (unsigned char)(fpart_(intery) * 255.0f));
-                intery += gradient;
-            }
-        }
-        else {
-            for (int x = xpxl1 + 1; x < xpxl2; x++) {
-                pPlotter->fn(pPlotter->userData, x, ipart_(intery), (unsigned char)(rfpart_(intery) * 255.0f));
-                pPlotter->fn(pPlotter->userData, x, ipart_(intery) + 1, (unsigned char)(fpart_(intery) * 255.0f));
-                intery += gradient;
-            }
-        }
-    }
+    WuShapeStrategy_DrawLineBox(
+        pPlotter,
+        (float)x1 + 0.5f,
+        (float)y1 + 0.5f,
+        (float)x2 + 0.5f,
+        (float)y2 + 0.5f,
+        strokeWidth);
 }
 
 void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y, int radius)
@@ -275,5 +211,101 @@ static void WuShapeStrategy_AccumulatePoint(BYTE* pCoverage, int extent, int x, 
     if (opacity > *pCell)
     {
         *pCell = opacity;
+    }
+}
+
+static float WuShapeStrategy_Clamp01(float value)
+{
+    if (value < 0.0f)
+    {
+        return 0.0f;
+    }
+    if (value > 1.0f)
+    {
+        return 1.0f;
+    }
+
+    return value;
+}
+
+static float WuShapeStrategy_SignedDistanceToBox(float px, float py, float hx, float hy)
+{
+    float dx = fabsf(px) - hx;
+    float dy = fabsf(py) - hy;
+    float outsideX = max(dx, 0.0f);
+    float outsideY = max(dy, 0.0f);
+    float outside = sqrtf(outsideX * outsideX + outsideY * outsideY);
+    float inside = min(max(dx, dy), 0.0f);
+    return outside + inside;
+}
+
+static void WuShapeStrategy_DrawLineBox(Plotter* pPlotter, float x1, float y1, float x2, float y2, int strokeWidth)
+{
+    if (!pPlotter)
+    {
+        return;
+    }
+
+    float dx = x2 - x1;
+    float dy = y2 - y1;
+    float length = sqrtf(dx * dx + dy * dy);
+    float halfThickness = max(1, strokeWidth) * 0.5f;
+
+    if (length <= 0.0001f)
+    {
+        int minX = (int)floorf(x1 - halfThickness - 1.0f);
+        int maxX = (int)ceilf(x1 + halfThickness + 1.0f);
+        int minY = (int)floorf(y1 - halfThickness - 1.0f);
+        int maxY = (int)ceilf(y1 + halfThickness + 1.0f);
+
+        for (int py = minY; py <= maxY; ++py)
+        {
+            for (int px = minX; px <= maxX; ++px)
+            {
+                float localX = ((float)px + 0.5f) - x1;
+                float localY = ((float)py + 0.5f) - y1;
+                float distance = WuShapeStrategy_SignedDistanceToBox(localX, localY, halfThickness, halfThickness);
+                float coverage = WuShapeStrategy_Clamp01(0.5f - distance);
+                if (coverage > 0.0f)
+                {
+                    Plotter_PlotExact(pPlotter, px, py, (unsigned char)roundf(coverage * 255.0f));
+                }
+            }
+        }
+        return;
+    }
+
+    float dirX = dx / length;
+    float dirY = dy / length;
+    float normalX = -dirY;
+    float normalY = dirX;
+    float centerX = (x1 + x2) * 0.5f;
+    float centerY = (y1 + y2) * 0.5f;
+    float halfLength = length * 0.5f + 0.5f;
+
+    float extentX = fabsf(dirX) * halfLength + fabsf(normalX) * halfThickness;
+    float extentY = fabsf(dirY) * halfLength + fabsf(normalY) * halfThickness;
+
+    int minX = (int)floorf(centerX - extentX - 1.0f);
+    int maxX = (int)ceilf(centerX + extentX + 1.0f);
+    int minY = (int)floorf(centerY - extentY - 1.0f);
+    int maxY = (int)ceilf(centerY + extentY + 1.0f);
+
+    for (int py = minY; py <= maxY; ++py)
+    {
+        for (int px = minX; px <= maxX; ++px)
+        {
+            float sampleX = ((float)px + 0.5f) - centerX;
+            float sampleY = ((float)py + 0.5f) - centerY;
+            float localX = sampleX * dirX + sampleY * dirY;
+            float localY = sampleX * normalX + sampleY * normalY;
+            float distance = WuShapeStrategy_SignedDistanceToBox(localX, localY, halfLength, halfThickness);
+            float coverage = WuShapeStrategy_Clamp01(0.5f - distance);
+
+            if (coverage > 0.0f)
+            {
+                Plotter_PlotExact(pPlotter, px, py, (unsigned char)roundf(coverage * 255.0f));
+            }
+        }
     }
 }
