@@ -124,6 +124,32 @@ static int FloatingWindowContainer_GetCaptionHeight(FloatingWindowContainer* pFl
     return g_captionHeight;
 }
 
+static int FloatingWindowContainer_GetResizeBorderThickness(HWND hWnd)
+{
+    UNREFERENCED_PARAMETER(hWnd);
+
+    int frameX = GetSystemMetrics(SM_CXSIZEFRAME);
+    int frameY = GetSystemMetrics(SM_CYSIZEFRAME);
+    int padded = GetSystemMetrics(SM_CXPADDEDBORDER);
+    int border = max(frameX, frameY) + padded;
+    return max(g_borderGripSize, border);
+}
+
+static int FloatingWindowContainer_GetFrameInset(HWND hWnd, DWORD dwStyle)
+{
+    if (dwStyle & WS_THICKFRAME)
+    {
+        if (IsZoomed(hWnd))
+        {
+            return FloatingWindowContainer_GetResizeBorderThickness(hWnd);
+        }
+
+        return g_borderSize;
+    }
+
+    return 1;
+}
+
 static const WCHAR szDockPreviewOverlayClassName[] = L"__DockPreviewOverlay";
 static HWND g_hWndDockPreviewOverlay = NULL;
 static HBITMAP g_hbmDockGuideIcons = NULL;
@@ -1540,24 +1566,16 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
     HWND hWnd = pFloatingWindowContainer->base.hWnd;
     DWORD dwStyle = GetWindowStyle(hWnd);
     int captionHeight = FloatingWindowContainer_GetCaptionHeight(pFloatingWindowContainer);
+    int frameInset = FloatingWindowContainer_GetFrameInset(hWnd, dwStyle);
 
     if (bProcess)
     {
         NCCALCSIZE_PARAMS* params = (NCCALCSIZE_PARAMS*)lParam;
 
-        if (dwStyle & WS_THICKFRAME)
-        {
-            params->rgrc[0].left += g_borderSize;
-            params->rgrc[0].top += g_borderSize;
-            params->rgrc[0].right -= g_borderSize;
-            params->rgrc[0].bottom -= g_borderSize;
-        }
-        else {
-            params->rgrc[0].left += 1;
-            params->rgrc[0].top += 1;
-            params->rgrc[0].right -= 1;
-            params->rgrc[0].bottom -= 1;
-        }
+        params->rgrc[0].left += frameInset;
+        params->rgrc[0].top += frameInset;
+        params->rgrc[0].right -= frameInset;
+        params->rgrc[0].bottom -= frameInset;
 
         if (dwStyle & WS_CAPTION)
         {
@@ -1573,8 +1591,8 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
 
     RECT* rc = (RECT*)lParam;
 
-    rc->left += g_borderSize;
-    rc->top += g_borderSize;
+    rc->left += frameInset;
+    rc->top += frameInset;
     
     if (dwStyle & WS_CAPTION)
     {
@@ -1585,8 +1603,8 @@ LRESULT FloatingWindowContainer_OnNCCalcSize(FloatingWindowContainer* pFloatingW
         }
     }
     
-    rc->right -= g_borderSize;
-    rc->bottom -= g_borderSize;
+    rc->right -= frameInset;
+    rc->bottom -= frameInset;
 
     return 0;
 }
@@ -1603,8 +1621,11 @@ static int FloatingWindowContainer_BuildCaptionButtons(FloatingWindowContainer* 
         return 0;
     }
 
+    HWND hWnd = pFloatingWindowContainer ? Window_GetHWND((Window*)pFloatingWindowContainer) : NULL;
+    BOOL fZoomed = hWnd && IsZoomed(hWnd);
+
     pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_CLOSE_TILE, HTCLOSE };
-    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
+    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, fZoomed ? CAPTION_GLYPH_RESTORE_TILE : CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
     if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
     {
         pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_MINIMIZE_TILE, HTMINBUTTON };
@@ -1631,12 +1652,13 @@ static BOOL FloatingWindowContainer_BuildCaptionLayout(FloatingWindowContainer* 
     rcWindow.left = 0;
     rcWindow.top = 0;
 
+    DWORD dwStyle = GetWindowStyle(hWnd);
     CaptionFrameMetrics metrics = { 0 };
-    metrics.borderSize = g_borderSize;
+    metrics.borderSize = FloatingWindowContainer_GetFrameInset(hWnd, dwStyle);
     metrics.captionHeight = FloatingWindowContainer_GetCaptionHeight(pFloatingWindowContainer);
     metrics.buttonSpacing = 3;
     metrics.textPaddingLeft = g_borderSize;
-    metrics.textPaddingRight = g_borderSize;
+    metrics.textPaddingRight = metrics.borderSize;
     metrics.textPaddingY = 0;
 
     CaptionButton buttons[3] = { 0 };
@@ -1817,7 +1839,7 @@ LRESULT FloatingWindowContainer_OnNCHitTest(FloatingWindowContainer* pFloatingWi
         }
     }
 
-    if (dwStyle & WS_THICKFRAME)
+    if ((dwStyle & WS_THICKFRAME) && !IsZoomed(hWnd))
     {
         if (!(x >= windowRect.left + g_borderSize && x < windowRect.right - g_borderSize && y >= windowRect.top + g_borderSize && y < windowRect.bottom - g_borderSize))
         {

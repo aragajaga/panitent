@@ -19,6 +19,7 @@ static const WCHAR szClassName[] = L"Win32Ctl_SettingsWindow";
 #define IDC_SETTINGS_ENABLE_PEN          2107
 #define IDC_SETTINGS_STANDARD_FRAME      2108
 #define IDC_SETTINGS_APPLY               2109
+#define IDC_SETTINGS_COMPACT_MENU        2110
 
 static const int kSettingsPadding = 12;
 static const int kSettingsGroupGap = 10;
@@ -29,7 +30,7 @@ static const int kSettingsCheckHeight = 20;
 static const int kSettingsButtonWidth = 88;
 static const int kSettingsButtonHeight = 26;
 static const int kSettingsGroupWindowHeight = 116;
-static const int kSettingsGroupBehaviorHeight = 114;
+static const int kSettingsGroupBehaviorHeight = 140;
 
 static HWND s_hSettingsWindow = NULL;
 
@@ -54,6 +55,7 @@ static void SettingsWindow_SetIntText(HWND hWnd, int value);
 static int SettingsWindow_GetIntText(HWND hWnd, int nFallback);
 static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_UpdateWindowFieldsEnabled(SettingsWindow* pSettingsWindow);
+static void SettingsWindow_UpdateFrameFieldsEnabled(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int width, int height);
 static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_MarkDirty(SettingsWindow* pSettingsWindow, BOOL fDirty);
@@ -266,8 +268,12 @@ static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow)
     Button_SetCheck(
         pSettingsWindow->hCheckStandardWindowFrame,
         pSettings->bUseStandardWindowFrame ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(
+        pSettingsWindow->hCheckCompactMenuBar,
+        pSettings->bCompactMenuBar ? BST_CHECKED : BST_UNCHECKED);
 
     SettingsWindow_UpdateWindowFieldsEnabled(pSettingsWindow);
+    SettingsWindow_UpdateFrameFieldsEnabled(pSettingsWindow);
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
 }
 
@@ -282,6 +288,13 @@ static void SettingsWindow_UpdateWindowFieldsEnabled(SettingsWindow* pSettingsWi
     EnableWindow(pSettingsWindow->hEditWidth, fEnabled);
     EnableWindow(pSettingsWindow->hLabelHeight, fEnabled);
     EnableWindow(pSettingsWindow->hEditHeight, fEnabled);
+}
+
+static void SettingsWindow_UpdateFrameFieldsEnabled(SettingsWindow* pSettingsWindow)
+{
+    BOOL fEnableCompactMenu =
+        Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) != BST_CHECKED;
+    EnableWindow(pSettingsWindow->hCheckCompactMenuBar, fEnableCompactMenu);
 }
 
 static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int width, int height)
@@ -362,6 +375,13 @@ static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int w
         contentWidth - 24,
         kSettingsCheckHeight,
         TRUE);
+    MoveWindow(
+        pSettingsWindow->hCheckCompactMenuBar,
+        kSettingsPadding + 12,
+        behaviorTop + 100,
+        contentWidth - 24,
+        kSettingsCheckHeight,
+        TRUE);
 
     int buttonX = clientWidth - kSettingsPadding - kSettingsButtonWidth;
     MoveWindow(pSettingsWindow->hButtonCancel, buttonX, buttonY, kSettingsButtonWidth, kSettingsButtonHeight, TRUE);
@@ -398,6 +418,7 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     pSettings->bLegacyFileDialogs = Button_GetCheck(pSettingsWindow->hCheckLegacyFileDialogs) == BST_CHECKED;
     pSettings->bEnablePenTablet = Button_GetCheck(pSettingsWindow->hCheckEnablePenTablet) == BST_CHECKED;
     pSettings->bUseStandardWindowFrame = Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) == BST_CHECKED;
+    pSettings->bCompactMenuBar = Button_GetCheck(pSettingsWindow->hCheckCompactMenuBar) == BST_CHECKED;
 
     if (!Panitent_WriteSettings(pSettings))
     {
@@ -412,6 +433,9 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     PanitentWindow_SetUseStandardFrame(
         PanitentApp_GetWindow(PanitentApp_Instance()),
         pSettings->bUseStandardWindowFrame);
+    PanitentWindow_SetCompactMenuBar(
+        PanitentApp_GetWindow(PanitentApp_Instance()),
+        pSettings->bCompactMenuBar);
 
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
     return TRUE;
@@ -438,6 +462,7 @@ static BOOL SettingsWindow_OnCreate(SettingsWindow* pSettingsWindow, LPCREATESTR
     pSettingsWindow->hCheckLegacyFileDialogs = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_LEGACY_FILEDLG, L"Use legacy file dialogs");
     pSettingsWindow->hCheckEnablePenTablet = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_ENABLE_PEN, L"Enable pen tablet");
     pSettingsWindow->hCheckStandardWindowFrame = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_STANDARD_FRAME, L"Use standard Windows frame");
+    pSettingsWindow->hCheckCompactMenuBar = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_COMPACT_MENU, L"Compact menu bar");
 
     pSettingsWindow->hButtonOk = SettingsWindow_CreateButton(hWnd, IDOK, L"OK", BS_DEFPUSHBUTTON);
     pSettingsWindow->hButtonCancel = SettingsWindow_CreateButton(hWnd, IDCANCEL, L"Cancel", BS_PUSHBUTTON);
@@ -503,8 +528,13 @@ static void SettingsWindow_OnCommand(SettingsWindow* pSettingsWindow, WPARAM wPa
     case IDC_SETTINGS_LEGACY_FILEDLG:
     case IDC_SETTINGS_ENABLE_PEN:
     case IDC_SETTINGS_STANDARD_FRAME:
+    case IDC_SETTINGS_COMPACT_MENU:
         if (HIWORD(wParam) == BN_CLICKED)
         {
+            if (LOWORD(wParam) == IDC_SETTINGS_STANDARD_FRAME)
+            {
+                SettingsWindow_UpdateFrameFieldsEnabled(pSettingsWindow);
+            }
             SettingsWindow_MarkDirty(pSettingsWindow, TRUE);
         }
         break;

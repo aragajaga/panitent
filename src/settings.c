@@ -24,6 +24,7 @@ void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
     pSettings->bEnablePenTablet = FALSE;
     pSettings->iToolbarIconTheme = 0;
     pSettings->bUseStandardWindowFrame = TRUE;
+    pSettings->bCompactMenuBar = FALSE;
 }
 
 BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)

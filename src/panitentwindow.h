@@ -12,12 +12,19 @@ struct PanitentWindow
 	HWND m_hWndOptionBar;
 	HWND m_hWndPalette;
 	HWND m_hWndToolbox;
+	HWND hWndMenuBar;
+	HMENU hMainMenu;
 	TreeNode* m_viewportNode;
 	BOOL bCustomFrame;
+	BOOL bCompactMenuBar;
 	BOOL bNcTracking;
+	BOOL bMenuTracking;
 	int nCaptionButtonHot;
 	int nCaptionButtonPressed;
+	int nHotMenuItem;
+	int nOpenMenuItem;
 };
 
 PanitentWindow* PanitentWindow_Create();
 void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame);
+void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCompactMenuBar);

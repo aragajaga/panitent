@@ -24,13 +24,19 @@
 #include "rbhashmapviz.h"
 
 static const WCHAR szClassName[] = L"__PanitentWindow";
+static const WCHAR szMenuBarClassName[] = L"__PanitentMenuBar";
 static const int kMainFrameBorderSize = 3;
 static const int kMainFrameGripSize = 8;
 static const int kMainCaptionHeight = 32;
-static const int kMainCaptionButtonSize = 14;
-static const int kMainCaptionButtonSpacing = 3;
+static const int kMainCaptionButtonWidth = 44;
+static const int kMainCaptionButtonHeight = 32;
+static const int kMainCaptionButtonSpacing = 0;
 static const int kMainCaptionIconMarginX = 8;
 static const int kMainCaptionIconTextGap = 8;
+static const int kMainMenuBarHeight = 24;
+static const int kMainMenuItemPaddingX = 10;
+static const int kMainMenuItemPaddingY = 2;
+static const int kMainMenuItemGap = 2;
 
 /* Private forward declarations */
 PanitentWindow* PanitentWindow_Create();
@@ -39,6 +45,7 @@ void PanitentWindow_Init(PanitentWindow* pPanitentWindow);
 void PanitentWindow_PreRegister(LPWNDCLASSEX);
 void PanitentWindow_PreCreate(LPCREATESTRUCT);
 void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame);
+void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCompactMenuBar);
 
 BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpcs);
 void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow);
@@ -67,7 +74,28 @@ static int PanitentWindow_HitTestCaptionButtonAtScreenPoint(PanitentWindow* pPan
 static void PanitentWindow_SetCaptionButtonHot(PanitentWindow* pPanitentWindow, int nHotButton);
 static void PanitentWindow_SetCaptionButtonPressed(PanitentWindow* pPanitentWindow, int nPressedButton);
 static int PanitentWindow_GetResizeBorderThickness(HWND hWnd);
+static int PanitentWindow_GetFrameInset(HWND hWnd, DWORD dwStyle);
 static LRESULT PanitentWindow_HitTestResizeBorder(HWND hWnd, int x, int y);
+static void PanitentWindow_EnsureMenuBarClass(void);
+static void PanitentWindow_UpdateMenuPresentation(PanitentWindow* pPanitentWindow);
+static void PanitentWindow_LayoutChildren(PanitentWindow* pPanitentWindow, int cx, int cy);
+static int PanitentWindow_GetMenuBarHeight(PanitentWindow* pPanitentWindow);
+static void PanitentWindow_InvalidateMenuPresentation(PanitentWindow* pPanitentWindow);
+static BOOL PanitentWindow_MenuBar_GetItemText(HMENU hMenu, int index, WCHAR* pszText, int cchText);
+static int PanitentWindow_Menu_GetTotalWidth(PanitentWindow* pPanitentWindow, HDC hdc);
+static BOOL PanitentWindow_Menu_GetItemRectInStrip(PanitentWindow* pPanitentWindow, const RECT* pRectStrip, HDC hdc, int index, RECT* pRect);
+static int PanitentWindow_Menu_HitTestInStrip(PanitentWindow* pPanitentWindow, const RECT* pRectStrip, HDC hdc, POINT ptClient);
+static BOOL PanitentWindow_GetCompactMenuStripRect(PanitentWindow* pPanitentWindow, const CaptionFrameLayout* pLayout, HDC hdc, RECT* pRectStrip, RECT* pRectTitle);
+static int PanitentWindow_HitTestCompactMenuItemAtScreenPoint(PanitentWindow* pPanitentWindow, int x, int y);
+static void PanitentWindow_Menu_DrawItems(HDC hdc, PanitentWindow* pPanitentWindow, const RECT* pRectStrip);
+static BOOL PanitentWindow_MenuBar_GetItemRect(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index, RECT* pRect);
+static int PanitentWindow_MenuBar_HitTest(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, POINT ptClient);
+static void PanitentWindow_MenuBar_SetHotItem(PanitentWindow* pPanitentWindow, int index);
+static void PanitentWindow_MenuBar_SetOpenItem(PanitentWindow* pPanitentWindow, int index);
+static void PanitentWindow_MenuBar_ShowPopup(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index);
+static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow, int index);
+static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND hWndMenuBar);
+static LRESULT CALLBACK PanitentWindow_MenuBarProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 PanitentWindow* PanitentWindow_Create()
@@ -100,9 +128,13 @@ void PanitentWindow_Init(PanitentWindow* pPanitentWindow)
     pPanitentWindow->base.PostCreate = (FnWindowPostCreate)PanitentWindow_PostCreate;
 
     pPanitentWindow->bCustomFrame = FALSE;
+    pPanitentWindow->bCompactMenuBar = FALSE;
     pPanitentWindow->bNcTracking = FALSE;
+    pPanitentWindow->bMenuTracking = FALSE;
     pPanitentWindow->nCaptionButtonHot = HTNOWHERE;
     pPanitentWindow->nCaptionButtonPressed = HTNOWHERE;
+    pPanitentWindow->nHotMenuItem = -1;
+    pPanitentWindow->nOpenMenuItem = -1;
 }
 
 void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame)
@@ -114,8 +146,11 @@ void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fU
 
     pPanitentWindow->bCustomFrame = fUseStandardFrame ? FALSE : TRUE;
     pPanitentWindow->bNcTracking = FALSE;
+    pPanitentWindow->bMenuTracking = FALSE;
     pPanitentWindow->nCaptionButtonHot = HTNOWHERE;
     pPanitentWindow->nCaptionButtonPressed = HTNOWHERE;
+    pPanitentWindow->nHotMenuItem = -1;
+    pPanitentWindow->nOpenMenuItem = -1;
 
     HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
     if (!hWnd)
@@ -140,7 +175,31 @@ void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fU
         0,
         0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOZORDER | SWP_FRAMECHANGED);
+    PanitentWindow_UpdateMenuPresentation(pPanitentWindow);
     RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_ALLCHILDREN);
+}
+
+void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCompactMenuBar)
+{
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    pPanitentWindow->bCompactMenuBar = fCompactMenuBar ? TRUE : FALSE;
+    pPanitentWindow->bMenuTracking = FALSE;
+    pPanitentWindow->nHotMenuItem = -1;
+    pPanitentWindow->nOpenMenuItem = -1;
+
+    if (Window_GetHWND((Window*)pPanitentWindow))
+    {
+        PanitentWindow_UpdateMenuPresentation(pPanitentWindow);
+        RedrawWindow(
+            Window_GetHWND((Window*)pPanitentWindow),
+            NULL,
+            NULL,
+            RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_ALLCHILDREN);
+    }
 }
 
 void PanitentWindow_PreRegister(LPWNDCLASSEX lpwcex)
@@ -188,7 +247,12 @@ void PanitentWindow_OnContextMenu(PanitentWindow* window, int x, int y)
 
 void PanitentWindow_OnDestroy(PanitentWindow* pPanitentWindow)
 {
-    UNREFERENCED_PARAMETER(pPanitentWindow);
+    if (pPanitentWindow && pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+    {
+        DestroyWindow(pPanitentWindow->hWndMenuBar);
+        pPanitentWindow->hWndMenuBar = NULL;
+    }
+
     PostQuitMessage(0);
 }
 
@@ -222,10 +286,8 @@ BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
 
 void PanitentWindow_OnSize(PanitentWindow* pPanitentWindow, UINT state, int cx, int cy)
 {
-    if (pPanitentWindow->m_pDockHostWindow)
-    {
-        SetWindowPos(Window_GetHWND((Window *)pPanitentWindow->m_pDockHostWindow), NULL, 0, 0, cx, cy, SWP_NOACTIVATE | SWP_NOZORDER);
-    }
+    UNREFERENCED_PARAMETER(state);
+    PanitentWindow_LayoutChildren(pPanitentWindow, cx, cy);
 }
 
 void PanitentWindow_OnActivate(PanitentWindow* pPanitentWindow, UINT state, HWND hwndActDeact, BOOL fMinimized)
@@ -268,14 +330,15 @@ static void PanitentWindow_GetCaptionMetrics(PanitentWindow* pPanitentWindow, Ca
         return;
     }
 
-    UNREFERENCED_PARAMETER(pPanitentWindow);
+    HWND hWnd = pPanitentWindow ? Window_GetHWND((Window*)pPanitentWindow) : NULL;
+    DWORD dwStyle = hWnd ? GetWindowStyle(hWnd) : 0;
 
     int iconWidth = GetSystemMetrics(SM_CXSMICON);
-    pMetrics->borderSize = kMainFrameBorderSize;
+    pMetrics->borderSize = hWnd ? PanitentWindow_GetFrameInset(hWnd, dwStyle) : kMainFrameBorderSize;
     pMetrics->captionHeight = kMainCaptionHeight;
     pMetrics->buttonSpacing = kMainCaptionButtonSpacing;
     pMetrics->textPaddingLeft = kMainCaptionIconMarginX + iconWidth + kMainCaptionIconTextGap;
-    pMetrics->textPaddingRight = kMainFrameBorderSize;
+    pMetrics->textPaddingRight = pMetrics->borderSize;
     pMetrics->textPaddingY = 0;
 }
 
@@ -289,9 +352,9 @@ static int PanitentWindow_BuildCaptionButtons(PanitentWindow* pPanitentWindow, C
     HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
     BOOL fZoomed = hWnd && IsZoomed(hWnd);
 
-    pButtons[0] = (CaptionButton){ (SIZE){ kMainCaptionButtonSize, kMainCaptionButtonSize }, CAPTION_GLYPH_CLOSE_TILE, HTCLOSE };
-    pButtons[1] = (CaptionButton){ (SIZE){ kMainCaptionButtonSize, kMainCaptionButtonSize }, fZoomed ? CAPTION_GLYPH_RESTORE_TILE : CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
-    pButtons[2] = (CaptionButton){ (SIZE){ kMainCaptionButtonSize, kMainCaptionButtonSize }, CAPTION_GLYPH_MINIMIZE_TILE, HTMINBUTTON };
+    pButtons[0] = (CaptionButton){ (SIZE){ kMainCaptionButtonWidth, kMainCaptionButtonHeight }, CAPTION_GLYPH_CLOSE_TILE, HTCLOSE };
+    pButtons[1] = (CaptionButton){ (SIZE){ kMainCaptionButtonWidth, kMainCaptionButtonHeight }, fZoomed ? CAPTION_GLYPH_RESTORE_TILE : CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
+    pButtons[2] = (CaptionButton){ (SIZE){ kMainCaptionButtonWidth, kMainCaptionButtonHeight }, CAPTION_GLYPH_MINIMIZE_TILE, HTMINBUTTON };
     return 3;
 }
 
@@ -398,6 +461,21 @@ static int PanitentWindow_GetResizeBorderThickness(HWND hWnd)
     return max(kMainFrameGripSize, border);
 }
 
+static int PanitentWindow_GetFrameInset(HWND hWnd, DWORD dwStyle)
+{
+    if (dwStyle & WS_THICKFRAME)
+    {
+        if (IsZoomed(hWnd))
+        {
+            return PanitentWindow_GetResizeBorderThickness(hWnd);
+        }
+
+        return kMainFrameBorderSize;
+    }
+
+    return 1;
+}
+
 static LRESULT PanitentWindow_HitTestResizeBorder(HWND hWnd, int x, int y)
 {
     if (!hWnd || !IsWindow(hWnd) || IsZoomed(hWnd))
@@ -458,13 +536,15 @@ static LRESULT PanitentWindow_HitTestResizeBorder(HWND hWnd, int x, int y)
 
 LRESULT PanitentWindow_OnNCCalcSize(PanitentWindow* pPanitentWindow, BOOL fCalcValidRects, NCCALCSIZE_PARAMS* lpcsp)
 {
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
     RECT* pRect = fCalcValidRects ? &lpcsp->rgrc[0] : (RECT*)lpcsp;
-    DWORD dwStyle = GetWindowStyle(Window_GetHWND((Window*)pPanitentWindow));
+    DWORD dwStyle = GetWindowStyle(hWnd);
+    int frameInset = PanitentWindow_GetFrameInset(hWnd, dwStyle);
 
-    pRect->left += kMainFrameBorderSize;
-    pRect->top += kMainFrameBorderSize;
-    pRect->right -= kMainFrameBorderSize;
-    pRect->bottom -= kMainFrameBorderSize;
+    pRect->left += frameInset;
+    pRect->top += frameInset;
+    pRect->right -= frameInset;
+    pRect->bottom -= frameInset;
 
     if (dwStyle & WS_CAPTION)
     {
@@ -494,6 +574,12 @@ LRESULT PanitentWindow_OnNCHitTest(PanitentWindow* pPanitentWindow, int x, int y
         if (PanitentWindow_GetCaptionIconRect(pPanitentWindow, &layout, &rcIcon) && PtInRect(&rcIcon, ptLocal))
         {
             return HTSYSMENU;
+        }
+
+        if (pPanitentWindow->bCompactMenuBar &&
+            PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, x, y) >= 0)
+        {
+            return HTMENU;
         }
     }
 
@@ -579,14 +665,45 @@ LRESULT PanitentWindow_OnNCPaint(PanitentWindow* pPanitentWindow, HRGN hrgn)
         WCHAR szTitle[MAX_PATH] = L"";
         GetWindowTextW(hWnd, szTitle, ARRAYSIZE(szTitle));
 
-        CaptionFrame_DrawStateful(
-            hdc,
-            &layout,
-            &palette,
-            szTitle,
-            PanitentApp_GetUIFont(PanitentApp_Instance()),
-            pPanitentWindow->nCaptionButtonHot,
-            pPanitentWindow->nCaptionButtonPressed);
+        if (pPanitentWindow->bCompactMenuBar)
+        {
+            RECT rcTitle = layout.rcCaptionText;
+            RECT rcMenuStrip = { 0 };
+            HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+
+            CaptionFrame_DrawStateful(
+                hdc,
+                &layout,
+                &palette,
+                L"",
+                PanitentApp_GetUIFont(PanitentApp_Instance()),
+                pPanitentWindow->nCaptionButtonHot,
+                pPanitentWindow->nCaptionButtonPressed);
+
+            if (PanitentWindow_GetCompactMenuStripRect(pPanitentWindow, &layout, hdc, &rcMenuStrip, &rcTitle))
+            {
+                PanitentWindow_Menu_DrawItems(hdc, pPanitentWindow, &rcMenuStrip);
+            }
+
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, palette.text);
+            DrawTextW(hdc, szTitle, -1, &rcTitle, DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_END_ELLIPSIS);
+
+            if (hOldFont)
+            {
+                SelectObject(hdc, hOldFont);
+            }
+        }
+        else {
+            CaptionFrame_DrawStateful(
+                hdc,
+                &layout,
+                &palette,
+                szTitle,
+                PanitentApp_GetUIFont(PanitentApp_Instance()),
+                pPanitentWindow->nCaptionButtonHot,
+                pPanitentWindow->nCaptionButtonPressed);
+        }
 
         RECT rcIcon = { 0 };
         if (PanitentWindow_GetCaptionIconRect(pPanitentWindow, &layout, &rcIcon))
@@ -640,19 +757,36 @@ LRESULT PanitentWindow_OnNCMouseMove(PanitentWindow* pPanitentWindow, UINT hitTe
     PanitentWindow_SetCaptionButtonHot(
         pPanitentWindow,
         PanitentWindow_HitTestCaptionButtonAtScreenPoint(pPanitentWindow, x, y));
+    if (pPanitentWindow->bCompactMenuBar)
+    {
+        PanitentWindow_MenuBar_SetHotItem(
+            pPanitentWindow,
+            PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, x, y));
+    }
+    else if (pPanitentWindow->nOpenMenuItem < 0)
+    {
+        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+    }
     return FALSE;
 }
 
 LRESULT PanitentWindow_OnNCLButtonDown(PanitentWindow* pPanitentWindow, UINT hitTestVal, int x, int y)
 {
-    UNREFERENCED_PARAMETER(x);
-    UNREFERENCED_PARAMETER(y);
-
     if (hitTestVal == HTCLOSE || hitTestVal == HTMAXBUTTON || hitTestVal == HTMINBUTTON)
     {
         PanitentWindow_SetCaptionButtonHot(pPanitentWindow, (int)hitTestVal);
         PanitentWindow_SetCaptionButtonPressed(pPanitentWindow, (int)hitTestVal);
         return TRUE;
+    }
+
+    if (pPanitentWindow->bCompactMenuBar && hitTestVal == HTMENU)
+    {
+        int index = PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, x, y);
+        if (index >= 0)
+        {
+            PanitentWindow_CompactMenu_ShowPopup(pPanitentWindow, index);
+            return TRUE;
+        }
     }
 
     return FALSE;
@@ -701,6 +835,695 @@ LRESULT PanitentWindow_OnNCActivate(PanitentWindow* pPanitentWindow, BOOL fActiv
     UNREFERENCED_PARAMETER(fActive);
     PanitentWindow_InvalidateNcFrame(pPanitentWindow);
     return TRUE;
+}
+
+static void PanitentWindow_EnsureMenuBarClass(void)
+{
+    WNDCLASSEXW wcex = { 0 };
+    if (GetClassInfoExW(GetModuleHandle(NULL), szMenuBarClassName, &wcex))
+    {
+        return;
+    }
+
+    wcex.cbSize = sizeof(wcex);
+    wcex.style = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc = PanitentWindow_MenuBarProc;
+    wcex.hInstance = GetModuleHandle(NULL);
+    wcex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    wcex.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    wcex.lpszClassName = szMenuBarClassName;
+    RegisterClassExW(&wcex);
+}
+
+static int PanitentWindow_GetMenuBarHeight(PanitentWindow* pPanitentWindow)
+{
+    if (!pPanitentWindow ||
+        !pPanitentWindow->bCustomFrame ||
+        pPanitentWindow->bCompactMenuBar ||
+        !pPanitentWindow->hWndMenuBar)
+    {
+        return 0;
+    }
+
+    return kMainMenuBarHeight;
+}
+
+static void PanitentWindow_InvalidateMenuPresentation(PanitentWindow* pPanitentWindow)
+{
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    if (pPanitentWindow->bCustomFrame && pPanitentWindow->bCompactMenuBar)
+    {
+        PanitentWindow_InvalidateNcFrame(pPanitentWindow);
+        return;
+    }
+
+    if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+    {
+        InvalidateRect(pPanitentWindow->hWndMenuBar, NULL, FALSE);
+    }
+}
+
+static void PanitentWindow_LayoutChildren(PanitentWindow* pPanitentWindow, int cx, int cy)
+{
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    int menuHeight = PanitentWindow_GetMenuBarHeight(pPanitentWindow);
+    if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+    {
+        SetWindowPos(
+            pPanitentWindow->hWndMenuBar,
+            NULL,
+            0,
+            0,
+            max(0, cx),
+            menuHeight,
+            SWP_NOACTIVATE | SWP_NOZORDER);
+    }
+
+    if (pPanitentWindow->m_pDockHostWindow)
+    {
+        SetWindowPos(
+            Window_GetHWND((Window*)pPanitentWindow->m_pDockHostWindow),
+            NULL,
+            0,
+            menuHeight,
+            max(0, cx),
+            max(0, cy - menuHeight),
+            SWP_NOACTIVATE | SWP_NOZORDER);
+    }
+}
+
+static void PanitentWindow_UpdateMenuPresentation(PanitentWindow* pPanitentWindow)
+{
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return;
+    }
+
+    if (!pPanitentWindow->hMainMenu)
+    {
+        pPanitentWindow->hMainMenu = GetMenu(hWnd);
+    }
+
+    if (pPanitentWindow->bCustomFrame)
+    {
+        if (GetMenu(hWnd))
+        {
+            SetMenu(hWnd, NULL);
+            DrawMenuBar(hWnd);
+        }
+
+        if (pPanitentWindow->bCompactMenuBar)
+        {
+            if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+            {
+                DestroyWindow(pPanitentWindow->hWndMenuBar);
+            }
+            pPanitentWindow->hWndMenuBar = NULL;
+        }
+        else if (!pPanitentWindow->hWndMenuBar || !IsWindow(pPanitentWindow->hWndMenuBar))
+        {
+            PanitentWindow_EnsureMenuBarClass();
+            pPanitentWindow->hWndMenuBar = CreateWindowExW(
+                0,
+                szMenuBarClassName,
+                L"",
+                WS_CHILD | WS_VISIBLE,
+                0,
+                0,
+                0,
+                0,
+                hWnd,
+                NULL,
+                GetModuleHandle(NULL),
+                pPanitentWindow);
+        }
+    }
+    else {
+        if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+        {
+            DestroyWindow(pPanitentWindow->hWndMenuBar);
+        }
+        pPanitentWindow->hWndMenuBar = NULL;
+
+        if (pPanitentWindow->hMainMenu && GetMenu(hWnd) != pPanitentWindow->hMainMenu)
+        {
+            SetMenu(hWnd, pPanitentWindow->hMainMenu);
+            DrawMenuBar(hWnd);
+        }
+    }
+
+    {
+        RECT rcClient = { 0 };
+        GetClientRect(hWnd, &rcClient);
+        PanitentWindow_LayoutChildren(pPanitentWindow, RECTWIDTH(&rcClient), RECTHEIGHT(&rcClient));
+    }
+
+    PanitentWindow_InvalidateMenuPresentation(pPanitentWindow);
+}
+
+static BOOL PanitentWindow_MenuBar_GetItemText(HMENU hMenu, int index, WCHAR* pszText, int cchText)
+{
+    if (!hMenu || !pszText || cchText <= 0)
+    {
+        return FALSE;
+    }
+
+    WCHAR szRaw[128] = L"";
+    if (!GetMenuStringW(hMenu, (UINT)index, szRaw, ARRAYSIZE(szRaw), MF_BYPOSITION))
+    {
+        pszText[0] = L'\0';
+        return FALSE;
+    }
+
+    int j = 0;
+    for (int i = 0; szRaw[i] && j < cchText - 1; ++i)
+    {
+        if (szRaw[i] == L'\t')
+        {
+            break;
+        }
+
+        if (szRaw[i] == L'&')
+        {
+            if (szRaw[i + 1] == L'&' && j < cchText - 1)
+            {
+                pszText[j++] = L'&';
+                ++i;
+            }
+            continue;
+        }
+
+        pszText[j++] = szRaw[i];
+    }
+
+    pszText[j] = L'\0';
+    return TRUE;
+}
+
+static int PanitentWindow_Menu_GetTotalWidth(PanitentWindow* pPanitentWindow, HDC hdc)
+{
+    if (!pPanitentWindow || !pPanitentWindow->hMainMenu || !hdc)
+    {
+        return 0;
+    }
+
+    int nCount = GetMenuItemCount(pPanitentWindow->hMainMenu);
+    int width = kMainMenuItemGap;
+    for (int i = 0; i < nCount; ++i)
+    {
+        WCHAR szLabel[128] = L"";
+        SIZE sizeText = { 0 };
+        PanitentWindow_MenuBar_GetItemText(pPanitentWindow->hMainMenu, i, szLabel, ARRAYSIZE(szLabel));
+        GetTextExtentPoint32W(hdc, szLabel, (int)wcslen(szLabel), &sizeText);
+        width += sizeText.cx + kMainMenuItemPaddingX * 2 + kMainMenuItemGap;
+    }
+
+    return max(0, width - kMainMenuItemGap);
+}
+
+static BOOL PanitentWindow_Menu_GetItemRectInStrip(PanitentWindow* pPanitentWindow, const RECT* pRectStrip, HDC hdc, int index, RECT* pRect)
+{
+    if (!pPanitentWindow || !pPanitentWindow->hMainMenu || !pRectStrip || !hdc || !pRect)
+    {
+        return FALSE;
+    }
+
+    int nCount = GetMenuItemCount(pPanitentWindow->hMainMenu);
+    if (index < 0 || index >= nCount)
+    {
+        return FALSE;
+    }
+
+    int x = pRectStrip->left + kMainMenuItemGap;
+    for (int i = 0; i < nCount; ++i)
+    {
+        WCHAR szLabel[128] = L"";
+        SIZE sizeText = { 0 };
+        RECT rcItem = { 0 };
+
+        PanitentWindow_MenuBar_GetItemText(pPanitentWindow->hMainMenu, i, szLabel, ARRAYSIZE(szLabel));
+        GetTextExtentPoint32W(hdc, szLabel, (int)wcslen(szLabel), &sizeText);
+
+        rcItem.left = x;
+        rcItem.top = pRectStrip->top + kMainMenuItemPaddingY;
+        rcItem.right = rcItem.left + sizeText.cx + kMainMenuItemPaddingX * 2;
+        rcItem.bottom = pRectStrip->bottom - kMainMenuItemPaddingY;
+
+        if (i == index)
+        {
+            *pRect = rcItem;
+            return TRUE;
+        }
+
+        x = rcItem.right + kMainMenuItemGap;
+    }
+
+    return FALSE;
+}
+
+static int PanitentWindow_Menu_HitTestInStrip(PanitentWindow* pPanitentWindow, const RECT* pRectStrip, HDC hdc, POINT ptClient)
+{
+    if (!pPanitentWindow || !pRectStrip || !hdc)
+    {
+        return -1;
+    }
+
+    int nCount = GetMenuItemCount(pPanitentWindow->hMainMenu);
+    for (int i = 0; i < nCount; ++i)
+    {
+        RECT rcItem = { 0 };
+        if (PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, pRectStrip, hdc, i, &rcItem) && PtInRect(&rcItem, ptClient))
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+static BOOL PanitentWindow_GetCompactMenuStripRect(PanitentWindow* pPanitentWindow, const CaptionFrameLayout* pLayout, HDC hdc, RECT* pRectStrip, RECT* pRectTitle)
+{
+    if (!pPanitentWindow || !pLayout || !hdc || !pRectStrip)
+    {
+        return FALSE;
+    }
+
+    RECT rcIcon = { 0 };
+    RECT rcTitle = pLayout->rcCaptionText;
+    int textStart = pLayout->rcCaptionText.left;
+    int menuRight = pLayout->nButtons > 0 ?
+        pLayout->buttonRects[pLayout->nButtons - 1].left - kMainCaptionIconTextGap :
+        pLayout->rcCaption.right - kMainCaptionIconTextGap;
+
+    if (PanitentWindow_GetCaptionIconRect(pPanitentWindow, pLayout, &rcIcon))
+    {
+        textStart = rcIcon.right + kMainCaptionIconTextGap;
+    }
+
+    WCHAR szTitle[MAX_PATH] = L"";
+    SIZE sizeTitle = { 0 };
+    GetWindowTextW(Window_GetHWND((Window*)pPanitentWindow), szTitle, ARRAYSIZE(szTitle));
+    GetTextExtentPoint32W(hdc, szTitle, (int)wcslen(szTitle), &sizeTitle);
+
+    int preferredLeft = textStart + sizeTitle.cx + 14;
+    int menuWidth = PanitentWindow_Menu_GetTotalWidth(pPanitentWindow, hdc);
+    int menuLeft = min(preferredLeft, menuRight - menuWidth);
+    int minLeft = textStart + 8;
+
+    if (menuWidth <= 0 || menuRight - minLeft < menuWidth)
+    {
+        return FALSE;
+    }
+
+    if (menuLeft < minLeft)
+    {
+        menuLeft = minLeft;
+    }
+
+    pRectStrip->left = menuLeft;
+    pRectStrip->top = pLayout->rcCaption.top + 2;
+    pRectStrip->right = menuLeft + menuWidth;
+    pRectStrip->bottom = pLayout->rcCaption.bottom - 2;
+
+    if (pRectTitle)
+    {
+        rcTitle.left = textStart;
+        rcTitle.right = max(rcTitle.left, pRectStrip->left - 8);
+        *pRectTitle = rcTitle;
+    }
+
+    return TRUE;
+}
+
+static int PanitentWindow_HitTestCompactMenuItemAtScreenPoint(PanitentWindow* pPanitentWindow, int x, int y)
+{
+    if (!pPanitentWindow || !pPanitentWindow->bCompactMenuBar || !pPanitentWindow->bCustomFrame)
+    {
+        return -1;
+    }
+
+    CaptionFrameLayout layout = { 0 };
+    if (!PanitentWindow_BuildCaptionLayout(pPanitentWindow, &layout))
+    {
+        return -1;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    RECT rcWindow = { 0 };
+    GetWindowRect(hWnd, &rcWindow);
+
+    HDC hdc = GetWindowDC(hWnd);
+    if (!hdc)
+    {
+        return -1;
+    }
+
+    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+    RECT rcStrip = { 0 };
+    POINT ptLocal = { x - rcWindow.left, y - rcWindow.top };
+    int index = -1;
+
+    if (PanitentWindow_GetCompactMenuStripRect(pPanitentWindow, &layout, hdc, &rcStrip, NULL))
+    {
+        index = PanitentWindow_Menu_HitTestInStrip(pPanitentWindow, &rcStrip, hdc, ptLocal);
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    ReleaseDC(hWnd, hdc);
+    return index;
+}
+
+static void PanitentWindow_Menu_DrawItems(HDC hdc, PanitentWindow* pPanitentWindow, const RECT* pRectStrip)
+{
+    if (!hdc || !pPanitentWindow || !pRectStrip || !pPanitentWindow->hMainMenu)
+    {
+        return;
+    }
+
+    HBRUSH hBrushHot = CreateSolidBrush(Win32_HexToCOLORREF(L"#9b8acb"));
+    HBRUSH hBrushOpen = CreateSolidBrush(Win32_HexToCOLORREF(L"#a898d3"));
+    int nCount = GetMenuItemCount(pPanitentWindow->hMainMenu);
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, RGB(255, 255, 255));
+
+    for (int i = 0; i < nCount; ++i)
+    {
+        RECT rcItem = { 0 };
+        WCHAR szLabel[128] = L"";
+        if (!PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, pRectStrip, hdc, i, &rcItem))
+        {
+            continue;
+        }
+
+        if (i == pPanitentWindow->nOpenMenuItem)
+        {
+            FillRect(hdc, &rcItem, hBrushOpen);
+        }
+        else if (i == pPanitentWindow->nHotMenuItem)
+        {
+            FillRect(hdc, &rcItem, hBrushHot);
+        }
+
+        PanitentWindow_MenuBar_GetItemText(pPanitentWindow->hMainMenu, i, szLabel, ARRAYSIZE(szLabel));
+        DrawTextW(hdc, szLabel, -1, &rcItem, DT_SINGLELINE | DT_VCENTER | DT_CENTER);
+    }
+
+    DeleteObject(hBrushHot);
+    DeleteObject(hBrushOpen);
+}
+
+static BOOL PanitentWindow_MenuBar_GetItemRect(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index, RECT* pRect)
+{
+    if (!pPanitentWindow || !pPanitentWindow->hMainMenu || !pRect || !hWndMenuBar)
+    {
+        return FALSE;
+    }
+
+    RECT rcClient = { 0 };
+    GetClientRect(hWndMenuBar, &rcClient);
+
+    HDC hdc = GetDC(hWndMenuBar);
+    if (!hdc)
+    {
+        return FALSE;
+    }
+
+    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+    BOOL bResult = PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, &rcClient, hdc, index, pRect);
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    ReleaseDC(hWndMenuBar, hdc);
+    return bResult;
+}
+
+static int PanitentWindow_MenuBar_HitTest(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, POINT ptClient)
+{
+    if (!pPanitentWindow || !hWndMenuBar || !pPanitentWindow->hMainMenu)
+    {
+        return -1;
+    }
+
+    RECT rcClient = { 0 };
+    HDC hdc = GetDC(hWndMenuBar);
+    int index = -1;
+    if (hdc)
+    {
+        HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+        GetClientRect(hWndMenuBar, &rcClient);
+        index = PanitentWindow_Menu_HitTestInStrip(pPanitentWindow, &rcClient, hdc, ptClient);
+        if (hOldFont)
+        {
+            SelectObject(hdc, hOldFont);
+        }
+        ReleaseDC(hWndMenuBar, hdc);
+    }
+
+    return index;
+}
+
+static void PanitentWindow_MenuBar_SetHotItem(PanitentWindow* pPanitentWindow, int index)
+{
+    if (!pPanitentWindow || pPanitentWindow->nHotMenuItem == index)
+    {
+        return;
+    }
+
+    pPanitentWindow->nHotMenuItem = index;
+    PanitentWindow_InvalidateMenuPresentation(pPanitentWindow);
+}
+
+static void PanitentWindow_MenuBar_SetOpenItem(PanitentWindow* pPanitentWindow, int index)
+{
+    if (!pPanitentWindow || pPanitentWindow->nOpenMenuItem == index)
+    {
+        return;
+    }
+
+    pPanitentWindow->nOpenMenuItem = index;
+    PanitentWindow_InvalidateMenuPresentation(pPanitentWindow);
+}
+
+static void PanitentWindow_MenuBar_ShowPopup(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index)
+{
+    if (!pPanitentWindow || !hWndMenuBar || !pPanitentWindow->hMainMenu)
+    {
+        return;
+    }
+
+    HMENU hSubMenu = GetSubMenu(pPanitentWindow->hMainMenu, index);
+    RECT rcItem = { 0 };
+    if (!hSubMenu || !PanitentWindow_MenuBar_GetItemRect(pPanitentWindow, hWndMenuBar, index, &rcItem))
+    {
+        return;
+    }
+
+    POINT ptPopup = { rcItem.left, rcItem.bottom };
+    ClientToScreen(hWndMenuBar, &ptPopup);
+
+    PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, index);
+    PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
+    SetForegroundWindow(Window_GetHWND((Window*)pPanitentWindow));
+    TrackPopupMenuEx(hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptPopup.x, ptPopup.y, Window_GetHWND((Window*)pPanitentWindow), NULL);
+    PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, -1);
+
+    {
+        POINT ptCursor = { 0 };
+        if (GetCursorPos(&ptCursor) && ScreenToClient(hWndMenuBar, &ptCursor))
+        {
+            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWndMenuBar, ptCursor));
+        }
+        else {
+            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+        }
+    }
+}
+
+static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow, int index)
+{
+    if (!pPanitentWindow || !pPanitentWindow->hMainMenu || index < 0)
+    {
+        return;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    CaptionFrameLayout layout = { 0 };
+    HMENU hSubMenu = GetSubMenu(pPanitentWindow->hMainMenu, index);
+    if (!hWnd || !hSubMenu || !PanitentWindow_BuildCaptionLayout(pPanitentWindow, &layout))
+    {
+        return;
+    }
+
+    HDC hdc = GetWindowDC(hWnd);
+    if (!hdc)
+    {
+        return;
+    }
+
+    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+    RECT rcStrip = { 0 };
+    RECT rcItem = { 0 };
+    BOOL bHasStrip = PanitentWindow_GetCompactMenuStripRect(pPanitentWindow, &layout, hdc, &rcStrip, NULL);
+    BOOL bHasItem = bHasStrip && PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, &rcStrip, hdc, index, &rcItem);
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    ReleaseDC(hWnd, hdc);
+
+    if (!bHasItem)
+    {
+        return;
+    }
+
+    {
+        POINT ptPopup = { rcItem.left, rcItem.bottom };
+        RECT rcWindow = { 0 };
+        GetWindowRect(hWnd, &rcWindow);
+        ptPopup.x += rcWindow.left;
+        ptPopup.y += rcWindow.top;
+
+        PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, index);
+        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
+        SetForegroundWindow(hWnd);
+        TrackPopupMenuEx(hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptPopup.x, ptPopup.y, hWnd, NULL);
+        PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, -1);
+        {
+            POINT ptCursor = { 0 };
+            if (GetCursorPos(&ptCursor))
+            {
+                PanitentWindow_MenuBar_SetHotItem(
+                    pPanitentWindow,
+                    PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, ptCursor.x, ptCursor.y));
+            }
+            else {
+                PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+            }
+        }
+    }
+}
+
+static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND hWndMenuBar)
+{
+    PAINTSTRUCT ps = { 0 };
+    HDC hdc = BeginPaint(hWndMenuBar, &ps);
+    if (!hdc)
+    {
+        return;
+    }
+
+    RECT rcClient = { 0 };
+    GetClientRect(hWndMenuBar, &rcClient);
+
+    HBRUSH hBrushBg = CreateSolidBrush(Win32_HexToCOLORREF(L"#8578b3"));
+    FillRect(hdc, &rcClient, hBrushBg);
+
+    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+    PanitentWindow_Menu_DrawItems(hdc, pPanitentWindow, &rcClient);
+
+    {
+        HPEN hPen = CreatePen(PS_SOLID, 1, Win32_HexToCOLORREF(L"#6d648e"));
+        HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
+        MoveToEx(hdc, 0, rcClient.bottom - 1, NULL);
+        LineTo(hdc, rcClient.right, rcClient.bottom - 1);
+        SelectObject(hdc, hOldPen);
+        DeleteObject(hPen);
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    DeleteObject(hBrushBg);
+    EndPaint(hWndMenuBar, &ps);
+}
+
+static LRESULT CALLBACK PanitentWindow_MenuBarProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    PanitentWindow* pPanitentWindow = (PanitentWindow*)GetWindowLongPtrW(hWnd, GWLP_USERDATA);
+
+    switch (message)
+    {
+    case WM_NCCREATE:
+    {
+        CREATESTRUCTW* pcs = (CREATESTRUCTW*)lParam;
+        SetWindowLongPtrW(hWnd, GWLP_USERDATA, (LONG_PTR)pcs->lpCreateParams);
+        return TRUE;
+    }
+
+    case WM_ERASEBKGND:
+        return TRUE;
+
+    case WM_PAINT:
+        PanitentWindow_MenuBar_OnPaint(pPanitentWindow, hWnd);
+        return 0;
+
+    case WM_MOUSEMOVE:
+        if (pPanitentWindow)
+        {
+            if (!pPanitentWindow->bMenuTracking)
+            {
+                TRACKMOUSEEVENT tme = { 0 };
+                tme.cbSize = sizeof(tme);
+                tme.dwFlags = TME_LEAVE;
+                tme.hwndTrack = hWnd;
+                if (TrackMouseEvent(&tme))
+                {
+                    pPanitentWindow->bMenuTracking = TRUE;
+                }
+            }
+
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWnd, pt));
+        }
+        return 0;
+
+    case WM_MOUSELEAVE:
+        if (pPanitentWindow)
+        {
+            pPanitentWindow->bMenuTracking = FALSE;
+            if (pPanitentWindow->nOpenMenuItem < 0)
+            {
+                PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+            }
+        }
+        return 0;
+
+    case WM_LBUTTONDOWN:
+        if (pPanitentWindow)
+        {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            int index = PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWnd, pt);
+            if (index >= 0)
+            {
+                PanitentWindow_MenuBar_ShowPopup(pPanitentWindow, hWnd, index);
+            }
+        }
+        return 0;
+    }
+
+    return DefWindowProcW(hWnd, message, wParam, lParam);
 }
 
 LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam, LPARAM lParam)
@@ -759,6 +1582,10 @@ LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND h
             pPanitentWindow->bNcTracking = FALSE;
             PanitentWindow_SetCaptionButtonHot(pPanitentWindow, HTNOWHERE);
             PanitentWindow_SetCaptionButtonPressed(pPanitentWindow, HTNOWHERE);
+            if (pPanitentWindow->nOpenMenuItem < 0)
+            {
+                PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+            }
             return 0;
 
         case WM_NCLBUTTONDOWN:
@@ -814,6 +1641,7 @@ void PanitentWindow_PreCreate(LPCREATESTRUCT lpcs)
     if (pPanitentWindow && pSettings)
     {
         PanitentWindow_SetUseStandardFrame(pPanitentWindow, pSettings->bUseStandardWindowFrame);
+        PanitentWindow_SetCompactMenuBar(pPanitentWindow, pSettings->bCompactMenuBar);
     }
 
     if (pSettings && pSettings->bRememberWindowPos &&
@@ -831,6 +1659,8 @@ BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpc
     UNREFERENCED_PARAMETER(lpcs);
 
     HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    pPanitentWindow->hMainMenu = GetMenu(hWnd);
+    PanitentWindow_UpdateMenuPresentation(pPanitentWindow);
 
     RECT rcClient;
     GetWindowRect(hWnd, &rcClient);
@@ -865,5 +1695,9 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     // Panitent_DockHostInit(pDockHostWindow, pRoot);
     PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow, pRoot);
 
-    Win32_FitChild((Window*)pDockHostWindow, (Window*)pPanitentWindow);
+    {
+        RECT rcClient = { 0 };
+        GetClientRect(hWnd, &rcClient);
+        PanitentWindow_LayoutChildren(pPanitentWindow, RECTWIDTH(&rcClient), RECTHEIGHT(&rcClient));
+    }
 }

@@ -13,6 +13,7 @@ typedef struct _tagPNTSETTINGS {
     BOOL bEnablePenTablet;
     int iToolbarIconTheme;
     BOOL bUseStandardWindowFrame;
+    BOOL bCompactMenuBar;
 } PNTSETTINGS;
 
 void Panitent_DefaultSettings(PNTSETTINGS* pSettings);

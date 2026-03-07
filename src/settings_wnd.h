@@ -22,6 +22,7 @@ struct SettingsWindow {
     HWND hCheckLegacyFileDialogs;
     HWND hCheckEnablePenTablet;
     HWND hCheckStandardWindowFrame;
+    HWND hCheckCompactMenuBar;
 
     HWND hButtonOk;
     HWND hButtonCancel;
