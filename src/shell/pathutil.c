@@ -3,10 +3,17 @@
 #include <tchar.h>
 #include "pathutil.h"
 
-static const WCHAR g_kAppData[] = L"\\Aragajaga\\Panit.ent";
+static const WCHAR g_kAppData[] = L"Aragajaga\\Panit.ent";
 
 void InitAppData(LPWSTR* ppszAppData)
 {
+    if (!ppszAppData)
+    {
+        return;
+    }
+
+    *ppszAppData = NULL;
+
     PWSTR pszShAppData = NULL;
     /* Get %ROAMINGAPPDATA% path */
     HRESULT hr = SHGetKnownFolderPath(&FOLDERID_RoamingAppData, KF_FLAG_DEFAULT, NULL, &pszShAppData);
@@ -19,30 +26,36 @@ void InitAppData(LPWSTR* ppszAppData)
     /* Prepare Panit.ent AppData path */
     PWSTR pszAppData = NULL;
     size_t shAppDataLen = wcslen(pszShAppData);
+    size_t appDataSuffixLen = wcslen(g_kAppData);
     /* Break if shell AppData string is empty */
     if (!shAppDataLen)
     {
         goto error;
     }
 
-    /* g_kAppData is already NULL-terminated. So ARRAYSIZE will evaluate as strlen + 1 */
-    pszAppData = (PWSTR)malloc((shAppDataLen + ARRAYSIZE(g_kAppData)) * sizeof(WCHAR));
+    pszAppData = (PWSTR)calloc(shAppDataLen + 1 + appDataSuffixLen + 1, sizeof(WCHAR));
     if (!pszAppData)
     {
         /* Memory allocation failed. Free pszShAppData and return */
         goto error;
     }
 
-    /* Prepare Panit.ent AppData path with %ROAMINGAPPDATA% */
-    wcscpy_s(pszAppData, MAX_PATH, pszShAppData);
-    /* Append application site directory */
-    PathAppend(pszAppData, g_kAppData);
+    if (FAILED(StringCchPrintfW(
+        pszAppData,
+        shAppDataLen + 1 + appDataSuffixLen + 1,
+        L"%s\\%s",
+        pszShAppData,
+        g_kAppData)))
+    {
+        goto error;
+    }
 
     /* Create directory if it not exists */
-    SHCreateDirectoryEx(NULL, pszAppData, NULL);
+    SHCreateDirectoryExW(NULL, pszAppData, NULL);
 
     /* Return evaluated path */
     *ppszAppData = pszAppData;
+    pszAppData = NULL;
 
     /* SH AppData no more needed */
     CoTaskMemFree(pszShAppData);
@@ -62,6 +75,13 @@ error:
 
 void GetAppDataFilePath(LPCWSTR pszFile, LPWSTR* pszResult)
 {
+    if (!pszResult)
+    {
+        return;
+    }
+
+    *pszResult = NULL;
+
     LPWSTR pszAppData = NULL;
     InitAppData(&pszAppData);
 
@@ -70,18 +90,38 @@ void GetAppDataFilePath(LPCWSTR pszFile, LPWSTR* pszResult)
         goto error;
     }
 
+    if (!pszFile || pszFile[0] == L'\0')
+    {
+        *pszResult = pszAppData;
+        return;
+    }
+
+    while (*pszFile == L'\\' || *pszFile == L'/')
+    {
+        ++pszFile;
+    }
+
     LPWSTR pszFilePath = NULL;
-    size_t appDataLen = _tcslen(pszAppData);
-    pszFilePath = (LPWSTR)malloc((appDataLen + _tcslen(pszFile)) * sizeof(WCHAR));
+    size_t appDataLen = wcslen(pszAppData);
+    size_t fileLen = wcslen(pszFile);
+    pszFilePath = (LPWSTR)calloc(appDataLen + 1 + fileLen + 1, sizeof(WCHAR));
     if (!pszFilePath)
     {
         goto error;
     }
 
-    wcscpy_s(pszFilePath, wcslen(pszAppData), pszAppData);
-    free(pszAppData);
-    PathAppend(pszFilePath, pszFile);
+    if (FAILED(StringCchPrintfW(
+        pszFilePath,
+        appDataLen + 1 + fileLen + 1,
+        L"%s\\%s",
+        pszAppData,
+        pszFile)))
+    {
+        free(pszFilePath);
+        goto error;
+    }
 
+    free(pszAppData);
     *pszResult = pszFilePath;
     return;
 
@@ -123,7 +163,7 @@ void GetWorkDir()
 void GetSettingsFilePath(PTSTR* ppszSettingsFilePath)
 {
     LPWSTR pszSettingsFilePath = NULL;
-    GetAppDataFilePath(_T("\\settings.dat"), &pszSettingsFilePath);
+    GetAppDataFilePath(_T("settings.dat"), &pszSettingsFilePath);
 
     if (!pszSettingsFilePath)
     {

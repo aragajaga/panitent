@@ -14,4 +14,8 @@ typedef struct _tagPNTSETTINGS {
     int iToolbarIconTheme;
 } PNTSETTINGS;
 
+void Panitent_DefaultSettings(PNTSETTINGS* pSettings);
+BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings);
+BOOL Panitent_WriteSettings(const PNTSETTINGS* pSettings);
+
 #endif /* PANITENT_SETTINGS_H_ */

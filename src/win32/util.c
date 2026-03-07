@@ -1,5 +1,6 @@
 #include "common.h"
 
+#include "window.h"
 #include "util.h"
 
 HFONT g_hUIFont;
@@ -12,13 +13,13 @@ void Win32_FetchUIFont()
 	BOOL bResult = SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
 	if (!bResult)
 	{
-		return NULL;
+		return;
 	}
 
 	HFONT hNewFont = CreateFontIndirect(&ncm.lfMessageFont);
 	if (!hNewFont)
 	{
-		return NULL;
+		return;
 	}
 
 	DeleteObject(g_hUIFont);
@@ -37,7 +38,11 @@ HFONT Win32_GetUIFont()
 
 void Win32_ApplyUIFont(HWND hWnd)
 {
-	SendMessage(hWnd, WM_SETFONT, (WPARAM)g_hUIFont, MAKELPARAM(FALSE, 0));
+	HFONT hFont = Win32_GetUIFont();
+	if (hWnd && hFont)
+	{
+		SendMessage(hWnd, WM_SETFONT, (WPARAM)hFont, MAKELPARAM(TRUE, 0));
+	}
 }
 
 /*

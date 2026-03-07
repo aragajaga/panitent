@@ -39,6 +39,7 @@
 #include "viewport.h"
 #include "aboutbox.h"
 #include "color_context.h"
+#include "settings_wnd.h"
 
 #include "verifycheck.h"
 #include "playground.h"
@@ -56,6 +57,8 @@ void PanitentApp_Init(PanitentApp* pPanitentApp)
     pPanitentApp->palette = Palette_Create();
     pPanitentApp->m_pActivitySharingManager = ActivitySharingManager_Create();
     pPanitentApp->m_pWorkspaceContainer = WorkspaceContainer_Create();
+    Panitent_DefaultSettings(&pPanitentApp->m_settings);
+    Panitent_ReadSettings(&pPanitentApp->m_settings);
     InitColorContext();
     InitializeBrushList();
 
@@ -363,7 +366,7 @@ HFONT PanitentApp_GetUIFont(PanitentApp* pPanitentApp)
 
 PNTSETTINGS* PanitentApp_GetSettings(PanitentApp* pPanitentApp)
 {
-    &pPanitentApp->m_settings;
+    return pPanitentApp ? &pPanitentApp->m_settings : NULL;
 }
 
 void PanitentApp_SetActiveViewport(PanitentApp* pPanitentApp, ViewportWindow* pViewportWindow)
@@ -710,7 +713,8 @@ void PanitentApp_CmdClipboardExport(PanitentApp* pPanitentApp) {
 
 void PanitentApp_CmdShowSettings(PanitentApp* pPanitentApp)
 {
-    /* TODO */
+    UNREFERENCED_PARAMETER(pPanitentApp);
+    SettingsWindow_Show();
 }
 
 void PanitentApp_CmdShowPropertyGridDialog(PanitentApp* pPanitentApp)

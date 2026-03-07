@@ -4,25 +4,76 @@
 
 #include <tchar.h>
 
-void Panitent_ReadSettings(PNTSETTINGS* pSettings)
+#include "shell/pathutil.h"
+
+void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
 {
+    if (!pSettings)
+    {
+        return;
+    }
+
+    memset(pSettings, 0, sizeof(*pSettings));
+    pSettings->x = CW_USEDEFAULT;
+    pSettings->y = CW_USEDEFAULT;
+    pSettings->width = 1280;
+    pSettings->height = 800;
+    pSettings->bRememberWindowPos = FALSE;
+    pSettings->bLegacyFileDialogs = FALSE;
+    pSettings->bEnablePenTablet = FALSE;
+    pSettings->iToolbarIconTheme = 0;
+}
+
+BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)
+{
+    if (!pSettings)
+    {
+        return FALSE;
+    }
+
     PTSTR pszSettingsFilePath = NULL;
     GetSettingsFilePath(&pszSettingsFilePath);
     if (!pszSettingsFilePath)
     {
-        return;
+        return FALSE;
     }
 
-    FILE* fp;
+    FILE* fp = NULL;
     errno_t result = _tfopen_s(&fp, pszSettingsFilePath, _T("rb"));
     free(pszSettingsFilePath);
-    assert(result);
-
-    if (!result || !fp)
+    if (result != 0 || !fp)
     {
-        return;
+        return FALSE;
     }
 
-    fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    size_t nRead = fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
     fclose(fp);
+    return nRead == 1;
+}
+
+BOOL Panitent_WriteSettings(const PNTSETTINGS* pSettings)
+{
+    if (!pSettings)
+    {
+        return FALSE;
+    }
+
+    PTSTR pszSettingsFilePath = NULL;
+    GetSettingsFilePath(&pszSettingsFilePath);
+    if (!pszSettingsFilePath)
+    {
+        return FALSE;
+    }
+
+    FILE* fp = NULL;
+    errno_t result = _tfopen_s(&fp, pszSettingsFilePath, _T("wb"));
+    free(pszSettingsFilePath);
+    if (result != 0 || !fp)
+    {
+        return FALSE;
+    }
+
+    size_t nWritten = fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    fclose(fp);
+    return nWritten == 1;
 }
