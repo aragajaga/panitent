@@ -5,6 +5,7 @@
 #include "../viewport.h"
 #include "../document.h"
 #include "../canvas.h"
+#include "../alphamask.h"
 #include "../history.h"
 #include "../grimstroke/shapecontext.h"
 #include "../panitentapp.h"
@@ -22,7 +23,7 @@ BOOL CircleTool_HasPreview(CircleTool* pCircleTool);
 void CircleTool_DrawPreview(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void CircleTool_BeginStroke(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t strokeColor, uint32_t fillColor);
 static void CircleTool_EndStroke(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y);
-static void CircleTool_Fill(Canvas* pCanvas, POINT center, int radius, uint32_t color);
+static void CircleTool_Fill(AlphaMask* pMask, POINT center, int radius);
 static void CircleTool_Render(CircleTool* pCircleTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT edgePoint);
 
 CircleTool* CircleTool_Create()
@@ -157,22 +158,47 @@ static void CircleTool_Render(CircleTool* pCircleTool, Canvas* pCanvas, ShapeCon
         radius = 0;
     }
 
+    int pad = ShapeContext_GetStrokeWidth(pShapeContext) + 2;
+    RECT rcBounds = {
+        pCircleTool->circCenter.x - radius - pad,
+        pCircleTool->circCenter.y - radius - pad,
+        pCircleTool->circCenter.x + radius + pad,
+        pCircleTool->circCenter.y + radius + pad
+    };
+    int width = rcBounds.right - rcBounds.left + 1;
+    int height = rcBounds.bottom - rcBounds.top + 1;
+    POINT localCenter = {
+        pCircleTool->circCenter.x - rcBounds.left,
+        pCircleTool->circCenter.y - rcBounds.top
+    };
+
     if (ShapeContext_IsFillEnabled(pShapeContext))
     {
-        CircleTool_Fill(pCanvas, pCircleTool->circCenter, radius, pCircleTool->fillColor);
+        AlphaMask* pFillMask = AlphaMask_Create(width, height);
+        if (pFillMask)
+        {
+            CircleTool_Fill(pFillMask, localCenter, radius);
+            Canvas_ColorStencilMask(pCanvas, rcBounds.left, rcBounds.top, pFillMask, pCircleTool->fillColor);
+            AlphaMask_Delete(pFillMask);
+        }
     }
 
-    if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
-        ShapeContext_BeginDraw(pShapeContext, pCanvas, pCircleTool->strokeColor))
+    if (ShapeContext_IsStrokeEnabled(pShapeContext))
     {
-        ShapeContext_DrawCircle(pShapeContext, pCircleTool->circCenter.x, pCircleTool->circCenter.y, radius);
-        ShapeContext_EndDraw(pShapeContext);
+        AlphaMask* pStrokeMask = AlphaMask_Create(width, height);
+        if (pStrokeMask && ShapeContext_BeginMaskDraw(pShapeContext, pStrokeMask))
+        {
+            ShapeContext_DrawCircle(pShapeContext, localCenter.x, localCenter.y, radius);
+            ShapeContext_EndDraw(pShapeContext);
+            Canvas_ColorStencilMask(pCanvas, rcBounds.left, rcBounds.top, pStrokeMask, pCircleTool->strokeColor);
+        }
+        AlphaMask_Delete(pStrokeMask);
     }
 }
 
-static void CircleTool_Fill(Canvas* pCanvas, POINT center, int radius, uint32_t color)
+static void CircleTool_Fill(AlphaMask* pMask, POINT center, int radius)
 {
-    if (!pCanvas)
+    if (!pMask)
     {
         return;
     }
@@ -187,7 +213,7 @@ static void CircleTool_Fill(Canvas* pCanvas, POINT center, int radius, uint32_t 
 
         for (int dx = -span; dx <= span; ++dx)
         {
-            Canvas_DrawPixel(pCanvas, center.x + dx, center.y + dy, color);
+            AlphaMask_SetMax(pMask, center.x + dx, center.y + dy, 0xFF);
         }
     }
 }

@@ -129,8 +129,26 @@ BOOL ShapeContext_BeginDraw(ShapeContext* pShapeContext, Canvas* pCanvas, uint32
     }
 
     pShapeContext->m_pOwnedPlotterData->canvas = pCanvas;
+    pShapeContext->m_pOwnedPlotterData->mask = NULL;
     pShapeContext->m_pOwnedPlotterData->color = color;
     pShapeContext->m_pOwnedPlotterData->thickness = ShapeContext_GetStrokeWidth(pShapeContext);
+    pShapeContext->m_pOwnedPlotter->fn = PixelPlotterCallback;
+    pShapeContext->m_pPlotter = pShapeContext->m_pOwnedPlotter;
+    return TRUE;
+}
+
+BOOL ShapeContext_BeginMaskDraw(ShapeContext* pShapeContext, AlphaMask* pMask)
+{
+    ASSERT(pShapeContext);
+    if (!pShapeContext || !pMask || !pShapeContext->m_pOwnedPlotter || !pShapeContext->m_pOwnedPlotterData)
+    {
+        return FALSE;
+    }
+
+    pShapeContext->m_pOwnedPlotterData->canvas = NULL;
+    pShapeContext->m_pOwnedPlotterData->mask = pMask;
+    pShapeContext->m_pOwnedPlotterData->thickness = ShapeContext_GetStrokeWidth(pShapeContext);
+    pShapeContext->m_pOwnedPlotter->fn = MaskPlotterCallback;
     pShapeContext->m_pPlotter = pShapeContext->m_pOwnedPlotter;
     return TRUE;
 }
@@ -161,5 +179,6 @@ void ShapeContext_EndDraw(ShapeContext* pShapeContext)
     if (pShapeContext->m_pOwnedPlotterData)
     {
         pShapeContext->m_pOwnedPlotterData->canvas = NULL;
+        pShapeContext->m_pOwnedPlotterData->mask = NULL;
     }
 }

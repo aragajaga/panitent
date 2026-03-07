@@ -2,6 +2,7 @@
 #define PANITENT_BRUSH_H_
 
 #include "canvas.h"
+#include "alphamask.h"
 
 typedef struct _Brush Brush;
 
@@ -13,6 +14,8 @@ typedef struct _BrushBuilder {
 Brush* Brush_Create(Canvas* tex);
 void Brush_Draw(Brush* brush, int x, int y, Canvas* target, uint32_t color);
 void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y2, Canvas* target, uint32_t color);
+void Brush_StampMask(Brush* brush, int x, int y, AlphaMask* pMask);
+void Brush_StampMaskTo(Brush* brush, int x0, int y0, int x1, int y1, AlphaMask* pMask);
 void Brush_Delete(Brush* brush);
 Canvas* Brush_GetTexture(Brush* brush);
 

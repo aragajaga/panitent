@@ -209,6 +209,19 @@ void Brush_Draw(Brush* brush, int x, int y, Canvas* target, uint32_t color)
         brush->tex, color);
 }
 
+void Brush_StampMask(Brush* brush, int x, int y, AlphaMask* pMask)
+{
+    if (!brush || !brush->tex || !pMask)
+    {
+        return;
+    }
+
+    AlphaMask_StampCanvasAlpha(pMask,
+        x - brush->tex->width / 2,
+        y - brush->tex->height / 2,
+        brush->tex);
+}
+
 void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
     uint32_t color)
 {
@@ -243,6 +256,48 @@ void Brush_DrawTo(Brush* brush, int x0, int y0, int x1, int y1, Canvas* target,
         for (int i = 0; i <= dx; i++)
         {
             Brush_Draw(brush, x0 + i * signx, y0 + (int)roundf((float)i * slope * (float)signy), target, color);
+        }
+    }
+}
+
+void Brush_StampMaskTo(Brush* brush, int x0, int y0, int x1, int y1, AlphaMask* pMask)
+{
+    if (!brush || !pMask)
+    {
+        return;
+    }
+
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+    int signx = sign(x1 - x0);
+    int signy = sign(y1 - y0);
+
+    if (dx == 0 && dy == 0)
+    {
+        Brush_StampMask(brush, x0, y0, pMask);
+        return;
+    }
+
+    if (dy > dx)
+    {
+        float slope = dx / (float)dy;
+        for (int i = 0; i <= dy; ++i)
+        {
+            Brush_StampMask(brush,
+                x0 + (int)roundf((float)i * slope * (float)signx),
+                y0 + i * signy,
+                pMask);
+        }
+    }
+    else
+    {
+        float slope = dy / (float)dx;
+        for (int i = 0; i <= dx; ++i)
+        {
+            Brush_StampMask(brush,
+                x0 + i * signx,
+                y0 + (int)roundf((float)i * slope * (float)signy),
+                pMask);
         }
     }
 }

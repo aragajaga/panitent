@@ -6,6 +6,7 @@ typedef struct ShapeStrategy ShapeStrategy;
 typedef struct Plotter Plotter;
 typedef struct PlotterData PlotterData;
 typedef struct _Canvas Canvas;
+typedef struct AlphaMask AlphaMask;
 
 typedef struct ShapeContext {
     ShapeStrategy* m_pShapeStrategy;
@@ -31,5 +32,6 @@ void ShapeContext_SetStrokeEnabled(ShapeContext* pShapeContext, BOOL fStroke);
 void ShapeContext_SetStrokeWidth(ShapeContext* pShapeContext, int nStrokeWidth);
 int ShapeContext_GetStrokeWidth(ShapeContext* pShapeContext);
 BOOL ShapeContext_BeginDraw(ShapeContext* pShapeContext, Canvas* pCanvas, uint32_t color);
+BOOL ShapeContext_BeginMaskDraw(ShapeContext* pShapeContext, AlphaMask* pMask);
 void ShapeContext_SetDrawColor(ShapeContext* pShapeContext, uint32_t color);
 void ShapeContext_EndDraw(ShapeContext* pShapeContext);

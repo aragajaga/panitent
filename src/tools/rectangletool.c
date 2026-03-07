@@ -5,6 +5,7 @@
 #include "../viewport.h"
 #include "../document.h"
 #include "../canvas.h"
+#include "../alphamask.h"
 #include "../history.h"
 #include "../grimstroke/shapecontext.h"
 #include "../panitentapp.h"
@@ -21,7 +22,7 @@ BOOL RectangleTool_HasPreview(RectangleTool* pRectangleTool);
 void RectangleTool_DrawPreview(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void RectangleTool_BeginStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t strokeColor, uint32_t fillColor);
 static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y);
-static void RectangleTool_FillRect(Canvas* pCanvas, const RECT* pRect, uint32_t color);
+static void RectangleTool_FillRect(AlphaMask* pMask, const RECT* pRect);
 static void RectangleTool_Render(RectangleTool* pRectangleTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint);
 
 RectangleTool* RectangleTool_Create()
@@ -157,34 +158,54 @@ static void RectangleTool_Render(RectangleTool* pRectangleTool, Canvas* pCanvas,
         max(pRectangleTool->prev.y, endPoint.y)
     };
 
+    int pad = ShapeContext_GetStrokeWidth(pShapeContext) + 2;
+    RECT rcBounds = {
+        rc.left - pad,
+        rc.top - pad,
+        rc.right + pad,
+        rc.bottom + pad
+    };
+    int width = rcBounds.right - rcBounds.left + 1;
+    int height = rcBounds.bottom - rcBounds.top + 1;
+    RECT rcLocal = {
+        rc.left - rcBounds.left,
+        rc.top - rcBounds.top,
+        rc.right - rcBounds.left,
+        rc.bottom - rcBounds.top
+    };
+
     if (ShapeContext_IsFillEnabled(pShapeContext))
     {
-        RectangleTool_FillRect(pCanvas, &rc, pRectangleTool->fillColor);
+        AlphaMask* pFillMask = AlphaMask_Create(width, height);
+        if (pFillMask)
+        {
+            RectangleTool_FillRect(pFillMask, &rcLocal);
+            Canvas_ColorStencilMask(pCanvas, rcBounds.left, rcBounds.top, pFillMask, pRectangleTool->fillColor);
+            AlphaMask_Delete(pFillMask);
+        }
     }
 
-    if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
-        ShapeContext_BeginDraw(pShapeContext, pCanvas, pRectangleTool->strokeColor))
+    if (ShapeContext_IsStrokeEnabled(pShapeContext))
     {
-        ShapeContext_DrawLine(pShapeContext, rc.left, rc.top, rc.right, rc.top);
-        ShapeContext_DrawLine(pShapeContext, rc.right, rc.top, rc.right, rc.bottom);
-        ShapeContext_DrawLine(pShapeContext, rc.right, rc.bottom, rc.left, rc.bottom);
-        ShapeContext_DrawLine(pShapeContext, rc.left, rc.bottom, rc.left, rc.top);
-        ShapeContext_EndDraw(pShapeContext);
+        AlphaMask* pStrokeMask = AlphaMask_Create(width, height);
+        if (pStrokeMask && ShapeContext_BeginMaskDraw(pShapeContext, pStrokeMask))
+        {
+            ShapeContext_DrawLine(pShapeContext, rcLocal.left, rcLocal.top, rcLocal.right, rcLocal.top);
+            ShapeContext_DrawLine(pShapeContext, rcLocal.right, rcLocal.top, rcLocal.right, rcLocal.bottom);
+            ShapeContext_DrawLine(pShapeContext, rcLocal.right, rcLocal.bottom, rcLocal.left, rcLocal.bottom);
+            ShapeContext_DrawLine(pShapeContext, rcLocal.left, rcLocal.bottom, rcLocal.left, rcLocal.top);
+            ShapeContext_EndDraw(pShapeContext);
+            Canvas_ColorStencilMask(pCanvas, rcBounds.left, rcBounds.top, pStrokeMask, pRectangleTool->strokeColor);
+        }
+        AlphaMask_Delete(pStrokeMask);
     }
 }
 
-static void RectangleTool_FillRect(Canvas* pCanvas, const RECT* pRect, uint32_t color)
+static void RectangleTool_FillRect(AlphaMask* pMask, const RECT* pRect)
 {
-    if (!pCanvas || !pRect)
+    if (!pMask || !pRect)
     {
         return;
     }
-
-    for (int y = pRect->top; y <= pRect->bottom; ++y)
-    {
-        for (int x = pRect->left; x <= pRect->right; ++x)
-        {
-            Canvas_DrawPixel(pCanvas, x, y, color);
-        }
-    }
+    AlphaMask_FillRect(pMask, pRect, 0xFF);
 }

@@ -433,6 +433,49 @@ void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source,
     }
 }
 
+void Canvas_ColorStencilMask(Canvas* target, int x, int y, const AlphaMask* pMask, uint32_t color)
+{
+    if (!target || !pMask || !pMask->buffer)
+    {
+        return;
+    }
+
+    if (x >= target->width ||
+        y >= target->height ||
+        x + pMask->width < 0 ||
+        y + pMask->height < 0)
+    {
+        return;
+    }
+
+    int startX = max(0, x);
+    int startY = max(0, y);
+    int endX = min(target->width, x + pMask->width);
+    int endY = min(target->height, y + pMask->height);
+
+    uint32_t colorRgb = color & 0x00FFFFFF;
+    uint8_t colorA = CHANNEL_A_32(color);
+
+    for (int ty = startY; ty < endY; ++ty)
+    {
+        int maskY = ty - y;
+        uint32_t* pTargetRow = (uint32_t*)target->buffer + (size_t)ty * (size_t)target->width;
+        const uint8_t* pMaskRow = pMask->buffer + (size_t)maskY * (size_t)pMask->width;
+        for (int tx = startX; tx < endX; ++tx)
+        {
+            uint8_t maskAlpha = pMaskRow[tx - x];
+            if (maskAlpha == 0)
+            {
+                continue;
+            }
+
+            uint8_t alpha = (uint8_t)(((unsigned int)maskAlpha * (unsigned int)colorA + 127U) / 255U);
+            uint32_t overlay = colorRgb | ((uint32_t)alpha << 24);
+            pTargetRow[tx] = mix(pTargetRow[tx], overlay);
+        }
+    }
+}
+
 int Canvas_GetWidth(const Canvas* pCanvas)
 {
     ASSERT(pCanvas);

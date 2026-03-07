@@ -1,5 +1,6 @@
 #include "../precomp.h"
 
+#include "../alphamask.h"
 #include "../canvas.h"
 #include "plotter.h"
 
@@ -25,6 +26,27 @@ void PixelPlotterCallback(void* userData, int x, int y, unsigned char opacity)
         {
             Canvas_DrawPixel(data->canvas, left + ix, top + iy,
                 color_opacity(data->color, (float)opacity / 255.0f));
+        }
+    }
+}
+
+void MaskPlotterCallback(void* userData, int x, int y, unsigned char opacity)
+{
+    PlotterData* data = (PlotterData*)userData;
+    if (!data || !data->mask)
+    {
+        return;
+    }
+
+    int thickness = data->thickness > 0 ? data->thickness : 1;
+    int left = x - (thickness - 1) / 2;
+    int top = y - (thickness - 1) / 2;
+
+    for (int iy = 0; iy < thickness; ++iy)
+    {
+        for (int ix = 0; ix < thickness; ++ix)
+        {
+            AlphaMask_SetMax(data->mask, left + ix, top + iy, opacity);
         }
     }
 }

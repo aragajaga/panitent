@@ -24,6 +24,8 @@
 void WuShapeStrategy_Init(WuShapeStrategy* pWuShapeStrategy);
 void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1, int x2, int y2);
 void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y, int radius);
+static void WuShapeStrategy_AccumulateCircleSymmetry(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity);
+static void WuShapeStrategy_AccumulatePoint(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity);
 
 WuShapeStrategy* WuShapeStrategy_Create()
 {
@@ -134,55 +136,144 @@ void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y,
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pWuShapeStrategy->base.m_pShapeContext);
 
-    int dx = radius;
-    int dy = -1;
-    float t = 0;
+    if (radius <= 0)
+    {
+        pPlotter->fn(pPlotter->userData, x, y, 0xFF);
+        return;
+    }
 
-    while (dx - 1 > dy) {
-        dy++;
+    int extent = radius + 2;
+    int size = extent * 2 + 1;
+    BYTE* pCoverage = (BYTE*)calloc((size_t)size * (size_t)size, sizeof(BYTE));
+    if (!pCoverage)
+    {
+        return;
+    }
 
-        float rp = sqrtf(powf((float)radius, 2.f) - powf((float)dy, 2.f));
-        float dist = ceilf(rp) - rp;
-        if (dist < t)
+    float radiusSq = (float)(radius * radius);
+    for (int dy = 0;; ++dy)
+    {
+        float ySq = (float)(dy * dy);
+        if (ySq > radiusSq)
         {
-            dx--;
+            break;
         }
 
-        unsigned char alpha = (1.f - dist / 2.f) * 255.0f;
-        unsigned char halfAlpha = 0x7F - alpha;
+        float xReal = sqrtf(radiusSq - ySq);
+        int xBase = (int)floorf(xReal);
+        if (xBase < dy)
+        {
+            break;
+        }
 
-        pPlotter->fn(pPlotter->userData, x + dx, y + dy, 0xFF);
-        pPlotter->fn(pPlotter->userData, x + dx - 1, y + dy, alpha);
-        pPlotter->fn(pPlotter->userData, x + dx + 1, y + dy, halfAlpha);
+        float frac = fpart_(xReal);
+        unsigned char alphaBase = (unsigned char)roundf(rfpart_(xReal) * 255.0f);
+        unsigned char alphaOuter = (unsigned char)roundf(frac * 255.0f);
 
-        pPlotter->fn(pPlotter->userData, x + dy, y + dx, 1);
-        pPlotter->fn(pPlotter->userData, x + dy, y + dx - 1, alpha);
-        pPlotter->fn(pPlotter->userData, x + dy, y + dx + 1, halfAlpha);
+        if (alphaBase > 0)
+        {
+            WuShapeStrategy_AccumulateCircleSymmetry(pCoverage, extent, xBase, dy, alphaBase);
+        }
+        if (alphaOuter > 0)
+        {
+            WuShapeStrategy_AccumulateCircleSymmetry(pCoverage, extent, xBase + 1, dy, alphaOuter);
+        }
+    }
 
-        pPlotter->fn(pPlotter->userData, x - dx, y + dy, 1);
-        pPlotter->fn(pPlotter->userData, x - dx + 1, y + dy, alpha);
-        pPlotter->fn(pPlotter->userData, x - dx - 1, y + dy, halfAlpha);
+    for (int dx = 0;; ++dx)
+    {
+        float xSq = (float)(dx * dx);
+        if (xSq > radiusSq)
+        {
+            break;
+        }
 
-        pPlotter->fn(pPlotter->userData, x - dy, y + dx, 1);
-        pPlotter->fn(pPlotter->userData, x - dy, y + dx - 1, alpha);
-        pPlotter->fn(pPlotter->userData, x - dy, y + dx + 1, halfAlpha);
+        float yReal = sqrtf(radiusSq - xSq);
+        int yBase = (int)floorf(yReal);
+        if (yBase < dx)
+        {
+            break;
+        }
 
-        pPlotter->fn(pPlotter->userData, x + dx, y - dy, 1);
-        pPlotter->fn(pPlotter->userData, x + dx - 1, y - dy, alpha);
-        pPlotter->fn(pPlotter->userData, x + dx + 1, y - dy, halfAlpha);
+        float frac = fpart_(yReal);
+        unsigned char alphaBase = (unsigned char)roundf(rfpart_(yReal) * 255.0f);
+        unsigned char alphaOuter = (unsigned char)roundf(frac * 255.0f);
 
-        pPlotter->fn(pPlotter->userData, x + dy, y - dx, 1);
-        pPlotter->fn(pPlotter->userData, x + dy, y - dx - 1, halfAlpha);
-        pPlotter->fn(pPlotter->userData, x + dy, y - dx + 1, alpha);
+        if (alphaBase > 0)
+        {
+            WuShapeStrategy_AccumulateCircleSymmetry(pCoverage, extent, dx, yBase, alphaBase);
+        }
+        if (alphaOuter > 0)
+        {
+            WuShapeStrategy_AccumulateCircleSymmetry(pCoverage, extent, dx, yBase + 1, alphaOuter);
+        }
+    }
 
-        pPlotter->fn(pPlotter->userData, x - dy, y - dx, 1);
-        pPlotter->fn(pPlotter->userData, x - dy, y - dx - 1, halfAlpha);
-        pPlotter->fn(pPlotter->userData, x - dy, y - dx + 1, alpha);
+    for (int oy = -extent; oy <= extent; ++oy)
+    {
+        for (int ox = -extent; ox <= extent; ++ox)
+        {
+            BYTE opacity = pCoverage[(size_t)(oy + extent) * (size_t)size + (size_t)(ox + extent)];
+            if (opacity > 0)
+            {
+                pPlotter->fn(pPlotter->userData, x + ox, y + oy, opacity);
+            }
+        }
+    }
 
-        pPlotter->fn(pPlotter->userData, x - dx, y - dy, 1);
-        pPlotter->fn(pPlotter->userData, x - dx - 1, y - dy, halfAlpha);
-        pPlotter->fn(pPlotter->userData, x - dx + 1, y - dy, alpha);
+    free(pCoverage);
+}
 
-        t = dist;
+static void WuShapeStrategy_AccumulateCircleSymmetry(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity)
+{
+    POINT pts[8] = {
+        { x, y },
+        { -x, y },
+        { x, -y },
+        { -x, -y },
+        { y, x },
+        { -y, x },
+        { y, -x },
+        { -y, -x }
+    };
+
+    for (int i = 0; i < ARRAYSIZE(pts); ++i)
+    {
+        BOOL duplicate = FALSE;
+        for (int j = 0; j < i; ++j)
+        {
+            if (pts[i].x == pts[j].x && pts[i].y == pts[j].y)
+            {
+                duplicate = TRUE;
+                break;
+            }
+        }
+
+        if (!duplicate)
+        {
+            WuShapeStrategy_AccumulatePoint(pCoverage, extent, pts[i].x, pts[i].y, opacity);
+        }
+    }
+}
+
+static void WuShapeStrategy_AccumulatePoint(BYTE* pCoverage, int extent, int x, int y, unsigned char opacity)
+{
+    if (!pCoverage)
+    {
+        return;
+    }
+
+    int size = extent * 2 + 1;
+    int ix = x + extent;
+    int iy = y + extent;
+    if (ix < 0 || iy < 0 || ix >= size || iy >= size)
+    {
+        return;
+    }
+
+    BYTE* pCell = &pCoverage[(size_t)iy * (size_t)size + (size_t)ix];
+    if (opacity > *pCell)
+    {
+        *pCell = opacity;
     }
 }

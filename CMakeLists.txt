@@ -67,6 +67,7 @@ set(C_SOURCES
     src/util/utf.c
     src/util/vector.c
     src/aboutbox.c
+    src/alphamask.c
     src/appcmd.c
     src/brush.c
     src/brush_context.c

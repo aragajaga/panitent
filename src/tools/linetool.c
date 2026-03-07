@@ -5,6 +5,7 @@
 #include "../viewport.h"
 #include "../document.h"
 #include "../canvas.h"
+#include "../alphamask.h"
 #include "../history.h"
 #include "../grimstroke/shapecontext.h"
 #include "../panitentapp.h"
@@ -153,10 +154,35 @@ static void LineTool_Render(LineTool* pLineTool, Canvas* pCanvas, ShapeContext* 
         return;
     }
 
-    if (ShapeContext_IsStrokeEnabled(pShapeContext) &&
-        ShapeContext_BeginDraw(pShapeContext, pCanvas, pLineTool->drawColor))
+    if (!ShapeContext_IsStrokeEnabled(pShapeContext))
     {
-        ShapeContext_DrawLine(pShapeContext, pLineTool->prev.x, pLineTool->prev.y, endPoint.x, endPoint.y);
-        ShapeContext_EndDraw(pShapeContext);
+        return;
     }
+
+    int pad = ShapeContext_GetStrokeWidth(pShapeContext) + 2;
+    RECT rcBounds = {
+        min(pLineTool->prev.x, endPoint.x) - pad,
+        min(pLineTool->prev.y, endPoint.y) - pad,
+        max(pLineTool->prev.x, endPoint.x) + pad,
+        max(pLineTool->prev.y, endPoint.y) + pad
+    };
+
+    AlphaMask* pMask = AlphaMask_Create(rcBounds.right - rcBounds.left + 1, rcBounds.bottom - rcBounds.top + 1);
+    if (!pMask)
+    {
+        return;
+    }
+
+    if (ShapeContext_BeginMaskDraw(pShapeContext, pMask))
+    {
+        ShapeContext_DrawLine(pShapeContext,
+            pLineTool->prev.x - rcBounds.left,
+            pLineTool->prev.y - rcBounds.top,
+            endPoint.x - rcBounds.left,
+            endPoint.y - rcBounds.top);
+        ShapeContext_EndDraw(pShapeContext);
+        Canvas_ColorStencilMask(pCanvas, rcBounds.left, rcBounds.top, pMask, pLineTool->drawColor);
+    }
+
+    AlphaMask_Delete(pMask);
 }

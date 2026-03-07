@@ -6,6 +6,7 @@
 #include "../viewport.h"
 #include "../document.h"
 #include "../canvas.h"
+#include "../alphamask.h"
 #include "../color_context.h"
 #include "../history.h"
 #include "../resource.h"
@@ -21,12 +22,16 @@ void BrushTool_OnRButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWin
 void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 static void BrushTool_BeginStroke(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t drawColor);
 static void BrushTool_EndStroke(BrushTool* pBrushTool, ViewportWindow* pViewportWindow);
+static void BrushTool_ApplyStrokeMask(BrushTool* pBrushTool, Canvas* pCanvas);
 
 BrushTool* BrushTool_Create()
 {
     BrushTool* pBrushTool = (BrushTool*)malloc(sizeof(BrushTool));
-    memset(pBrushTool, 0, sizeof(BrushTool));
-    BrushTool_Init(pBrushTool);
+    if (pBrushTool)
+    {
+        memset(pBrushTool, 0, sizeof(BrushTool));
+        BrushTool_Init(pBrushTool);
+    }
     return pBrushTool;
 }
 
@@ -81,7 +86,8 @@ void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindo
         Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
         Canvas* pCanvas = Document_GetCanvas(pDocument);
 
-        Brush_DrawTo(g_pBrushDraw, pBrushTool->prev.x, pBrushTool->prev.y, ptCanvas.x, ptCanvas.y, pCanvas, pBrushTool->drawColor);
+        Brush_StampMaskTo(g_pBrushDraw, pBrushTool->prev.x, pBrushTool->prev.y, ptCanvas.x, ptCanvas.y, pBrushTool->pStrokeMask);
+        BrushTool_ApplyStrokeMask(pBrushTool, pCanvas);
 
         pBrushTool->prev.x = ptCanvas.x;
         pBrushTool->prev.y = ptCanvas.y;
@@ -120,7 +126,28 @@ static void BrushTool_BeginStroke(BrushTool* pBrushTool, ViewportWindow* pViewpo
 
     Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
     Canvas* pCanvas = Document_GetCanvas(pDocument);
-    Brush_Draw(g_pBrushDraw, ptCanvas.x, ptCanvas.y, pCanvas, pBrushTool->drawColor);
+    pBrushTool->pStrokeBase = Canvas_Clone(pCanvas);
+    pBrushTool->pStrokeMask = AlphaMask_Create(pCanvas->width, pCanvas->height);
+    if (!pBrushTool->pStrokeBase || !pBrushTool->pStrokeMask)
+    {
+        pBrushTool->fDraw = FALSE;
+        ReleaseCapture();
+        History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
+        Brush_Delete(g_pBrushDraw);
+        g_pBrushDraw = NULL;
+        AlphaMask_Delete(pBrushTool->pStrokeMask);
+        pBrushTool->pStrokeMask = NULL;
+        if (pBrushTool->pStrokeBase)
+        {
+            Canvas_Delete(pBrushTool->pStrokeBase);
+            free(pBrushTool->pStrokeBase);
+            pBrushTool->pStrokeBase = NULL;
+        }
+        return;
+    }
+
+    Brush_StampMask(g_pBrushDraw, ptCanvas.x, ptCanvas.y, pBrushTool->pStrokeMask);
+    BrushTool_ApplyStrokeMask(pBrushTool, pCanvas);
 
     Window_Invalidate((Window*)pViewportWindow);
 }
@@ -137,4 +164,23 @@ static void BrushTool_EndStroke(BrushTool* pBrushTool, ViewportWindow* pViewport
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
     Brush_Delete(g_pBrushDraw);
     g_pBrushDraw = NULL;
+    AlphaMask_Delete(pBrushTool->pStrokeMask);
+    pBrushTool->pStrokeMask = NULL;
+    if (pBrushTool->pStrokeBase)
+    {
+        Canvas_Delete(pBrushTool->pStrokeBase);
+        free(pBrushTool->pStrokeBase);
+        pBrushTool->pStrokeBase = NULL;
+    }
+}
+
+static void BrushTool_ApplyStrokeMask(BrushTool* pBrushTool, Canvas* pCanvas)
+{
+    if (!pBrushTool || !pCanvas || !pBrushTool->pStrokeBase || !pBrushTool->pStrokeMask)
+    {
+        return;
+    }
+
+    memcpy(pCanvas->buffer, pBrushTool->pStrokeBase->buffer, pBrushTool->pStrokeBase->buffer_size);
+    Canvas_ColorStencilMask(pCanvas, 0, 0, pBrushTool->pStrokeMask, pBrushTool->drawColor);
 }

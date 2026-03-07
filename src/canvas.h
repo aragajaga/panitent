@@ -5,6 +5,8 @@
 
 #include <stdint.h>
 
+#include "alphamask.h"
+
 #define CHANNEL_A_32(color) ((uint8_t)((color >> 24) & 0xFF))
 #define CHANNEL_R_32(color) ((uint8_t)((color >> 16) & 0xFF))
 #define CHANNEL_G_32(color) ((uint8_t)((color >> 8) & 0xFF))
@@ -52,6 +54,7 @@ Canvas* Canvas_CreateFromBuffer(int width, int height, void* data);
 void Canvas_Paste(Canvas* target, int x, int y, Canvas* source);
 void Canvas_Overlay(Canvas* target, int x, int y, Canvas* source);
 void Canvas_ColorStencil(Canvas* target, int x, int y, Canvas* source, uint32_t color);
+void Canvas_ColorStencilMask(Canvas* target, int x, int y, const AlphaMask* pMask, uint32_t color);
 int Canvas_GetWidth(const Canvas* pCanvas);
 int Canvas_GetHeight(const Canvas* pCanvas);
 void Canvas_DrawLine(const Canvas* pCanvas, int x1, int y1, int x2, int y2);
