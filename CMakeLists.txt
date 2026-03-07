@@ -94,6 +94,7 @@ set(C_SOURCES
     src/log_window.c
     src/msthemeloader.c
     src/new.c
+    src/oledroptarget.c
     src/option_bar.c
     src/palette.c
     src/palette_settings_dlg.c

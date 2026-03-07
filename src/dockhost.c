@@ -17,6 +17,7 @@
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
+#include "oledroptarget.h"
 #include "toolwndframe.h"
 #include "theme.h"
 
@@ -60,6 +61,7 @@ static DockHostWatermarkCache g_dockHostWatermarkCache = { 0 };
 
 static BOOL DockHostWindow_EnsureWatermarkCache(HDC hdc, int idBitmap, COLORREF tint);
 static BOOL DockHostWindow_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
+static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop);
 
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
@@ -2499,14 +2501,26 @@ void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNod
 BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs)
 {
 	UNREFERENCED_PARAMETER(lpcs);
+	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
 
 	DockHostWindow_RefreshTheme(pDockHostWindow);
+	OleFileDropTarget_Register(
+		hWnd,
+		DockHostWindow_OnDropFiles,
+		pDockHostWindow,
+		(IDropTarget**)&pDockHostWindow->pFileDropTarget);
 
 	return TRUE;
 }
 
 void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 {
+	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
+
+	if (pDockHostWindow->pFileDropTarget)
+	{
+		OleFileDropTarget_Revoke(hWnd, (IDropTarget**)&pDockHostWindow->pFileDropTarget);
+	}
 	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
 	if (pDockHostWindow->hWndAutoHideOverlayHost && IsWindow(pDockHostWindow->hWndAutoHideOverlayHost))
 	{
@@ -2518,6 +2532,12 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 		DeleteObject(pDockHostWindow->hCaptionBrush_);
 		pDockHostWindow->hCaptionBrush_ = NULL;
 	}
+}
+
+static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop)
+{
+	UNREFERENCED_PARAMETER(pContext);
+	return PanitentApp_OpenDroppedFiles(PanitentApp_Instance(), hDrop);
 }
 
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow)

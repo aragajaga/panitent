@@ -57,6 +57,7 @@ struct DockHostWindow {
 	int nAutoHideOverlayHotButton;
 	int nAutoHideOverlayPressedButton;
 	DockInspectorDialog* m_pDockInspectorDialog;
+	void* pFileDropTarget;
 };
 
 extern TreeNode* g_pRoot;

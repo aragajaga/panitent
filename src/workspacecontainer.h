@@ -14,6 +14,7 @@ struct WorkspaceContainer {
     int m_iPressedTabIndex;
     int m_iPressedCloseTabIndex;
     POINT m_ptTabDragStart;
+    void* pFileDropTarget;
 };
 
 WorkspaceContainer* WorkspaceContainer_Create();

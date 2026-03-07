@@ -7,6 +7,7 @@
 #include "document.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
+#include "oledroptarget.h"
 #include "workspacedockpolicy.h"
 #include "panitentapp.h"
 #include "panitentwindow.h"
@@ -67,6 +68,7 @@ static BOOL WorkspaceContainer_IsMainWorkspace(WorkspaceContainer* pWorkspaceCon
 static void WorkspaceContainer_TryRemoveEmptyDockedGroup(WorkspaceContainer* pWorkspaceContainer);
 static void WorkspaceContainer_FinalizeEmptySourceAfterDetach(WorkspaceContainer* pWorkspaceContainer);
 static BOOL WorkspaceContainer_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
+static BOOL WorkspaceContainer_OnDropFiles(void* pContext, HDROP hDrop);
 
 struct ViewportVector {
     size_t m_capacity;
@@ -390,6 +392,12 @@ BOOL WorkspaceContainer_OnCreate(WorkspaceContainer* pWorkspaceContainer, LPCREA
 {
     UNREFERENCED_PARAMETER(pWorkspaceContainer);
     UNREFERENCED_PARAMETER(lpcs);
+
+    OleFileDropTarget_Register(
+        Window_GetHWND((Window*)pWorkspaceContainer),
+        WorkspaceContainer_OnDropFiles,
+        pWorkspaceContainer,
+        (IDropTarget**)&pWorkspaceContainer->pFileDropTarget);
 
     return TRUE;
 }
@@ -1231,7 +1239,18 @@ void WorkspaceContainer_OnCommand(WorkspaceContainer* pWorkspaceContainer, WPARA
 
 void WorkspaceContainer_OnDestroy(WorkspaceContainer* pWorkspaceContainer)
 {
-    UNREFERENCED_PARAMETER(pWorkspaceContainer);
+    if (pWorkspaceContainer && pWorkspaceContainer->pFileDropTarget)
+    {
+        OleFileDropTarget_Revoke(
+            Window_GetHWND((Window*)pWorkspaceContainer),
+            (IDropTarget**)&pWorkspaceContainer->pFileDropTarget);
+    }
+}
+
+static BOOL WorkspaceContainer_OnDropFiles(void* pContext, HDROP hDrop)
+{
+    UNREFERENCED_PARAMETER(pContext);
+    return PanitentApp_OpenDroppedFiles(PanitentApp_Instance(), hDrop);
 }
 
 LRESULT CALLBACK WorkspaceContainer_UserProc(WorkspaceContainer* pWorkspaceContainer, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)

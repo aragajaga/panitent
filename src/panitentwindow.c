@@ -3,6 +3,7 @@
 #include "win32/window.h"
 
 #include "dockhost.h"
+#include "oledroptarget.h"
 #include "panitentwindow.h"
 #include "toolwndframe.h"
 #include "theme.h"
@@ -102,6 +103,7 @@ static void PanitentWindow_MenuBar_ShowPopup(PanitentWindow* pPanitentWindow, HW
 static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow, int index);
 static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND hWndMenuBar);
 static LRESULT CALLBACK PanitentWindow_MenuBarProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+static BOOL PanitentWindow_OnDropFiles(void* pContext, HDROP hDrop);
 LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 PanitentWindow* PanitentWindow_Create()
@@ -281,6 +283,13 @@ void PanitentWindow_OnContextMenu(PanitentWindow* window, int x, int y)
 
 void PanitentWindow_OnDestroy(PanitentWindow* pPanitentWindow)
 {
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+
+    if (pPanitentWindow && pPanitentWindow->pFileDropTarget)
+    {
+        OleFileDropTarget_Revoke(hWnd, (IDropTarget**)&pPanitentWindow->pFileDropTarget);
+    }
+
     if (pPanitentWindow && pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
     {
         DestroyWindow(pPanitentWindow->hWndMenuBar);
@@ -288,6 +297,12 @@ void PanitentWindow_OnDestroy(PanitentWindow* pPanitentWindow)
     }
 
     PostQuitMessage(0);
+}
+
+static BOOL PanitentWindow_OnDropFiles(void* pContext, HDROP hDrop)
+{
+    UNREFERENCED_PARAMETER(pContext);
+    return PanitentApp_OpenDroppedFiles(PanitentApp_Instance(), hDrop);
 }
 
 BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
@@ -1793,6 +1808,12 @@ BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpc
 
     RECT rcClient;
     GetWindowRect(hWnd, &rcClient);
+
+    OleFileDropTarget_Register(
+        hWnd,
+        PanitentWindow_OnDropFiles,
+        pPanitentWindow,
+        (IDropTarget**)&pPanitentWindow->pFileDropTarget);
 
     /* Inform the application of the frame change */
     SetWindowPos(hWnd, NULL, rcClient.left, rcClient.top, Win32_Rect_GetWidth(&rcClient), Win32_Rect_GetHeight(&rcClient), SWP_FRAMECHANGED);

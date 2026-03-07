@@ -12,6 +12,9 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     UNREFERENCED_PARAMETER(hInstance);
     UNREFERENCED_PARAMETER(nCmdShow);
 
+    HRESULT hrOle = OleInitialize(NULL);
+    BOOL bOleInitialized = SUCCEEDED(hrOle);
+
     Panitent_InstallCrashHandler();
 
     int nArgs;
@@ -30,5 +33,12 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine
     }
 
     PanitentApp* pPanitentApp = PanitentApp_Instance();
-    return PanitentApp_Run(pPanitentApp);
+    int nResult = PanitentApp_Run(pPanitentApp);
+
+    if (bOleInitialized)
+    {
+        OleUninitialize();
+    }
+
+    return nResult;
 }

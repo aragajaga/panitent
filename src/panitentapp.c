@@ -44,6 +44,8 @@
 #include "verifycheck.h"
 #include "playground.h"
 
+#include <shellapi.h>
+
 void PanitentApp_RegisterCommands(PanitentApp* pPanitentApp);
 
 typedef enum _PanitentFilterProjection
@@ -546,6 +548,47 @@ void PanitentApp_SetTextToolFontPx(PanitentApp* pPanitentApp, int nFontPx)
     {
         OptionBarWindow_SyncTool(pPanitentApp->m_pOptionBarWindow, pPanitentApp->m_pTool);
     }
+}
+
+BOOL PanitentApp_OpenDroppedFiles(PanitentApp* pPanitentApp, HDROP hDrop)
+{
+    UINT nFiles = 0;
+    BOOL bOpenedAny = FALSE;
+
+    UNREFERENCED_PARAMETER(pPanitentApp);
+
+    if (!hDrop)
+    {
+        return FALSE;
+    }
+
+    nFiles = DragQueryFileW(hDrop, 0xFFFFFFFF, NULL, 0);
+    for (UINT i = 0; i < nFiles; ++i)
+    {
+        UINT cchPath = DragQueryFileW(hDrop, i, NULL, 0);
+        WCHAR* pszPath = NULL;
+
+        if (cchPath == 0)
+        {
+            continue;
+        }
+
+        pszPath = (WCHAR*)calloc((size_t)cchPath + 1, sizeof(WCHAR));
+        if (!pszPath)
+        {
+            continue;
+        }
+
+        if (DragQueryFileW(hDrop, i, pszPath, cchPath + 1) > 0)
+        {
+            Document_OpenFile(pszPath);
+            bOpenedAny = TRUE;
+        }
+
+        free(pszPath);
+    }
+
+    return bOpenedAny;
 }
 
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp)

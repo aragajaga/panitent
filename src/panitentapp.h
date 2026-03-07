@@ -73,6 +73,7 @@ PCWSTR PanitentApp_GetTextToolFontFace(PanitentApp* pPanitentApp);
 int PanitentApp_GetTextToolFontPx(PanitentApp* pPanitentApp);
 void PanitentApp_SetTextToolFontFace(PanitentApp* pPanitentApp, PCWSTR pszFaceName);
 void PanitentApp_SetTextToolFontPx(PanitentApp* pPanitentApp, int nFontPx);
+BOOL PanitentApp_OpenDroppedFiles(PanitentApp* pPanitentApp, HDROP hDrop);
 
 /* Commands */
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp);

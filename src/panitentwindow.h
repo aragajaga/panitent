@@ -25,6 +25,7 @@ struct PanitentWindow
 	int nHotMenuItem;
 	int nOpenMenuItem;
 	int nPendingMenuItem;
+	void* pFileDropTarget;
 };
 
 PanitentWindow* PanitentWindow_Create();
