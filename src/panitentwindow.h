@@ -19,10 +19,12 @@ struct PanitentWindow
 	BOOL bCompactMenuBar;
 	BOOL bNcTracking;
 	BOOL bMenuTracking;
+	BOOL bMenuPopupTracking;
 	int nCaptionButtonHot;
 	int nCaptionButtonPressed;
 	int nHotMenuItem;
 	int nOpenMenuItem;
+	int nPendingMenuItem;
 };
 
 PanitentWindow* PanitentWindow_Create();

@@ -37,6 +37,8 @@ static const int kMainMenuBarHeight = 24;
 static const int kMainMenuItemPaddingX = 10;
 static const int kMainMenuItemPaddingY = 2;
 static const int kMainMenuItemGap = 2;
+static const UINT_PTR kMainMenuSwitchTimerId = 1;
+static const UINT kMainMenuSwitchTimerIntervalMs = 30;
 
 /* Private forward declarations */
 PanitentWindow* PanitentWindow_Create();
@@ -92,6 +94,9 @@ static BOOL PanitentWindow_MenuBar_GetItemRect(PanitentWindow* pPanitentWindow, 
 static int PanitentWindow_MenuBar_HitTest(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, POINT ptClient);
 static void PanitentWindow_MenuBar_SetHotItem(PanitentWindow* pPanitentWindow, int index);
 static void PanitentWindow_MenuBar_SetOpenItem(PanitentWindow* pPanitentWindow, int index);
+static int PanitentWindow_HitTestTopLevelMenuAtScreenPoint(PanitentWindow* pPanitentWindow, POINT ptScreen);
+static void PanitentWindow_UpdateHotMenuFromCursor(PanitentWindow* pPanitentWindow);
+static void PanitentWindow_MenuPopupLoop(PanitentWindow* pPanitentWindow, int index);
 static void PanitentWindow_MenuBar_ShowPopup(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index);
 static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow, int index);
 static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND hWndMenuBar);
@@ -131,10 +136,12 @@ void PanitentWindow_Init(PanitentWindow* pPanitentWindow)
     pPanitentWindow->bCompactMenuBar = FALSE;
     pPanitentWindow->bNcTracking = FALSE;
     pPanitentWindow->bMenuTracking = FALSE;
+    pPanitentWindow->bMenuPopupTracking = FALSE;
     pPanitentWindow->nCaptionButtonHot = HTNOWHERE;
     pPanitentWindow->nCaptionButtonPressed = HTNOWHERE;
     pPanitentWindow->nHotMenuItem = -1;
     pPanitentWindow->nOpenMenuItem = -1;
+    pPanitentWindow->nPendingMenuItem = -1;
 }
 
 void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame)
@@ -147,10 +154,12 @@ void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fU
     pPanitentWindow->bCustomFrame = fUseStandardFrame ? FALSE : TRUE;
     pPanitentWindow->bNcTracking = FALSE;
     pPanitentWindow->bMenuTracking = FALSE;
+    pPanitentWindow->bMenuPopupTracking = FALSE;
     pPanitentWindow->nCaptionButtonHot = HTNOWHERE;
     pPanitentWindow->nCaptionButtonPressed = HTNOWHERE;
     pPanitentWindow->nHotMenuItem = -1;
     pPanitentWindow->nOpenMenuItem = -1;
+    pPanitentWindow->nPendingMenuItem = -1;
 
     HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
     if (!hWnd)
@@ -188,8 +197,10 @@ void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCom
 
     pPanitentWindow->bCompactMenuBar = fCompactMenuBar ? TRUE : FALSE;
     pPanitentWindow->bMenuTracking = FALSE;
+    pPanitentWindow->bMenuPopupTracking = FALSE;
     pPanitentWindow->nHotMenuItem = -1;
     pPanitentWindow->nOpenMenuItem = -1;
+    pPanitentWindow->nPendingMenuItem = -1;
 
     if (Window_GetHWND((Window*)pPanitentWindow))
     {
@@ -759,9 +770,16 @@ LRESULT PanitentWindow_OnNCMouseMove(PanitentWindow* pPanitentWindow, UINT hitTe
         PanitentWindow_HitTestCaptionButtonAtScreenPoint(pPanitentWindow, x, y));
     if (pPanitentWindow->bCompactMenuBar)
     {
-        PanitentWindow_MenuBar_SetHotItem(
-            pPanitentWindow,
-            PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, x, y));
+        int index = PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, x, y);
+        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
+        if (pPanitentWindow->bMenuPopupTracking &&
+            pPanitentWindow->nOpenMenuItem >= 0 &&
+            index >= 0 &&
+            index != pPanitentWindow->nOpenMenuItem)
+        {
+            pPanitentWindow->nPendingMenuItem = index;
+            EndMenu();
+        }
     }
     else if (pPanitentWindow->nOpenMenuItem < 0)
     {
@@ -1324,39 +1342,144 @@ static void PanitentWindow_MenuBar_SetOpenItem(PanitentWindow* pPanitentWindow, 
     PanitentWindow_InvalidateMenuPresentation(pPanitentWindow);
 }
 
+static int PanitentWindow_HitTestTopLevelMenuAtScreenPoint(PanitentWindow* pPanitentWindow, POINT ptScreen)
+{
+    if (!pPanitentWindow)
+    {
+        return -1;
+    }
+
+    if (pPanitentWindow->bCustomFrame && pPanitentWindow->bCompactMenuBar)
+    {
+        return PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, ptScreen.x, ptScreen.y);
+    }
+
+    if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+    {
+        POINT ptClient = ptScreen;
+        if (ScreenToClient(pPanitentWindow->hWndMenuBar, &ptClient))
+        {
+            return PanitentWindow_MenuBar_HitTest(pPanitentWindow, pPanitentWindow->hWndMenuBar, ptClient);
+        }
+    }
+
+    return -1;
+}
+
+static void PanitentWindow_UpdateHotMenuFromCursor(PanitentWindow* pPanitentWindow)
+{
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    POINT ptCursor = { 0 };
+    if (!GetCursorPos(&ptCursor))
+    {
+        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
+        return;
+    }
+
+    PanitentWindow_MenuBar_SetHotItem(
+        pPanitentWindow,
+        PanitentWindow_HitTestTopLevelMenuAtScreenPoint(pPanitentWindow, ptCursor));
+}
+
+static void PanitentWindow_MenuPopupLoop(PanitentWindow* pPanitentWindow, int index)
+{
+    if (!pPanitentWindow || !pPanitentWindow->hMainMenu || index < 0)
+    {
+        return;
+    }
+
+    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return;
+    }
+
+    int currentIndex = index;
+    while (currentIndex >= 0)
+    {
+        HMENU hSubMenu = GetSubMenu(pPanitentWindow->hMainMenu, currentIndex);
+        POINT ptPopup = { 0 };
+        BOOL bHasItem = FALSE;
+
+        if (pPanitentWindow->bCustomFrame && pPanitentWindow->bCompactMenuBar)
+        {
+            CaptionFrameLayout layout = { 0 };
+            if (hSubMenu && PanitentWindow_BuildCaptionLayout(pPanitentWindow, &layout))
+            {
+                HDC hdc = GetWindowDC(hWnd);
+                if (hdc)
+                {
+                    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
+                    RECT rcStrip = { 0 };
+                    RECT rcItem = { 0 };
+                    bHasItem = PanitentWindow_GetCompactMenuStripRect(pPanitentWindow, &layout, hdc, &rcStrip, NULL) &&
+                        PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, &rcStrip, hdc, currentIndex, &rcItem);
+                    if (bHasItem)
+                    {
+                        RECT rcWindow = { 0 };
+                        GetWindowRect(hWnd, &rcWindow);
+                        ptPopup.x = rcWindow.left + rcItem.left;
+                        ptPopup.y = rcWindow.top + rcItem.bottom;
+                    }
+
+                    if (hOldFont)
+                    {
+                        SelectObject(hdc, hOldFont);
+                    }
+                    ReleaseDC(hWnd, hdc);
+                }
+            }
+        }
+        else if (hSubMenu && pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+        {
+            RECT rcItem = { 0 };
+            bHasItem = PanitentWindow_MenuBar_GetItemRect(pPanitentWindow, pPanitentWindow->hWndMenuBar, currentIndex, &rcItem);
+            if (bHasItem)
+            {
+                ptPopup.x = rcItem.left;
+                ptPopup.y = rcItem.bottom;
+                ClientToScreen(pPanitentWindow->hWndMenuBar, &ptPopup);
+            }
+        }
+
+        if (!hSubMenu || !bHasItem)
+        {
+            break;
+        }
+
+        pPanitentWindow->nPendingMenuItem = -1;
+        pPanitentWindow->bMenuPopupTracking = TRUE;
+        PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, currentIndex);
+        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, currentIndex);
+
+        SetForegroundWindow(hWnd);
+        SetTimer(hWnd, kMainMenuSwitchTimerId, kMainMenuSwitchTimerIntervalMs, NULL);
+        TrackPopupMenuEx(hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptPopup.x, ptPopup.y, hWnd, NULL);
+        KillTimer(hWnd, kMainMenuSwitchTimerId);
+
+        pPanitentWindow->bMenuPopupTracking = FALSE;
+        currentIndex = pPanitentWindow->nPendingMenuItem;
+        pPanitentWindow->nPendingMenuItem = -1;
+
+        if (currentIndex < 0)
+        {
+            PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, -1);
+            PanitentWindow_UpdateHotMenuFromCursor(pPanitentWindow);
+        }
+    }
+}
+
 static void PanitentWindow_MenuBar_ShowPopup(PanitentWindow* pPanitentWindow, HWND hWndMenuBar, int index)
 {
     if (!pPanitentWindow || !hWndMenuBar || !pPanitentWindow->hMainMenu)
     {
         return;
     }
-
-    HMENU hSubMenu = GetSubMenu(pPanitentWindow->hMainMenu, index);
-    RECT rcItem = { 0 };
-    if (!hSubMenu || !PanitentWindow_MenuBar_GetItemRect(pPanitentWindow, hWndMenuBar, index, &rcItem))
-    {
-        return;
-    }
-
-    POINT ptPopup = { rcItem.left, rcItem.bottom };
-    ClientToScreen(hWndMenuBar, &ptPopup);
-
-    PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, index);
-    PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
-    SetForegroundWindow(Window_GetHWND((Window*)pPanitentWindow));
-    TrackPopupMenuEx(hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptPopup.x, ptPopup.y, Window_GetHWND((Window*)pPanitentWindow), NULL);
-    PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, -1);
-
-    {
-        POINT ptCursor = { 0 };
-        if (GetCursorPos(&ptCursor) && ScreenToClient(hWndMenuBar, &ptCursor))
-        {
-            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWndMenuBar, ptCursor));
-        }
-        else {
-            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
-        }
-    }
+    PanitentWindow_MenuPopupLoop(pPanitentWindow, index);
 }
 
 static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow, int index)
@@ -1365,63 +1488,7 @@ static void PanitentWindow_CompactMenu_ShowPopup(PanitentWindow* pPanitentWindow
     {
         return;
     }
-
-    HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
-    CaptionFrameLayout layout = { 0 };
-    HMENU hSubMenu = GetSubMenu(pPanitentWindow->hMainMenu, index);
-    if (!hWnd || !hSubMenu || !PanitentWindow_BuildCaptionLayout(pPanitentWindow, &layout))
-    {
-        return;
-    }
-
-    HDC hdc = GetWindowDC(hWnd);
-    if (!hdc)
-    {
-        return;
-    }
-
-    HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
-    RECT rcStrip = { 0 };
-    RECT rcItem = { 0 };
-    BOOL bHasStrip = PanitentWindow_GetCompactMenuStripRect(pPanitentWindow, &layout, hdc, &rcStrip, NULL);
-    BOOL bHasItem = bHasStrip && PanitentWindow_Menu_GetItemRectInStrip(pPanitentWindow, &rcStrip, hdc, index, &rcItem);
-
-    if (hOldFont)
-    {
-        SelectObject(hdc, hOldFont);
-    }
-    ReleaseDC(hWnd, hdc);
-
-    if (!bHasItem)
-    {
-        return;
-    }
-
-    {
-        POINT ptPopup = { rcItem.left, rcItem.bottom };
-        RECT rcWindow = { 0 };
-        GetWindowRect(hWnd, &rcWindow);
-        ptPopup.x += rcWindow.left;
-        ptPopup.y += rcWindow.top;
-
-        PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, index);
-        PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
-        SetForegroundWindow(hWnd);
-        TrackPopupMenuEx(hSubMenu, TPM_LEFTALIGN | TPM_TOPALIGN | TPM_LEFTBUTTON, ptPopup.x, ptPopup.y, hWnd, NULL);
-        PanitentWindow_MenuBar_SetOpenItem(pPanitentWindow, -1);
-        {
-            POINT ptCursor = { 0 };
-            if (GetCursorPos(&ptCursor))
-            {
-                PanitentWindow_MenuBar_SetHotItem(
-                    pPanitentWindow,
-                    PanitentWindow_HitTestCompactMenuItemAtScreenPoint(pPanitentWindow, ptCursor.x, ptCursor.y));
-            }
-            else {
-                PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, -1);
-            }
-        }
-    }
+    PanitentWindow_MenuPopupLoop(pPanitentWindow, index);
 }
 
 static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND hWndMenuBar)
@@ -1495,7 +1562,18 @@ static LRESULT CALLBACK PanitentWindow_MenuBarProc(HWND hWnd, UINT message, WPAR
             }
 
             POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
-            PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWnd, pt));
+            {
+                int index = PanitentWindow_MenuBar_HitTest(pPanitentWindow, hWnd, pt);
+                PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
+                if (pPanitentWindow->bMenuPopupTracking &&
+                    pPanitentWindow->nOpenMenuItem >= 0 &&
+                    index >= 0 &&
+                    index != pPanitentWindow->nOpenMenuItem)
+                {
+                    pPanitentWindow->nPendingMenuItem = index;
+                    EndMenu();
+                }
+            }
         }
         return 0;
 
@@ -1536,6 +1614,27 @@ LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam,
 LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message) {
+    case WM_TIMER:
+        if (wParam == kMainMenuSwitchTimerId && pPanitentWindow && pPanitentWindow->bMenuPopupTracking)
+        {
+            POINT ptCursor = { 0 };
+            if (GetCursorPos(&ptCursor))
+            {
+                int index = PanitentWindow_HitTestTopLevelMenuAtScreenPoint(pPanitentWindow, ptCursor);
+                if (index >= 0)
+                {
+                    PanitentWindow_MenuBar_SetHotItem(pPanitentWindow, index);
+                    if (pPanitentWindow->nOpenMenuItem >= 0 && index != pPanitentWindow->nOpenMenuItem)
+                    {
+                        pPanitentWindow->nPendingMenuItem = index;
+                        EndMenu();
+                    }
+                }
+            }
+            return 0;
+        }
+        break;
+
     case WM_RBUTTONUP:
         PanitentWindow_OnRButtonUp(pPanitentWindow, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
         return TRUE;
