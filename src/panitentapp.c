@@ -400,6 +400,12 @@ WorkspaceContainer* PanitentApp_GetWorkspaceContainer(PanitentApp* pPanitentApp)
 
 void PanitentApp_SetTool(PanitentApp* pPanitentApp, Tool* pTool)
 {
+    ViewportWindow* pViewportWindow = PanitentApp_GetActiveViewport(pPanitentApp);
+    if (pViewportWindow && PanitentApp_GetTool(pPanitentApp) != pTool)
+    {
+        ViewportWindow_CommitTextOverlay(pViewportWindow);
+    }
+
     pPanitentApp->m_pTool = pTool;
 }
 

@@ -1,16 +1,26 @@
 #include "precomp.h"
 #include "win32/window.h"
 #include "document.h"
+#include "history.h"
 
 #include "viewport.h"
 #include "canvas.h"
+#include "alphamask.h"
 #include "win32/util.h"
 #include "tool.h"
 #include "checker.h"
 #include "resource.h"
 #include "panitentapp.h"
+#include <strsafe.h>
 
 #define IDM_VIEWPORTSETTINGS 100
+#define IDC_VIEWPORT_TEXT_EDIT 3201
+#define WMU_VIEWPORT_COMMITTEXT (WM_APP + 101)
+#define WMU_VIEWPORT_CANCELTEXT (WM_APP + 102)
+#define VIEWPORT_TEXT_FONT_PX 24
+#define VIEWPORT_TEXT_MIN_WIDTH 160
+#define VIEWPORT_TEXT_PADDING_X 8
+#define VIEWPORT_TEXT_PADDING_Y 6
 
 Tool g_tool;
 
@@ -44,6 +54,13 @@ static inline void ViewportWindow_DrawCanvasOrdinates(ViewportWindow* pViewportW
 static inline void ViewportWindow_DrawOffsetTrace(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
 static inline void ViewportWindow_DrawDebugText(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
 static inline void ViewportWindow_DrawDebugOverlay(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
+static HFONT ViewportWindow_CreateTextOverlayFont(int pixelHeight);
+static void ViewportWindow_DestroyTextOverlayWindow(ViewportWindow* pViewportWindow);
+static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWindow);
+static void ViewportWindow_RenderTextOverlayToCanvas(ViewportWindow* pViewportWindow, PCWSTR pszText);
+static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR pszText, SIZE* pSize, int* pLineAdvance);
+static void ViewportWindow_DrawTextLines(HDC hdc, PCWSTR pszText, int lineAdvance);
+static LRESULT CALLBACK ViewportWindow_TextOverlayProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
 void ViewportWindow_SetDocument(ViewportWindow* pViewportWindow, Document* document);
 Document* ViewportWindow_GetDocument(ViewportWindow* pViewportWindow);
@@ -290,6 +307,121 @@ void ViewportWindow_ClientToCanvas(ViewportWindow* pViewportWindow, int x, int y
         (float)pViewportWindow->ptOffset.y) / pViewportWindow->fZoom);
 }
 
+void ViewportWindow_CanvasToClient(ViewportWindow* pViewportWindow, int x, int y, LPPOINT lpPt)
+{
+    HWND hWnd = Window_GetHWND((Window*)pViewportWindow);
+    Document* document = ViewportWindow_GetDocument(pViewportWindow);
+    if (!lpPt)
+    {
+        return;
+    }
+
+    lpPt->x = 0;
+    lpPt->y = 0;
+
+    if (!document || !document->canvas)
+    {
+        return;
+    }
+
+    RECT clientRc = { 0 };
+    GetClientRect(hWnd, &clientRc);
+
+    lpPt->x = (LONG)(((float)clientRc.right - (float)document->canvas->width * pViewportWindow->fZoom) / 2.0f +
+        (float)pViewportWindow->ptOffset.x + (float)x * pViewportWindow->fZoom);
+    lpPt->y = (LONG)(((float)clientRc.bottom - (float)document->canvas->height * pViewportWindow->fZoom) / 2.0f +
+        (float)pViewportWindow->ptOffset.y + (float)y * pViewportWindow->fZoom);
+}
+
+BOOL ViewportWindow_HasTextOverlay(ViewportWindow* pViewportWindow)
+{
+    return pViewportWindow && pViewportWindow->hWndTextOverlay && IsWindow(pViewportWindow->hWndTextOverlay);
+}
+
+BOOL ViewportWindow_BeginTextOverlay(ViewportWindow* pViewportWindow, int xCanvas, int yCanvas, uint32_t color)
+{
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    if (!pViewportWindow || !hWndViewport || !IsWindow(hWndViewport) || ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return FALSE;
+    }
+
+    pViewportWindow->ptTextOverlayCanvas.x = xCanvas;
+    pViewportWindow->ptTextOverlayCanvas.y = yCanvas;
+    pViewportWindow->textOverlayColor = color;
+    pViewportWindow->nTextOverlayFontDocPx = VIEWPORT_TEXT_FONT_PX;
+    pViewportWindow->nTextOverlayFontClientPx = 0;
+    pViewportWindow->bTextOverlayClosing = FALSE;
+
+    HWND hWndEdit = CreateWindowExW(
+        WS_EX_CLIENTEDGE,
+        L"EDIT",
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_LEFT | ES_MULTILINE | ES_WANTRETURN | WS_BORDER,
+        0,
+        0,
+        VIEWPORT_TEXT_MIN_WIDTH,
+        VIEWPORT_TEXT_FONT_PX + VIEWPORT_TEXT_PADDING_Y * 2,
+        hWndViewport,
+        (HMENU)(INT_PTR)IDC_VIEWPORT_TEXT_EDIT,
+        GetModuleHandle(NULL),
+        NULL);
+    if (!hWndEdit)
+    {
+        return FALSE;
+    }
+
+    pViewportWindow->hWndTextOverlay = hWndEdit;
+    SetWindowLongPtrW(hWndEdit, GWLP_USERDATA, (LONG_PTR)pViewportWindow);
+    pViewportWindow->pfnTextOverlayProc = (WNDPROC)(ULONG_PTR)SetWindowLongPtrW(
+        hWndEdit, GWLP_WNDPROC, (LONG_PTR)ViewportWindow_TextOverlayProc);
+    SendMessageW(
+        hWndEdit,
+        EM_SETMARGINS,
+        EC_LEFTMARGIN | EC_RIGHTMARGIN,
+        MAKELPARAM(VIEWPORT_TEXT_PADDING_X, VIEWPORT_TEXT_PADDING_X));
+
+    ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+    SetFocus(hWndEdit);
+    return TRUE;
+}
+
+void ViewportWindow_CommitTextOverlay(ViewportWindow* pViewportWindow)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    HWND hWndEdit = pViewportWindow->hWndTextOverlay;
+    int cchText = GetWindowTextLengthW(hWndEdit);
+    if (cchText > 0)
+    {
+        WCHAR* pszText = (WCHAR*)calloc((size_t)cchText + 1, sizeof(WCHAR));
+        if (pszText)
+        {
+            GetWindowTextW(hWndEdit, pszText, cchText + 1);
+            if (pszText[0] != L'\0')
+            {
+                ViewportWindow_RenderTextOverlayToCanvas(pViewportWindow, pszText);
+            }
+            free(pszText);
+        }
+    }
+
+    ViewportWindow_DestroyTextOverlayWindow(pViewportWindow);
+}
+
+void ViewportWindow_CancelTextOverlay(ViewportWindow* pViewportWindow)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    ViewportWindow_DestroyTextOverlayWindow(pViewportWindow);
+}
+
 BOOL Viewport_BlitCanvas(HDC hDC, LPRECT prcView, Canvas* canvas)
 {
     assert(canvas);
@@ -398,6 +530,15 @@ BOOL ViewportWindow_OnCreate(ViewportWindow* pViewportWindow, LPCREATESTRUCT lpc
 
 void ViewportWindow_OnSize(ViewportWindow* pViewportWindow, UINT state, int cx, int cy)
 {
+    UNREFERENCED_PARAMETER(state);
+    UNREFERENCED_PARAMETER(cx);
+    UNREFERENCED_PARAMETER(cy);
+
+    if (ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+    }
+
     if (ViewportWindow_GetDocument(pViewportWindow))
     {
         Window_Invalidate((Window *)pViewportWindow);
@@ -508,11 +649,385 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
     EndPaint(hWnd, &ps);
 }
 
+static HFONT ViewportWindow_CreateTextOverlayFont(int pixelHeight)
+{
+    LOGFONTW lf = { 0 };
+    HFONT hBaseFont = PanitentApp_GetUIFont(PanitentApp_Instance());
+    if (!hBaseFont || GetObjectW(hBaseFont, sizeof(lf), &lf) != sizeof(lf))
+    {
+        HFONT hDefaultFont = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+        if (!hDefaultFont || GetObjectW(hDefaultFont, sizeof(lf), &lf) != sizeof(lf))
+        {
+            ZeroMemory(&lf, sizeof(lf));
+            StringCchCopyW(lf.lfFaceName, ARRAYSIZE(lf.lfFaceName), L"Segoe UI");
+        }
+    }
+
+    lf.lfHeight = -max(1, pixelHeight);
+    lf.lfWidth = 0;
+    lf.lfQuality = ANTIALIASED_QUALITY;
+    return CreateFontIndirectW(&lf);
+}
+
+static void ViewportWindow_DestroyTextOverlayWindow(ViewportWindow* pViewportWindow)
+{
+    if (!pViewportWindow)
+    {
+        return;
+    }
+
+    pViewportWindow->bTextOverlayClosing = TRUE;
+
+    if (pViewportWindow->hWndTextOverlay && IsWindow(pViewportWindow->hWndTextOverlay))
+    {
+        if (pViewportWindow->pfnTextOverlayProc)
+        {
+            SetWindowLongPtrW(
+                pViewportWindow->hWndTextOverlay,
+                GWLP_WNDPROC,
+                (LONG_PTR)pViewportWindow->pfnTextOverlayProc);
+        }
+        DestroyWindow(pViewportWindow->hWndTextOverlay);
+    }
+
+    pViewportWindow->hWndTextOverlay = NULL;
+    pViewportWindow->pfnTextOverlayProc = NULL;
+
+    if (pViewportWindow->hFontTextOverlay)
+    {
+        DeleteObject(pViewportWindow->hFontTextOverlay);
+        pViewportWindow->hFontTextOverlay = NULL;
+    }
+
+    pViewportWindow->nTextOverlayFontClientPx = 0;
+    pViewportWindow->bTextOverlayClosing = FALSE;
+}
+
+static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR pszText, SIZE* pSize, int* pLineAdvance)
+{
+    if (!hdc || !pSize)
+    {
+        return FALSE;
+    }
+
+    HGDIOBJ hOldFont = NULL;
+    if (hFont)
+    {
+        hOldFont = SelectObject(hdc, hFont);
+    }
+
+    TEXTMETRICW tm = { 0 };
+    GetTextMetricsW(hdc, &tm);
+
+    int lineAdvance = max(1, tm.tmHeight + tm.tmExternalLeading);
+    int maxWidth = 0;
+    int lineCount = 1;
+
+    if (pszText && pszText[0] != L'\0')
+    {
+        const WCHAR* pLine = pszText;
+        while (*pLine)
+        {
+            const WCHAR* pLineEnd = pLine;
+            while (*pLineEnd && *pLineEnd != L'\r' && *pLineEnd != L'\n')
+            {
+                ++pLineEnd;
+            }
+
+            int cchLine = (int)(pLineEnd - pLine);
+            SIZE lineSize = { 0 };
+            if (cchLine > 0)
+            {
+                GetTextExtentPoint32W(hdc, pLine, cchLine, &lineSize);
+            }
+            maxWidth = max(maxWidth, lineSize.cx);
+
+            if (*pLineEnd == L'\0')
+            {
+                break;
+            }
+
+            ++lineCount;
+            if (*pLineEnd == L'\r' && *(pLineEnd + 1) == L'\n')
+            {
+                pLine = pLineEnd + 2;
+            }
+            else
+            {
+                pLine = pLineEnd + 1;
+            }
+        }
+    }
+
+    pSize->cx = maxWidth;
+    pSize->cy = lineCount * lineAdvance;
+
+    if (pLineAdvance)
+    {
+        *pLineAdvance = lineAdvance;
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+
+    return TRUE;
+}
+
+static void ViewportWindow_DrawTextLines(HDC hdc, PCWSTR pszText, int lineAdvance)
+{
+    if (!hdc)
+    {
+        return;
+    }
+
+    if (!pszText || pszText[0] == L'\0')
+    {
+        return;
+    }
+
+    int y = 0;
+    const WCHAR* pLine = pszText;
+    while (*pLine)
+    {
+        const WCHAR* pLineEnd = pLine;
+        while (*pLineEnd && *pLineEnd != L'\r' && *pLineEnd != L'\n')
+        {
+            ++pLineEnd;
+        }
+
+        int cchLine = (int)(pLineEnd - pLine);
+        if (cchLine > 0)
+        {
+            TextOutW(hdc, 0, y, pLine, cchLine);
+        }
+
+        if (*pLineEnd == L'\0')
+        {
+            break;
+        }
+
+        y += lineAdvance;
+        if (*pLineEnd == L'\r' && *(pLineEnd + 1) == L'\n')
+        {
+            pLine = pLineEnd + 2;
+        }
+        else
+        {
+            pLine = pLineEnd + 1;
+        }
+    }
+}
+
+static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWindow)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    HWND hWndEdit = pViewportWindow->hWndTextOverlay;
+    int fontClientPx = max(1, (int)lroundf((float)pViewportWindow->nTextOverlayFontDocPx * max(0.1f, pViewportWindow->fZoom)));
+
+    if (fontClientPx != pViewportWindow->nTextOverlayFontClientPx)
+    {
+        if (pViewportWindow->hFontTextOverlay)
+        {
+            DeleteObject(pViewportWindow->hFontTextOverlay);
+            pViewportWindow->hFontTextOverlay = NULL;
+        }
+
+        pViewportWindow->hFontTextOverlay = ViewportWindow_CreateTextOverlayFont(fontClientPx);
+        pViewportWindow->nTextOverlayFontClientPx = fontClientPx;
+        if (pViewportWindow->hFontTextOverlay)
+        {
+            SendMessageW(hWndEdit, WM_SETFONT, (WPARAM)pViewportWindow->hFontTextOverlay, FALSE);
+        }
+    }
+
+    int cchText = GetWindowTextLengthW(hWndEdit);
+    WCHAR* pszText = (WCHAR*)calloc((size_t)cchText + 1, sizeof(WCHAR));
+    if (!pszText)
+    {
+        return;
+    }
+
+    GetWindowTextW(hWndEdit, pszText, cchText + 1);
+
+    HDC hdc = GetDC(hWndViewport);
+    SIZE textSize = { 0 };
+    int lineAdvance = fontClientPx;
+    ViewportWindow_GetTextLayoutMetrics(hdc, pViewportWindow->hFontTextOverlay, pszText, &textSize, &lineAdvance);
+    ReleaseDC(hWndViewport, hdc);
+
+    int width = max(VIEWPORT_TEXT_MIN_WIDTH, textSize.cx + VIEWPORT_TEXT_PADDING_X * 2);
+    int height = max(lineAdvance + VIEWPORT_TEXT_PADDING_Y * 2, textSize.cy + VIEWPORT_TEXT_PADDING_Y * 2);
+    POINT ptClient = { 0 };
+    ViewportWindow_CanvasToClient(
+        pViewportWindow,
+        pViewportWindow->ptTextOverlayCanvas.x,
+        pViewportWindow->ptTextOverlayCanvas.y,
+        &ptClient);
+
+    SetWindowPos(
+        hWndEdit,
+        HWND_TOP,
+        ptClient.x,
+        ptClient.y,
+        width,
+        height,
+        SWP_NOACTIVATE);
+
+    free(pszText);
+}
+
+static void ViewportWindow_RenderTextOverlayToCanvas(ViewportWindow* pViewportWindow, PCWSTR pszText)
+{
+    if (!pViewportWindow || !pszText || pszText[0] == L'\0')
+    {
+        return;
+    }
+
+    Document* pDocument = ViewportWindow_GetDocument(pViewportWindow);
+    if (!pDocument)
+    {
+        return;
+    }
+
+    Canvas* pCanvas = Document_GetCanvas(pDocument);
+    if (!pCanvas)
+    {
+        return;
+    }
+
+    HFONT hFont = ViewportWindow_CreateTextOverlayFont(max(1, pViewportWindow->nTextOverlayFontDocPx));
+    if (!hFont)
+    {
+        return;
+    }
+
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    HDC hdcViewport = GetDC(hWndViewport);
+    HDC hdcText = CreateCompatibleDC(hdcViewport);
+
+    SIZE textSize = { 0 };
+    int lineAdvance = 0;
+    ViewportWindow_GetTextLayoutMetrics(hdcText, hFont, pszText, &textSize, &lineAdvance);
+
+    int width = max(1, textSize.cx);
+    int height = max(1, textSize.cy);
+
+    BITMAPINFO bmi = { 0 };
+    bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bmi.bmiHeader.biWidth = width;
+    bmi.bmiHeader.biHeight = -height;
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+
+    uint32_t* pBits = NULL;
+    HBITMAP hBitmap = CreateDIBSection(hdcText, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
+    if (hBitmap && pBits)
+    {
+        HGDIOBJ hOldBitmap = SelectObject(hdcText, hBitmap);
+        HGDIOBJ hOldFont = SelectObject(hdcText, hFont);
+
+        memset(pBits, 0, (size_t)width * (size_t)height * sizeof(uint32_t));
+        SetBkMode(hdcText, TRANSPARENT);
+        SetTextColor(hdcText, RGB(255, 255, 255));
+        ViewportWindow_DrawTextLines(hdcText, pszText, lineAdvance);
+
+        AlphaMask* pMask = AlphaMask_Create(width, height);
+        if (pMask)
+        {
+            BOOL bHasCoverage = FALSE;
+            for (int y = 0; y < height; ++y)
+            {
+                for (int x = 0; x < width; ++x)
+                {
+                    uint32_t pixel = pBits[(size_t)y * (size_t)width + (size_t)x];
+                    uint8_t coverage = max(CHANNEL_R_32(pixel), max(CHANNEL_G_32(pixel), CHANNEL_B_32(pixel)));
+                    if (coverage > 0)
+                    {
+                        bHasCoverage = TRUE;
+                        AlphaMask_SetMax(pMask, x, y, coverage);
+                    }
+                }
+            }
+
+            if (bHasCoverage)
+            {
+                History_StartDifferentiation(pDocument);
+                Canvas_ColorStencilMask(
+                    pCanvas,
+                    pViewportWindow->ptTextOverlayCanvas.x,
+                    pViewportWindow->ptTextOverlayCanvas.y,
+                    pMask,
+                    pViewportWindow->textOverlayColor);
+                History_FinalizeDifferentiation(pDocument);
+
+                Window_Invalidate((Window*)pViewportWindow);
+            }
+
+            AlphaMask_Delete(pMask);
+        }
+
+        SelectObject(hdcText, hOldFont);
+        SelectObject(hdcText, hOldBitmap);
+        DeleteObject(hBitmap);
+    }
+
+    DeleteDC(hdcText);
+    ReleaseDC(hWndViewport, hdcViewport);
+    DeleteObject(hFont);
+}
+
+static LRESULT CALLBACK ViewportWindow_TextOverlayProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    ViewportWindow* pViewportWindow = (ViewportWindow*)GetWindowLongPtrW(hWnd, GWLP_USERDATA);
+    WNDPROC pfnPrev = pViewportWindow ? pViewportWindow->pfnTextOverlayProc : NULL;
+
+    switch (message)
+    {
+    case WM_KEYDOWN:
+        if (wParam == VK_ESCAPE)
+        {
+            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_CANCELTEXT, 0, 0);
+            return 0;
+        }
+        if (wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000))
+        {
+            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_COMMITTEXT, 0, 0);
+            return 0;
+        }
+        break;
+
+    case WM_KILLFOCUS:
+        if (pViewportWindow && !pViewportWindow->bTextOverlayClosing)
+        {
+            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_COMMITTEXT, 0, 0);
+        }
+        break;
+    }
+
+    return pfnPrev ? CallWindowProcW(pfnPrev, hWnd, message, wParam, lParam) : DefWindowProcW(hWnd, message, wParam, lParam);
+}
+
 LRESULT ViewportWindow_OnCommand(ViewportWindow* pViewportWindow, WPARAM wParam, LPARAM lParam)
 {
-    UNREFERENCED_PARAMETER(lParam);
-
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
+
+    if ((HWND)lParam == pViewportWindow->hWndTextOverlay)
+    {
+        switch (HIWORD(wParam))
+        {
+        case EN_CHANGE:
+            ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+            return 0;
+        }
+    }
 
     if (LOWORD(wParam) == IDM_VIEWPORTSETTINGS)
     {
@@ -573,6 +1088,10 @@ void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, U
         pViewportWindow->ptDrag.x = x;
         pViewportWindow->ptDrag.y = y;
 
+        if (ViewportWindow_HasTextOverlay(pViewportWindow))
+        {
+            ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+        }
         Window_Invalidate((Window *)pViewportWindow);
     }
     else if (pTool && pTool->OnMouseMove)
@@ -605,6 +1124,10 @@ void ViewportWindow_OnMouseWheel(ViewportWindow* pViewportWindow, int xPos, int 
         pViewportWindow->ptOffset.y += zDelta / 2;
     }
 
+    if (ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+    }
     Window_Invalidate((Window *)pViewportWindow);
 }
 
@@ -754,13 +1277,40 @@ BOOL ViewportWindow_OnEraseBkgnd(ViewportWindow* pViewportWindow, HDC hdc)
 
 void ViewportWindow_OnDestroy(ViewportWindow* window)
 {
-
+    ViewportWindow_CancelTextOverlay(window);
+    if (window->hbrChecker)
+    {
+        DeleteObject(window->hbrChecker);
+        window->hbrChecker = NULL;
+    }
 }
 
 LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+    case WMU_VIEWPORT_COMMITTEXT:
+        ViewportWindow_CommitTextOverlay(pViewportWindow);
+        return 0;
+
+    case WMU_VIEWPORT_CANCELTEXT:
+        ViewportWindow_CancelTextOverlay(pViewportWindow);
+        return 0;
+
+    case WM_CTLCOLOREDIT:
+        if ((HWND)lParam == pViewportWindow->hWndTextOverlay)
+        {
+            HDC hdcEdit = (HDC)wParam;
+            COLORREF rgbText = RGB(
+                CHANNEL_R_32(pViewportWindow->textOverlayColor),
+                CHANNEL_G_32(pViewportWindow->textOverlayColor),
+                CHANNEL_B_32(pViewportWindow->textOverlayColor));
+            SetTextColor(hdcEdit, rgbText);
+            SetBkColor(hdcEdit, RGB(255, 255, 255));
+            return (LRESULT)GetStockObject(WHITE_BRUSH);
+        }
+        break;
+
     case WM_KEYDOWN:
     {
         BOOL bProcessed = ViewportWindow_OnKeyDown(pViewportWindow, (UINT)(wParam), (int)(short)LOWORD(lParam), (UINT)HIWORD(lParam));
