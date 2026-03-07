@@ -1,5 +1,6 @@
 #include "precomp.h"
 
+#include "crashhandler.h"
 #include "panitentapp.h"
 
 #include "win32/window.h"
@@ -8,6 +9,10 @@
 int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR pCmdLine, int nCmdShow)
 {
     UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(hInstance);
+    UNREFERENCED_PARAMETER(nCmdShow);
+
+    Panitent_InstallCrashHandler();
 
     int nArgs;
     PWSTR* pszArgList;
