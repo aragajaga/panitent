@@ -2,6 +2,7 @@
 
 #include "precomp.h"
 
+#include "win32/window.h"
 #include "util/tree.h"
 
 #define DGA_START 0
@@ -63,6 +64,7 @@ extern TreeNode* g_pRoot;
 typedef struct PanitentApp PanitentApp;
 
 DockHostWindow* DockHostWindow_Create(PanitentApp* app);
+void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);

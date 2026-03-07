@@ -3,6 +3,7 @@
 #include "DockInspectorDialog.h"
 #include "resource.h"
 #include "win32/util.h"
+#include "theme.h"
 
 #include "dockhost.h"
 #include "util/tree.h"
@@ -140,8 +141,12 @@ void DockInspectorDialog_OnNCPaint(DockInspectorDialog* pDockInspectorDialog, HR
     rc.bottom -= rc.top;
     rc.top = rc.left = 0;
 
-    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
-    SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+    {
+        PanitentThemeColors colors = { 0 };
+        PanitentTheme_GetColors(&colors);
+        SetDCBrushColor(hdc, colors.accent);
+        SetDCPenColor(hdc, colors.border);
+    }
     SelectObject(hdc, GetStockObject(DC_BRUSH));
     SelectObject(hdc, GetStockObject(DC_PEN));
     Rectangle(hdc, rc.left, rc.top, rc.right, rc.bottom);

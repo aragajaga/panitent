@@ -14,6 +14,9 @@ typedef struct _tagPNTSETTINGS {
     int iToolbarIconTheme;
     BOOL bUseStandardWindowFrame;
     BOOL bCompactMenuBar;
+    int iThemeHue;
+    int iThemeSaturation;
+    int iThemeLightness;
 } PNTSETTINGS;
 
 void Panitent_DefaultSettings(PNTSETTINGS* pSettings);

@@ -5,6 +5,7 @@
 #include "dockhost.h"
 #include "panitentwindow.h"
 #include "toolwndframe.h"
+#include "theme.h"
 
 #include "history.h"
 #include "resource.h"
@@ -210,6 +211,28 @@ void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCom
             NULL,
             NULL,
             RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_ALLCHILDREN);
+    }
+}
+
+void PanitentWindow_RefreshTheme(PanitentWindow* pPanitentWindow)
+{
+    HWND hWnd = NULL;
+
+    if (!pPanitentWindow)
+    {
+        return;
+    }
+
+    hWnd = Window_GetHWND((Window*)pPanitentWindow);
+    if (!hWnd)
+    {
+        return;
+    }
+
+    RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_FRAME | RDW_ERASE | RDW_ALLCHILDREN);
+    if (pPanitentWindow->hWndMenuBar && IsWindow(pPanitentWindow->hWndMenuBar))
+    {
+        InvalidateRect(pPanitentWindow->hWndMenuBar, NULL, TRUE);
     }
 }
 
@@ -665,10 +688,7 @@ LRESULT PanitentWindow_OnNCPaint(PanitentWindow* pPanitentWindow, HRGN hrgn)
     }
 
     CaptionFramePalette palette = { 0 };
-    palette.frameFill = Win32_HexToCOLORREF(L"#9185be");
-    palette.border = Win32_HexToCOLORREF(L"#6d648e");
-    palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
-    palette.text = RGB(255, 255, 255);
+    PanitentTheme_GetCaptionPalette(&palette);
 
     CaptionFrameLayout layout = { 0 };
     if (PanitentWindow_BuildCaptionLayout(pPanitentWindow, &layout))
@@ -1235,12 +1255,17 @@ static void PanitentWindow_Menu_DrawItems(HDC hdc, PanitentWindow* pPanitentWind
         return;
     }
 
-    HBRUSH hBrushHot = CreateSolidBrush(Win32_HexToCOLORREF(L"#9b8acb"));
-    HBRUSH hBrushOpen = CreateSolidBrush(Win32_HexToCOLORREF(L"#a898d3"));
+    PanitentThemeColors colors = { 0 };
+    HBRUSH hBrushHot = NULL;
+    HBRUSH hBrushOpen = NULL;
     int nCount = GetMenuItemCount(pPanitentWindow->hMainMenu);
 
+    PanitentTheme_GetColors(&colors);
+    hBrushHot = CreateSolidBrush(colors.menuHot);
+    hBrushOpen = CreateSolidBrush(colors.menuOpen);
+
     SetBkMode(hdc, TRANSPARENT);
-    SetTextColor(hdc, RGB(255, 255, 255));
+    SetTextColor(hdc, colors.text);
 
     for (int i = 0; i < nCount; ++i)
     {
@@ -1503,14 +1528,19 @@ static void PanitentWindow_MenuBar_OnPaint(PanitentWindow* pPanitentWindow, HWND
     RECT rcClient = { 0 };
     GetClientRect(hWndMenuBar, &rcClient);
 
-    HBRUSH hBrushBg = CreateSolidBrush(Win32_HexToCOLORREF(L"#8578b3"));
+    PanitentThemeColors colors = { 0 };
+    HBRUSH hBrushBg = NULL;
+    HPEN hPen = NULL;
+    PanitentTheme_GetColors(&colors);
+
+    hBrushBg = CreateSolidBrush(colors.menuBackground);
     FillRect(hdc, &rcClient, hBrushBg);
 
     HFONT hOldFont = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
     PanitentWindow_Menu_DrawItems(hdc, pPanitentWindow, &rcClient);
 
     {
-        HPEN hPen = CreatePen(PS_SOLID, 1, Win32_HexToCOLORREF(L"#6d648e"));
+        hPen = CreatePen(PS_SOLID, 1, colors.border);
         HPEN hOldPen = (HPEN)SelectObject(hdc, hPen);
         MoveToEx(hdc, 0, rcClient.bottom - 1, NULL);
         LineTo(hdc, rcClient.right, rcClient.bottom - 1);

@@ -24,6 +24,18 @@ struct SettingsWindow {
     HWND hCheckStandardWindowFrame;
     HWND hCheckCompactMenuBar;
 
+    HWND hGroupTheme;
+    HWND hLabelThemeHue;
+    HWND hSliderThemeHue;
+    HWND hValueThemeHue;
+    HWND hLabelThemeSaturation;
+    HWND hSliderThemeSaturation;
+    HWND hValueThemeSaturation;
+    HWND hLabelThemeLightness;
+    HWND hSliderThemeLightness;
+    HWND hValueThemeLightness;
+    RECT rcThemePreview;
+
     HWND hButtonOk;
     HWND hButtonCancel;
     HWND hButtonApply;

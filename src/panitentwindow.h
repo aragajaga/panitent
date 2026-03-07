@@ -28,5 +28,6 @@ struct PanitentWindow
 };
 
 PanitentWindow* PanitentWindow_Create();
+void PanitentWindow_RefreshTheme(PanitentWindow* pPanitentWindow);
 void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame);
 void PanitentWindow_SetCompactMenuBar(PanitentWindow* pPanitentWindow, BOOL fCompactMenuBar);

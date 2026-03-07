@@ -10,6 +10,7 @@
 #include "workspacedockpolicy.h"
 #include "panitentapp.h"
 #include "panitentwindow.h"
+#include "theme.h"
 
 static const WCHAR szClassName[] = L"__WorkspaceContainer";
 
@@ -732,7 +733,11 @@ void WorkspaceContainer_DrawTabs(WorkspaceContainer* pWorkspaceContainer, HDC hd
         rcClient.top + WorkspaceContainer_GetTabHeaderHeight(pWorkspaceContainer)
     };
 
-    HBRUSH hHeaderBrush = CreateSolidBrush(Win32_HexToCOLORREF(L"#7d6cae"));
+    PanitentThemeColors colors = { 0 };
+    HBRUSH hHeaderBrush = NULL;
+    PanitentTheme_GetColors(&colors);
+
+    hHeaderBrush = CreateSolidBrush(colors.workspaceHeader);
     FillRect(hdc, &rcTabHeader, hHeaderBrush);
     DeleteObject(hHeaderBrush);
 
@@ -752,7 +757,7 @@ void WorkspaceContainer_DrawTabs(WorkspaceContainer* pWorkspaceContainer, HDC hd
         BOOL bActive = pViewportWindow == pWorkspaceContainer->m_pViewportWindow;
 
         HBRUSH hTabBrush = CreateSolidBrush(
-            bActive ? Win32_HexToCOLORREF(L"#ada4ce") : Win32_HexToCOLORREF(L"#9185be"));
+            bActive ? colors.accentActive : colors.accent);
         FillRect(hdc, &rcTab, hTabBrush);
         DeleteObject(hTabBrush);
 
@@ -794,11 +799,13 @@ void WorkspaceContainer_OnPaint(WorkspaceContainer* pWorkspaceContainer)
     HWND hwnd = pWorkspaceContainer->base.hWnd;
     PAINTSTRUCT ps;
     HDC hdc = BeginPaint(hwnd, &ps);
+    PanitentThemeColors colors = { 0 };
 
     RECT rcClient = { 0 };
     Window_GetClientRect((Window*)pWorkspaceContainer, &rcClient);
+    PanitentTheme_GetColors(&colors);
     SelectObject(hdc, GetStockObject(DC_BRUSH));
-    SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#76699f"));
+    SetDCBrushColor(hdc, colors.rootBackground);
     FillRect(hdc, &rcClient, (HBRUSH)GetStockObject(DC_BRUSH));
 
     WorkspaceContainer_DrawTabs(pWorkspaceContainer, hdc);

@@ -11,7 +11,7 @@ void Application_InitCommonControls()
 {
     INITCOMMONCONTROLSEX iccex = { 0 };
     iccex.dwSize = sizeof(INITCOMMONCONTROLSEX);
-    iccex.dwICC = ICC_TREEVIEW_CLASSES;
+    iccex.dwICC = ICC_TREEVIEW_CLASSES | ICC_BAR_CLASSES;
     InitCommonControlsEx(&iccex);
 }
 

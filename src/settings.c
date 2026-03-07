@@ -6,6 +6,7 @@
 #include <tchar.h>
 
 #include "shell/pathutil.h"
+#include "theme.h"
 
 void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
 {
@@ -25,6 +26,10 @@ void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
     pSettings->iToolbarIconTheme = 0;
     pSettings->bUseStandardWindowFrame = TRUE;
     pSettings->bCompactMenuBar = FALSE;
+    PanitentTheme_GetDefaultHsl(
+        &pSettings->iThemeHue,
+        &pSettings->iThemeSaturation,
+        &pSettings->iThemeLightness);
 }
 
 BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)
@@ -51,7 +56,7 @@ BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)
 
     size_t nRead = fread(pSettings, 1, sizeof(PNTSETTINGS), fp);
     fclose(fp);
-    return nRead >= offsetof(PNTSETTINGS, bUseStandardWindowFrame);
+    return nRead >= (offsetof(PNTSETTINGS, bCompactMenuBar) + sizeof(pSettings->bCompactMenuBar));
 }
 
 BOOL Panitent_WriteSettings(const PNTSETTINGS* pSettings)

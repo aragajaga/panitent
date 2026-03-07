@@ -18,6 +18,7 @@
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
 #include "toolwndframe.h"
+#include "theme.h"
 
 #include "panitentapp.h"
 
@@ -36,7 +37,6 @@ static int g_iZoneTabGutterTop = 0;
 static int g_iZoneTabGutterBottom = 0;
 
 #define DOCK_ZONE_MAX_TABS 32
-#define DOCK_COLOR_ROOT_BG L"#76699f"
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
 #define DOCK_TARGET_GUIDE_SIZE 24
@@ -1221,10 +1221,7 @@ static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWN
 		}
 
 		CaptionFramePalette palette = { 0 };
-		palette.frameFill = Win32_HexToCOLORREF(L"#9185be");
-		palette.border = Win32_HexToCOLORREF(L"#6d648e");
-		palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
-		palette.text = COLORREF_WHITE;
+		PanitentTheme_GetCaptionPalette(&palette);
 		CaptionFrame_DrawStateful(
 			hdcTarget,
 			&layout,
@@ -1830,8 +1827,12 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 
 			SelectObject(hdc, GetStockObject(DC_BRUSH));
 			SelectObject(hdc, GetStockObject(DC_PEN));
-			SetDCBrushColor(hdc, bActive ? Win32_HexToCOLORREF(L"#ada4ce") : Win32_HexToCOLORREF(L"#9185be"));
-			SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
+			{
+				PanitentThemeColors colors = { 0 };
+				PanitentTheme_GetColors(&colors);
+				SetDCBrushColor(hdc, bActive ? colors.accentActive : colors.accent);
+				SetDCPenColor(hdc, colors.border);
+			}
 			Rectangle(hdc, rcTab.left, rcTab.top, rcTab.right, rcTab.bottom);
 
 			int cchLabel = (int)wcslen(szLabel);
@@ -2092,11 +2093,19 @@ static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC h
 		BOOL bVertical = DockHostWindow_IsSplitVertical(pCurrentNode);
 		SelectObject(hdc, GetStockObject(DC_BRUSH));
 		SelectObject(hdc, GetStockObject(DC_PEN));
-		SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#4f4f5c"));
-		SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#3e3e4a"));
+		{
+			PanitentThemeColors colors = { 0 };
+			PanitentTheme_GetColors(&colors);
+			SetDCBrushColor(hdc, colors.splitterFill);
+			SetDCPenColor(hdc, colors.border);
+		}
 		Rectangle(hdc, rcSplit.left, rcSplit.top, rcSplit.right, rcSplit.bottom);
 
-		SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#8c8ca0"));
+		{
+			PanitentThemeColors colors = { 0 };
+			PanitentTheme_GetColors(&colors);
+			SetDCBrushColor(hdc, colors.splitterGrip);
+		}
 		if (bVertical)
 		{
 			int cx = (rcSplit.left + rcSplit.right) / 2;
@@ -2150,10 +2159,7 @@ void DockNode_Paint(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent, HDC 
 			if (Dock_BuildCaptionLayout(pDockData, FALSE, &layout))
 			{
 				CaptionFramePalette palette = { 0 };
-				palette.frameFill = Win32_HexToCOLORREF(L"#9185be");
-				palette.border = Win32_HexToCOLORREF(L"#6d648e");
-				palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
-				palette.text = COLORREF_WHITE;
+				PanitentTheme_GetCaptionPalette(&palette);
 
 				int nHotButton = DCB_NONE;
 				int nPressedButton = DCB_NONE;
@@ -2479,7 +2485,7 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 {
 	UNREFERENCED_PARAMETER(lpcs);
 
-	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(Win32_HexToCOLORREF(L"#9185be"));
+	DockHostWindow_RefreshTheme(pDockHostWindow);
 
 	return TRUE;
 }
@@ -2492,7 +2498,43 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 		DestroyWindow(pDockHostWindow->hWndAutoHideOverlayHost);
 	}
 	pDockHostWindow->hWndAutoHideOverlayHost = NULL;
-	DeleteObject(pDockHostWindow->hCaptionBrush_);
+	if (pDockHostWindow->hCaptionBrush_)
+	{
+		DeleteObject(pDockHostWindow->hCaptionBrush_);
+		pDockHostWindow->hCaptionBrush_ = NULL;
+	}
+}
+
+void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow)
+{
+	PanitentThemeColors colors = { 0 };
+	HWND hWnd = NULL;
+
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	PanitentTheme_GetColors(&colors);
+	if (pDockHostWindow->hCaptionBrush_)
+	{
+		DeleteObject(pDockHostWindow->hCaptionBrush_);
+	}
+	pDockHostWindow->hCaptionBrush_ = CreateSolidBrush(colors.accent);
+
+	hWnd = Window_GetHWND((Window*)pDockHostWindow);
+	if (hWnd && IsWindow(hWnd))
+	{
+		RedrawWindow(hWnd, NULL, NULL, RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+	}
+	if (pDockHostWindow->hWndAutoHideOverlayHost && IsWindow(pDockHostWindow->hWndAutoHideOverlayHost))
+	{
+		RedrawWindow(
+			pDockHostWindow->hWndAutoHideOverlayHost,
+			NULL,
+			NULL,
+			RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
+	}
 }
 
 #define DOCKHOSTBGMARGIN 16
@@ -2500,7 +2542,11 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow)
 static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect)
 {
 	SelectObject(hdc, GetStockObject(DC_BRUSH));
-	SetDCBrushColor(hdc, Win32_HexToCOLORREF(DOCK_COLOR_ROOT_BG));
+	{
+		PanitentThemeColors colors = { 0 };
+		PanitentTheme_GetColors(&colors);
+		SetDCBrushColor(hdc, colors.rootBackground);
+	}
 	FillRect(hdc, pClientRect, (HBRUSH)GetStockObject(DC_BRUSH));
 
 	if (pDockHostWindow->pRoot_) {

@@ -10,6 +10,7 @@
 #include "toolwndframe.h"
 #include "workspacecontainer.h"
 #include "workspacedockpolicy.h"
+#include "theme.h"
 #include "panitentapp.h"
 #include "util/assert.h"
 
@@ -316,15 +317,34 @@ static BOOL DockPreviewOverlay_GetGuideBackplateRect(const RECT* pGuideRect, REC
 static void DockPreviewOverlay_DrawGuideBackplate(DWORD* pBits, int width, int height, const RECT* pGuideRect, BOOL bActive)
 {
 	RECT rcBackplate = { 0 };
+	PanitentThemeColors colors = { 0 };
 	if (!DockPreviewOverlay_GetGuideBackplateRect(pGuideRect, &rcBackplate))
 	{
 		return;
 	}
 
+	PanitentTheme_GetColors(&colors);
 	const BYTE fillAlpha = bActive ? 168 : 132;
 	const BYTE borderAlpha = bActive ? 230 : 196;
-	DockPreviewOverlay_FillRectARGB(pBits, width, height, &rcBackplate, fillAlpha, 0x76, 0x69, 0x9f);
-	DockPreviewOverlay_DrawRectFrameARGB(pBits, width, height, &rcBackplate, 1, borderAlpha, 0xd2, 0xc8, 0xf0);
+	DockPreviewOverlay_FillRectARGB(
+		pBits,
+		width,
+		height,
+		&rcBackplate,
+		fillAlpha,
+		GetRValue(colors.guideBackplate),
+		GetGValue(colors.guideBackplate),
+		GetBValue(colors.guideBackplate));
+	DockPreviewOverlay_DrawRectFrameARGB(
+		pBits,
+		width,
+		height,
+		&rcBackplate,
+		1,
+		borderAlpha,
+		GetRValue(colors.guideBackplateBorder),
+		GetGValue(colors.guideBackplateBorder),
+		GetBValue(colors.guideBackplateBorder));
 }
 
 static void DockPreviewOverlay_FillCrossSilhouetteARGB(
@@ -431,6 +451,9 @@ static void DockPreviewOverlay_DrawGuideCrossBackplate(
 	int nActiveSide)
 {
 	UNREFERENCED_PARAMETER(nActiveSide);
+	PanitentThemeColors colors = { 0 };
+
+	PanitentTheme_GetColors(&colors);
 
 	DockPreviewOverlay_FillCrossSilhouetteARGB(
 		pBits,
@@ -444,9 +467,9 @@ static void DockPreviewOverlay_DrawGuideCrossBackplate(
 		DOCK_GUIDE_BACKPLATE_PADDING + 1,
 		DOCK_GUIDE_BACKPLATE_CONNECTOR_HALF + 1,
 		220,
-		0xd2,
-		0xc8,
-		0xf0);
+		GetRValue(colors.guideBackplateBorder),
+		GetGValue(colors.guideBackplateBorder),
+		GetBValue(colors.guideBackplateBorder));
 
 	DockPreviewOverlay_FillCrossSilhouetteARGB(
 		pBits,
@@ -460,9 +483,9 @@ static void DockPreviewOverlay_DrawGuideCrossBackplate(
 		DOCK_GUIDE_BACKPLATE_PADDING,
 		DOCK_GUIDE_BACKPLATE_CONNECTOR_HALF,
 		148,
-		0x76,
-		0x69,
-		0x9f);
+		GetRValue(colors.guideBackplate),
+		GetGValue(colors.guideBackplate),
+		GetBValue(colors.guideBackplate));
 }
 
 static int DockPreviewOverlay_GetGuideTileSize(void)
@@ -1766,10 +1789,7 @@ void FloatingWindowContainer_OnNCPaint(FloatingWindowContainer* pFloatingWindowC
     DWORD dwStyle = GetWindowStyle(hWnd);
 
     CaptionFramePalette palette = { 0 };
-    palette.frameFill = Win32_HexToCOLORREF(L"#9185be");
-    palette.border = Win32_HexToCOLORREF(L"#6d648e");
-    palette.captionFill = Win32_HexToCOLORREF(L"#9185be");
-    palette.text = COLORREF_WHITE;
+    PanitentTheme_GetCaptionPalette(&palette);
 
     if (dwStyle & WS_CAPTION)
     {

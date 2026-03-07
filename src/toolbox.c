@@ -23,6 +23,7 @@
 #include "sharing/activitysharingmanager.h"
 
 #include "panitentapp.h"
+#include "theme.h"
 
 const WCHAR szClassName[] = L"__ToolboxWindow";
 
@@ -170,8 +171,10 @@ void Toolbox_ButtonDraw(HDC hdc, int x, int y, unsigned int state)
 
         if (state == PUSHED)
         {
-            SetDCPenColor(hdc, Win32_HexToCOLORREF(L"#6d648e"));
-            SetDCBrushColor(hdc, Win32_HexToCOLORREF(L"#9185be"));
+            PanitentThemeColors colors = { 0 };
+            PanitentTheme_GetColors(&colors);
+            SetDCPenColor(hdc, colors.border);
+            SetDCBrushColor(hdc, colors.accent);
             
         }
         else {

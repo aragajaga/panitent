@@ -6,7 +6,11 @@
 #include "panitentwindow.h"
 #include "resource.h"
 #include "settings.h"
+#include "theme.h"
 #include "win32/util.h"
+
+#include <commctrl.h>
+#include <strsafe.h>
 
 static const WCHAR szClassName[] = L"Win32Ctl_SettingsWindow";
 
@@ -20,6 +24,12 @@ static const WCHAR szClassName[] = L"Win32Ctl_SettingsWindow";
 #define IDC_SETTINGS_STANDARD_FRAME      2108
 #define IDC_SETTINGS_APPLY               2109
 #define IDC_SETTINGS_COMPACT_MENU        2110
+#define IDC_SETTINGS_THEME_HUE           2111
+#define IDC_SETTINGS_THEME_SATURATION    2112
+#define IDC_SETTINGS_THEME_LIGHTNESS     2113
+#define IDC_SETTINGS_THEME_HUE_VALUE     2114
+#define IDC_SETTINGS_THEME_SAT_VALUE     2115
+#define IDC_SETTINGS_THEME_LIGHT_VALUE   2116
 
 static const int kSettingsPadding = 12;
 static const int kSettingsGroupGap = 10;
@@ -31,6 +41,12 @@ static const int kSettingsButtonWidth = 88;
 static const int kSettingsButtonHeight = 26;
 static const int kSettingsGroupWindowHeight = 116;
 static const int kSettingsGroupBehaviorHeight = 140;
+static const int kSettingsGroupThemeHeight = 170;
+static const int kSettingsSliderHeight = 26;
+static const int kSettingsThemeLabelWidth = 72;
+static const int kSettingsThemeValueWidth = 52;
+static const int kSettingsThemePreviewWidth = 170;
+static const int kSettingsThemePreviewHeight = 68;
 
 static HWND s_hSettingsWindow = NULL;
 
@@ -51,12 +67,16 @@ static HWND SettingsWindow_CreateEdit(HWND hWndParent, int id);
 static HWND SettingsWindow_CreateCheckbox(HWND hWndParent, int id, PCWSTR pszText);
 static HWND SettingsWindow_CreateGroup(HWND hWndParent, PCWSTR pszText);
 static HWND SettingsWindow_CreateButton(HWND hWndParent, int id, PCWSTR pszText, DWORD dwStyle);
+static HWND SettingsWindow_CreateTrackbar(HWND hWndParent, int id, int nMin, int nMax, int nPageSize);
 static void SettingsWindow_SetIntText(HWND hWnd, int value);
 static int SettingsWindow_GetIntText(HWND hWnd, int nFallback);
 static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_UpdateWindowFieldsEnabled(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_UpdateFrameFieldsEnabled(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int width, int height);
+static void SettingsWindow_UpdateThemeValueLabels(SettingsWindow* pSettingsWindow);
+static void SettingsWindow_GetThemeHsl(SettingsWindow* pSettingsWindow, int* pHue, int* pSaturation, int* pLightness);
+static void SettingsWindow_DrawThemePreview(SettingsWindow* pSettingsWindow, HDC hdc);
 static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow);
 static void SettingsWindow_MarkDirty(SettingsWindow* pSettingsWindow, BOOL fDirty);
 
@@ -122,7 +142,7 @@ static void SettingsWindow_PreRegister(LPWNDCLASSEX lpwcex)
 
 static void SettingsWindow_PreCreate(LPCREATESTRUCT lpcs)
 {
-    RECT rcWindow = { 0, 0, 560, 360 };
+    RECT rcWindow = { 0, 0, 640, 560 };
     AdjustWindowRect(&rcWindow, WS_OVERLAPPEDWINDOW, FALSE);
 
     int screenWidth = GetSystemMetrics(SM_CXSCREEN);
@@ -221,6 +241,27 @@ static HWND SettingsWindow_CreateButton(HWND hWndParent, int id, PCWSTR pszText,
     return hWnd;
 }
 
+static HWND SettingsWindow_CreateTrackbar(HWND hWndParent, int id, int nMin, int nMax, int nPageSize)
+{
+    HWND hWnd = CreateWindowExW(
+        0,
+        TRACKBAR_CLASSW,
+        L"",
+        WS_CHILD | WS_VISIBLE | WS_TABSTOP | TBS_AUTOTICKS | TBS_HORZ,
+        0, 0, 0, 0,
+        hWndParent,
+        (HMENU)(INT_PTR)id,
+        GetModuleHandle(NULL),
+        NULL);
+    if (hWnd)
+    {
+        SendMessageW(hWnd, TBM_SETRANGE, TRUE, MAKELPARAM(nMin, nMax));
+        SendMessageW(hWnd, TBM_SETPAGESIZE, 0, (LPARAM)nPageSize);
+        SendMessageW(hWnd, TBM_SETTICFREQ, max(1, nPageSize), 0);
+    }
+    return hWnd;
+}
+
 static void SettingsWindow_SetIntText(HWND hWnd, int value)
 {
     WCHAR szValue[32] = L"";
@@ -271,9 +312,13 @@ static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow)
     Button_SetCheck(
         pSettingsWindow->hCheckCompactMenuBar,
         pSettings->bCompactMenuBar ? BST_CHECKED : BST_UNCHECKED);
+    SendMessageW(pSettingsWindow->hSliderThemeHue, TBM_SETPOS, TRUE, pSettings->iThemeHue);
+    SendMessageW(pSettingsWindow->hSliderThemeSaturation, TBM_SETPOS, TRUE, pSettings->iThemeSaturation);
+    SendMessageW(pSettingsWindow->hSliderThemeLightness, TBM_SETPOS, TRUE, pSettings->iThemeLightness);
 
     SettingsWindow_UpdateWindowFieldsEnabled(pSettingsWindow);
     SettingsWindow_UpdateFrameFieldsEnabled(pSettingsWindow);
+    SettingsWindow_UpdateThemeValueLabels(pSettingsWindow);
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
 }
 
@@ -295,6 +340,135 @@ static void SettingsWindow_UpdateFrameFieldsEnabled(SettingsWindow* pSettingsWin
     BOOL fEnableCompactMenu =
         Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) != BST_CHECKED;
     EnableWindow(pSettingsWindow->hCheckCompactMenuBar, fEnableCompactMenu);
+}
+
+static void SettingsWindow_UpdateThemeValueLabels(SettingsWindow* pSettingsWindow)
+{
+    WCHAR szValue[32] = L"";
+    int hue = 0;
+    int saturation = 0;
+    int lightness = 0;
+
+    if (!pSettingsWindow)
+    {
+        return;
+    }
+
+    SettingsWindow_GetThemeHsl(pSettingsWindow, &hue, &saturation, &lightness);
+
+    StringCchPrintfW(szValue, ARRAYSIZE(szValue), L"%d deg", hue);
+    SetWindowTextW(pSettingsWindow->hValueThemeHue, szValue);
+
+    StringCchPrintfW(szValue, ARRAYSIZE(szValue), L"%d%%", saturation);
+    SetWindowTextW(pSettingsWindow->hValueThemeSaturation, szValue);
+
+    StringCchPrintfW(szValue, ARRAYSIZE(szValue), L"%d%%", lightness);
+    SetWindowTextW(pSettingsWindow->hValueThemeLightness, szValue);
+}
+
+static void SettingsWindow_GetThemeHsl(SettingsWindow* pSettingsWindow, int* pHue, int* pSaturation, int* pLightness)
+{
+    if (!pSettingsWindow)
+    {
+        return;
+    }
+
+    if (pHue)
+    {
+        *pHue = (int)SendMessageW(pSettingsWindow->hSliderThemeHue, TBM_GETPOS, 0, 0);
+    }
+    if (pSaturation)
+    {
+        *pSaturation = (int)SendMessageW(pSettingsWindow->hSliderThemeSaturation, TBM_GETPOS, 0, 0);
+    }
+    if (pLightness)
+    {
+        *pLightness = (int)SendMessageW(pSettingsWindow->hSliderThemeLightness, TBM_GETPOS, 0, 0);
+    }
+}
+
+static void SettingsWindow_DrawThemePreview(SettingsWindow* pSettingsWindow, HDC hdc)
+{
+    PanitentThemeColors colors = { 0 };
+    RECT rcPreview = { 0 };
+    RECT rcCaption = { 0 };
+    RECT rcMenu = { 0 };
+    RECT rcActiveTab = { 0 };
+    RECT rcInactiveTab = { 0 };
+    RECT rcWorkspace = { 0 };
+    HBRUSH hBrushMenu = NULL;
+    HBRUSH hBrushAccentActive = NULL;
+    HBRUSH hBrushAccent = NULL;
+    HBRUSH hBrushBorder = NULL;
+    HBRUSH hBrushRoot = NULL;
+    int hue = 0;
+    int saturation = 0;
+    int lightness = 0;
+
+    if (!pSettingsWindow || !hdc || IsRectEmpty(&pSettingsWindow->rcThemePreview))
+    {
+        return;
+    }
+
+    SettingsWindow_GetThemeHsl(pSettingsWindow, &hue, &saturation, &lightness);
+    PanitentTheme_GetColorsForHsl(hue, saturation, lightness, &colors);
+    hBrushMenu = CreateSolidBrush(colors.menuBackground);
+    hBrushAccentActive = CreateSolidBrush(colors.accentActive);
+    hBrushAccent = CreateSolidBrush(colors.accent);
+    hBrushBorder = CreateSolidBrush(colors.border);
+    hBrushRoot = CreateSolidBrush(colors.rootBackground);
+
+    rcPreview = pSettingsWindow->rcThemePreview;
+    FillRect(hdc, &rcPreview, GetSysColorBrush(COLOR_WINDOW));
+    FrameRect(hdc, &rcPreview, GetStockObject(BLACK_BRUSH));
+
+    rcCaption = rcPreview;
+    rcCaption.bottom = min(rcPreview.bottom, rcPreview.top + 24);
+    SetDCBrushColor(hdc, colors.accent);
+    SetDCPenColor(hdc, colors.border);
+    SelectObject(hdc, GetStockObject(DC_BRUSH));
+    SelectObject(hdc, GetStockObject(DC_PEN));
+    Rectangle(hdc, rcCaption.left, rcCaption.top, rcCaption.right, rcCaption.bottom);
+
+    SetBkMode(hdc, TRANSPARENT);
+    SetTextColor(hdc, colors.text);
+    {
+        RECT rcCaptionText = rcCaption;
+        rcCaptionText.left += 8;
+        DrawTextW(hdc, L"Theme Preview", -1, &rcCaptionText, DT_SINGLELINE | DT_VCENTER | DT_LEFT);
+    }
+
+    rcMenu = rcPreview;
+    rcMenu.top = rcCaption.bottom;
+    rcMenu.bottom = min(rcPreview.bottom, rcMenu.top + 18);
+    FillRect(hdc, &rcMenu, hBrushMenu);
+
+    rcActiveTab = rcPreview;
+    rcActiveTab.left += 8;
+    rcActiveTab.top = rcMenu.bottom + 8;
+    rcActiveTab.right = rcActiveTab.left + 72;
+    rcActiveTab.bottom = rcActiveTab.top + 22;
+    FillRect(hdc, &rcActiveTab, hBrushAccentActive);
+    FrameRect(hdc, &rcActiveTab, hBrushBorder);
+
+    rcInactiveTab = rcActiveTab;
+    OffsetRect(&rcInactiveTab, 76, 0);
+    FillRect(hdc, &rcInactiveTab, hBrushAccent);
+    FrameRect(hdc, &rcInactiveTab, hBrushBorder);
+
+    rcWorkspace = rcPreview;
+    rcWorkspace.left += 8;
+    rcWorkspace.right -= 8;
+    rcWorkspace.top = rcActiveTab.bottom + 8;
+    rcWorkspace.bottom -= 8;
+    FillRect(hdc, &rcWorkspace, hBrushRoot);
+    FrameRect(hdc, &rcWorkspace, hBrushBorder);
+
+    DeleteObject(hBrushMenu);
+    DeleteObject(hBrushAccentActive);
+    DeleteObject(hBrushAccent);
+    DeleteObject(hBrushBorder);
+    DeleteObject(hBrushRoot);
 }
 
 static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int width, int height)
@@ -383,6 +557,44 @@ static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int w
         kSettingsCheckHeight,
         TRUE);
 
+    {
+        int themeTop = behaviorTop + kSettingsGroupBehaviorHeight + kSettingsGroupGap;
+        int previewLeft = kSettingsPadding + contentWidth - kSettingsThemePreviewWidth - 12;
+        int sliderLeft = kSettingsPadding + 12 + kSettingsThemeLabelWidth;
+        int sliderWidth = max(120, previewLeft - sliderLeft - kSettingsThemeValueWidth - 18);
+        int valueLeft = sliderLeft + sliderWidth + 8;
+        int rowY = themeTop + 28;
+
+        MoveWindow(
+            pSettingsWindow->hGroupTheme,
+            kSettingsPadding,
+            themeTop,
+            contentWidth,
+            kSettingsGroupThemeHeight,
+            TRUE);
+
+        MoveWindow(pSettingsWindow->hLabelThemeHue, kSettingsPadding + 12, rowY + 4, kSettingsThemeLabelWidth, 18, TRUE);
+        MoveWindow(pSettingsWindow->hSliderThemeHue, sliderLeft, rowY, sliderWidth, kSettingsSliderHeight, TRUE);
+        MoveWindow(pSettingsWindow->hValueThemeHue, valueLeft, rowY + 4, kSettingsThemeValueWidth, 18, TRUE);
+        rowY += 34;
+
+        MoveWindow(pSettingsWindow->hLabelThemeSaturation, kSettingsPadding + 12, rowY + 4, kSettingsThemeLabelWidth, 18, TRUE);
+        MoveWindow(pSettingsWindow->hSliderThemeSaturation, sliderLeft, rowY, sliderWidth, kSettingsSliderHeight, TRUE);
+        MoveWindow(pSettingsWindow->hValueThemeSaturation, valueLeft, rowY + 4, kSettingsThemeValueWidth, 18, TRUE);
+        rowY += 34;
+
+        MoveWindow(pSettingsWindow->hLabelThemeLightness, kSettingsPadding + 12, rowY + 4, kSettingsThemeLabelWidth, 18, TRUE);
+        MoveWindow(pSettingsWindow->hSliderThemeLightness, sliderLeft, rowY, sliderWidth, kSettingsSliderHeight, TRUE);
+        MoveWindow(pSettingsWindow->hValueThemeLightness, valueLeft, rowY + 4, kSettingsThemeValueWidth, 18, TRUE);
+
+        SetRect(
+            &pSettingsWindow->rcThemePreview,
+            previewLeft,
+            themeTop + 28,
+            previewLeft + kSettingsThemePreviewWidth,
+            themeTop + 28 + kSettingsThemePreviewHeight);
+    }
+
     int buttonX = clientWidth - kSettingsPadding - kSettingsButtonWidth;
     MoveWindow(pSettingsWindow->hButtonCancel, buttonX, buttonY, kSettingsButtonWidth, kSettingsButtonHeight, TRUE);
     buttonX -= kSettingsButtonWidth + 8;
@@ -419,6 +631,11 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     pSettings->bEnablePenTablet = Button_GetCheck(pSettingsWindow->hCheckEnablePenTablet) == BST_CHECKED;
     pSettings->bUseStandardWindowFrame = Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) == BST_CHECKED;
     pSettings->bCompactMenuBar = Button_GetCheck(pSettingsWindow->hCheckCompactMenuBar) == BST_CHECKED;
+    SettingsWindow_GetThemeHsl(
+        pSettingsWindow,
+        &pSettings->iThemeHue,
+        &pSettings->iThemeSaturation,
+        &pSettings->iThemeLightness);
 
     if (!Panitent_WriteSettings(pSettings))
     {
@@ -436,6 +653,7 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     PanitentWindow_SetCompactMenuBar(
         PanitentApp_GetWindow(PanitentApp_Instance()),
         pSettings->bCompactMenuBar);
+    PanitentTheme_RefreshApplication();
 
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
     return TRUE;
@@ -463,6 +681,17 @@ static BOOL SettingsWindow_OnCreate(SettingsWindow* pSettingsWindow, LPCREATESTR
     pSettingsWindow->hCheckEnablePenTablet = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_ENABLE_PEN, L"Enable pen tablet");
     pSettingsWindow->hCheckStandardWindowFrame = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_STANDARD_FRAME, L"Use standard Windows frame");
     pSettingsWindow->hCheckCompactMenuBar = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_COMPACT_MENU, L"Compact menu bar");
+
+    pSettingsWindow->hGroupTheme = SettingsWindow_CreateGroup(hWnd, L"Theme");
+    pSettingsWindow->hLabelThemeHue = SettingsWindow_CreateLabel(hWnd, IDC_STATIC, L"Hue");
+    pSettingsWindow->hSliderThemeHue = SettingsWindow_CreateTrackbar(hWnd, IDC_SETTINGS_THEME_HUE, 0, 360, 30);
+    pSettingsWindow->hValueThemeHue = SettingsWindow_CreateLabel(hWnd, IDC_SETTINGS_THEME_HUE_VALUE, L"");
+    pSettingsWindow->hLabelThemeSaturation = SettingsWindow_CreateLabel(hWnd, IDC_STATIC, L"Saturation");
+    pSettingsWindow->hSliderThemeSaturation = SettingsWindow_CreateTrackbar(hWnd, IDC_SETTINGS_THEME_SATURATION, 0, 100, 10);
+    pSettingsWindow->hValueThemeSaturation = SettingsWindow_CreateLabel(hWnd, IDC_SETTINGS_THEME_SAT_VALUE, L"");
+    pSettingsWindow->hLabelThemeLightness = SettingsWindow_CreateLabel(hWnd, IDC_STATIC, L"Lightness");
+    pSettingsWindow->hSliderThemeLightness = SettingsWindow_CreateTrackbar(hWnd, IDC_SETTINGS_THEME_LIGHTNESS, 0, 100, 10);
+    pSettingsWindow->hValueThemeLightness = SettingsWindow_CreateLabel(hWnd, IDC_SETTINGS_THEME_LIGHT_VALUE, L"");
 
     pSettingsWindow->hButtonOk = SettingsWindow_CreateButton(hWnd, IDOK, L"OK", BS_DEFPUSHBUTTON);
     pSettingsWindow->hButtonCancel = SettingsWindow_CreateButton(hWnd, IDCANCEL, L"Cancel", BS_PUSHBUTTON);
@@ -492,6 +721,7 @@ static void SettingsWindow_OnPaint(SettingsWindow* pSettingsWindow)
     if (hdc)
     {
         FillRect(hdc, &ps.rcPaint, GetSysColorBrush(COLOR_BTNFACE));
+        SettingsWindow_DrawThemePreview(pSettingsWindow, hdc);
     }
     EndPaint(hWnd, &ps);
 }
@@ -576,7 +806,7 @@ static void SettingsWindow_OnGetMinMaxInfo(SettingsWindow* pSettingsWindow, LPAR
 {
     UNREFERENCED_PARAMETER(pSettingsWindow);
 
-    RECT rcWindow = { 0, 0, 560, 360 };
+    RECT rcWindow = { 0, 0, 640, 560 };
     AdjustWindowRect(&rcWindow, WS_OVERLAPPEDWINDOW, FALSE);
 
     LPMINMAXINFO lpmmi = (LPMINMAXINFO)lParam;
@@ -588,6 +818,18 @@ static LRESULT SettingsWindow_UserProc(SettingsWindow* pSettingsWindow, HWND hWn
 {
     switch (message)
     {
+    case WM_HSCROLL:
+        if ((HWND)lParam == pSettingsWindow->hSliderThemeHue ||
+            (HWND)lParam == pSettingsWindow->hSliderThemeSaturation ||
+            (HWND)lParam == pSettingsWindow->hSliderThemeLightness)
+        {
+            SettingsWindow_UpdateThemeValueLabels(pSettingsWindow);
+            SettingsWindow_MarkDirty(pSettingsWindow, TRUE);
+            InvalidateRect(hWnd, &pSettingsWindow->rcThemePreview, TRUE);
+            return 0;
+        }
+        break;
+
     case WM_ERASEBKGND:
         return SettingsWindow_OnEraseBkgnd(pSettingsWindow, (HDC)wParam);
 

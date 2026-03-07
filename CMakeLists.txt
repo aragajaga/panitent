@@ -114,6 +114,7 @@ set(C_SOURCES
     src/swatch.c
     src/swatch2.c
     src/toolbox.c
+    src/theme.c
     src/toolwndframe.c
     src/util.c
     src/verifycheck.c
