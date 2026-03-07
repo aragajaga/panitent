@@ -2,6 +2,7 @@
 
 #include "settings.h"
 
+#include <stddef.h>
 #include <tchar.h>
 
 #include "shell/pathutil.h"
@@ -22,6 +23,7 @@ void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
     pSettings->bLegacyFileDialogs = FALSE;
     pSettings->bEnablePenTablet = FALSE;
     pSettings->iToolbarIconTheme = 0;
+    pSettings->bUseStandardWindowFrame = TRUE;
 }
 
 BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)
@@ -46,9 +48,9 @@ BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)
         return FALSE;
     }
 
-    size_t nRead = fread(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    size_t nRead = fread(pSettings, 1, sizeof(PNTSETTINGS), fp);
     fclose(fp);
-    return nRead == 1;
+    return nRead >= offsetof(PNTSETTINGS, bUseStandardWindowFrame);
 }
 
 BOOL Panitent_WriteSettings(const PNTSETTINGS* pSettings)
@@ -73,7 +75,7 @@ BOOL Panitent_WriteSettings(const PNTSETTINGS* pSettings)
         return FALSE;
     }
 
-    size_t nWritten = fwrite(pSettings, sizeof(PNTSETTINGS), 1, fp);
+    size_t nWritten = fwrite(pSettings, 1, sizeof(PNTSETTINGS), fp);
     fclose(fp);
-    return nWritten == 1;
+    return nWritten == sizeof(PNTSETTINGS);
 }

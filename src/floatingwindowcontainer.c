@@ -15,10 +15,6 @@
 
 #define HTMORE 23
 
-#define GLYPH_CHEVRON_TILE 0
-#define GLYPH_MINIMIZE_TILE 2
-#define GLYPH_MAXIMIZE_TILE 3
-#define GLYPH_CLOSE_TILE 4
 #define DOCK_TARGET_GUIDE_SIZE 24
 #define DOCK_TARGET_GUIDE_GAP 8
 #define DOCK_TARGET_GUIDE_EDGE_MARGIN 12
@@ -1607,14 +1603,14 @@ static int FloatingWindowContainer_BuildCaptionButtons(FloatingWindowContainer* 
         return 0;
     }
 
-    pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CLOSE_TILE, HTCLOSE };
-    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
+    pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_CLOSE_TILE, HTCLOSE };
+    pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
     if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
     {
-        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_MINIMIZE_TILE, HTMINBUTTON };
+        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_MINIMIZE_TILE, HTMINBUTTON };
     }
     else {
-        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, GLYPH_CHEVRON_TILE, HTMORE };
+        pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_CHEVRON_TILE, HTMORE };
     }
 
     return 3;
@@ -1639,7 +1635,8 @@ static BOOL FloatingWindowContainer_BuildCaptionLayout(FloatingWindowContainer* 
     metrics.borderSize = g_borderSize;
     metrics.captionHeight = FloatingWindowContainer_GetCaptionHeight(pFloatingWindowContainer);
     metrics.buttonSpacing = 3;
-    metrics.textPaddingX = g_borderSize;
+    metrics.textPaddingLeft = g_borderSize;
+    metrics.textPaddingRight = g_borderSize;
     metrics.textPaddingY = 0;
 
     CaptionButton buttons[3] = { 0 };

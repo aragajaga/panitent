@@ -46,11 +46,6 @@ static int g_iZoneTabGutterBottom = 0;
 #define WINDOWBUTTONSPACING 3
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
 
-#define GLYPH_CHEVRON_TILE 0
-#define GLYPH_PIN_DIAGONAL_TILE 1
-#define GLYPH_CLOSE_TILE 4
-#define GLYPH_PIN_VERTICAL_TILE 6
-
 BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
 BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y);
@@ -185,7 +180,8 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 	metrics.borderSize = DOCK_CAPTION_INSET;
 	metrics.captionHeight = iCaptionHeight;
 	metrics.buttonSpacing = WINDOWBUTTONSPACING;
-	metrics.textPaddingX = DOCK_CAPTION_INSET;
+	metrics.textPaddingLeft = DOCK_CAPTION_INSET;
+	metrics.textPaddingRight = DOCK_CAPTION_INSET;
 	metrics.textPaddingY = 0;
 	CaptionFrameLayout layout = { 0 };
 	if (!CaptionFrame_BuildLayout(&pDockData->rc, &metrics, NULL, 0, &layout))
@@ -361,7 +357,8 @@ static void Dock_GetCaptionMetrics(CaptionFrameMetrics* pMetrics)
 	pMetrics->borderSize = DOCK_CAPTION_INSET;
 	pMetrics->captionHeight = iCaptionHeight;
 	pMetrics->buttonSpacing = WINDOWBUTTONSPACING;
-	pMetrics->textPaddingX = DOCK_CAPTION_INSET;
+	pMetrics->textPaddingLeft = DOCK_CAPTION_INSET;
+	pMetrics->textPaddingRight = DOCK_CAPTION_INSET;
 	pMetrics->textPaddingY = 0;
 }
 
@@ -382,7 +379,7 @@ static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, int iPi
 	}
 	if (bCanClose && nCount < cButtons)
 	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE_TILE, DCB_CLOSE };
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CLOSE_TILE, DCB_CLOSE };
 	}
 	if (!bPinFirst && bCanPin && nCount < cButtons)
 	{
@@ -390,7 +387,7 @@ static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, int iPi
 	}
 	if (bIncludeChevron && nCount < cButtons)
 	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CHEVRON_TILE, DCB_MORE };
+		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CHEVRON_TILE, DCB_MORE };
 	}
 
 	return nCount;
@@ -410,7 +407,7 @@ static BOOL Dock_BuildCaptionLayout(DockData* pDockData, BOOL bPinFirst, Caption
 	int nButtons = Dock_BuildCaptionButtons(
 		pDockData,
 		bPinFirst,
-		bPinFirst ? GLYPH_PIN_DIAGONAL_TILE : GLYPH_PIN_VERTICAL_TILE,
+		bPinFirst ? CAPTION_GLYPH_PIN_DIAGONAL_TILE : CAPTION_GLYPH_PIN_VERTICAL_TILE,
 		TRUE,
 		buttons,
 		ARRAYSIZE(buttons));
@@ -1164,15 +1161,15 @@ static BOOL DockHostWindow_BuildAutoHideOverlayLayout(DockHostWindow* pDockHostW
 	/* Keep button ordering consistent with pinned/floating: close, pin, chevron (right to left in layout builder). */
 	if (bShowClose && nButtons < ARRAYSIZE(buttons))
 	{
-		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CLOSE_TILE, DCB_CLOSE };
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CLOSE_TILE, DCB_CLOSE };
 	}
 	if (bShowPin && nButtons < ARRAYSIZE(buttons))
 	{
-		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_PIN_DIAGONAL_TILE, DCB_PIN };
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_PIN_DIAGONAL_TILE, DCB_PIN };
 	}
 	if (nButtons < ARRAYSIZE(buttons))
 	{
-		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, GLYPH_CHEVRON_TILE, DCB_MORE };
+		buttons[nButtons++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CHEVRON_TILE, DCB_MORE };
 	}
 
 	CaptionFrameMetrics metrics = { 0 };

@@ -256,15 +256,15 @@ BOOL CaptionFrame_BuildLayout(const RECT* pRectFrame, const CaptionFrameMetrics*
     }
 
     RECT rcText = rcCaption;
-    rcText.left += pMetrics->textPaddingX;
+    rcText.left += pMetrics->textPaddingLeft;
     rcText.top += pMetrics->textPaddingY;
     rcText.bottom -= pMetrics->textPaddingY;
     if (pLayout->nButtons > 0)
     {
-        rcText.right = min(rcText.right, pLayout->buttonRects[pLayout->nButtons - 1].left - pMetrics->textPaddingX);
+        rcText.right = min(rcText.right, pLayout->buttonRects[pLayout->nButtons - 1].left - pMetrics->textPaddingRight);
     }
     else {
-        rcText.right -= pMetrics->textPaddingX;
+        rcText.right -= pMetrics->textPaddingRight;
     }
 
     if (rcText.right < rcText.left)

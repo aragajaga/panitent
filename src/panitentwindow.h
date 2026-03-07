@@ -3,8 +3,6 @@
 #include "dockhost.h"
 
 typedef struct PanitentApp PanitentApp;
-typedef struct MSTheme MSTheme;
-
 typedef struct PanitentWindow PanitentWindow;
 struct PanitentWindow
 {
@@ -15,10 +13,11 @@ struct PanitentWindow
 	HWND m_hWndPalette;
 	HWND m_hWndToolbox;
 	TreeNode* m_viewportNode;
-	BOOL fCallDWP;
 	BOOL bCustomFrame;
-
-	MSTheme* m_pMSTheme;
+	BOOL bNcTracking;
+	int nCaptionButtonHot;
+	int nCaptionButtonPressed;
 };
 
 PanitentWindow* PanitentWindow_Create();
+void PanitentWindow_SetUseStandardFrame(PanitentWindow* pPanitentWindow, BOOL fUseStandardFrame);

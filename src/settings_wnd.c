@@ -3,6 +3,7 @@
 #include "settings_wnd.h"
 
 #include "panitentapp.h"
+#include "panitentwindow.h"
 #include "resource.h"
 #include "settings.h"
 #include "win32/util.h"
@@ -16,7 +17,8 @@ static const WCHAR szClassName[] = L"Win32Ctl_SettingsWindow";
 #define IDC_SETTINGS_HEIGHT              2105
 #define IDC_SETTINGS_LEGACY_FILEDLG      2106
 #define IDC_SETTINGS_ENABLE_PEN          2107
-#define IDC_SETTINGS_APPLY               2108
+#define IDC_SETTINGS_STANDARD_FRAME      2108
+#define IDC_SETTINGS_APPLY               2109
 
 static const int kSettingsPadding = 12;
 static const int kSettingsGroupGap = 10;
@@ -27,7 +29,7 @@ static const int kSettingsCheckHeight = 20;
 static const int kSettingsButtonWidth = 88;
 static const int kSettingsButtonHeight = 26;
 static const int kSettingsGroupWindowHeight = 116;
-static const int kSettingsGroupBehaviorHeight = 88;
+static const int kSettingsGroupBehaviorHeight = 114;
 
 static HWND s_hSettingsWindow = NULL;
 
@@ -261,6 +263,9 @@ static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow)
     Button_SetCheck(
         pSettingsWindow->hCheckEnablePenTablet,
         pSettings->bEnablePenTablet ? BST_CHECKED : BST_UNCHECKED);
+    Button_SetCheck(
+        pSettingsWindow->hCheckStandardWindowFrame,
+        pSettings->bUseStandardWindowFrame ? BST_CHECKED : BST_UNCHECKED);
 
     SettingsWindow_UpdateWindowFieldsEnabled(pSettingsWindow);
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
@@ -350,6 +355,13 @@ static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int w
         contentWidth - 24,
         kSettingsCheckHeight,
         TRUE);
+    MoveWindow(
+        pSettingsWindow->hCheckStandardWindowFrame,
+        kSettingsPadding + 12,
+        behaviorTop + 74,
+        contentWidth - 24,
+        kSettingsCheckHeight,
+        TRUE);
 
     int buttonX = clientWidth - kSettingsPadding - kSettingsButtonWidth;
     MoveWindow(pSettingsWindow->hButtonCancel, buttonX, buttonY, kSettingsButtonWidth, kSettingsButtonHeight, TRUE);
@@ -385,6 +397,7 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     pSettings->height = max(64, SettingsWindow_GetIntText(pSettingsWindow->hEditHeight, pSettings->height));
     pSettings->bLegacyFileDialogs = Button_GetCheck(pSettingsWindow->hCheckLegacyFileDialogs) == BST_CHECKED;
     pSettings->bEnablePenTablet = Button_GetCheck(pSettingsWindow->hCheckEnablePenTablet) == BST_CHECKED;
+    pSettings->bUseStandardWindowFrame = Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) == BST_CHECKED;
 
     if (!Panitent_WriteSettings(pSettings))
     {
@@ -395,6 +408,10 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
             MB_OK | MB_ICONERROR);
         return FALSE;
     }
+
+    PanitentWindow_SetUseStandardFrame(
+        PanitentApp_GetWindow(PanitentApp_Instance()),
+        pSettings->bUseStandardWindowFrame);
 
     SettingsWindow_MarkDirty(pSettingsWindow, FALSE);
     return TRUE;
@@ -420,6 +437,7 @@ static BOOL SettingsWindow_OnCreate(SettingsWindow* pSettingsWindow, LPCREATESTR
     pSettingsWindow->hGroupBehavior = SettingsWindow_CreateGroup(hWnd, L"Behavior");
     pSettingsWindow->hCheckLegacyFileDialogs = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_LEGACY_FILEDLG, L"Use legacy file dialogs");
     pSettingsWindow->hCheckEnablePenTablet = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_ENABLE_PEN, L"Enable pen tablet");
+    pSettingsWindow->hCheckStandardWindowFrame = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_STANDARD_FRAME, L"Use standard Windows frame");
 
     pSettingsWindow->hButtonOk = SettingsWindow_CreateButton(hWnd, IDOK, L"OK", BS_DEFPUSHBUTTON);
     pSettingsWindow->hButtonCancel = SettingsWindow_CreateButton(hWnd, IDCANCEL, L"Cancel", BS_PUSHBUTTON);
@@ -484,6 +502,7 @@ static void SettingsWindow_OnCommand(SettingsWindow* pSettingsWindow, WPARAM wPa
 
     case IDC_SETTINGS_LEGACY_FILEDLG:
     case IDC_SETTINGS_ENABLE_PEN:
+    case IDC_SETTINGS_STANDARD_FRAME:
         if (HIWORD(wParam) == BN_CLICKED)
         {
             SettingsWindow_MarkDirty(pSettingsWindow, TRUE);

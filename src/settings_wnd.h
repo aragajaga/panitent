@@ -21,6 +21,7 @@ struct SettingsWindow {
     HWND hGroupBehavior;
     HWND hCheckLegacyFileDialogs;
     HWND hCheckEnablePenTablet;
+    HWND hCheckStandardWindowFrame;
 
     HWND hButtonOk;
     HWND hButtonCancel;

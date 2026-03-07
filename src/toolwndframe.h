@@ -1,13 +1,23 @@
 #pragma once
 
 enum {
-    GLYPH_MORE = 0,
-    GLYPH_PIN,
-    GLYPH_MINIMIZE,
-    GLYPH_MAXIMIZE,
-    GLYPH_CLOSE,
-    GLYPH_RESTORE,
-    GLYPH_HELP
+    CAPTION_GLYPH_CHEVRON_TILE = 0,
+    CAPTION_GLYPH_PIN_DIAGONAL_TILE = 1,
+    CAPTION_GLYPH_MINIMIZE_TILE = 2,
+    CAPTION_GLYPH_MAXIMIZE_TILE = 3,
+    CAPTION_GLYPH_CLOSE_TILE = 4,
+    CAPTION_GLYPH_RESTORE_TILE = 5,
+    CAPTION_GLYPH_PIN_VERTICAL_TILE = 6
+};
+
+enum {
+    GLYPH_MORE = CAPTION_GLYPH_CHEVRON_TILE,
+    GLYPH_PIN = CAPTION_GLYPH_PIN_DIAGONAL_TILE,
+    GLYPH_MINIMIZE = CAPTION_GLYPH_MINIMIZE_TILE,
+    GLYPH_MAXIMIZE = CAPTION_GLYPH_MAXIMIZE_TILE,
+    GLYPH_CLOSE = CAPTION_GLYPH_CLOSE_TILE,
+    GLYPH_RESTORE = CAPTION_GLYPH_RESTORE_TILE,
+    GLYPH_HELP = CAPTION_GLYPH_PIN_VERTICAL_TILE
 };
 
 typedef struct CaptionButton CaptionButton;
@@ -23,7 +33,8 @@ struct CaptionFrameMetrics {
     int borderSize;
     int captionHeight;
     int buttonSpacing;
-    int textPaddingX;
+    int textPaddingLeft;
+    int textPaddingRight;
     int textPaddingY;
 };
 
