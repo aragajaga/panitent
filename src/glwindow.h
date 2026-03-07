@@ -22,6 +22,7 @@ struct GLWindow {
 	int cxTexture;
 	int cyTexture;
 	BOOL bMouseRotating;
+	BOOL bMatcapMode;
 	POINT ptLastMouse;
 	float fUserYaw;
 	float fUserPitch;

@@ -129,6 +129,10 @@ static GLVec3 GLVec3_Scale(GLVec3 v, float s);
 static GLVec3 GLVec3_Cross(GLVec3 a, GLVec3 b);
 static float GLVec3_Length(GLVec3 v);
 static GLVec3 GLVec3_Normalize(GLVec3 v);
+static GLVec3 GLVec3_Reflect(GLVec3 v, GLVec3 normal);
+static GLVec3 GLVec3_RotateY(GLVec3 v, float degrees);
+static GLVec3 GLVec3_RotateX(GLVec3 v, float degrees);
+static GLVec2 GLWindow_ComputeMatcapTexcoord(const GLWindow* pGLWindow, const GLMesh* pMesh, GLVec3 position, GLVec3 normal);
 
 GLWindow* GLWindow_Create()
 {
@@ -398,9 +402,16 @@ static void GLWindow_OnMouseWheel(GLWindow* pGLWindow, HWND hWnd, short zDelta)
 
 static void GLWindow_OnRButtonUp(GLWindow* pGLWindow, int x, int y)
 {
-    UNREFERENCED_PARAMETER(pGLWindow);
     UNREFERENCED_PARAMETER(x);
     UNREFERENCED_PARAMETER(y);
+
+    if (!pGLWindow)
+    {
+        return;
+    }
+
+    pGLWindow->bMatcapMode = pGLWindow->bMatcapMode ? FALSE : TRUE;
+    InvalidateRect(pGLWindow->base.hWnd, NULL, FALSE);
 }
 
 static void GLWindow_OnContextMenu(GLWindow* pGLWindow, int x, int y)
@@ -943,6 +954,14 @@ static void GLWindow_Render(GLWindow* pGLWindow)
     glScalef(pMesh->fScale, pMesh->fScale, pMesh->fScale);
     glTranslatef(-pMesh->center.x, -pMesh->center.y, -pMesh->center.z);
 
+    if (bTextured && pGLWindow->bMatcapMode)
+    {
+        glDisable(GL_LIGHTING);
+    }
+    else {
+        glEnable(GL_LIGHTING);
+    }
+
     glBegin(GL_TRIANGLES);
     for (size_t i = 0; i < pMesh->nVertexCount; ++i)
     {
@@ -950,7 +969,14 @@ static void GLWindow_Render(GLWindow* pGLWindow)
         glNormal3f(vertex.normal.x, vertex.normal.y, vertex.normal.z);
         if (bTextured)
         {
-            glTexCoord2f(vertex.texcoord.u, 1.0f - vertex.texcoord.v);
+            if (pGLWindow->bMatcapMode)
+            {
+                GLVec2 texcoord = GLWindow_ComputeMatcapTexcoord(pGLWindow, pMesh, vertex.position, vertex.normal);
+                glTexCoord2f(texcoord.u, texcoord.v);
+            }
+            else {
+                glTexCoord2f(vertex.texcoord.u, 1.0f - vertex.texcoord.v);
+            }
         }
         glVertex3f(vertex.position.x, vertex.position.y, vertex.position.z);
     }
@@ -960,6 +986,8 @@ static void GLWindow_Render(GLWindow* pGLWindow)
     {
         glDisable(GL_TEXTURE_2D);
     }
+
+    glEnable(GL_LIGHTING);
 
     SwapBuffers(pGLWindow->hdcGL);
 }
@@ -1261,6 +1289,105 @@ static GLVec3 GLVec3_Normalize(GLVec3 v)
         GLVec3 up = { 0.0f, 1.0f, 0.0f };
         return up;
     }
+}
+
+static GLVec3 GLVec3_Reflect(GLVec3 v, GLVec3 normal)
+{
+    float dotVN = v.x * normal.x + v.y * normal.y + v.z * normal.z;
+    GLVec3 reflected = {
+        v.x - 2.0f * dotVN * normal.x,
+        v.y - 2.0f * dotVN * normal.y,
+        v.z - 2.0f * dotVN * normal.z
+    };
+    return reflected;
+}
+
+static GLVec3 GLVec3_RotateY(GLVec3 v, float degrees)
+{
+    float radians = degrees * 3.1415926535f / 180.0f;
+    float s = sinf(radians);
+    float c = cosf(radians);
+    GLVec3 rotated = {
+        c * v.x + s * v.z,
+        v.y,
+        -s * v.x + c * v.z
+    };
+    return rotated;
+}
+
+static GLVec3 GLVec3_RotateX(GLVec3 v, float degrees)
+{
+    float radians = degrees * 3.1415926535f / 180.0f;
+    float s = sinf(radians);
+    float c = cosf(radians);
+    GLVec3 rotated = {
+        v.x,
+        c * v.y - s * v.z,
+        s * v.y + c * v.z
+    };
+    return rotated;
+}
+
+static GLVec2 GLWindow_ComputeMatcapTexcoord(const GLWindow* pGLWindow, const GLMesh* pMesh, GLVec3 position, GLVec3 normal)
+{
+    GLVec3 eyeNormal = GLVec3_Normalize(normal);
+    GLVec3 eyePosition = position;
+    GLVec3 eyeVector = { 0.0f, 0.0f, -1.0f };
+    GLVec3 reflected = { 0.0f, 0.0f, 1.0f };
+    GLVec2 texcoord = { 0.5f, 0.5f };
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    float m = 0.0f;
+    float zoom = 1.0f;
+    float cameraYOffset = -0.15f;
+    float cameraZ = -4.6f;
+
+    if (pGLWindow)
+    {
+        yaw = pGLWindow->fUserYaw + pGLWindow->fAutoYaw;
+        pitch = pGLWindow->fUserPitch;
+        zoom = pGLWindow->fZoom;
+    }
+
+    if (zoom <= 0.0001f)
+    {
+        zoom = 1.0f;
+    }
+
+    if (pMesh)
+    {
+        eyePosition = GLVec3_Sub(eyePosition, pMesh->center);
+        eyePosition = GLVec3_Scale(eyePosition, pMesh->fScale);
+    }
+
+    eyeNormal = GLVec3_RotateY(eyeNormal, yaw);
+    eyeNormal = GLVec3_RotateX(eyeNormal, pitch);
+    eyeNormal = GLVec3_Normalize(eyeNormal);
+
+    eyePosition = GLVec3_RotateY(eyePosition, yaw);
+    eyePosition = GLVec3_RotateX(eyePosition, pitch);
+    eyePosition.y += cameraYOffset;
+    eyePosition.z += cameraZ / zoom;
+
+    eyeVector = GLVec3_Normalize(eyePosition);
+    reflected = GLVec3_Reflect(eyeVector, eyeNormal);
+    m = 2.0f * sqrtf(
+        reflected.x * reflected.x +
+        reflected.y * reflected.y +
+        (reflected.z + 1.0f) * (reflected.z + 1.0f));
+
+    if (m > 0.000001f)
+    {
+        texcoord.u = reflected.x / m + 0.5f;
+        texcoord.v = 0.5f - reflected.y / m;
+    }
+
+    if (texcoord.u < 0.0f) texcoord.u = 0.0f;
+    if (texcoord.u > 1.0f) texcoord.u = 1.0f;
+    if (texcoord.v < 0.0f) texcoord.v = 0.0f;
+    if (texcoord.v > 1.0f) texcoord.v = 1.0f;
+
+    return texcoord;
 }
 
 static BOOL GLWindow_IsSpaceChar(char ch)
