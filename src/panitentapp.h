@@ -16,6 +16,7 @@ typedef struct ActivitySharingManager ActivitySharingManager;
 typedef struct ViewportWindow ViewportWindow;
 typedef struct _Document Document;
 typedef struct ShapeContext ShapeContext;
+typedef struct OptionBarWindow OptionBarWindow;
 
 typedef struct PanitentApp PanitentApp;
 struct PanitentApp {
@@ -24,11 +25,14 @@ struct PanitentApp {
     PanitentWindow* pPanitentWindow;            /* Application main frame */
     PaletteWindow* m_pPaletteWindow;            /* Palette window */    
     WorkspaceContainer* m_pWorkspaceContainer;  /* Workspace container */
+    OptionBarWindow* m_pOptionBarWindow;        /* Context option bar */
     Tool* m_pTool;                              /* Current selected tool */
     Palette* palette;                           /* Palette */
     ActivitySharingManager* m_pActivitySharingManager;  /* Activity sharing manager */
     HFONT m_hFont;
     ViewportWindow* m_pViewportWindow;
+    WCHAR m_szTextToolFontFace[LF_FACESIZE];
+    int m_nTextToolFontPx;
     PNTSETTINGS m_settings;
     ShapeContext* m_pShapeContext;
     AppCmd m_appCmd;
@@ -58,11 +62,17 @@ ViewportWindow* PanitentApp_GetCurrentViewport(PanitentApp* pPanitentApp);
 PanitentWindow* PanitentApp_GetWindow(PanitentApp* pPanitentApp);
 
 WorkspaceContainer* PanitentApp_GetWorkspaceContainer(PanitentApp* pPanitentApp);
+OptionBarWindow* PanitentApp_GetOptionBar(PanitentApp* pPanitentApp);
+void PanitentApp_SetOptionBar(PanitentApp* pPanitentApp, OptionBarWindow* pOptionBarWindow);
 
 void PanitentApp_SetTool(PanitentApp* pPanitentApp, Tool* pTool);
 Tool* PanitentApp_GetTool(PanitentApp* pPanitentApp);
 
 ShapeContext* PanitentApp_GetShapeContext(PanitentApp* pPanitentApp);
+PCWSTR PanitentApp_GetTextToolFontFace(PanitentApp* pPanitentApp);
+int PanitentApp_GetTextToolFontPx(PanitentApp* pPanitentApp);
+void PanitentApp_SetTextToolFontFace(PanitentApp* pPanitentApp, PCWSTR pszFaceName);
+void PanitentApp_SetTextToolFontPx(PanitentApp* pPanitentApp, int nFontPx);
 
 /* Commands */
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp);

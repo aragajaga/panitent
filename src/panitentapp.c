@@ -63,6 +63,11 @@ void PanitentApp_Init(PanitentApp* pPanitentApp)
     ncm.cbSize = sizeof(NONCLIENTMETRICS);
     SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0);
     pPanitentApp->m_hFont = CreateFontIndirect(&ncm.lfMessageFont);
+    StringCchCopyW(
+        pPanitentApp->m_szTextToolFontFace,
+        ARRAYSIZE(pPanitentApp->m_szTextToolFontFace),
+        ncm.lfMessageFont.lfFaceName[0] != L'\0' ? ncm.lfMessageFont.lfFaceName : L"Segoe UI");
+    pPanitentApp->m_nTextToolFontPx = 24;
     pPanitentApp->m_pShapeContext = ShapeContext_Create();
     ShapeContext_SetStrategy(pPanitentApp->m_pShapeContext, WuShapeStrategy_Create());
 
@@ -213,8 +218,10 @@ TreeNode* CreateOptionBarNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
         memset(pDockDataOptionBar, 0, sizeof(DockData));
         pNodeOptionBar->data = (void*)pDockDataOptionBar;
         _tcscpy_s(pDockDataOptionBar->lpszName, MAX_PATH, _T("Option Bar"));
-        OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create((Application*)pPanitentApp);
+        OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create();
         HWND hwndLayers = Window_CreateWindow((Window*)pOptionBarWindow, NULL);
+        PanitentApp_SetOptionBar(pPanitentApp, pOptionBarWindow);
+        OptionBarWindow_SyncTool(pOptionBarWindow, PanitentApp_GetTool(pPanitentApp));
         DockData_PinWindow(pDockHostWindow, pDockDataOptionBar, (Window*)pOptionBarWindow);
     }
 
@@ -398,6 +405,19 @@ WorkspaceContainer* PanitentApp_GetWorkspaceContainer(PanitentApp* pPanitentApp)
     return pPanitentApp->m_pWorkspaceContainer;
 }
 
+OptionBarWindow* PanitentApp_GetOptionBar(PanitentApp* pPanitentApp)
+{
+    return pPanitentApp ? pPanitentApp->m_pOptionBarWindow : NULL;
+}
+
+void PanitentApp_SetOptionBar(PanitentApp* pPanitentApp, OptionBarWindow* pOptionBarWindow)
+{
+    if (pPanitentApp)
+    {
+        pPanitentApp->m_pOptionBarWindow = pOptionBarWindow;
+    }
+}
+
 void PanitentApp_SetTool(PanitentApp* pPanitentApp, Tool* pTool)
 {
     ViewportWindow* pViewportWindow = PanitentApp_GetActiveViewport(pPanitentApp);
@@ -407,6 +427,11 @@ void PanitentApp_SetTool(PanitentApp* pPanitentApp, Tool* pTool)
     }
 
     pPanitentApp->m_pTool = pTool;
+
+    if (pPanitentApp->m_pOptionBarWindow)
+    {
+        OptionBarWindow_SyncTool(pPanitentApp->m_pOptionBarWindow, pTool);
+    }
 }
 
 Tool* PanitentApp_GetTool(PanitentApp* pPanitentApp)
@@ -419,6 +444,55 @@ Tool* PanitentApp_GetTool(PanitentApp* pPanitentApp)
 ShapeContext* PanitentApp_GetShapeContext(PanitentApp* pPanitentApp)
 {
     return pPanitentApp ? pPanitentApp->m_pShapeContext : NULL;
+}
+
+PCWSTR PanitentApp_GetTextToolFontFace(PanitentApp* pPanitentApp)
+{
+    if (!pPanitentApp || pPanitentApp->m_szTextToolFontFace[0] == L'\0')
+    {
+        return L"Segoe UI";
+    }
+
+    return pPanitentApp->m_szTextToolFontFace;
+}
+
+int PanitentApp_GetTextToolFontPx(PanitentApp* pPanitentApp)
+{
+    return pPanitentApp ? max(1, pPanitentApp->m_nTextToolFontPx) : 24;
+}
+
+void PanitentApp_SetTextToolFontFace(PanitentApp* pPanitentApp, PCWSTR pszFaceName)
+{
+    if (!pPanitentApp || !pszFaceName || pszFaceName[0] == L'\0')
+    {
+        return;
+    }
+
+    StringCchCopyW(
+        pPanitentApp->m_szTextToolFontFace,
+        ARRAYSIZE(pPanitentApp->m_szTextToolFontFace),
+        pszFaceName);
+
+    ViewportWindow_RefreshTextOverlayStyle(PanitentApp_GetActiveViewport(pPanitentApp));
+    if (pPanitentApp->m_pOptionBarWindow)
+    {
+        OptionBarWindow_SyncTool(pPanitentApp->m_pOptionBarWindow, pPanitentApp->m_pTool);
+    }
+}
+
+void PanitentApp_SetTextToolFontPx(PanitentApp* pPanitentApp, int nFontPx)
+{
+    if (!pPanitentApp)
+    {
+        return;
+    }
+
+    pPanitentApp->m_nTextToolFontPx = min(256, max(1, nFontPx));
+    ViewportWindow_RefreshTextOverlayStyle(PanitentApp_GetActiveViewport(pPanitentApp));
+    if (pPanitentApp->m_pOptionBarWindow)
+    {
+        OptionBarWindow_SyncTool(pPanitentApp->m_pOptionBarWindow, pPanitentApp->m_pTool);
+    }
 }
 
 void PanitentApp_CmdNewFile(PanitentApp* pPanitentApp)

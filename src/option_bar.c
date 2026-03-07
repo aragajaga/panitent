@@ -16,6 +16,7 @@
 #include <strsafe.h>
 
 #include "panitentapp.h"
+#include "tool.h"
 #include "grimstroke/shapecontext.h"
 #include "grimstroke/shapestrategy.h"
 #include "grimstroke/bresenhamshapestrategy.h"
@@ -27,7 +28,17 @@ static const WCHAR szClassName[] = L"__OptionBarWindow";
 #define IDCB_THICKNESS 1554
 #define IDB_SHAPESTROKE 1555
 #define IDB_SHAPEFILL 1556
-#define IDC_OPTIONBAR_TEXT_EDIT 2002
+#define IDCB_FONT_FAMILY 1557
+#define IDCB_TEXT_SIZE 1558
+#define WM_OPTIONBAR_REFRESH_STATE (WM_APP + 41)
+
+enum {
+	OPTIONBAR_MODE_NONE = 0,
+	OPTIONBAR_MODE_SHAPE,
+	OPTIONBAR_MODE_LINE,
+	OPTIONBAR_MODE_BRUSH,
+	OPTIONBAR_MODE_TEXT
+};
 
 static const int kOptionBarPadding = 8;
 static const int kOptionBarControlTop = 4;
@@ -36,9 +47,31 @@ static const int kOptionBarStrokeWidth = 66;
 static const int kOptionBarFillWidth = 54;
 static const int kOptionBarAlgorithmWidth = 112;
 static const int kOptionBarThicknessWidth = 72;
-static const int kOptionBarTextWidth = 150;
 static const int kOptionBarBrushWidth = 64;
+static const int kOptionBarFontWidth = 220;
+static const int kOptionBarTextSizeWidth = 72;
 static const int kOptionBarControlGap = 6;
+static const int kOptionBarTextSizes[] = { 8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 30, 36, 48, 72 };
+
+typedef struct OptionBarFontEnumContext {
+	HWND hWndCombo;
+} OptionBarFontEnumContext;
+
+static BOOL OptionBarWindow_IsToolLabel(const Tool* pTool, PCWSTR pszLabel);
+static int OptionBarWindow_GetModeForTool(Tool* pTool);
+static void OptionBarWindow_SetControlVisible(HWND hWnd, BOOL fVisible);
+static void OptionBarWindow_MoveVisibleControl(HWND hWnd, int* px, int y, int width, BOOL fCombo);
+static BOOL OptionBarWindow_EnsureComboText(HWND hWndCombo, PCWSTR pszText);
+static void OptionBarWindow_SelectComboText(HWND hWndCombo, PCWSTR pszText);
+static void OptionBarWindow_SelectComboInt(HWND hWndCombo, int nValue);
+static int OptionBarWindow_GetComboIntValue(HWND hWndCombo, int nFallback);
+static int CALLBACK OptionBarWindow_EnumFontFamProc(const LOGFONTW* plf, const TEXTMETRICW* ptm, DWORD fontType, LPARAM lParam);
+static void OptionBarWindow_PopulateFontCombo(HWND hWndCombo);
+static void OptionBarWindow_PopulateTextSizeCombo(HWND hWndCombo);
+static int OptionBarWindow_GetStrategySelection(ShapeContext* pShapeContext);
+static void OptionBarWindow_RefreshShapeState(OptionBarWindow* pOptionBarWindow);
+static void OptionBarWindow_RefreshBrushState(OptionBarWindow* pOptionBarWindow);
+static void OptionBarWindow_RefreshTextState(OptionBarWindow* pOptionBarWindow);
 
 static ShapeStrategy* OptionBarWindow_GetStrategyForSelection(int selection)
 {
@@ -61,6 +94,230 @@ static ShapeStrategy* OptionBarWindow_GetStrategyForSelection(int selection)
 		}
 		return (ShapeStrategy*)s_pWuShapeStrategy;
 	}
+}
+
+static BOOL OptionBarWindow_IsToolLabel(const Tool* pTool, PCWSTR pszLabel)
+{
+	return pTool && pTool->pszLabel && pszLabel && wcscmp(pTool->pszLabel, pszLabel) == 0;
+}
+
+static int OptionBarWindow_GetModeForTool(Tool* pTool)
+{
+	if (OptionBarWindow_IsToolLabel(pTool, L"Rectangle") || OptionBarWindow_IsToolLabel(pTool, L"Circle"))
+	{
+		return OPTIONBAR_MODE_SHAPE;
+	}
+	if (OptionBarWindow_IsToolLabel(pTool, L"Line"))
+	{
+		return OPTIONBAR_MODE_LINE;
+	}
+	if (OptionBarWindow_IsToolLabel(pTool, L"Brush") || OptionBarWindow_IsToolLabel(pTool, L"Eraser"))
+	{
+		return OPTIONBAR_MODE_BRUSH;
+	}
+	if (OptionBarWindow_IsToolLabel(pTool, L"Text"))
+	{
+		return OPTIONBAR_MODE_TEXT;
+	}
+
+	return OPTIONBAR_MODE_NONE;
+}
+
+static void OptionBarWindow_SetControlVisible(HWND hWnd, BOOL fVisible)
+{
+	if (hWnd)
+	{
+		ShowWindow(hWnd, fVisible ? SW_SHOW : SW_HIDE);
+	}
+}
+
+static void OptionBarWindow_MoveVisibleControl(HWND hWnd, int* px, int y, int width, BOOL fCombo)
+{
+	if (!hWnd || !px || !IsWindowVisible(hWnd))
+	{
+		return;
+	}
+
+	MoveWindow(
+		hWnd,
+		*px,
+		y + (fCombo ? 0 : 1),
+		width,
+		kOptionBarControlHeight + (fCombo ? 200 : 0),
+		TRUE);
+	*px += width + kOptionBarControlGap;
+}
+
+static BOOL OptionBarWindow_EnsureComboText(HWND hWndCombo, PCWSTR pszText)
+{
+	if (!hWndCombo || !pszText || pszText[0] == L'\0')
+	{
+		return FALSE;
+	}
+
+	if (ComboBox_FindStringExact(hWndCombo, -1, pszText) == CB_ERR)
+	{
+		return ComboBox_AddString(hWndCombo, pszText) != CB_ERR;
+	}
+
+	return TRUE;
+}
+
+static void OptionBarWindow_SelectComboText(HWND hWndCombo, PCWSTR pszText)
+{
+	if (!hWndCombo || !pszText || pszText[0] == L'\0')
+	{
+		return;
+	}
+
+	if (!OptionBarWindow_EnsureComboText(hWndCombo, pszText))
+	{
+		return;
+	}
+
+	int index = ComboBox_FindStringExact(hWndCombo, -1, pszText);
+	if (index != CB_ERR)
+	{
+		ComboBox_SetCurSel(hWndCombo, index);
+	}
+}
+
+static void OptionBarWindow_SelectComboInt(HWND hWndCombo, int nValue)
+{
+	WCHAR szValue[16] = L"";
+	_itow_s(max(1, nValue), szValue, ARRAYSIZE(szValue), 10);
+	OptionBarWindow_SelectComboText(hWndCombo, szValue);
+}
+
+static int OptionBarWindow_GetComboIntValue(HWND hWndCombo, int nFallback)
+{
+	WCHAR szValue[32] = L"";
+	if (!hWndCombo || GetWindowTextW(hWndCombo, szValue, ARRAYSIZE(szValue)) <= 0)
+	{
+		return max(1, nFallback);
+	}
+
+	int nValue = _wtoi(szValue);
+	return max(1, nValue > 0 ? nValue : nFallback);
+}
+
+static int CALLBACK OptionBarWindow_EnumFontFamProc(const LOGFONTW* plf, const TEXTMETRICW* ptm, DWORD fontType, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(ptm);
+	UNREFERENCED_PARAMETER(fontType);
+
+	OptionBarFontEnumContext* pContext = (OptionBarFontEnumContext*)lParam;
+	if (!pContext || !pContext->hWndCombo || !plf || plf->lfFaceName[0] == L'\0' || plf->lfFaceName[0] == L'@')
+	{
+		return 1;
+	}
+
+	OptionBarWindow_EnsureComboText(pContext->hWndCombo, plf->lfFaceName);
+	return 1;
+}
+
+static void OptionBarWindow_PopulateFontCombo(HWND hWndCombo)
+{
+	if (!hWndCombo)
+	{
+		return;
+	}
+
+	HDC hdc = GetDC(hWndCombo);
+	if (!hdc)
+	{
+		return;
+	}
+
+	LOGFONTW lf = { 0 };
+	lf.lfCharSet = DEFAULT_CHARSET;
+
+	OptionBarFontEnumContext context = { hWndCombo };
+	EnumFontFamiliesExW(hdc, &lf, OptionBarWindow_EnumFontFamProc, (LPARAM)&context, 0);
+	ReleaseDC(hWndCombo, hdc);
+}
+
+static void OptionBarWindow_PopulateTextSizeCombo(HWND hWndCombo)
+{
+	if (!hWndCombo)
+	{
+		return;
+	}
+
+	for (size_t i = 0; i < ARRAYSIZE(kOptionBarTextSizes); ++i)
+	{
+		WCHAR szValue[16] = L"";
+		_itow_s(kOptionBarTextSizes[i], szValue, ARRAYSIZE(szValue), 10);
+		OptionBarWindow_EnsureComboText(hWndCombo, szValue);
+	}
+}
+
+static int OptionBarWindow_GetStrategySelection(ShapeContext* pShapeContext)
+{
+	ShapeStrategy* pStrategy = pShapeContext ? ShapeContext_GetStrategy(pShapeContext) : NULL;
+	ShapeStrategy* pBresenham = OptionBarWindow_GetStrategyForSelection(0);
+
+	if (pStrategy && pBresenham &&
+		pStrategy->DrawLine == pBresenham->DrawLine &&
+		pStrategy->DrawCircle == pBresenham->DrawCircle)
+	{
+		return 0;
+	}
+
+	return 1;
+}
+
+static void OptionBarWindow_RefreshShapeState(OptionBarWindow* pOptionBarWindow)
+{
+	ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+	if (!pOptionBarWindow || !pShapeContext)
+	{
+		return;
+	}
+
+	Button_SetCheck(
+		pOptionBarWindow->hWndStrokeCheck,
+		ShapeContext_IsStrokeEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
+	Button_SetCheck(
+		pOptionBarWindow->hWndFillCheck,
+		ShapeContext_IsFillEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
+	ComboBox_SetCurSel(
+		pOptionBarWindow->hWndAlgorithmCombo,
+		OptionBarWindow_GetStrategySelection(pShapeContext));
+	OptionBarWindow_SelectComboInt(
+		pOptionBarWindow->hWndThicknessCombo,
+		ShapeContext_GetStrokeWidth(pShapeContext));
+}
+
+static void OptionBarWindow_RefreshBrushState(OptionBarWindow* pOptionBarWindow)
+{
+	if (!pOptionBarWindow)
+	{
+		return;
+	}
+
+	InitializeBrushList();
+	OptionBarWindow_SelectComboInt(pOptionBarWindow->hWndThicknessCombo, g_brushSize);
+	if (pOptionBarWindow->hWndBrushSelector)
+	{
+		InvalidateRect(pOptionBarWindow->hWndBrushSelector, NULL, FALSE);
+	}
+}
+
+static void OptionBarWindow_RefreshTextState(OptionBarWindow* pOptionBarWindow)
+{
+	PanitentApp* pPanitentApp = PanitentApp_Instance();
+	if (!pOptionBarWindow || !pPanitentApp)
+	{
+		return;
+	}
+
+	OptionBarWindow_SelectComboText(
+		pOptionBarWindow->hWndFontCombo,
+		PanitentApp_GetTextToolFontFace(pPanitentApp));
+	OptionBarWindow_SelectComboInt(
+		pOptionBarWindow->hWndTextSizeCombo,
+		PanitentApp_GetTextToolFontPx(pPanitentApp));
 }
 
 INT_PTR CALLBACK BrushProp_DlgProc(HWND hwndDlg, UINT message, WPARAM wParam, LPARAM lParam);
@@ -183,6 +440,9 @@ void BrushSel_OnLButtonDown(HWND hwnd, WPARAM wParam, LPARAM lParam)
 
 	DialogBox(GetModuleHandle(NULL), MAKEINTRESOURCE(IDD_BRUSHPROP), hwnd,
 		(DLGPROC)BrushProp_DlgProc);
+
+	InvalidateRect(hwnd, NULL, FALSE);
+	SendMessage(GetParent(hwnd), WM_OPTIONBAR_REFRESH_STATE, 0, 0);
 }
 
 LRESULT CALLBACK BrushSel_WndProc(HWND hwnd, UINT message, WPARAM wParam,
@@ -240,76 +500,96 @@ static void OptionBarWindow_LayoutControls(OptionBarWindow* pOptionBarWindow, in
 		return;
 	}
 
-	HWND hWndStrokeCheck = pOptionBarWindow->hWndStrokeCheck;
-	HWND hWndFillCheck = pOptionBarWindow->hWndFillCheck;
-	HWND hWndAlgorithmCombo = pOptionBarWindow->hWndAlgorithmCombo;
-	HWND hWndThicknessCombo = pOptionBarWindow->hWndThicknessCombo;
-	HWND hWndTextEdit = pOptionBarWindow->textstring_handle;
-	HWND hWndBrushSelector = pOptionBarWindow->hWndBrushSelector;
-	if (!hWndStrokeCheck || !hWndFillCheck || !hWndAlgorithmCombo || !hWndThicknessCombo || !hWndTextEdit || !hWndBrushSelector)
+	int y = kOptionBarControlTop;
+	int x = kOptionBarPadding;
+	int availableWidth = max(0, cx - kOptionBarPadding * 2);
+
+	if (pOptionBarWindow->nMode == OPTIONBAR_MODE_TEXT)
+	{
+		int fontWidth = min(kOptionBarFontWidth, max(120, availableWidth - kOptionBarTextSizeWidth - kOptionBarControlGap));
+		OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndFontCombo, &x, y, fontWidth, TRUE);
+		OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndTextSizeCombo, &x, y, kOptionBarTextSizeWidth, TRUE);
+		return;
+	}
+
+	OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndStrokeCheck, &x, y, kOptionBarStrokeWidth, FALSE);
+	OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndFillCheck, &x, y, kOptionBarFillWidth, FALSE);
+	OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndAlgorithmCombo, &x, y, kOptionBarAlgorithmWidth, TRUE);
+	OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndThicknessCombo, &x, y, kOptionBarThicknessWidth, TRUE);
+	OptionBarWindow_MoveVisibleControl(pOptionBarWindow->hWndBrushSelector, &x, y, kOptionBarBrushWidth, FALSE);
+}
+
+void OptionBarWindow_SyncTool(OptionBarWindow* pOptionBarWindow, Tool* pTool)
+{
+	if (!pOptionBarWindow)
 	{
 		return;
 	}
 
-	int y = kOptionBarControlTop;
-	int x = kOptionBarPadding;
-	int strokeWidth = kOptionBarStrokeWidth;
-	int fillWidth = kOptionBarFillWidth;
-	int algorithmWidth = kOptionBarAlgorithmWidth;
-	int thicknessWidth = kOptionBarThicknessWidth;
-	int brushWidth = kOptionBarBrushWidth;
-	int textWidth = kOptionBarTextWidth;
+	int nMode = OptionBarWindow_GetModeForTool(pTool);
+	pOptionBarWindow->nMode = nMode;
+	pOptionBarWindow->fShowFill = (nMode == OPTIONBAR_MODE_SHAPE);
 
-	int leftGroupEnd = x + strokeWidth + kOptionBarControlGap +
-		fillWidth + kOptionBarControlGap +
-		algorithmWidth + kOptionBarControlGap +
-		thicknessWidth;
-
-	int brushX = cx - kOptionBarPadding - brushWidth;
-	int editX = brushX - kOptionBarControlGap - textWidth;
-	if (editX < leftGroupEnd + kOptionBarControlGap)
+	if (nMode == OPTIONBAR_MODE_LINE)
 	{
-		editX = leftGroupEnd + kOptionBarControlGap;
-		textWidth = brushX - kOptionBarControlGap - editX;
-		if (textWidth < 80)
+		ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
+		if (pShapeContext)
 		{
-			textWidth = 80;
-			brushX = editX + textWidth + kOptionBarControlGap;
+			ShapeContext_SetStrokeEnabled(pShapeContext, TRUE);
 		}
 	}
 
-	int currentX = x;
-	MoveWindow(hWndStrokeCheck, currentX, y + 1, strokeWidth, kOptionBarControlHeight, TRUE);
-	currentX += strokeWidth + kOptionBarControlGap;
-	MoveWindow(hWndFillCheck, currentX, y + 1, fillWidth, kOptionBarControlHeight, TRUE);
-	currentX += fillWidth + kOptionBarControlGap;
-	MoveWindow(hWndAlgorithmCombo, currentX, y, algorithmWidth, kOptionBarControlHeight + 200, TRUE);
-	currentX += algorithmWidth + kOptionBarControlGap;
-	MoveWindow(hWndThicknessCombo, currentX, y, thicknessWidth, kOptionBarControlHeight + 200, TRUE);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndStrokeCheck, nMode == OPTIONBAR_MODE_SHAPE);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndFillCheck, nMode == OPTIONBAR_MODE_SHAPE && pOptionBarWindow->fShowFill);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndAlgorithmCombo, nMode == OPTIONBAR_MODE_SHAPE || nMode == OPTIONBAR_MODE_LINE);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndThicknessCombo, nMode == OPTIONBAR_MODE_SHAPE || nMode == OPTIONBAR_MODE_LINE || nMode == OPTIONBAR_MODE_BRUSH);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndBrushSelector, nMode == OPTIONBAR_MODE_BRUSH);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndFontCombo, nMode == OPTIONBAR_MODE_TEXT);
+	OptionBarWindow_SetControlVisible(pOptionBarWindow->hWndTextSizeCombo, nMode == OPTIONBAR_MODE_TEXT);
 
-	MoveWindow(hWndTextEdit, editX, y, textWidth, kOptionBarControlHeight, TRUE);
-	MoveWindow(hWndBrushSelector, brushX, y, brushWidth, kOptionBarControlHeight, TRUE);
+	switch (nMode)
+	{
+	case OPTIONBAR_MODE_SHAPE:
+	case OPTIONBAR_MODE_LINE:
+		OptionBarWindow_RefreshShapeState(pOptionBarWindow);
+		break;
+	case OPTIONBAR_MODE_BRUSH:
+		OptionBarWindow_RefreshBrushState(pOptionBarWindow);
+		break;
+	case OPTIONBAR_MODE_TEXT:
+		OptionBarWindow_RefreshTextState(pOptionBarWindow);
+		break;
+	}
+
+	HWND hWnd = Window_GetHWND((Window*)pOptionBarWindow);
+	if (hWnd)
+	{
+		RECT rcClient = { 0 };
+		GetClientRect(hWnd, &rcClient);
+		OptionBarWindow_LayoutControls(pOptionBarWindow, rcClient.right - rcClient.left, rcClient.bottom - rcClient.top);
+		InvalidateRect(hWnd, NULL, FALSE);
+	}
 }
 
 LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wparam, LPARAM lparam)
 {
-		UNREFERENCED_PARAMETER(pOptionBarWindow);
-
 		ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
-		if (!pShapeContext)
-		{
-			return 0;
-		}
 
 		if (HIWORD(wparam) == BN_CLICKED)
 		{
 			switch (LOWORD(wparam))
 			{
 			case IDB_SHAPESTROKE:
-				ShapeContext_SetStrokeEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				if (pShapeContext)
+				{
+					ShapeContext_SetStrokeEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				}
 				return 0;
 			case IDB_SHAPEFILL:
-				ShapeContext_SetFillEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				if (pShapeContext)
+				{
+					ShapeContext_SetFillEnabled(pShapeContext, Button_GetCheck((HWND)lparam) == BST_CHECKED);
+				}
 				return 0;
 			}
 		}
@@ -324,14 +604,40 @@ LRESULT OptionBarWindow_OnCommand(OptionBarWindow* pOptionBarWindow, WPARAM wpar
 		case IDCB_STENCIL_ALGORITHM:
 		{
 			ShapeStrategy* pStrategy = OptionBarWindow_GetStrategyForSelection(ComboBox_GetCurSel((HWND)lparam));
-			if (pStrategy)
+			if (pShapeContext && pStrategy)
 			{
 				ShapeContext_SetStrategy(pShapeContext, pStrategy);
 			}
 		}
 		break;
 		case IDCB_THICKNESS:
-			ShapeContext_SetStrokeWidth(pShapeContext, ComboBox_GetCurSel((HWND)lparam) + 1);
+		{
+			int nValue = OptionBarWindow_GetComboIntValue((HWND)lparam, 1);
+			if (pOptionBarWindow->nMode == OPTIONBAR_MODE_BRUSH)
+			{
+				g_brushSize = max(1, nValue);
+				if (pOptionBarWindow->hWndBrushSelector)
+				{
+					InvalidateRect(pOptionBarWindow->hWndBrushSelector, NULL, FALSE);
+				}
+			}
+			else if (pShapeContext)
+			{
+				ShapeContext_SetStrokeWidth(pShapeContext, nValue);
+			}
+		}
+			break;
+		case IDCB_FONT_FAMILY:
+		{
+			WCHAR szFaceName[LF_FACESIZE] = L"";
+			GetWindowTextW((HWND)lparam, szFaceName, ARRAYSIZE(szFaceName));
+			PanitentApp_SetTextToolFontFace(PanitentApp_Instance(), szFaceName);
+		}
+			break;
+		case IDCB_TEXT_SIZE:
+			PanitentApp_SetTextToolFontPx(
+				PanitentApp_Instance(),
+				OptionBarWindow_GetComboIntValue((HWND)lparam, PanitentApp_GetTextToolFontPx(PanitentApp_Instance())));
 			break;
 		}
 
@@ -413,30 +719,14 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		hInstance,
 		NULL);
 	Win32_ApplyUIFont(hThicknessCombo);
-	for (int i = 1; i <= 10; ++i)
+	for (int i = 1; i <= 32; ++i)
 	{
-		WCHAR szThickness[4] = L"";
+		WCHAR szThickness[16] = L"";
 		_itow_s(i, szThickness, ARRAYSIZE(szThickness), 10);
 		ComboBox_AddString(hThicknessCombo, szThickness);
-		}
-		ComboBox_SetCurSel(hThicknessCombo, 0);
-		pOptionBarWindow->hWndThicknessCombo = hThicknessCombo;
-
-	HWND hEdit =
-		CreateWindowEx(0,
-			WC_EDIT,
-			L"Sample Text",
-			WS_BORDER | WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL,
-			0,
-			0,
-			0,
-			0,
-			hWnd,
-			(HMENU)(INT_PTR)IDC_OPTIONBAR_TEXT_EDIT,
-			hInstance,
-			NULL);
-	Win32_ApplyUIFont(hEdit);
-	pOptionBarWindow->textstring_handle = hEdit;
+	}
+	ComboBox_SetCurSel(hThicknessCombo, 0);
+	pOptionBarWindow->hWndThicknessCombo = hThicknessCombo;
 
 	HWND hBrushSelector = CreateWindowEx(0, szBrushSelClass, NULL,
 		WS_BORDER | WS_CHILD | WS_VISIBLE,
@@ -444,24 +734,49 @@ BOOL OptionBarWindow_OnCreate(OptionBarWindow* pOptionBarWindow, LPCREATESTRUCT 
 		hWnd, NULL, hInstance, NULL);
 	pOptionBarWindow->hWndBrushSelector = hBrushSelector;
 
+	HWND hFontCombo = CreateWindowEx(
+		0,
+		WC_COMBOBOX,
+		L"",
+		CBS_DROPDOWNLIST | CBS_HASSTRINGS | CBS_SORT | WS_CHILD | WS_VISIBLE | WS_VSCROLL,
+		0,
+		0,
+		0,
+		0,
+		hWnd,
+		(HMENU)(INT_PTR)IDCB_FONT_FAMILY,
+		hInstance,
+		NULL);
+	Win32_ApplyUIFont(hFontCombo);
+	OptionBarWindow_PopulateFontCombo(hFontCombo);
+	pOptionBarWindow->hWndFontCombo = hFontCombo;
+
+	HWND hTextSizeCombo = CreateWindowEx(
+		0,
+		WC_COMBOBOX,
+		L"",
+		CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_CHILD | WS_VISIBLE | WS_VSCROLL,
+		0,
+		0,
+		0,
+		0,
+		hWnd,
+		(HMENU)(INT_PTR)IDCB_TEXT_SIZE,
+		hInstance,
+		NULL);
+	Win32_ApplyUIFont(hTextSizeCombo);
+	OptionBarWindow_PopulateTextSizeCombo(hTextSizeCombo);
+	pOptionBarWindow->hWndTextSizeCombo = hTextSizeCombo;
+
 	RECT rcClient = { 0 };
-		GetClientRect(hWnd, &rcClient);
-		OptionBarWindow_LayoutControls(
-			pOptionBarWindow,
-			rcClient.right - rcClient.left,
-			rcClient.bottom - rcClient.top);
+	GetClientRect(hWnd, &rcClient);
+	OptionBarWindow_LayoutControls(
+		pOptionBarWindow,
+		rcClient.right - rcClient.left,
+		rcClient.bottom - rcClient.top);
 
-		{
-			ShapeContext* pShapeContext = PanitentApp_GetShapeContext(PanitentApp_Instance());
-			if (pShapeContext)
-			{
-				Button_SetCheck(hStrokeCheck, ShapeContext_IsStrokeEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
-				Button_SetCheck(hFillCheck, ShapeContext_IsFillEnabled(pShapeContext) ? BST_CHECKED : BST_UNCHECKED);
-				ComboBox_SetCurSel(hThicknessCombo, max(0, ShapeContext_GetStrokeWidth(pShapeContext) - 1));
-			}
-		}
-
-		return TRUE;
+	OptionBarWindow_SyncTool(pOptionBarWindow, PanitentApp_GetTool(PanitentApp_Instance()));
+	return TRUE;
 }
 
 void OptionBarWindow_OnSize(OptionBarWindow* pOptionBarWindow, UINT state, int cx, int cy)
@@ -476,7 +791,6 @@ LRESULT OptionBarWindow_UserProc(OptionBarWindow* pOptionBarWindow, HWND hWnd, U
 	switch (message) {
 	case WM_COMMAND:
 		return OptionBarWindow_OnCommand(pOptionBarWindow, wParam, lParam);
-		break;
 	case WM_SIZE:
 		OptionBarWindow_OnSize(
 			pOptionBarWindow,
@@ -484,7 +798,9 @@ LRESULT OptionBarWindow_UserProc(OptionBarWindow* pOptionBarWindow, HWND hWnd, U
 			(int)(short)LOWORD(lParam),
 			(int)(short)HIWORD(lParam));
 		return 0;
-		break;
+	case WM_OPTIONBAR_REFRESH_STATE:
+		OptionBarWindow_SyncTool(pOptionBarWindow, PanitentApp_GetTool(PanitentApp_Instance()));
+		return 0;
 	}
 
 	return Window_UserProcDefault((Window *)pOptionBarWindow, hWnd, message, wParam, lParam);

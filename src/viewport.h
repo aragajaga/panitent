@@ -41,3 +41,4 @@ BOOL ViewportWindow_HasTextOverlay(ViewportWindow* pViewportWindow);
 BOOL ViewportWindow_BeginTextOverlay(ViewportWindow* pViewportWindow, int xCanvas, int yCanvas, uint32_t color);
 void ViewportWindow_CommitTextOverlay(ViewportWindow* pViewportWindow);
 void ViewportWindow_CancelTextOverlay(ViewportWindow* pViewportWindow);
+void ViewportWindow_RefreshTextOverlayStyle(ViewportWindow* pViewportWindow);

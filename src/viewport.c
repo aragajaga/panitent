@@ -16,7 +16,6 @@
 #define IDM_VIEWPORTSETTINGS 100
 #define VIEWPORT_TEXT_CARET_TIMER_ID 3201
 #define VIEWPORT_TEXT_CARET_INTERVAL_MS 530
-#define VIEWPORT_TEXT_FONT_PX 24
 #define VIEWPORT_TEXT_MIN_WIDTH 8
 #define VIEWPORT_TEXT_PADDING_X 8
 #define VIEWPORT_TEXT_PADDING_Y 6
@@ -369,7 +368,7 @@ BOOL ViewportWindow_BeginTextOverlay(ViewportWindow* pViewportWindow, int xCanva
     pViewportWindow->ptTextOverlayCanvas.x = xCanvas;
     pViewportWindow->ptTextOverlayCanvas.y = yCanvas;
     pViewportWindow->textOverlayColor = color;
-    pViewportWindow->nTextOverlayFontDocPx = VIEWPORT_TEXT_FONT_PX;
+    pViewportWindow->nTextOverlayFontDocPx = PanitentApp_GetTextToolFontPx(PanitentApp_Instance());
     pViewportWindow->nTextOverlayFontClientPx = 0;
     pViewportWindow->nTextOverlayLineAdvanceClient = 0;
     pViewportWindow->nTextOverlayPreferredColumn = 0;
@@ -388,6 +387,25 @@ BOOL ViewportWindow_BeginTextOverlay(ViewportWindow* pViewportWindow, int xCanva
     }
     Window_Invalidate((Window*)pViewportWindow);
     return TRUE;
+}
+
+void ViewportWindow_RefreshTextOverlayStyle(ViewportWindow* pViewportWindow)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    pViewportWindow->nTextOverlayFontDocPx = PanitentApp_GetTextToolFontPx(PanitentApp_Instance());
+    pViewportWindow->nTextOverlayFontClientPx = 0;
+    if (pViewportWindow->hFontTextOverlay)
+    {
+        DeleteObject(pViewportWindow->hFontTextOverlay);
+        pViewportWindow->hFontTextOverlay = NULL;
+    }
+
+    ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+    Window_Invalidate((Window*)pViewportWindow);
 }
 
 void ViewportWindow_CommitTextOverlay(ViewportWindow* pViewportWindow)
@@ -665,6 +683,10 @@ static HFONT ViewportWindow_CreateTextOverlayFont(int pixelHeight)
     lf.lfHeight = -max(1, pixelHeight);
     lf.lfWidth = 0;
     lf.lfQuality = ANTIALIASED_QUALITY;
+    StringCchCopyW(
+        lf.lfFaceName,
+        ARRAYSIZE(lf.lfFaceName),
+        PanitentApp_GetTextToolFontFace(PanitentApp_Instance()));
     return CreateFontIndirectW(&lf);
 }
 
