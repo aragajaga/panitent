@@ -1,6 +1,7 @@
 #pragma once
 
 #include "win32/window.h"
+#include <stddef.h>
 #include <stdint.h>
 
 typedef struct _Document Document;
@@ -15,14 +16,20 @@ struct ViewportWindow {
 	BOOL bDrag;
 	float fZoom;
 	HBRUSH hbrChecker;
-	HWND hWndTextOverlay;
-	WNDPROC pfnTextOverlayProc;
 	HFONT hFontTextOverlay;
 	POINT ptTextOverlayCanvas;
+	RECT rcTextOverlayClient;
 	int nTextOverlayFontDocPx;
 	int nTextOverlayFontClientPx;
+	int nTextOverlayLineAdvanceClient;
+	int nTextOverlayPreferredColumn;
+	size_t cchTextOverlay;
+	size_t cchTextOverlayCapacity;
+	size_t nTextOverlayCaret;
+	WCHAR* pszTextOverlay;
 	uint32_t textOverlayColor;
-	BOOL bTextOverlayClosing;
+	BOOL bTextOverlayCaretVisible;
+	UINT_PTR uTextOverlayCaretTimerId;
 };
 
 ViewportWindow* ViewportWindow_Create();

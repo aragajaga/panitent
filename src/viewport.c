@@ -14,11 +14,10 @@
 #include <strsafe.h>
 
 #define IDM_VIEWPORTSETTINGS 100
-#define IDC_VIEWPORT_TEXT_EDIT 3201
-#define WMU_VIEWPORT_COMMITTEXT (WM_APP + 101)
-#define WMU_VIEWPORT_CANCELTEXT (WM_APP + 102)
+#define VIEWPORT_TEXT_CARET_TIMER_ID 3201
+#define VIEWPORT_TEXT_CARET_INTERVAL_MS 530
 #define VIEWPORT_TEXT_FONT_PX 24
-#define VIEWPORT_TEXT_MIN_WIDTH 160
+#define VIEWPORT_TEXT_MIN_WIDTH 8
 #define VIEWPORT_TEXT_PADDING_X 8
 #define VIEWPORT_TEXT_PADDING_Y 6
 
@@ -55,12 +54,27 @@ static inline void ViewportWindow_DrawOffsetTrace(ViewportWindow* pViewportWindo
 static inline void ViewportWindow_DrawDebugText(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
 static inline void ViewportWindow_DrawDebugOverlay(ViewportWindow* pViewportWindow, HDC hdc, LPRECT lpRect);
 static HFONT ViewportWindow_CreateTextOverlayFont(int pixelHeight);
-static void ViewportWindow_DestroyTextOverlayWindow(ViewportWindow* pViewportWindow);
+static void ViewportWindow_DestroyTextOverlayState(ViewportWindow* pViewportWindow);
 static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWindow);
 static void ViewportWindow_RenderTextOverlayToCanvas(ViewportWindow* pViewportWindow, PCWSTR pszText);
 static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR pszText, SIZE* pSize, int* pLineAdvance);
 static void ViewportWindow_DrawTextLines(HDC hdc, PCWSTR pszText, int lineAdvance);
-static LRESULT CALLBACK ViewportWindow_TextOverlayProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+static void ViewportWindow_DrawTextOverlay(ViewportWindow* pViewportWindow, HDC hdcTarget);
+static BOOL ViewportWindow_EnsureTextOverlayCapacity(ViewportWindow* pViewportWindow, size_t cchRequired);
+static BOOL ViewportWindow_IsTextToolActive(void);
+static size_t ViewportWindow_GetTextOverlayLineStart(PCWSTR pszText, size_t nLineIndex);
+static size_t ViewportWindow_GetTextOverlayLineEnd(PCWSTR pszText, size_t nLineStart);
+static size_t ViewportWindow_GetTextOverlayLineIndex(PCWSTR pszText, size_t nCaret);
+static size_t ViewportWindow_GetTextOverlayColumn(PCWSTR pszText, size_t nCaret);
+static size_t ViewportWindow_GetTextOverlayCaretForLineColumn(PCWSTR pszText, size_t nLineIndex, size_t nColumn);
+static BOOL ViewportWindow_GetTextOverlayCaretClientPoint(ViewportWindow* pViewportWindow, POINT* pPoint, int* pHeight);
+static BOOL ViewportWindow_IsPointInTextOverlay(ViewportWindow* pViewportWindow, int x, int y);
+static void ViewportWindow_SetTextOverlayCaret(ViewportWindow* pViewportWindow, size_t nCaret, BOOL fKeepPreferredColumn);
+static void ViewportWindow_MoveTextOverlayCaretFromPoint(ViewportWindow* pViewportWindow, int xClient, int yClient);
+static void ViewportWindow_InsertTextOverlayChars(ViewportWindow* pViewportWindow, PCWSTR pszText, size_t cchText);
+static void ViewportWindow_DeleteTextOverlayRange(ViewportWindow* pViewportWindow, size_t nStart, size_t nEnd);
+static BOOL ViewportWindow_HandleTextOverlayKeyDown(ViewportWindow* pViewportWindow, UINT vk);
+static BOOL ViewportWindow_HandleTextOverlayChar(ViewportWindow* pViewportWindow, WCHAR ch);
 
 void ViewportWindow_SetDocument(ViewportWindow* pViewportWindow, Document* document);
 Document* ViewportWindow_GetDocument(ViewportWindow* pViewportWindow);
@@ -77,6 +91,7 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow);
 LRESULT ViewportWindow_OnCommand(ViewportWindow* pViewportWindow, WPARAM wParam, LPARAM lParam);
 BOOL ViewportWindow_OnKeyDown(ViewportWindow* pViewportWindow, UINT vk, int cRepeat, UINT flags);
 BOOL ViewportWindow_OnKeyUp(ViewportWindow* pViewportWindow, UINT vk, int cRepeat, UINT flags);
+BOOL ViewportWindow_OnChar(ViewportWindow* pViewportWindow, WCHAR ch, int cRepeat, UINT flags);
 void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 void ViewportWindow_OnMouseWheel(ViewportWindow* pViewportWindow, int xPos, int yPos, int zDelta, UINT fwKeys);
 void ViewportWindow_OnLButtonDown(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
@@ -335,54 +350,43 @@ void ViewportWindow_CanvasToClient(ViewportWindow* pViewportWindow, int x, int y
 
 BOOL ViewportWindow_HasTextOverlay(ViewportWindow* pViewportWindow)
 {
-    return pViewportWindow && pViewportWindow->hWndTextOverlay && IsWindow(pViewportWindow->hWndTextOverlay);
+    return pViewportWindow && pViewportWindow->pszTextOverlay != NULL;
 }
 
 BOOL ViewportWindow_BeginTextOverlay(ViewportWindow* pViewportWindow, int xCanvas, int yCanvas, uint32_t color)
 {
-    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
-    if (!pViewportWindow || !hWndViewport || !IsWindow(hWndViewport) || ViewportWindow_HasTextOverlay(pViewportWindow))
+    if (!pViewportWindow || ViewportWindow_HasTextOverlay(pViewportWindow))
     {
         return FALSE;
     }
 
+    if (!ViewportWindow_EnsureTextOverlayCapacity(pViewportWindow, 1))
+    {
+        return FALSE;
+    }
+
+    pViewportWindow->pszTextOverlay[0] = L'\0';
     pViewportWindow->ptTextOverlayCanvas.x = xCanvas;
     pViewportWindow->ptTextOverlayCanvas.y = yCanvas;
     pViewportWindow->textOverlayColor = color;
     pViewportWindow->nTextOverlayFontDocPx = VIEWPORT_TEXT_FONT_PX;
     pViewportWindow->nTextOverlayFontClientPx = 0;
-    pViewportWindow->bTextOverlayClosing = FALSE;
-
-    HWND hWndEdit = CreateWindowExW(
-        WS_EX_CLIENTEDGE,
-        L"EDIT",
-        L"",
-        WS_CHILD | WS_VISIBLE | WS_TABSTOP | ES_LEFT | ES_MULTILINE | ES_WANTRETURN | WS_BORDER,
-        0,
-        0,
-        VIEWPORT_TEXT_MIN_WIDTH,
-        VIEWPORT_TEXT_FONT_PX + VIEWPORT_TEXT_PADDING_Y * 2,
-        hWndViewport,
-        (HMENU)(INT_PTR)IDC_VIEWPORT_TEXT_EDIT,
-        GetModuleHandle(NULL),
-        NULL);
-    if (!hWndEdit)
-    {
-        return FALSE;
-    }
-
-    pViewportWindow->hWndTextOverlay = hWndEdit;
-    SetWindowLongPtrW(hWndEdit, GWLP_USERDATA, (LONG_PTR)pViewportWindow);
-    pViewportWindow->pfnTextOverlayProc = (WNDPROC)(ULONG_PTR)SetWindowLongPtrW(
-        hWndEdit, GWLP_WNDPROC, (LONG_PTR)ViewportWindow_TextOverlayProc);
-    SendMessageW(
-        hWndEdit,
-        EM_SETMARGINS,
-        EC_LEFTMARGIN | EC_RIGHTMARGIN,
-        MAKELPARAM(VIEWPORT_TEXT_PADDING_X, VIEWPORT_TEXT_PADDING_X));
+    pViewportWindow->nTextOverlayLineAdvanceClient = 0;
+    pViewportWindow->nTextOverlayPreferredColumn = 0;
+    pViewportWindow->cchTextOverlay = 0;
+    pViewportWindow->nTextOverlayCaret = 0;
+    pViewportWindow->bTextOverlayCaretVisible = TRUE;
+    SetRectEmpty(&pViewportWindow->rcTextOverlayClient);
 
     ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
-    SetFocus(hWndEdit);
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    SetFocus(hWndViewport);
+    if (pViewportWindow->uTextOverlayCaretTimerId == 0)
+    {
+        pViewportWindow->uTextOverlayCaretTimerId =
+            SetTimer(hWndViewport, VIEWPORT_TEXT_CARET_TIMER_ID, VIEWPORT_TEXT_CARET_INTERVAL_MS, NULL);
+    }
+    Window_Invalidate((Window*)pViewportWindow);
     return TRUE;
 }
 
@@ -393,23 +397,12 @@ void ViewportWindow_CommitTextOverlay(ViewportWindow* pViewportWindow)
         return;
     }
 
-    HWND hWndEdit = pViewportWindow->hWndTextOverlay;
-    int cchText = GetWindowTextLengthW(hWndEdit);
-    if (cchText > 0)
+    if (pViewportWindow->cchTextOverlay > 0 && pViewportWindow->pszTextOverlay)
     {
-        WCHAR* pszText = (WCHAR*)calloc((size_t)cchText + 1, sizeof(WCHAR));
-        if (pszText)
-        {
-            GetWindowTextW(hWndEdit, pszText, cchText + 1);
-            if (pszText[0] != L'\0')
-            {
-                ViewportWindow_RenderTextOverlayToCanvas(pViewportWindow, pszText);
-            }
-            free(pszText);
-        }
+        ViewportWindow_RenderTextOverlayToCanvas(pViewportWindow, pViewportWindow->pszTextOverlay);
     }
 
-    ViewportWindow_DestroyTextOverlayWindow(pViewportWindow);
+    ViewportWindow_DestroyTextOverlayState(pViewportWindow);
 }
 
 void ViewportWindow_CancelTextOverlay(ViewportWindow* pViewportWindow)
@@ -419,7 +412,7 @@ void ViewportWindow_CancelTextOverlay(ViewportWindow* pViewportWindow)
         return;
     }
 
-    ViewportWindow_DestroyTextOverlayWindow(pViewportWindow);
+    ViewportWindow_DestroyTextOverlayState(pViewportWindow);
 }
 
 BOOL Viewport_BlitCanvas(HDC hDC, LPRECT prcView, Canvas* canvas)
@@ -537,6 +530,7 @@ void ViewportWindow_OnSize(ViewportWindow* pViewportWindow, UINT state, int cx, 
     if (ViewportWindow_HasTextOverlay(pViewportWindow))
     {
         ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+        Window_Invalidate((Window*)pViewportWindow);
     }
 
     if (ViewportWindow_GetDocument(pViewportWindow))
@@ -627,6 +621,11 @@ void ViewportWindow_OnPaint(ViewportWindow* pViewportWindow)
             ViewportWindow_DrawDebugOverlay(pViewportWindow, hdcTarget, &clientRc);
         }
 
+        if (ViewportWindow_HasTextOverlay(pViewportWindow))
+        {
+            ViewportWindow_DrawTextOverlay(pViewportWindow, hdcTarget);
+        }
+
         if (previewCanvas)
         {
             Canvas_Delete(previewCanvas);
@@ -669,29 +668,19 @@ static HFONT ViewportWindow_CreateTextOverlayFont(int pixelHeight)
     return CreateFontIndirectW(&lf);
 }
 
-static void ViewportWindow_DestroyTextOverlayWindow(ViewportWindow* pViewportWindow)
+static void ViewportWindow_DestroyTextOverlayState(ViewportWindow* pViewportWindow)
 {
     if (!pViewportWindow)
     {
         return;
     }
 
-    pViewportWindow->bTextOverlayClosing = TRUE;
-
-    if (pViewportWindow->hWndTextOverlay && IsWindow(pViewportWindow->hWndTextOverlay))
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    if (hWndViewport && pViewportWindow->uTextOverlayCaretTimerId != 0)
     {
-        if (pViewportWindow->pfnTextOverlayProc)
-        {
-            SetWindowLongPtrW(
-                pViewportWindow->hWndTextOverlay,
-                GWLP_WNDPROC,
-                (LONG_PTR)pViewportWindow->pfnTextOverlayProc);
-        }
-        DestroyWindow(pViewportWindow->hWndTextOverlay);
+        KillTimer(hWndViewport, VIEWPORT_TEXT_CARET_TIMER_ID);
+        pViewportWindow->uTextOverlayCaretTimerId = 0;
     }
-
-    pViewportWindow->hWndTextOverlay = NULL;
-    pViewportWindow->pfnTextOverlayProc = NULL;
 
     if (pViewportWindow->hFontTextOverlay)
     {
@@ -699,8 +688,18 @@ static void ViewportWindow_DestroyTextOverlayWindow(ViewportWindow* pViewportWin
         pViewportWindow->hFontTextOverlay = NULL;
     }
 
+    free(pViewportWindow->pszTextOverlay);
+    pViewportWindow->pszTextOverlay = NULL;
+    pViewportWindow->cchTextOverlay = 0;
+    pViewportWindow->cchTextOverlayCapacity = 0;
+    pViewportWindow->nTextOverlayCaret = 0;
+    pViewportWindow->nTextOverlayPreferredColumn = -1;
     pViewportWindow->nTextOverlayFontClientPx = 0;
-    pViewportWindow->bTextOverlayClosing = FALSE;
+    pViewportWindow->nTextOverlayLineAdvanceClient = 0;
+    pViewportWindow->bTextOverlayCaretVisible = FALSE;
+    SetRectEmpty(&pViewportWindow->rcTextOverlayClient);
+
+    Window_Invalidate((Window*)pViewportWindow);
 }
 
 static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR pszText, SIZE* pSize, int* pLineAdvance)
@@ -729,7 +728,7 @@ static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR psz
         while (*pLine)
         {
             const WCHAR* pLineEnd = pLine;
-            while (*pLineEnd && *pLineEnd != L'\r' && *pLineEnd != L'\n')
+            while (*pLineEnd && *pLineEnd != L'\n')
             {
                 ++pLineEnd;
             }
@@ -748,14 +747,7 @@ static BOOL ViewportWindow_GetTextLayoutMetrics(HDC hdc, HFONT hFont, PCWSTR psz
             }
 
             ++lineCount;
-            if (*pLineEnd == L'\r' && *(pLineEnd + 1) == L'\n')
-            {
-                pLine = pLineEnd + 2;
-            }
-            else
-            {
-                pLine = pLineEnd + 1;
-            }
+            pLine = pLineEnd + 1;
         }
     }
 
@@ -792,7 +784,7 @@ static void ViewportWindow_DrawTextLines(HDC hdc, PCWSTR pszText, int lineAdvanc
     while (*pLine)
     {
         const WCHAR* pLineEnd = pLine;
-        while (*pLineEnd && *pLineEnd != L'\r' && *pLineEnd != L'\n')
+        while (*pLineEnd && *pLineEnd != L'\n')
         {
             ++pLineEnd;
         }
@@ -809,15 +801,118 @@ static void ViewportWindow_DrawTextLines(HDC hdc, PCWSTR pszText, int lineAdvanc
         }
 
         y += lineAdvance;
-        if (*pLineEnd == L'\r' && *(pLineEnd + 1) == L'\n')
+        pLine = pLineEnd + 1;
+    }
+}
+
+static BOOL ViewportWindow_EnsureTextOverlayCapacity(ViewportWindow* pViewportWindow, size_t cchRequired)
+{
+    if (!pViewportWindow)
+    {
+        return FALSE;
+    }
+
+    if (cchRequired <= pViewportWindow->cchTextOverlayCapacity)
+    {
+        return TRUE;
+    }
+
+    size_t cchNewCapacity = pViewportWindow->cchTextOverlayCapacity ? pViewportWindow->cchTextOverlayCapacity : 32;
+    while (cchNewCapacity < cchRequired)
+    {
+        cchNewCapacity *= 2;
+    }
+
+    WCHAR* pszNew = (WCHAR*)realloc(pViewportWindow->pszTextOverlay, cchNewCapacity * sizeof(WCHAR));
+    if (!pszNew)
+    {
+        return FALSE;
+    }
+
+    pViewportWindow->pszTextOverlay = pszNew;
+    pViewportWindow->cchTextOverlayCapacity = cchNewCapacity;
+    return TRUE;
+}
+
+static BOOL ViewportWindow_IsTextToolActive(void)
+{
+    Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
+    return pTool && pTool->pszLabel && wcscmp(pTool->pszLabel, L"Text") == 0;
+}
+
+static size_t ViewportWindow_GetTextOverlayLineStart(PCWSTR pszText, size_t nLineIndex)
+{
+    size_t nLine = 0;
+    size_t i = 0;
+    if (!pszText)
+    {
+        return 0;
+    }
+
+    while (pszText[i] != L'\0' && nLine < nLineIndex)
+    {
+        if (pszText[i] == L'\n')
         {
-            pLine = pLineEnd + 2;
+            ++nLine;
+            if (nLine == nLineIndex)
+            {
+                return i + 1;
+            }
         }
-        else
+        ++i;
+    }
+
+    return (nLineIndex == 0) ? 0 : i;
+}
+
+static size_t ViewportWindow_GetTextOverlayLineEnd(PCWSTR pszText, size_t nLineStart)
+{
+    size_t i = nLineStart;
+    if (!pszText)
+    {
+        return 0;
+    }
+
+    while (pszText[i] != L'\0' && pszText[i] != L'\n')
+    {
+        ++i;
+    }
+
+    return i;
+}
+
+static size_t ViewportWindow_GetTextOverlayLineIndex(PCWSTR pszText, size_t nCaret)
+{
+    size_t nLine = 0;
+    if (!pszText)
+    {
+        return 0;
+    }
+
+    for (size_t i = 0; pszText[i] != L'\0' && i < nCaret; ++i)
+    {
+        if (pszText[i] == L'\n')
         {
-            pLine = pLineEnd + 1;
+            ++nLine;
         }
     }
+
+    return nLine;
+}
+
+static size_t ViewportWindow_GetTextOverlayColumn(PCWSTR pszText, size_t nCaret)
+{
+    size_t nLineStart = ViewportWindow_GetTextOverlayLineStart(
+        pszText,
+        ViewportWindow_GetTextOverlayLineIndex(pszText, nCaret));
+    return nCaret - nLineStart;
+}
+
+static size_t ViewportWindow_GetTextOverlayCaretForLineColumn(PCWSTR pszText, size_t nLineIndex, size_t nColumn)
+{
+    size_t nStart = ViewportWindow_GetTextOverlayLineStart(pszText, nLineIndex);
+    size_t nEnd = ViewportWindow_GetTextOverlayLineEnd(pszText, nStart);
+    return min(nStart + nColumn, nEnd);
 }
 
 static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWindow)
@@ -828,7 +923,6 @@ static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWind
     }
 
     HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
-    HWND hWndEdit = pViewportWindow->hWndTextOverlay;
     int fontClientPx = max(1, (int)lroundf((float)pViewportWindow->nTextOverlayFontDocPx * max(0.1f, pViewportWindow->fZoom)));
 
     if (fontClientPx != pViewportWindow->nTextOverlayFontClientPx)
@@ -841,28 +935,16 @@ static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWind
 
         pViewportWindow->hFontTextOverlay = ViewportWindow_CreateTextOverlayFont(fontClientPx);
         pViewportWindow->nTextOverlayFontClientPx = fontClientPx;
-        if (pViewportWindow->hFontTextOverlay)
-        {
-            SendMessageW(hWndEdit, WM_SETFONT, (WPARAM)pViewportWindow->hFontTextOverlay, FALSE);
-        }
     }
-
-    int cchText = GetWindowTextLengthW(hWndEdit);
-    WCHAR* pszText = (WCHAR*)calloc((size_t)cchText + 1, sizeof(WCHAR));
-    if (!pszText)
-    {
-        return;
-    }
-
-    GetWindowTextW(hWndEdit, pszText, cchText + 1);
 
     HDC hdc = GetDC(hWndViewport);
     SIZE textSize = { 0 };
     int lineAdvance = fontClientPx;
-    ViewportWindow_GetTextLayoutMetrics(hdc, pViewportWindow->hFontTextOverlay, pszText, &textSize, &lineAdvance);
+    ViewportWindow_GetTextLayoutMetrics(hdc, pViewportWindow->hFontTextOverlay, pViewportWindow->pszTextOverlay, &textSize, &lineAdvance);
     ReleaseDC(hWndViewport, hdc);
 
-    int width = max(VIEWPORT_TEXT_MIN_WIDTH, textSize.cx + VIEWPORT_TEXT_PADDING_X * 2);
+    pViewportWindow->nTextOverlayLineAdvanceClient = lineAdvance;
+    int width = max(VIEWPORT_TEXT_MIN_WIDTH, textSize.cx) + VIEWPORT_TEXT_PADDING_X * 2;
     int height = max(lineAdvance + VIEWPORT_TEXT_PADDING_Y * 2, textSize.cy + VIEWPORT_TEXT_PADDING_Y * 2);
     POINT ptClient = { 0 };
     ViewportWindow_CanvasToClient(
@@ -871,16 +953,10 @@ static void ViewportWindow_UpdateTextOverlayLayout(ViewportWindow* pViewportWind
         pViewportWindow->ptTextOverlayCanvas.y,
         &ptClient);
 
-    SetWindowPos(
-        hWndEdit,
-        HWND_TOP,
-        ptClient.x,
-        ptClient.y,
-        width,
-        height,
-        SWP_NOACTIVATE);
-
-    free(pszText);
+    pViewportWindow->rcTextOverlayClient.left = ptClient.x;
+    pViewportWindow->rcTextOverlayClient.top = ptClient.y;
+    pViewportWindow->rcTextOverlayClient.right = ptClient.x + width;
+    pViewportWindow->rcTextOverlayClient.bottom = ptClient.y + height;
 }
 
 static void ViewportWindow_RenderTextOverlayToCanvas(ViewportWindow* pViewportWindow, PCWSTR pszText)
@@ -984,50 +1060,404 @@ static void ViewportWindow_RenderTextOverlayToCanvas(ViewportWindow* pViewportWi
     DeleteObject(hFont);
 }
 
-static LRESULT CALLBACK ViewportWindow_TextOverlayProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+static BOOL ViewportWindow_GetTextOverlayCaretClientPoint(ViewportWindow* pViewportWindow, POINT* pPoint, int* pHeight)
 {
-    ViewportWindow* pViewportWindow = (ViewportWindow*)GetWindowLongPtrW(hWnd, GWLP_USERDATA);
-    WNDPROC pfnPrev = pViewportWindow ? pViewportWindow->pfnTextOverlayProc : NULL;
-
-    switch (message)
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
     {
-    case WM_KEYDOWN:
-        if (wParam == VK_ESCAPE)
-        {
-            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_CANCELTEXT, 0, 0);
-            return 0;
-        }
-        if (wParam == VK_RETURN && (GetKeyState(VK_CONTROL) & 0x8000))
-        {
-            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_COMMITTEXT, 0, 0);
-            return 0;
-        }
-        break;
+        return FALSE;
+    }
 
-    case WM_KILLFOCUS:
-        if (pViewportWindow && !pViewportWindow->bTextOverlayClosing)
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    HDC hdc = GetDC(hWndViewport);
+    HGDIOBJ hOldFont = NULL;
+    if (pViewportWindow->hFontTextOverlay)
+    {
+        hOldFont = SelectObject(hdc, pViewportWindow->hFontTextOverlay);
+    }
+
+    size_t nLineIndex = ViewportWindow_GetTextOverlayLineIndex(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+    size_t nLineStart = ViewportWindow_GetTextOverlayLineStart(pViewportWindow->pszTextOverlay, nLineIndex);
+    int cchPrefix = (int)(pViewportWindow->nTextOverlayCaret - nLineStart);
+    SIZE prefixSize = { 0 };
+    if (cchPrefix > 0)
+    {
+        GetTextExtentPoint32W(hdc, pViewportWindow->pszTextOverlay + nLineStart, cchPrefix, &prefixSize);
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    ReleaseDC(hWndViewport, hdc);
+
+    if (pPoint)
+    {
+        pPoint->x = pViewportWindow->rcTextOverlayClient.left + VIEWPORT_TEXT_PADDING_X + prefixSize.cx;
+        pPoint->y = pViewportWindow->rcTextOverlayClient.top + VIEWPORT_TEXT_PADDING_Y + (int)nLineIndex * pViewportWindow->nTextOverlayLineAdvanceClient;
+    }
+    if (pHeight)
+    {
+        *pHeight = pViewportWindow->nTextOverlayLineAdvanceClient;
+    }
+
+    return TRUE;
+}
+
+static BOOL ViewportWindow_IsPointInTextOverlay(ViewportWindow* pViewportWindow, int x, int y)
+{
+    POINT pt = { x, y };
+    return ViewportWindow_HasTextOverlay(pViewportWindow) && PtInRect(&pViewportWindow->rcTextOverlayClient, pt);
+}
+
+static void ViewportWindow_SetTextOverlayCaret(ViewportWindow* pViewportWindow, size_t nCaret, BOOL fKeepPreferredColumn)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    pViewportWindow->nTextOverlayCaret = min(nCaret, pViewportWindow->cchTextOverlay);
+    if (!fKeepPreferredColumn)
+    {
+        pViewportWindow->nTextOverlayPreferredColumn =
+            (int)ViewportWindow_GetTextOverlayColumn(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+    }
+    pViewportWindow->bTextOverlayCaretVisible = TRUE;
+    Window_Invalidate((Window*)pViewportWindow);
+}
+
+static void ViewportWindow_MoveTextOverlayCaretFromPoint(ViewportWindow* pViewportWindow, int xClient, int yClient)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    HDC hdc = GetDC(Window_GetHWND((Window*)pViewportWindow));
+    HGDIOBJ hOldFont = NULL;
+    if (pViewportWindow->hFontTextOverlay)
+    {
+        hOldFont = SelectObject(hdc, pViewportWindow->hFontTextOverlay);
+    }
+
+    int localY = max(0, yClient - pViewportWindow->rcTextOverlayClient.top - VIEWPORT_TEXT_PADDING_Y);
+    size_t nLineIndex = (size_t)(localY / max(1, pViewportWindow->nTextOverlayLineAdvanceClient));
+    size_t nStart = ViewportWindow_GetTextOverlayLineStart(pViewportWindow->pszTextOverlay, nLineIndex);
+    size_t nEnd = ViewportWindow_GetTextOverlayLineEnd(pViewportWindow->pszTextOverlay, nStart);
+    int localX = max(0, xClient - pViewportWindow->rcTextOverlayClient.left - VIEWPORT_TEXT_PADDING_X);
+    size_t nBestCaret = nStart;
+    int nBestDistance = INT_MAX;
+
+    for (size_t i = nStart; i <= nEnd; ++i)
+    {
+        SIZE prefixSize = { 0 };
+        int cchPrefix = (int)(i - nStart);
+        if (cchPrefix > 0)
         {
-            PostMessageW(GetParent(hWnd), WMU_VIEWPORT_COMMITTEXT, 0, 0);
+            GetTextExtentPoint32W(hdc, pViewportWindow->pszTextOverlay + nStart, cchPrefix, &prefixSize);
         }
+
+        int nDistance = abs(localX - prefixSize.cx);
+        if (nDistance < nBestDistance)
+        {
+            nBestDistance = nDistance;
+            nBestCaret = i;
+        }
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdc, hOldFont);
+    }
+    ReleaseDC(Window_GetHWND((Window*)pViewportWindow), hdc);
+
+    ViewportWindow_SetTextOverlayCaret(pViewportWindow, nBestCaret, FALSE);
+}
+
+static void ViewportWindow_InsertTextOverlayChars(ViewportWindow* pViewportWindow, PCWSTR pszText, size_t cchText)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow) || !pszText || cchText == 0)
+    {
+        return;
+    }
+
+    size_t cchNewLength = pViewportWindow->cchTextOverlay + cchText;
+    if (!ViewportWindow_EnsureTextOverlayCapacity(pViewportWindow, cchNewLength + 1))
+    {
+        return;
+    }
+
+    memmove(
+        pViewportWindow->pszTextOverlay + pViewportWindow->nTextOverlayCaret + cchText,
+        pViewportWindow->pszTextOverlay + pViewportWindow->nTextOverlayCaret,
+        (pViewportWindow->cchTextOverlay - pViewportWindow->nTextOverlayCaret + 1) * sizeof(WCHAR));
+    memcpy(
+        pViewportWindow->pszTextOverlay + pViewportWindow->nTextOverlayCaret,
+        pszText,
+        cchText * sizeof(WCHAR));
+
+    pViewportWindow->cchTextOverlay = cchNewLength;
+    ViewportWindow_SetTextOverlayCaret(pViewportWindow, pViewportWindow->nTextOverlayCaret + cchText, FALSE);
+    ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+}
+
+static void ViewportWindow_DeleteTextOverlayRange(ViewportWindow* pViewportWindow, size_t nStart, size_t nEnd)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow) || nStart >= nEnd || nStart >= pViewportWindow->cchTextOverlay)
+    {
+        return;
+    }
+
+    nEnd = min(nEnd, pViewportWindow->cchTextOverlay);
+    memmove(
+        pViewportWindow->pszTextOverlay + nStart,
+        pViewportWindow->pszTextOverlay + nEnd,
+        (pViewportWindow->cchTextOverlay - nEnd + 1) * sizeof(WCHAR));
+    pViewportWindow->cchTextOverlay -= (nEnd - nStart);
+    ViewportWindow_SetTextOverlayCaret(pViewportWindow, nStart, FALSE);
+    ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+}
+
+static BOOL ViewportWindow_HandleTextOverlayKeyDown(ViewportWindow* pViewportWindow, UINT vk)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return FALSE;
+    }
+
+    switch (vk)
+    {
+    case VK_ESCAPE:
+        ViewportWindow_CancelTextOverlay(pViewportWindow);
+        return TRUE;
+
+    case VK_RETURN:
+        if (GetKeyState(VK_CONTROL) & 0x8000)
+        {
+            ViewportWindow_CommitTextOverlay(pViewportWindow);
+            return TRUE;
+        }
+        return FALSE;
+
+    case VK_LEFT:
+        if (pViewportWindow->nTextOverlayCaret > 0)
+        {
+            ViewportWindow_SetTextOverlayCaret(pViewportWindow, pViewportWindow->nTextOverlayCaret - 1, FALSE);
+        }
+        return TRUE;
+
+    case VK_RIGHT:
+        if (pViewportWindow->nTextOverlayCaret < pViewportWindow->cchTextOverlay)
+        {
+            ViewportWindow_SetTextOverlayCaret(pViewportWindow, pViewportWindow->nTextOverlayCaret + 1, FALSE);
+        }
+        return TRUE;
+
+    case VK_HOME:
+    {
+        size_t nLine = ViewportWindow_GetTextOverlayLineIndex(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+        ViewportWindow_SetTextOverlayCaret(
+            pViewportWindow,
+            ViewportWindow_GetTextOverlayLineStart(pViewportWindow->pszTextOverlay, nLine),
+            FALSE);
+        return TRUE;
+    }
+
+    case VK_END:
+    {
+        size_t nLine = ViewportWindow_GetTextOverlayLineIndex(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+        size_t nStart = ViewportWindow_GetTextOverlayLineStart(pViewportWindow->pszTextOverlay, nLine);
+        ViewportWindow_SetTextOverlayCaret(
+            pViewportWindow,
+            ViewportWindow_GetTextOverlayLineEnd(pViewportWindow->pszTextOverlay, nStart),
+            FALSE);
+        return TRUE;
+    }
+
+    case VK_UP:
+    case VK_DOWN:
+    {
+        size_t nLine = ViewportWindow_GetTextOverlayLineIndex(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+        size_t nLineCount = 1;
+        for (size_t i = 0; i < pViewportWindow->cchTextOverlay; ++i)
+        {
+            if (pViewportWindow->pszTextOverlay[i] == L'\n')
+            {
+                ++nLineCount;
+            }
+        }
+
+        if (pViewportWindow->nTextOverlayPreferredColumn < 0)
+        {
+            pViewportWindow->nTextOverlayPreferredColumn =
+                (int)ViewportWindow_GetTextOverlayColumn(pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayCaret);
+        }
+
+        if (vk == VK_UP && nLine > 0)
+        {
+            ViewportWindow_SetTextOverlayCaret(
+                pViewportWindow,
+                ViewportWindow_GetTextOverlayCaretForLineColumn(
+                    pViewportWindow->pszTextOverlay,
+                    nLine - 1,
+                    (size_t)pViewportWindow->nTextOverlayPreferredColumn),
+                TRUE);
+        }
+        else if (vk == VK_DOWN && nLine + 1 < nLineCount)
+        {
+            ViewportWindow_SetTextOverlayCaret(
+                pViewportWindow,
+                ViewportWindow_GetTextOverlayCaretForLineColumn(
+                    pViewportWindow->pszTextOverlay,
+                    nLine + 1,
+                    (size_t)pViewportWindow->nTextOverlayPreferredColumn),
+                TRUE);
+        }
+        return TRUE;
+    }
+
+    case VK_DELETE:
+        if (pViewportWindow->nTextOverlayCaret < pViewportWindow->cchTextOverlay)
+        {
+            ViewportWindow_DeleteTextOverlayRange(
+                pViewportWindow,
+                pViewportWindow->nTextOverlayCaret,
+                pViewportWindow->nTextOverlayCaret + 1);
+        }
+        return TRUE;
+
+    case VK_SPACE:
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+static BOOL ViewportWindow_HandleTextOverlayChar(ViewportWindow* pViewportWindow, WCHAR ch)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return FALSE;
+    }
+
+    switch (ch)
+    {
+    case L'\b':
+        if (pViewportWindow->nTextOverlayCaret > 0)
+        {
+            ViewportWindow_DeleteTextOverlayRange(
+                pViewportWindow,
+                pViewportWindow->nTextOverlayCaret - 1,
+                pViewportWindow->nTextOverlayCaret);
+        }
+        return TRUE;
+
+    case L'\r':
+        if (!(GetKeyState(VK_CONTROL) & 0x8000))
+        {
+            WCHAR szNewline = L'\n';
+            ViewportWindow_InsertTextOverlayChars(pViewportWindow, &szNewline, 1);
+        }
+        return TRUE;
+
+    case L'\t':
+        return TRUE;
+
+    default:
         break;
     }
 
-    return pfnPrev ? CallWindowProcW(pfnPrev, hWnd, message, wParam, lParam) : DefWindowProcW(hWnd, message, wParam, lParam);
+    if (ch >= 0x20)
+    {
+        ViewportWindow_InsertTextOverlayChars(pViewportWindow, &ch, 1);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+static void ViewportWindow_DrawTextOverlay(ViewportWindow* pViewportWindow, HDC hdcTarget)
+{
+    if (!ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        return;
+    }
+
+    ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
+
+    HGDIOBJ hOldFont = NULL;
+    HGDIOBJ hOldPen = NULL;
+    HGDIOBJ hOldBrush = NULL;
+
+    if (pViewportWindow->hFontTextOverlay)
+    {
+        hOldFont = SelectObject(hdcTarget, pViewportWindow->hFontTextOverlay);
+    }
+
+    HPEN hPen = CreatePen(PS_DOT, 1, RGB(120, 120, 120));
+    hOldPen = SelectObject(hdcTarget, hPen);
+    hOldBrush = SelectObject(hdcTarget, GetStockObject(HOLLOW_BRUSH));
+    Rectangle(
+        hdcTarget,
+        pViewportWindow->rcTextOverlayClient.left,
+        pViewportWindow->rcTextOverlayClient.top,
+        pViewportWindow->rcTextOverlayClient.right,
+        pViewportWindow->rcTextOverlayClient.bottom);
+
+    SelectObject(hdcTarget, hOldBrush);
+    SelectObject(hdcTarget, hOldPen);
+    DeleteObject(hPen);
+
+    SetBkMode(hdcTarget, TRANSPARENT);
+    SetTextColor(
+        hdcTarget,
+        RGB(
+            CHANNEL_R_32(pViewportWindow->textOverlayColor),
+            CHANNEL_G_32(pViewportWindow->textOverlayColor),
+            CHANNEL_B_32(pViewportWindow->textOverlayColor)));
+
+    int nSavedDc = SaveDC(hdcTarget);
+    IntersectClipRect(
+        hdcTarget,
+        pViewportWindow->rcTextOverlayClient.left + VIEWPORT_TEXT_PADDING_X,
+        pViewportWindow->rcTextOverlayClient.top + VIEWPORT_TEXT_PADDING_Y,
+        pViewportWindow->rcTextOverlayClient.right - VIEWPORT_TEXT_PADDING_X,
+        pViewportWindow->rcTextOverlayClient.bottom - VIEWPORT_TEXT_PADDING_Y);
+    SetViewportOrgEx(
+        hdcTarget,
+        pViewportWindow->rcTextOverlayClient.left + VIEWPORT_TEXT_PADDING_X,
+        pViewportWindow->rcTextOverlayClient.top + VIEWPORT_TEXT_PADDING_Y,
+        NULL);
+    ViewportWindow_DrawTextLines(hdcTarget, pViewportWindow->pszTextOverlay, pViewportWindow->nTextOverlayLineAdvanceClient);
+    RestoreDC(hdcTarget, nSavedDc);
+
+    if (pViewportWindow->bTextOverlayCaretVisible && GetFocus() == Window_GetHWND((Window*)pViewportWindow))
+    {
+        POINT ptCaret = { 0 };
+        int nCaretHeight = 0;
+        if (ViewportWindow_GetTextOverlayCaretClientPoint(pViewportWindow, &ptCaret, &nCaretHeight))
+        {
+            RECT rcCaret = {
+                ptCaret.x,
+                ptCaret.y,
+                ptCaret.x + 1,
+                ptCaret.y + max(1, nCaretHeight)
+            };
+            FillRect(hdcTarget, &rcCaret, GetStockObject(BLACK_BRUSH));
+        }
+    }
+
+    if (hOldFont)
+    {
+        SelectObject(hdcTarget, hOldFont);
+    }
 }
 
 LRESULT ViewportWindow_OnCommand(ViewportWindow* pViewportWindow, WPARAM wParam, LPARAM lParam)
 {
-    HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
+    UNREFERENCED_PARAMETER(lParam);
 
-    if ((HWND)lParam == pViewportWindow->hWndTextOverlay)
-    {
-        switch (HIWORD(wParam))
-        {
-        case EN_CHANGE:
-            ViewportWindow_UpdateTextOverlayLayout(pViewportWindow);
-            return 0;
-        }
-    }
+    HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
 
     if (LOWORD(wParam) == IDM_VIEWPORTSETTINGS)
     {
@@ -1040,7 +1470,15 @@ LRESULT ViewportWindow_OnCommand(ViewportWindow* pViewportWindow, WPARAM wParam,
 
 BOOL ViewportWindow_OnKeyDown(ViewportWindow* pViewportWindow, UINT vk, int cRepeat, UINT flags)
 {
+    UNREFERENCED_PARAMETER(cRepeat);
+    UNREFERENCED_PARAMETER(flags);
     HWND hWnd = Window_GetHWND((Window *)pViewportWindow);
+
+    if (ViewportWindow_HasTextOverlay(pViewportWindow) &&
+        ViewportWindow_HandleTextOverlayKeyDown(pViewportWindow, vk))
+    {
+        return TRUE;
+    }
 
     if (vk == VK_SPACE) {
         if (!pViewportWindow->bDrag)
@@ -1067,11 +1505,20 @@ BOOL ViewportWindow_OnKeyDown(ViewportWindow* pViewportWindow, UINT vk, int cRep
 
 BOOL ViewportWindow_OnKeyUp(ViewportWindow* pViewportWindow, UINT vk, int cRepeat, UINT flags)
 {
+    UNREFERENCED_PARAMETER(cRepeat);
+    UNREFERENCED_PARAMETER(flags);
     if (vk == VK_SPACE) {
         pViewportWindow->bDrag = FALSE;
     }
 
     return FALSE;
+}
+
+BOOL ViewportWindow_OnChar(ViewportWindow* pViewportWindow, WCHAR ch, int cRepeat, UINT flags)
+{
+    UNREFERENCED_PARAMETER(cRepeat);
+    UNREFERENCED_PARAMETER(flags);
+    return ViewportWindow_HandleTextOverlayChar(pViewportWindow, ch);
 }
 
 void ViewportWindow_OnMouseMove(ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
@@ -1137,6 +1584,17 @@ void ViewportWindow_OnLButtonDown(ViewportWindow* pViewportWindow, int x, int y,
 
     /* Receive keyboard messages */
     SetFocus(hWnd);
+
+    if (ViewportWindow_HasTextOverlay(pViewportWindow))
+    {
+        if (ViewportWindow_IsTextToolActive() && ViewportWindow_IsPointInTextOverlay(pViewportWindow, x, y))
+        {
+            ViewportWindow_MoveTextOverlayCaretFromPoint(pViewportWindow, x, y);
+            return;
+        }
+
+        ViewportWindow_CommitTextOverlay(pViewportWindow);
+    }
 
     Tool* pTool = PanitentApp_GetTool(PanitentApp_Instance());
     if (pTool && pTool->OnLButtonDown)
@@ -1289,25 +1747,11 @@ LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT
 {
     switch (message)
     {
-    case WMU_VIEWPORT_COMMITTEXT:
-        ViewportWindow_CommitTextOverlay(pViewportWindow);
-        return 0;
-
-    case WMU_VIEWPORT_CANCELTEXT:
-        ViewportWindow_CancelTextOverlay(pViewportWindow);
-        return 0;
-
-    case WM_CTLCOLOREDIT:
-        if ((HWND)lParam == pViewportWindow->hWndTextOverlay)
+    case WM_KILLFOCUS:
+        if (ViewportWindow_HasTextOverlay(pViewportWindow))
         {
-            HDC hdcEdit = (HDC)wParam;
-            COLORREF rgbText = RGB(
-                CHANNEL_R_32(pViewportWindow->textOverlayColor),
-                CHANNEL_G_32(pViewportWindow->textOverlayColor),
-                CHANNEL_B_32(pViewportWindow->textOverlayColor));
-            SetTextColor(hdcEdit, rgbText);
-            SetBkColor(hdcEdit, RGB(255, 255, 255));
-            return (LRESULT)GetStockObject(WHITE_BRUSH);
+            ViewportWindow_CommitTextOverlay(pViewportWindow);
+            return 0;
         }
         break;
 
@@ -1324,6 +1768,16 @@ LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT
     case WM_KEYUP:
     {
         BOOL bProcessed = ViewportWindow_OnKeyUp(pViewportWindow, (UINT)(wParam), (int)(short)LOWORD(lParam), (UINT)HIWORD(lParam));
+        if (bProcessed)
+        {
+            return 0;
+        }
+    }
+    break;
+
+    case WM_CHAR:
+    {
+        BOOL bProcessed = ViewportWindow_OnChar(pViewportWindow, (WCHAR)wParam, (int)(short)LOWORD(lParam), (UINT)HIWORD(lParam));
         if (bProcessed)
         {
             return 0;
@@ -1382,6 +1836,15 @@ LRESULT ViewportWindow_UserProc(ViewportWindow* pViewportWindow, HWND hWnd, UINT
     case WM_CONTEXTMENU:
         ViewportWindow_OnContextMenu(pViewportWindow, (HWND)(wParam), (int)(short)LOWORD(lParam), (int)(short)HIWORD(lParam));
         return 0;
+        break;
+
+    case WM_TIMER:
+        if (wParam == VIEWPORT_TEXT_CARET_TIMER_ID && ViewportWindow_HasTextOverlay(pViewportWindow))
+        {
+            pViewportWindow->bTextOverlayCaretVisible = !pViewportWindow->bTextOverlayCaretVisible;
+            Window_Invalidate((Window*)pViewportWindow);
+            return 0;
+        }
         break;
 
     case WM_ERASEBKGND:
