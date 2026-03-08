@@ -250,6 +250,17 @@ This change set adds startup garbage collection for orphaned recovery snapshots:
 
 This closes the main recovery lifecycle loop: create -> reference from session -> restore -> garbage collect when orphaned.
 
+## Sixteenth Increment Applied
+
+This change set adds age-based retention to recovery garbage collection:
+- startup GC now keeps recent orphaned recovery files for a retention window instead of deleting everything immediately;
+- only unreferenced recovery snapshots older than the retention threshold are deleted;
+- this makes crash recovery less fragile when session files are temporarily missing or invalid.
+
+Current limitation:
+- retention is fixed-window based, not user-configurable;
+- persisted file formats still reset on incompatibility instead of migrating forward.
+
 ## Fifteenth Increment Applied
 
 This change set adds explicit load-status handling for persisted files:

@@ -7,6 +7,8 @@
 #include "recoverystorepersist.h"
 #include "shell/pathutil.h"
 
+static const ULONGLONG kRecoveryRetentionWindow100ns = 72ull * 60ull * 60ull * 10000000ull;
+
 typedef struct RecoveryPathList
 {
 	LPWSTR* pItems;
@@ -111,6 +113,30 @@ static void PanitentRecoveryStore_CollectFloatingDocumentSessionPaths(RecoveryPa
 	}
 }
 
+static FILETIME PanitentRecoveryStore_GetUtcThreshold(void)
+{
+	FILETIME ftNow = { 0 };
+	GetSystemTimeAsFileTime(&ftNow);
+	ULARGE_INTEGER now = { 0 };
+	now.LowPart = ftNow.dwLowDateTime;
+	now.HighPart = ftNow.dwHighDateTime;
+	ULONGLONG value = now.QuadPart;
+	if (value > kRecoveryRetentionWindow100ns)
+	{
+		value -= kRecoveryRetentionWindow100ns;
+	}
+	else {
+		value = 0;
+	}
+
+	FILETIME ftThreshold = { 0 };
+	ULARGE_INTEGER threshold = { 0 };
+	threshold.QuadPart = value;
+	ftThreshold.dwLowDateTime = threshold.LowPart;
+	ftThreshold.dwHighDateTime = threshold.HighPart;
+	return ftThreshold;
+}
+
 BOOL PanitentRecoveryStore_RunStartupGc(void)
 {
 	RecoveryPathList keepPaths = { 0 };
@@ -146,10 +172,12 @@ BOOL PanitentRecoveryStore_RunStartupGc(void)
 	}
 
 	int nDeleted = 0;
-	BOOL bResult = RecoveryStore_DeleteUnreferencedFilesByPattern(
+	FILETIME utcThreshold = PanitentRecoveryStore_GetUtcThreshold();
+	BOOL bResult = RecoveryStore_DeleteUnreferencedFilesOlderThanByPattern(
 		L"recovery_*.pdr",
 		(PCWSTR*)keepPaths.pItems,
 		keepPaths.nCount,
+		utcThreshold,
 		&nDeleted);
 
 	FloatingDocumentSessionModel_Destroy(pFloatingDocumentSession);

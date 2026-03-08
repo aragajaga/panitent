@@ -41,3 +41,28 @@ BOOL RecoveryStore_DeleteUnreferencedFilesByPattern(
 	free(pszAppData);
 	return bResult;
 }
+
+BOOL RecoveryStore_DeleteUnreferencedFilesOlderThanByPattern(
+	PCWSTR pszPattern,
+	PCWSTR* pKeepPaths,
+	int cKeepPaths,
+	FILETIME utcThreshold,
+	int* pnDeleted)
+{
+	PTSTR pszAppData = NULL;
+	GetAppDataFilePath(NULL, &pszAppData);
+	if (!pszAppData)
+	{
+		return FALSE;
+	}
+
+	BOOL bResult = RecoveryStore_DeleteUnreferencedFilesOlderThanInDirectory(
+		pszAppData,
+		pszPattern,
+		pKeepPaths,
+		cKeepPaths,
+		utcThreshold,
+		pnDeleted);
+	free(pszAppData);
+	return bResult;
+}

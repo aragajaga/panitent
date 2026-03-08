@@ -632,6 +632,57 @@ static int test_recovery_store_deletes_only_unreferenced_files(void)
 	return 0;
 }
 
+static int test_recovery_store_keeps_recent_but_deletes_old_orphans(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szDirPath[MAX_PATH] = L"";
+	WCHAR szFileRecent[MAX_PATH] = L"";
+	WCHAR szFileOld[MAX_PATH] = L"";
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"rct", 0, szDirPath) != 0);
+	DeleteFileW(szDirPath);
+	assert(CreateDirectoryW(szDirPath, NULL));
+
+	StringCchPrintfW(szFileRecent, ARRAYSIZE(szFileRecent), L"%s\\recovery_recent.pdr", szDirPath);
+	StringCchPrintfW(szFileOld, ARRAYSIZE(szFileOld), L"%s\\recovery_old.pdr", szDirPath);
+
+	HANDLE hRecent = CreateFileW(szFileRecent, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hRecent != INVALID_HANDLE_VALUE);
+	CloseHandle(hRecent);
+
+	HANDLE hOld = CreateFileW(szFileOld, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hOld != INVALID_HANDLE_VALUE);
+	FILETIME ftNow = { 0 };
+	GetSystemTimeAsFileTime(&ftNow);
+	ULARGE_INTEGER now = { 0 };
+	now.LowPart = ftNow.dwLowDateTime;
+	now.HighPart = ftNow.dwHighDateTime;
+	ULARGE_INTEGER oldTime = now;
+	oldTime.QuadPart -= 5ull * 24ull * 60ull * 60ull * 10000000ull;
+	FILETIME ftOld = { oldTime.LowPart, oldTime.HighPart };
+	assert(SetFileTime(hOld, NULL, NULL, &ftOld));
+	CloseHandle(hOld);
+
+	ULARGE_INTEGER thresholdValue = now;
+	thresholdValue.QuadPart -= 24ull * 60ull * 60ull * 10000000ull;
+	FILETIME ftThreshold = { thresholdValue.LowPart, thresholdValue.HighPart };
+	int nDeleted = 0;
+	assert(RecoveryStore_DeleteUnreferencedFilesOlderThanInDirectory(
+		szDirPath,
+		L"recovery_*.pdr",
+		NULL,
+		0,
+		ftThreshold,
+		&nDeleted));
+	assert(nDeleted == 1);
+	assert(GetFileAttributesW(szFileRecent) != INVALID_FILE_ATTRIBUTES);
+	assert(GetFileAttributesW(szFileOld) == INVALID_FILE_ATTRIBUTES);
+
+	DeleteFileW(szFileRecent);
+	RemoveDirectoryW(szDirPath);
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -1026,6 +1077,7 @@ int main(void)
 	failed |= test_floating_document_session_model_file_round_trip();
 	failed |= test_recovery_store_deletes_matching_files_only();
 	failed |= test_recovery_store_deletes_only_unreferenced_files();
+	failed |= test_recovery_store_keeps_recent_but_deletes_old_orphans();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
