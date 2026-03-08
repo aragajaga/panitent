@@ -116,15 +116,21 @@ BOOL PanitentRecoveryStore_RunStartupGc(void)
 	RecoveryPathList keepPaths = { 0 };
 	PTSTR pszDocumentSessionPath = NULL;
 	PTSTR pszFloatingDocumentSessionPath = NULL;
-	DocumentSessionModel documentSession = { 0 };
-	FloatingDocumentSessionModel floatingDocumentSession = { 0 };
+	DocumentSessionModel* pDocumentSession = (DocumentSessionModel*)calloc(1, sizeof(DocumentSessionModel));
+	FloatingDocumentSessionModel* pFloatingDocumentSession = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	if (!pDocumentSession || !pFloatingDocumentSession)
+	{
+		free(pDocumentSession);
+		free(pFloatingDocumentSession);
+		return FALSE;
+	}
 
 	GetDocumentSessionFilePath(&pszDocumentSessionPath);
 	if (pszDocumentSessionPath)
 	{
-		if (DocumentSessionModel_LoadFromFile(pszDocumentSessionPath, &documentSession))
+		if (DocumentSessionModel_LoadFromFile(pszDocumentSessionPath, pDocumentSession))
 		{
-			PanitentRecoveryStore_CollectDocumentSessionPaths(&keepPaths, &documentSession);
+			PanitentRecoveryStore_CollectDocumentSessionPaths(&keepPaths, pDocumentSession);
 		}
 		free(pszDocumentSessionPath);
 	}
@@ -132,9 +138,9 @@ BOOL PanitentRecoveryStore_RunStartupGc(void)
 	GetFloatingDocumentSessionFilePath(&pszFloatingDocumentSessionPath);
 	if (pszFloatingDocumentSessionPath)
 	{
-		if (FloatingDocumentSessionModel_LoadFromFile(pszFloatingDocumentSessionPath, &floatingDocumentSession))
+		if (FloatingDocumentSessionModel_LoadFromFile(pszFloatingDocumentSessionPath, pFloatingDocumentSession))
 		{
-			PanitentRecoveryStore_CollectFloatingDocumentSessionPaths(&keepPaths, &floatingDocumentSession);
+			PanitentRecoveryStore_CollectFloatingDocumentSessionPaths(&keepPaths, pFloatingDocumentSession);
 		}
 		free(pszFloatingDocumentSessionPath);
 	}
@@ -146,7 +152,9 @@ BOOL PanitentRecoveryStore_RunStartupGc(void)
 		keepPaths.nCount,
 		&nDeleted);
 
-	FloatingDocumentSessionModel_Destroy(&floatingDocumentSession);
+	FloatingDocumentSessionModel_Destroy(pFloatingDocumentSession);
 	RecoveryPathList_Destroy(&keepPaths);
+	free(pDocumentSession);
+	free(pFloatingDocumentSession);
 	return bResult;
 }
