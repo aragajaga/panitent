@@ -2,4 +2,6 @@
 
 #include "precomp.h"
 
-BOOL PanitentRecoveryStore_RunStartupGc(void);
+typedef struct _tagPNTSETTINGS PNTSETTINGS;
+
+BOOL PanitentRecoveryStore_RunStartupGc(const PNTSETTINGS* pSettings);

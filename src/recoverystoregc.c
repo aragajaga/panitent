@@ -6,8 +6,22 @@
 #include "floatingdocumentsessionmodel.h"
 #include "recoverystorepersist.h"
 #include "shell/pathutil.h"
+#include "settings.h"
 
-static const ULONGLONG kRecoveryRetentionWindow100ns = 72ull * 60ull * 60ull * 10000000ull;
+static ULONGLONG PanitentRecoveryStore_GetRetentionWindow100ns(const PNTSETTINGS* pSettings)
+{
+	int hours = pSettings ? pSettings->iRecoveryRetentionHours : 72;
+	if (hours < 1)
+	{
+		hours = 1;
+	}
+	if (hours > 24 * 365)
+	{
+		hours = 24 * 365;
+	}
+
+	return (ULONGLONG)hours * 60ull * 60ull * 10000000ull;
+}
 
 typedef struct RecoveryPathList
 {
@@ -113,7 +127,7 @@ static void PanitentRecoveryStore_CollectFloatingDocumentSessionPaths(RecoveryPa
 	}
 }
 
-static FILETIME PanitentRecoveryStore_GetUtcThreshold(void)
+static FILETIME PanitentRecoveryStore_GetUtcThreshold(const PNTSETTINGS* pSettings)
 {
 	FILETIME ftNow = { 0 };
 	GetSystemTimeAsFileTime(&ftNow);
@@ -121,9 +135,10 @@ static FILETIME PanitentRecoveryStore_GetUtcThreshold(void)
 	now.LowPart = ftNow.dwLowDateTime;
 	now.HighPart = ftNow.dwHighDateTime;
 	ULONGLONG value = now.QuadPart;
-	if (value > kRecoveryRetentionWindow100ns)
+	ULONGLONG retentionWindow = PanitentRecoveryStore_GetRetentionWindow100ns(pSettings);
+	if (value > retentionWindow)
 	{
-		value -= kRecoveryRetentionWindow100ns;
+		value -= retentionWindow;
 	}
 	else {
 		value = 0;
@@ -137,7 +152,7 @@ static FILETIME PanitentRecoveryStore_GetUtcThreshold(void)
 	return ftThreshold;
 }
 
-BOOL PanitentRecoveryStore_RunStartupGc(void)
+BOOL PanitentRecoveryStore_RunStartupGc(const PNTSETTINGS* pSettings)
 {
 	RecoveryPathList keepPaths = { 0 };
 	PTSTR pszDocumentSessionPath = NULL;
@@ -172,7 +187,7 @@ BOOL PanitentRecoveryStore_RunStartupGc(void)
 	}
 
 	int nDeleted = 0;
-	FILETIME utcThreshold = PanitentRecoveryStore_GetUtcThreshold();
+	FILETIME utcThreshold = PanitentRecoveryStore_GetUtcThreshold(pSettings);
 	BOOL bResult = RecoveryStore_DeleteUnreferencedFilesOlderThanByPattern(
 		L"recovery_*.pdr",
 		(PCWSTR*)keepPaths.pItems,

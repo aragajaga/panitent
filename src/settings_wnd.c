@@ -31,6 +31,7 @@ static const WCHAR szClassName[] = L"Win32Ctl_SettingsWindow";
 #define IDC_SETTINGS_THEME_HUE_VALUE     2114
 #define IDC_SETTINGS_THEME_SAT_VALUE     2115
 #define IDC_SETTINGS_THEME_LIGHT_VALUE   2116
+#define IDC_SETTINGS_RECOVERY_RETENTION  2117
 
 static const int kSettingsPadding = 12;
 static const int kSettingsGroupGap = 10;
@@ -41,7 +42,7 @@ static const int kSettingsCheckHeight = 20;
 static const int kSettingsButtonWidth = 88;
 static const int kSettingsButtonHeight = 26;
 static const int kSettingsGroupWindowHeight = 116;
-static const int kSettingsGroupBehaviorHeight = 140;
+static const int kSettingsGroupBehaviorHeight = 168;
 static const int kSettingsGroupThemeHeight = 170;
 static const int kSettingsSliderHeight = 26;
 static const int kSettingsThemeLabelWidth = 72;
@@ -321,6 +322,9 @@ static void SettingsWindow_LoadFromSettings(SettingsWindow* pSettingsWindow)
     Button_SetCheck(
         pSettingsWindow->hCheckCompactMenuBar,
         pSettings->bCompactMenuBar ? BST_CHECKED : BST_UNCHECKED);
+    SettingsWindow_SetIntText(
+        pSettingsWindow->hEditRecoveryRetention,
+        pSettings->iRecoveryRetentionHours);
     SendMessageW(pSettingsWindow->hSliderThemeHue, TBM_SETPOS, TRUE, pSettings->iThemeHue);
     SendMessageW(pSettingsWindow->hSliderThemeSaturation, TBM_SETPOS, TRUE, pSettings->iThemeSaturation);
     SendMessageW(pSettingsWindow->hSliderThemeLightness, TBM_SETPOS, TRUE, pSettings->iThemeLightness);
@@ -565,6 +569,20 @@ static void SettingsWindow_LayoutControls(SettingsWindow* pSettingsWindow, int w
         contentWidth - 24,
         kSettingsCheckHeight,
         TRUE);
+    MoveWindow(
+        pSettingsWindow->hLabelRecoveryRetention,
+        kSettingsPadding + 24,
+        behaviorTop + 128 + 4,
+        180,
+        18,
+        TRUE);
+    MoveWindow(
+        pSettingsWindow->hEditRecoveryRetention,
+        kSettingsPadding + 210,
+        behaviorTop + 128,
+        72,
+        kSettingsEditHeight,
+        TRUE);
 
     {
         int themeTop = behaviorTop + kSettingsGroupBehaviorHeight + kSettingsGroupGap;
@@ -640,6 +658,7 @@ static BOOL SettingsWindow_Apply(SettingsWindow* pSettingsWindow)
     pSettings->bEnablePenTablet = Button_GetCheck(pSettingsWindow->hCheckEnablePenTablet) == BST_CHECKED;
     pSettings->bUseStandardWindowFrame = Button_GetCheck(pSettingsWindow->hCheckStandardWindowFrame) == BST_CHECKED;
     pSettings->bCompactMenuBar = Button_GetCheck(pSettingsWindow->hCheckCompactMenuBar) == BST_CHECKED;
+    pSettings->iRecoveryRetentionHours = max(1, SettingsWindow_GetIntText(pSettingsWindow->hEditRecoveryRetention, pSettings->iRecoveryRetentionHours));
     SettingsWindow_GetThemeHsl(
         pSettingsWindow,
         &pSettings->iThemeHue,
@@ -690,6 +709,8 @@ static BOOL SettingsWindow_OnCreate(SettingsWindow* pSettingsWindow, LPCREATESTR
     pSettingsWindow->hCheckEnablePenTablet = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_ENABLE_PEN, L"Enable pen tablet");
     pSettingsWindow->hCheckStandardWindowFrame = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_STANDARD_FRAME, L"Use standard Windows frame");
     pSettingsWindow->hCheckCompactMenuBar = SettingsWindow_CreateCheckbox(hWnd, IDC_SETTINGS_COMPACT_MENU, L"Compact menu bar");
+    pSettingsWindow->hLabelRecoveryRetention = SettingsWindow_CreateLabel(hWnd, IDC_STATIC, L"Recovery retention (hours)");
+    pSettingsWindow->hEditRecoveryRetention = SettingsWindow_CreateEdit(hWnd, IDC_SETTINGS_RECOVERY_RETENTION);
 
     pSettingsWindow->hGroupTheme = SettingsWindow_CreateGroup(hWnd, L"Theme");
     pSettingsWindow->hLabelThemeHue = SettingsWindow_CreateLabel(hWnd, IDC_STATIC, L"Hue");
@@ -782,6 +803,7 @@ static void SettingsWindow_OnCommand(SettingsWindow* pSettingsWindow, WPARAM wPa
     case IDC_SETTINGS_POS_Y:
     case IDC_SETTINGS_WIDTH:
     case IDC_SETTINGS_HEIGHT:
+    case IDC_SETTINGS_RECOVERY_RETENTION:
         if (HIWORD(wParam) == EN_CHANGE)
         {
             SettingsWindow_MarkDirty(pSettingsWindow, TRUE);

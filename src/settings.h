@@ -17,6 +17,7 @@ typedef struct _tagPNTSETTINGS {
     int iThemeHue;
     int iThemeSaturation;
     int iThemeLightness;
+    int iRecoveryRetentionHours;
 } PNTSETTINGS;
 
 void Panitent_DefaultSettings(PNTSETTINGS* pSettings);

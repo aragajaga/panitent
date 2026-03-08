@@ -30,6 +30,7 @@ void Panitent_DefaultSettings(PNTSETTINGS* pSettings)
         &pSettings->iThemeHue,
         &pSettings->iThemeSaturation,
         &pSettings->iThemeLightness);
+    pSettings->iRecoveryRetentionHours = 72;
 }
 
 BOOL Panitent_ReadSettings(PNTSETTINGS* pSettings)

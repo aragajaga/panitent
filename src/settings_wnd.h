@@ -23,6 +23,8 @@ struct SettingsWindow {
     HWND hCheckEnablePenTablet;
     HWND hCheckStandardWindowFrame;
     HWND hCheckCompactMenuBar;
+    HWND hLabelRecoveryRetention;
+    HWND hEditRecoveryRetention;
 
     HWND hGroupTheme;
     HWND hLabelThemeHue;

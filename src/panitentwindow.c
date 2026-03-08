@@ -1872,5 +1872,5 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     PanitentDocumentSession_Restore(PanitentApp_Instance());
     PanitentDockFloating_Restore(PanitentApp_Instance(), pDockHostWindow);
     PanitentFloatingDocumentSession_Restore(PanitentApp_Instance(), pDockHostWindow);
-    PanitentRecoveryStore_RunStartupGc();
+    PanitentRecoveryStore_RunStartupGc(PanitentApp_GetSettings(PanitentApp_Instance()));
 }
