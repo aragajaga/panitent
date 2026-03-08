@@ -88,6 +88,8 @@ set(C_SOURCES
     src/dockmodelio.c
     src/dockshell.c
     src/docktypes.c
+    src/dockviewcatalog.c
+    src/dockviewfactory.c
     src/dockinspectordialog.c
     src/document.c
     src/file_open.c
@@ -192,6 +194,7 @@ if(PANITENT_BUILD_TESTS)
     src/docklayout.c
     src/dockpolicy.c
     src/docktypes.c
+    src/dockviewcatalog.c
     src/workspacedockpolicy.c
   )
 

@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/dockviewcatalog.h"
 #include "../src/dockmodelbuild.h"
 #include "../src/dockmodel.h"
 #include "../src/dockmodelio.h"
@@ -377,6 +378,21 @@ static int test_floating_dock_policy_semantics(void)
 	return 0;
 }
 
+static int test_dock_view_catalog_maps_known_persistent_views(void)
+{
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_WORKSPACE, L"WorkspaceContainer") == PNT_DOCK_VIEW_WORKSPACE);
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Toolbox") == PNT_DOCK_VIEW_TOOLBOX);
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"GLWindow") == PNT_DOCK_VIEW_GLWINDOW);
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Palette") == PNT_DOCK_VIEW_PALETTE);
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Layers") == PNT_DOCK_VIEW_LAYERS);
+	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Option Bar") == PNT_DOCK_VIEW_OPTIONBAR);
+	assert(PanitentDockViewCatalog_IsKnown(DOCK_ROLE_PANEL, L"Toolbox"));
+	assert(!PanitentDockViewCatalog_IsKnown(DOCK_ROLE_PANEL, L"Unknown Panel"));
+	assert(!PanitentDockViewCatalog_IsKnown(DOCK_ROLE_ZONE, L"DockZone.Left"));
+
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -671,6 +687,7 @@ int main(void)
 	failed |= test_dock_shell_build_main_layout_attaches_workspace_and_zones();
 	failed |= test_dock_group_semantics_for_tool_and_document_panes();
 	failed |= test_floating_dock_policy_semantics();
+	failed |= test_dock_view_catalog_maps_known_persistent_views();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

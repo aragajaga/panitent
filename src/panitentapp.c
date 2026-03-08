@@ -6,6 +6,7 @@
 #include "panitentapp.h"
 #include "panitentwindow.h"
 #include "dockshell.h"
+#include "dockviewfactory.h"
 
 #include "option_bar.h"
 #include "toolbox.h"
@@ -179,90 +180,56 @@ int PanitentApp_Run(PanitentApp* pPanitentApp)
 
 TreeNode* CreateToolboxNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeToolbox = DockShell_CreatePanelNode(L"Toolbox");
-    if (pNodeToolbox && pNodeToolbox->data)
-    {
-        DockData* pDockDataToolbox = (DockData*)pNodeToolbox->data;
-        ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
-        Window_CreateWindow((Window*)pToolboxWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataToolbox, (Window*)pToolboxWindow);
-    }
-
-    return pNodeToolbox;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_PANEL,
+        L"Toolbox");
 }
 
 TreeNode* CreateViewportNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeViewport = DockShell_CreateWorkspaceNode();
-    if (pNodeViewport && pNodeViewport->data)
-    {
-        DockData* pDockDataViewport = (DockData*)pNodeViewport->data;
-        WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)pPanitentApp);
-        HWND hWndWorkspaceContainer = Window_CreateWindow((Window*)pWorkspaceContainer, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataViewport, (Window*)pWorkspaceContainer);
-        pDockDataViewport->bShowCaption = FALSE;
-        pPanitentApp->m_pWorkspaceContainer = pWorkspaceContainer;
-    }
-    
-    return pNodeViewport;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_WORKSPACE,
+        L"WorkspaceContainer");
 }
 
 TreeNode* CreateGLWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeGLWindow = DockShell_CreatePanelNode(L"GLWindow");
-    if (pNodeGLWindow && pNodeGLWindow->data)
-    {
-        DockData* pDockDataGLWindow = (DockData*)pNodeGLWindow->data;
-        GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
-        HWND hwndGLWindow = Window_CreateWindow((Window*)pGLWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataGLWindow, (Window*)pGLWindow);
-    }
-
-    return pNodeGLWindow;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_PANEL,
+        L"GLWindow");
 }
 
 TreeNode* CreatePaletteWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodePalette = DockShell_CreatePanelNode(L"Palette");
-    if (pNodePalette && pNodePalette->data)
-    {
-        DockData* pDockDataPalette = (DockData*)pNodePalette->data;
-        PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
-        HWND hwndPalette = Window_CreateWindow((Window*)pPaletteWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataPalette, (Window*)pPaletteWindow);
-    }
-    
-    return pNodePalette;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_PANEL,
+        L"Palette");
 }
 
 TreeNode* CreateLayersWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeLayers = DockShell_CreatePanelNode(L"Layers");
-    if (pNodeLayers && pNodeLayers->data)
-    {
-        DockData* pDockDataLayers = (DockData*)pNodeLayers->data;
-        LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
-        HWND hwndLayers = Window_CreateWindow((Window*)pLayersWindow, NULL);
-        DockData_PinWindow(pDockHostWindow, pDockDataLayers, (Window*)pLayersWindow);
-    }
-
-    return pNodeLayers;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_PANEL,
+        L"Layers");
 }
 
 TreeNode* CreateOptionBarNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-    TreeNode* pNodeOptionBar = DockShell_CreatePanelNode(_T("Option Bar"));
-    if (pNodeOptionBar && pNodeOptionBar->data)
-    {
-        DockData* pDockDataOptionBar = (DockData*)pNodeOptionBar->data;
-        OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create();
-        HWND hwndLayers = Window_CreateWindow((Window*)pOptionBarWindow, NULL);
-        PanitentApp_SetOptionBar(pPanitentApp, pOptionBarWindow);
-        OptionBarWindow_SyncTool(pOptionBarWindow, PanitentApp_GetTool(pPanitentApp));
-        DockData_PinWindow(pDockHostWindow, pDockDataOptionBar, (Window*)pOptionBarWindow);
-    }
-
-    return pNodeOptionBar;
+    return PanitentDockViewFactory_CreateNodeAndWindow(
+        pPanitentApp,
+        pDockHostWindow,
+        DOCK_ROLE_PANEL,
+        _T("Option Bar"));
 }
 
 void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, TreeNode* pNodeParent)

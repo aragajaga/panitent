@@ -6,13 +6,8 @@
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
 #include "dockmodelio.h"
-#include "option_bar.h"
+#include "dockviewfactory.h"
 #include "panitentapp.h"
-#include "palette_window.h"
-#include "layerswindow.h"
-#include "glwindow.h"
-#include "toolbox.h"
-#include "workspacecontainer.h"
 #include "shell/pathutil.h"
 
 typedef struct DockLayoutHandleRemap DockLayoutHandleRemap;
@@ -63,57 +58,14 @@ static HWND DockLayoutPersist_MapHandle(const DockLayoutRestoreContext* pContext
 
 static Window* DockLayoutPersist_CreateWindowForNode(DockLayoutRestoreContext* pContext, DockData* pDockData)
 {
-	PanitentApp* pPanitentApp;
 	if (!pContext || !pDockData)
 	{
 		return NULL;
 	}
 
-	pPanitentApp = pContext->pPanitentApp;
-	switch (pDockData->nRole)
-	{
-	case DOCK_ROLE_WORKSPACE:
-	{
-		WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)pPanitentApp);
-		if (!pPanitentApp->m_pWorkspaceContainer)
-		{
-			pPanitentApp->m_pWorkspaceContainer = pWorkspaceContainer;
-		}
-		return (Window*)pWorkspaceContainer;
-	}
-
-	case DOCK_ROLE_PANEL:
-		if (wcscmp(pDockData->lpszName, L"Toolbox") == 0)
-		{
-			return (Window*)ToolboxWindow_Create((Application*)pPanitentApp);
-		}
-		if (wcscmp(pDockData->lpszName, L"GLWindow") == 0)
-		{
-			return (Window*)GLWindow_Create((Application*)pPanitentApp);
-		}
-		if (wcscmp(pDockData->lpszName, L"Palette") == 0)
-		{
-			PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
-			pPanitentApp->m_pPaletteWindow = pPaletteWindow;
-			return (Window*)pPaletteWindow;
-		}
-		if (wcscmp(pDockData->lpszName, L"Layers") == 0)
-		{
-			return (Window*)LayersWindow_Create((Application*)pPanitentApp);
-		}
-		if (wcscmp(pDockData->lpszName, L"Option Bar") == 0)
-		{
-			OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create();
-			PanitentApp_SetOptionBar(pPanitentApp, pOptionBarWindow);
-			OptionBarWindow_SyncTool(pOptionBarWindow, PanitentApp_GetTool(pPanitentApp));
-			return (Window*)pOptionBarWindow;
-		}
-		break;
-	default:
-		break;
-	}
-
-	return NULL;
+	return PanitentDockViewFactory_CreateWindow(
+		pContext->pPanitentApp,
+		PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName));
 }
 
 static BOOL DockLayoutPersist_AttachWindowsRecursive(DockLayoutRestoreContext* pContext, TreeNode* pNode)

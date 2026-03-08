@@ -197,3 +197,12 @@ This change set wires Phase 5 into the application lifecycle for the main dock h
 Current limitation:
 - this step restores the main dock host structure and known tool/workspace windows;
 - it does not yet restore floating windows or document contents across sessions.
+
+## Tenth Increment Applied
+
+This change set removes duplication between default shell bootstrap and layout restore:
+- added `dockviewcatalog.*` for pure mapping from `(role, name)` to known persistent views;
+- added `dockviewfactory.*` for actual node/window creation of those views;
+- switched both startup shell construction and layout restore to the same factory path.
+
+This does not yet restore floating windows or document contents, but it removes one of the main blockers to extending persistence beyond the main dock host.
