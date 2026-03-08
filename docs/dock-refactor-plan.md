@@ -143,3 +143,12 @@ This change set starts Phase 4:
 - moved dock-command eligibility and part of floating document/tool decisions into policy helpers.
 
 This does not finish floating-host unification yet, but it creates a shared semantic layer for the next step.
+
+## Fifth Increment Applied
+
+This change set continues Phase 4:
+- added a dedicated `floatingchildhost.*` adapter module;
+- moved floating child-host classification and document-host operations out of `floatingwindowcontainer.c`;
+- routed document source resolution, document move/merge logic, and target workspace dock-host wrapping through the adapter.
+
+The floating container still owns the UI flow, but it no longer needs to know as much about the internal structure of every possible child host.

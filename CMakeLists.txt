@@ -88,6 +88,7 @@ set(C_SOURCES
     src/document.c
     src/file_open.c
     src/flexible.c
+    src/floatingchildhost.c
     src/floatingdockpolicy.c
     src/floatingwindowcontainer.c
     src/glwindow.c
