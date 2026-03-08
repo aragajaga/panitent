@@ -81,6 +81,7 @@ set(C_SOURCES
     src/docklayout.c
     src/dockhost.c
     src/dockpolicy.c
+    src/dockshell.c
     src/docktypes.c
     src/dockinspectordialog.c
     src/document.c
@@ -175,6 +176,7 @@ if(PANITENT_BUILD_TESTS)
 
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
+    src/dockshell.c
     src/docklayout.c
     src/dockpolicy.c
     src/docktypes.c

@@ -5,6 +5,7 @@
 #include "win32/util.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
+#include "dockshell.h"
 #include "docklayout.h"
 #include "resource.h"
 #include "toolwndframe.h"
@@ -1009,8 +1010,8 @@ static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWN
         return NULL;
     }
 
-    TreeNode* pRootNode = DockNode_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
-    TreeNode* pWorkspaceNode = DockNode_Create(220, DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, FALSE);
+    TreeNode* pRootNode = DockShell_CreateRootNode();
+    TreeNode* pWorkspaceNode = DockShell_CreateWorkspaceNode();
     if (!pRootNode || !pRootNode->data || !pWorkspaceNode || !pWorkspaceNode->data)
     {
         if (pRootNode)
@@ -1033,10 +1034,7 @@ static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWN
         DestroyWindow(hWndLocalDockHostWindow);
         return NULL;
     }
-
     DockData* pRootData = (DockData*)pRootNode->data;
-    wcscpy_s(pRootData->lpszName, MAX_PATH, L"Root");
-    pRootData->nRole = DOCK_ROLE_ROOT;
 
     RECT rcFloatingClient = { 0 };
     GetClientRect(hWndTargetParent, &rcFloatingClient);
@@ -1050,13 +1048,10 @@ static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWN
     }
 
     DockData* pWorkspaceData = (DockData*)pWorkspaceNode->data;
-    wcscpy_s(pWorkspaceData->lpszName, MAX_PATH, L"WorkspaceContainer");
-    pWorkspaceData->nRole = DOCK_ROLE_WORKSPACE;
     pWorkspaceData->bShowCaption = FALSE;
     DockData_PinWindow(pLocalDockHostWindow, pWorkspaceData, pTargetWorkspaceWindow);
 
-    pRootNode->node1 = pWorkspaceNode;
-    pRootNode->node2 = NULL;
+    DockShell_BuildWorkspaceOnlyLayout(pRootNode, pWorkspaceNode);
     DockHostWindow_SetRoot(pLocalDockHostWindow, pRootNode);
 
     pFloatingWindowContainer->hWndChild = hWndLocalDockHostWindow;

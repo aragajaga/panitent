@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
 #include "../src/docktypes.h"
@@ -231,6 +232,74 @@ static int test_explicit_dock_roles_override_name_fallback(void)
 	return 0;
 }
 
+static int test_dock_shell_zone_builder_assigns_role_and_side(void)
+{
+	TreeNode* pZoneNode = DockShell_CreateZoneNode(DKS_RIGHT);
+	DockData* pZoneData = pZoneNode ? (DockData*)pZoneNode->data : NULL;
+
+	assert(pZoneNode);
+	assert(pZoneData);
+	assert(pZoneData->nRole == DOCK_ROLE_ZONE);
+	assert(pZoneData->nDockSide == DKS_RIGHT);
+	assert(wcscmp(pZoneData->lpszName, L"DockZone.Right") == 0);
+
+	return 0;
+}
+
+static int test_dock_shell_appends_zone_stack_split(void)
+{
+	TreeNode* pZoneNode = DockShell_CreateZoneNode(DKS_LEFT);
+	TreeNode* pPanelA = DockShell_CreatePanelNode(L"Toolbox");
+	TreeNode* pPanelB = DockShell_CreatePanelNode(L"Palette");
+	DockData* pSplitData;
+
+	assert(DockShell_AppendPanelToZone(pZoneNode, pPanelA));
+	assert(pZoneNode->node1 == pPanelA);
+
+	assert(DockShell_AppendPanelToZone(pZoneNode, pPanelB));
+	assert(pZoneNode->node1 != pPanelA);
+	assert(pZoneNode->node1 != pPanelB);
+
+	pSplitData = (DockData*)pZoneNode->node1->data;
+	assert(pSplitData);
+	assert(pSplitData->nRole == DOCK_ROLE_ZONE_STACK_SPLIT);
+	assert(pZoneNode->node1->node1 == pPanelA);
+	assert(pZoneNode->node1->node2 == pPanelB);
+
+	return 0;
+}
+
+static int test_dock_shell_build_main_layout_attaches_workspace_and_zones(void)
+{
+	TreeNode* pRoot = DockShell_CreateRootNode();
+	TreeNode* pWorkspace = DockShell_CreateWorkspaceNode();
+	TreeNode* pZoneLeft = DockShell_CreateZoneNode(DKS_LEFT);
+	TreeNode* pZoneRight = DockShell_CreateZoneNode(DKS_RIGHT);
+	TreeNode* pZoneTop = DockShell_CreateZoneNode(DKS_TOP);
+	TreeNode* pZoneBottom = DockShell_CreateZoneNode(DKS_BOTTOM);
+	DockShellMetrics metrics = { 111, 222, 33, 44 };
+	DockData* pShellRootData;
+
+	assert(DockShell_BuildMainLayout(
+		pRoot,
+		pWorkspace,
+		pZoneLeft,
+		pZoneRight,
+		pZoneTop,
+		pZoneBottom,
+		&metrics));
+	assert(pRoot->node1);
+	assert(!pRoot->node2);
+
+	pShellRootData = (DockData*)pRoot->node1->data;
+	assert(pShellRootData);
+	assert(pShellRootData->nRole == DOCK_ROLE_SHELL_SPLIT);
+	assert(wcscmp(pShellRootData->lpszName, L"DockShell.Root") == 0);
+	assert(pShellRootData->iGripPos == 44);
+
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -281,6 +350,9 @@ int main(void)
 	failed |= test_zone_tab_click_policy();
 	failed |= test_core_panel_lock_policy();
 	failed |= test_explicit_dock_roles_override_name_fallback();
+	failed |= test_dock_shell_zone_builder_assigns_role_and_side();
+	failed |= test_dock_shell_appends_zone_stack_split();
+	failed |= test_dock_shell_build_main_layout_attaches_workspace_and_zones();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

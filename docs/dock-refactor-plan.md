@@ -72,6 +72,9 @@ Tasks:
 - describe root, zones, and workspace through typed constructors;
 - stop treating `DockShell.*` names as implicit structure.
 
+Status:
+- started in this change set.
+
 ### Phase 3. Introduce Pane Groups
 
 Goal:
@@ -104,3 +107,13 @@ This first step is intentionally small:
 - `dockpolicy` and part of `dockhost` now resolve semantics from typed roles first, then fall back to names for compatibility.
 
 This does not replace the split-tree architecture yet, but it removes one of the biggest blockers to doing that safely.
+
+## Second Increment Applied
+
+This change set starts Phase 2:
+- added a dedicated `dockshell.*` module;
+- moved root/zone/workspace typed constructors into that module;
+- moved shell topology assembly out of `PanitentApp_DockHostInit(...)`;
+- reused the same root/workspace builder for local document dock hosts.
+
+This still uses the existing split tree internally, but the shell topology is now explicit and no longer hand-built inline inside app startup code.

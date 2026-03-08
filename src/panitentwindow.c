@@ -3,6 +3,7 @@
 #include "win32/window.h"
 
 #include "dockhost.h"
+#include "dockshell.h"
 #include "oledroptarget.h"
 #include "panitentwindow.h"
 #include "toolwndframe.h"
@@ -1835,9 +1836,12 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     Window_GetClientRect((Window*)pDockHostWindow, &rcDockHost);
 
     /* Create and assign root dock node */
-    TreeNode* pRoot = (TreeNode*)calloc(1, sizeof(TreeNode));
-    DockData* pDockData = (DockData*)calloc(1, sizeof(DockData));
-    pRoot->data = (void*)pDockData;
+    TreeNode* pRoot = DockShell_CreateRootNode();
+    if (!pRoot || !pRoot->data)
+    {
+        return;
+    }
+
     ((DockData*)pRoot->data)->rc = rcDockHost;
 
     DockHostWindow_SetRoot(pDockHostWindow, pRoot);
