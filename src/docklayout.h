@@ -63,3 +63,5 @@ BOOL DockLayout_GetZoneTabRectByOffset(const RECT* pClientRect, int nDockSide, i
 BOOL DockLayout_GetDockPreviewRect(const RECT* pHostRect, int nDockSide, RECT* pRect);
 int DockLayout_ClampSplitGrip(int iSpan, int iGrip, int iMinPaneSize);
 int DockLayout_AdjustSplitGripFromDelta(DWORD dwStyle, int iStartGrip, int iDelta, int iSpan, int iMinPaneSize);
+float DockLayout_GetGripRatio(int iSpan, int iGrip, int iMinPaneSize);
+int DockLayout_ScaleGripFromRatio(int iSpan, float fRatio, int iMinPaneSize);

@@ -45,6 +45,7 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_TARGET_GUIDE_EDGE_MARGIN 12
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
+#define DOCK_MIN_PANE_SIZE 96
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
 
 typedef struct DockHostWatermarkCache DockHostWatermarkCache;
@@ -77,6 +78,7 @@ static BOOL DockNode_HasVisibleWindow(TreeNode* pNode);
 static BOOL DockNode_HasVisibleWindowInZone(TreeNode* pNode, DockData* pZoneData);
 static BOOL DockNameStartsWith(PCWSTR pszValue, PCWSTR pszPrefix);
 static BOOL DockNode_IsStructural(TreeNode* pNode);
+static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
 static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName);
 static PCWSTR DockHostWindow_GetZoneName(int nDockSide);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
@@ -629,6 +631,18 @@ static BOOL DockNode_IsStructural(TreeNode* pNode)
 	DockData* pDockData = (DockData*)pNode->data;
 	return DockNameStartsWith(pDockData->lpszName, L"DockZone.") ||
 		DockNameStartsWith(pDockData->lpszName, L"DockShell.");
+}
+
+static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode)
+{
+	if (!pNode || !pNode->data)
+	{
+		return FALSE;
+	}
+
+	DockData* pDockData = (DockData*)pNode->data;
+	return wcscmp(pDockData->lpszName, L"DockShell.ZoneStack") == 0 ||
+		wcscmp(pDockData->lpszName, L"DockShell.PanelSplit") == 0;
 }
 
 static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName)
@@ -2065,13 +2079,17 @@ static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int 
 	}
 
 	int iDelta = bVertical ? (y - pDockHostWindow->ptSplitDragStart.y) : (x - pDockHostWindow->ptSplitDragStart.x);
-	int iNextGrip = DockLayout_AdjustSplitGripFromDelta(pDockData->dwStyle, pDockHostWindow->iSplitDragStartGrip, iDelta, iSpan, 96);
+	int iNextGrip = DockLayout_AdjustSplitGripFromDelta(pDockData->dwStyle, pDockHostWindow->iSplitDragStartGrip, iDelta, iSpan, DOCK_MIN_PANE_SIZE);
 	if (iNextGrip == pDockData->iGripPos)
 	{
 		return;
 	}
 
 	pDockData->iGripPos = (short)iNextGrip;
+	if (DockNode_UsesProportionalGrip(pDockHostWindow->pSplitNode))
+	{
+		pDockData->fGripPos = DockLayout_GetGripRatio(iSpan, iNextGrip, DOCK_MIN_PANE_SIZE);
+	}
 	DockHostWindow_Rearrange(pDockHostWindow);
 }
 
@@ -2247,6 +2265,25 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 			BOOL bHasContentNode1 = DockNode_HasVisibleWindow(pChildNode1);
 			BOOL bHasContentNode2 = DockNode_HasVisibleWindow(pChildNode2);
 			int iSpan = (dwStyle & DGD_VERTICAL) ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
+			if (!(dwStyle & DGP_RELATIVE))
+			{
+				iGripPos = DockLayout_ClampSplitGrip(iSpan, iGripPos, DOCK_MIN_PANE_SIZE);
+				if (DockNode_UsesProportionalGrip(pCurrentNode) &&
+					bHasContentNode1 &&
+					bHasContentNode2)
+				{
+					if (pDockData->fGripPos >= 0.0f)
+					{
+						iGripPos = DockLayout_ScaleGripFromRatio(iSpan, pDockData->fGripPos, DOCK_MIN_PANE_SIZE);
+					}
+					else {
+						pDockData->fGripPos = DockLayout_GetGripRatio(iSpan, iGripPos, DOCK_MIN_PANE_SIZE);
+					}
+				}
+
+				pDockData->iGripPos = (short)iGripPos;
+			}
+
 			if (!bHasContentNode1)
 			{
 				iGripPos = (dwStyle & DGA_END) ? iSpan : 0;
@@ -4315,6 +4352,7 @@ DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 		memset(pDockData, 0, sizeof(DockData));
 
 		pDockData->dwStyle = dwStyle;
+		pDockData->fGripPos = -1.0f;
 		pDockData->iGripPos = iGripPos;
 		pDockData->bShowCaption = bShowCaption;
 		pDockData->bCollapsed = FALSE;

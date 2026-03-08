@@ -184,3 +184,36 @@ int DockLayout_AdjustSplitGripFromDelta(DWORD dwStyle, int iStartGrip, int iDelt
 
 	return DockLayout_ClampSplitGrip(iSpan, iNext, iMinPaneSize);
 }
+
+float DockLayout_GetGripRatio(int iSpan, int iGrip, int iMinPaneSize)
+{
+	if (iSpan <= 0)
+	{
+		return -1.0f;
+	}
+
+	iGrip = DockLayout_ClampSplitGrip(iSpan, iGrip, iMinPaneSize);
+	return ((float)iGrip) / ((float)iSpan);
+}
+
+int DockLayout_ScaleGripFromRatio(int iSpan, float fRatio, int iMinPaneSize)
+{
+	if (iSpan <= 0)
+	{
+		return 0;
+	}
+
+	if (fRatio < 0.0f)
+	{
+		fRatio = 0.0f;
+	}
+	else if (fRatio > 1.0f)
+	{
+		fRatio = 1.0f;
+	}
+
+	return DockLayout_ClampSplitGrip(
+		iSpan,
+		(int)(fRatio * (float)iSpan + 0.5f),
+		iMinPaneSize);
+}

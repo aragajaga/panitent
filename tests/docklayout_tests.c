@@ -127,6 +127,17 @@ static int test_split_grip_adjustment(void)
 	return 0;
 }
 
+static int test_split_grip_ratio_scaling(void)
+{
+	float ratio = DockLayout_GetGripRatio(600, 240, 96);
+	assert(ratio > 0.39f && ratio < 0.41f);
+	assert(DockLayout_ScaleGripFromRatio(900, ratio, 96) == 360);
+	assert(DockLayout_ScaleGripFromRatio(100, 0.95f, 96) == 95);
+	assert(DockLayout_ScaleGripFromRatio(0, 0.50f, 96) == 0);
+
+	return 0;
+}
+
 static int test_invalid_arguments(void)
 {
 	RECT rc = { 0 };
@@ -251,6 +262,7 @@ int main(void)
 	failed |= test_zone_tab_rect_by_offset_and_length();
 	failed |= test_stack_style_and_grips();
 	failed |= test_split_grip_adjustment();
+	failed |= test_split_grip_ratio_scaling();
 	failed |= test_invalid_arguments();
 	failed |= test_dock_preview_rect_behavior();
 	failed |= test_zone_tab_click_policy();
