@@ -164,3 +164,12 @@ This change set starts Phase 5:
 - kept semantic data in the snapshot: node role, pane kind, dock side, split metadata, collapsed state, and active-tab name.
 
 This is not wired into settings persistence yet, but it establishes the model boundary required to serialize layout without depending on live runtime handles.
+
+## Seventh Increment Applied
+
+This change set continues Phase 5:
+- added a dedicated `dockmodelio.*` round-trip module;
+- introduced versioned binary file serialization for the pure dock model;
+- added round-trip tests that validate `model -> file -> model` without involving live Win32 handles.
+
+This still is not connected to settings persistence or runtime rebuild, but it completes the first half of Phase 5: the layout model can now exist outside the running dock host.

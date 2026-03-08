@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "../src/dockmodel.h"
+#include "../src/dockmodelio.h"
 #include "../src/floatingdockpolicy.h"
 #include "../src/dockgroup.h"
 #include "../src/dockshell.h"
@@ -418,6 +419,90 @@ static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(vo
 	return 0;
 }
 
+static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
+{
+	assert((pActual == NULL) == (pExpected == NULL));
+	if (!pActual || !pExpected)
+	{
+		return;
+	}
+
+	assert(pActual->nRole == pExpected->nRole);
+	assert(pActual->nPaneKind == pExpected->nPaneKind);
+	assert(pActual->nDockSide == pExpected->nDockSide);
+	assert(pActual->dwStyle == pExpected->dwStyle);
+	assert(pActual->fGripPos == pExpected->fGripPos);
+	assert(pActual->iGripPos == pExpected->iGripPos);
+	assert(pActual->bShowCaption == pExpected->bShowCaption);
+	assert(pActual->bCollapsed == pExpected->bCollapsed);
+	assert(wcscmp(pActual->szName, pExpected->szName) == 0);
+	assert(wcscmp(pActual->szCaption, pExpected->szCaption) == 0);
+	assert(wcscmp(pActual->szActiveTabName, pExpected->szActiveTabName) == 0);
+	assert_dock_model_equal(pActual->pChild1, pExpected->pChild1);
+	assert_dock_model_equal(pActual->pChild2, pExpected->pChild2);
+}
+
+static int test_dock_model_file_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DockModelNode modelRoot = { 0 };
+	DockModelNode modelZone = { 0 };
+	DockModelNode modelSplit = { 0 };
+	DockModelNode modelPanelA = { 0 };
+	DockModelNode modelPanelB = { 0 };
+	DockModelNode modelWorkspace = { 0 };
+	DockModelNode* pLoadedModel = NULL;
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dmd", 0, szTempFile) != 0);
+
+	modelRoot.nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(modelRoot.szName, ARRAYSIZE(modelRoot.szName), L"Root");
+	modelRoot.pChild1 = &modelZone;
+	modelRoot.pChild2 = &modelWorkspace;
+
+	modelZone.nRole = DOCK_ROLE_ZONE;
+	modelZone.nDockSide = DKS_LEFT;
+	modelZone.bCollapsed = TRUE;
+	wcscpy_s(modelZone.szName, ARRAYSIZE(modelZone.szName), L"DockZone.Left");
+	wcscpy_s(modelZone.szActiveTabName, ARRAYSIZE(modelZone.szActiveTabName), L"Palette");
+	modelZone.pChild1 = &modelSplit;
+
+	modelSplit.nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
+	modelSplit.dwStyle = DGA_END | DGP_ABSOLUTE | DGD_VERTICAL;
+	modelSplit.fGripPos = 0.5f;
+	modelSplit.iGripPos = 220;
+	wcscpy_s(modelSplit.szName, ARRAYSIZE(modelSplit.szName), L"DockShell.ZoneStack");
+	modelSplit.pChild1 = &modelPanelA;
+	modelSplit.pChild2 = &modelPanelB;
+
+	modelPanelA.nRole = DOCK_ROLE_PANEL;
+	modelPanelA.nPaneKind = DOCK_PANE_TOOL;
+	modelPanelA.bShowCaption = TRUE;
+	wcscpy_s(modelPanelA.szName, ARRAYSIZE(modelPanelA.szName), L"Toolbox");
+	wcscpy_s(modelPanelA.szCaption, ARRAYSIZE(modelPanelA.szCaption), L"Toolbox");
+
+	modelPanelB.nRole = DOCK_ROLE_PANEL;
+	modelPanelB.nPaneKind = DOCK_PANE_TOOL;
+	modelPanelB.bShowCaption = TRUE;
+	wcscpy_s(modelPanelB.szName, ARRAYSIZE(modelPanelB.szName), L"Palette");
+	wcscpy_s(modelPanelB.szCaption, ARRAYSIZE(modelPanelB.szCaption), L"Palette");
+
+	modelWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+	modelWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+	wcscpy_s(modelWorkspace.szName, ARRAYSIZE(modelWorkspace.szName), L"WorkspaceContainer");
+
+	assert(DockModelIO_SaveToFile(&modelRoot, szTempFile));
+	pLoadedModel = DockModelIO_LoadFromFile(szTempFile);
+	assert(pLoadedModel);
+	assert_dock_model_equal(pLoadedModel, &modelRoot);
+
+	DockModel_Destroy(pLoadedModel);
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -474,6 +559,7 @@ int main(void)
 	failed |= test_dock_group_semantics_for_tool_and_document_panes();
 	failed |= test_floating_dock_policy_semantics();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
+	failed |= test_dock_model_file_round_trip();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 
