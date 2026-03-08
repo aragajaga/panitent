@@ -14,6 +14,7 @@
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
+#include "../src/recoverystore.h"
 #include "../src/docktypes.h"
 #include "../src/workspacedockpolicy.h"
 
@@ -534,6 +535,44 @@ static int test_floating_document_session_model_file_round_trip(void)
 	return 0;
 }
 
+static int test_recovery_store_deletes_matching_files_only(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szDirPath[MAX_PATH] = L"";
+	WCHAR szFileA[MAX_PATH] = L"";
+	WCHAR szFileB[MAX_PATH] = L"";
+	WCHAR szFileKeep[MAX_PATH] = L"";
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"rcd", 0, szDirPath) != 0);
+	DeleteFileW(szDirPath);
+	assert(CreateDirectoryW(szDirPath, NULL));
+
+	StringCchPrintfW(szFileA, ARRAYSIZE(szFileA), L"%s\\recovery_main_00.pdr", szDirPath);
+	StringCchPrintfW(szFileB, ARRAYSIZE(szFileB), L"%s\\recovery_main_01.pdr", szDirPath);
+	StringCchPrintfW(szFileKeep, ARRAYSIZE(szFileKeep), L"%s\\other.tmp", szDirPath);
+
+	HANDLE hFile = CreateFileW(szFileA, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	CloseHandle(hFile);
+	hFile = CreateFileW(szFileB, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	CloseHandle(hFile);
+	hFile = CreateFileW(szFileKeep, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	CloseHandle(hFile);
+
+	int nDeleted = 0;
+	assert(RecoveryStore_DeleteFilesInDirectory(szDirPath, L"recovery_main_*.pdr", &nDeleted));
+	assert(nDeleted == 2);
+	assert(GetFileAttributesW(szFileA) == INVALID_FILE_ATTRIBUTES);
+	assert(GetFileAttributesW(szFileB) == INVALID_FILE_ATTRIBUTES);
+	assert(GetFileAttributesW(szFileKeep) != INVALID_FILE_ATTRIBUTES);
+
+	DeleteFileW(szFileKeep);
+	RemoveDirectoryW(szDirPath);
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -925,6 +964,7 @@ int main(void)
 	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_floating_document_session_model_file_round_trip();
+	failed |= test_recovery_store_deletes_matching_files_only();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

@@ -6,6 +6,7 @@
 #include "documentrecovery.h"
 #include "documentsessionmodel.h"
 #include "panitentapp.h"
+#include "recoverystorepersist.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "shell/pathutil.h"
@@ -53,6 +54,8 @@ BOOL PanitentDocumentSession_Save(PanitentApp* pPanitentApp)
 	{
 		return FALSE;
 	}
+
+	RecoveryStore_DeleteFilesByPattern(L"recovery_main_*.pdr", NULL);
 
 	ViewportWindow* pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspaceContainer);
 	for (int i = 0; i < WorkspaceContainer_GetViewportCount(pWorkspaceContainer) && model.nEntryCount < ARRAYSIZE(model.entries); ++i)

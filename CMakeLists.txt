@@ -134,6 +134,8 @@ set(C_SOURCES
     src/splittercontainer.c
     src/swatch.c
     src/swatch2.c
+    src/recoverystore.c
+    src/recoverystorepersist.c
     src/toolbox.c
     src/theme.c
     src/toolwndframe.c
@@ -208,6 +210,7 @@ if(PANITENT_BUILD_TESTS)
     src/dockpolicy.c
     src/docktypes.c
     src/dockviewcatalog.c
+    src/recoverystore.c
     src/workspacedockpolicy.c
   )
 

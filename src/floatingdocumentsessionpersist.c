@@ -14,6 +14,7 @@
 #include "floatingdocumentsessionmodel.h"
 #include "floatingwindowcontainer.h"
 #include "panitentapp.h"
+#include "recoverystorepersist.h"
 #include "shell/pathutil.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
@@ -303,6 +304,8 @@ BOOL PanitentFloatingDocumentSession_Save(PanitentApp* pPanitentApp, DockHostWin
 	{
 		return FALSE;
 	}
+
+	RecoveryStore_DeleteFilesByPattern(L"recovery_floatdoc_*.pdr", NULL);
 
 	FloatingDocumentPersistCollectContext context = { pModel };
 	PTSTR pszFilePath = NULL;

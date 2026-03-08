@@ -228,8 +228,17 @@ This change set extends document persistence to floating document windows:
 Current limitation:
 - floating document sessions now preserve workspace split structure inside a floating document host;
 - nested known tool panes inside floating document hosts are restored through the shared dock-host restore path;
-- unsaved and dirty file-backed floating documents are restored through recovery snapshots;
-- recovery/temp-file cleanup policy is still basic and can be improved later.
+- unsaved and dirty file-backed floating documents are restored through recovery snapshots.
+
+## Thirteenth Increment Applied
+
+This change set adds a dedicated cleanup policy for recovery snapshots:
+- added `recoverystore.*` as a pure file cleanup helper;
+- added `recoverystorepersist.*` as the app-level AppData wrapper;
+- main and floating document session save paths now clear stale `recovery_*.pdr` files before writing a new session snapshot.
+
+Current limitation:
+- recovery files are cleaned on save, but there is still no age-based or startup-time garbage collection beyond the current naming patterns.
 
 ## Twelfth Increment Applied
 
