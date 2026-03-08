@@ -86,6 +86,7 @@ set(C_SOURCES
     src/dockmodel.c
     src/dockmodelbuild.c
     src/dockmodelio.c
+    src/dockmodelvalidate.c
     src/dockshell.c
     src/docktypes.c
     src/dockviewcatalog.c
@@ -188,6 +189,7 @@ if(PANITENT_BUILD_TESTS)
     src/dockmodel.c
     src/dockmodelbuild.c
     src/dockmodelio.c
+    src/dockmodelvalidate.c
     src/floatingdockpolicy.c
     src/dockgroup.c
     src/dockshell.c

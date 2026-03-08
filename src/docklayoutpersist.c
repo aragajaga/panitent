@@ -6,6 +6,7 @@
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
 #include "dockmodelio.h"
+#include "dockmodelvalidate.h"
 #include "dockviewfactory.h"
 #include "panitentapp.h"
 #include "shell/pathutil.h"
@@ -177,6 +178,12 @@ BOOL PanitentDockLayout_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDock
 	free(pszDockLayoutFilePath);
 	if (!pModelRoot)
 	{
+		return FALSE;
+	}
+
+	if (!DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
+	{
+		DockModel_Destroy(pModelRoot);
 		return FALSE;
 	}
 

@@ -5,6 +5,7 @@
 #include "../src/dockmodelbuild.h"
 #include "../src/dockmodel.h"
 #include "../src/dockmodelio.h"
+#include "../src/dockmodelvalidate.h"
 #include "../src/floatingdockpolicy.h"
 #include "../src/dockgroup.h"
 #include "../src/dockshell.h"
@@ -632,6 +633,99 @@ static int test_dock_model_full_pipeline_round_trip(void)
 	return 0;
 }
 
+static int test_dock_model_validate_repairs_metadata_and_active_tab(void)
+{
+	DockModelNode modelRoot = { 0 };
+	DockModelNode modelZone = { 0 };
+	DockModelNode modelPanel = { 0 };
+	DockModelNode modelWorkspace = { 0 };
+	DockModelNode* pRootNode = &modelRoot;
+	DockModelValidateStats stats = { 0 };
+
+	modelRoot.nRole = DOCK_ROLE_PANEL;
+	wcscpy_s(modelRoot.szName, ARRAYSIZE(modelRoot.szName), L"WrongRoot");
+	modelRoot.pChild1 = &modelZone;
+	modelRoot.pChild2 = &modelWorkspace;
+
+	modelZone.nRole = DOCK_ROLE_ZONE;
+	modelZone.nDockSide = DKS_LEFT;
+	wcscpy_s(modelZone.szName, ARRAYSIZE(modelZone.szName), L"BrokenZone");
+	wcscpy_s(modelZone.szActiveTabName, ARRAYSIZE(modelZone.szActiveTabName), L"MissingTab");
+	modelZone.pChild1 = &modelPanel;
+
+	modelPanel.nRole = DOCK_ROLE_PANEL;
+	wcscpy_s(modelPanel.szName, ARRAYSIZE(modelPanel.szName), L"Toolbox");
+
+	modelWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+	modelWorkspace.nPaneKind = DOCK_PANE_TOOL;
+	modelWorkspace.bShowCaption = TRUE;
+	wcscpy_s(modelWorkspace.szName, ARRAYSIZE(modelWorkspace.szName), L"WrongWorkspace");
+
+	assert(DockModelValidateAndRepairMainLayout(&pRootNode, &stats));
+	assert(modelRoot.nRole == DOCK_ROLE_ROOT);
+	assert(wcscmp(modelRoot.szName, L"Root") == 0);
+	assert(wcscmp(modelZone.szName, L"DockZone.Left") == 0);
+	assert(wcscmp(modelZone.szActiveTabName, L"Toolbox") == 0);
+	assert(modelPanel.nPaneKind == DOCK_PANE_TOOL);
+	assert(wcscmp(modelPanel.szCaption, L"Toolbox") == 0);
+	assert(modelWorkspace.nPaneKind == DOCK_PANE_DOCUMENT);
+	assert(modelWorkspace.bShowCaption == FALSE);
+	assert(wcscmp(modelWorkspace.szName, L"WorkspaceContainer") == 0);
+	assert(stats.nRepairs > 0);
+
+	return 0;
+}
+
+static int test_dock_model_validate_rejects_unknown_or_duplicate_views(void)
+{
+	DockModelNode rootUnknown = { 0 };
+	DockModelNode zoneUnknown = { 0 };
+	DockModelNode panelUnknown = { 0 };
+	DockModelNode workspaceUnknown = { 0 };
+	DockModelNode* pUnknownRoot = &rootUnknown;
+
+	rootUnknown.nRole = DOCK_ROLE_ROOT;
+	rootUnknown.pChild1 = &zoneUnknown;
+	rootUnknown.pChild2 = &workspaceUnknown;
+	zoneUnknown.nRole = DOCK_ROLE_ZONE;
+	zoneUnknown.nDockSide = DKS_LEFT;
+	zoneUnknown.pChild1 = &panelUnknown;
+	panelUnknown.nRole = DOCK_ROLE_PANEL;
+	wcscpy_s(panelUnknown.szName, ARRAYSIZE(panelUnknown.szName), L"Unknown Panel");
+	workspaceUnknown.nRole = DOCK_ROLE_WORKSPACE;
+	wcscpy_s(workspaceUnknown.szName, ARRAYSIZE(workspaceUnknown.szName), L"WorkspaceContainer");
+
+	assert(!DockModelValidateAndRepairMainLayout(&pUnknownRoot, NULL));
+
+	DockModelNode rootDup = { 0 };
+	DockModelNode zoneDup = { 0 };
+	DockModelNode splitDup = { 0 };
+	DockModelNode panelDupA = { 0 };
+	DockModelNode panelDupB = { 0 };
+	DockModelNode workspaceDup = { 0 };
+	DockModelNode* pDupRoot = &rootDup;
+
+	rootDup.nRole = DOCK_ROLE_ROOT;
+	rootDup.pChild1 = &zoneDup;
+	rootDup.pChild2 = &workspaceDup;
+	zoneDup.nRole = DOCK_ROLE_ZONE;
+	zoneDup.nDockSide = DKS_LEFT;
+	zoneDup.pChild1 = &splitDup;
+	splitDup.nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
+	splitDup.pChild1 = &panelDupA;
+	splitDup.pChild2 = &panelDupB;
+	panelDupA.nRole = DOCK_ROLE_PANEL;
+	panelDupB.nRole = DOCK_ROLE_PANEL;
+	wcscpy_s(panelDupA.szName, ARRAYSIZE(panelDupA.szName), L"Toolbox");
+	wcscpy_s(panelDupB.szName, ARRAYSIZE(panelDupB.szName), L"Toolbox");
+	workspaceDup.nRole = DOCK_ROLE_WORKSPACE;
+	wcscpy_s(workspaceDup.szName, ARRAYSIZE(workspaceDup.szName), L"WorkspaceContainer");
+
+	assert(!DockModelValidateAndRepairMainLayout(&pDupRoot, NULL));
+
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -692,6 +786,8 @@ int main(void)
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();
+	failed |= test_dock_model_validate_repairs_metadata_and_active_tab();
+	failed |= test_dock_model_validate_rejects_unknown_or_duplicate_views();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

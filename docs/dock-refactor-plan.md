@@ -206,3 +206,12 @@ This change set removes duplication between default shell bootstrap and layout r
 - switched both startup shell construction and layout restore to the same factory path.
 
 This does not yet restore floating windows or document contents, but it removes one of the main blockers to extending persistence beyond the main dock host.
+
+## Eleventh Increment Applied
+
+This change set hardens the restore path with a validation/repair layer:
+- added `dockmodelvalidate.*` for main-host layout validation before rebuild;
+- repairs soft issues such as normalized names, pane kinds, captions, and invalid active-tab names;
+- rejects hard-invalid layouts such as unknown persistent views, duplicate singleton views, or missing workspace.
+
+This makes `docklayout.dat` far less brittle across refactors and gives the restore path a clear place to handle backward compatibility rules.
