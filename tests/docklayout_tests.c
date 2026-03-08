@@ -563,6 +563,59 @@ static int test_dock_model_build_tree_round_trip(void)
 	return 0;
 }
 
+static int test_dock_model_full_pipeline_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DockModelNode modelRoot = { 0 };
+	DockModelNode modelZone = { 0 };
+	DockModelNode modelPanel = { 0 };
+	DockModelNode modelWorkspace = { 0 };
+	DockModelNode* pLoadedModel = NULL;
+	TreeNode* pBuiltTree = NULL;
+	DockModelNode* pCapturedModel = NULL;
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dmp", 0, szTempFile) != 0);
+
+	modelRoot.nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(modelRoot.szName, ARRAYSIZE(modelRoot.szName), L"Root");
+	modelRoot.pChild1 = &modelZone;
+	modelRoot.pChild2 = &modelWorkspace;
+
+	modelZone.nRole = DOCK_ROLE_ZONE;
+	modelZone.nDockSide = DKS_RIGHT;
+	wcscpy_s(modelZone.szName, ARRAYSIZE(modelZone.szName), L"DockZone.Right");
+	wcscpy_s(modelZone.szActiveTabName, ARRAYSIZE(modelZone.szActiveTabName), L"GLWindow");
+	modelZone.pChild1 = &modelPanel;
+
+	modelPanel.nRole = DOCK_ROLE_PANEL;
+	modelPanel.nPaneKind = DOCK_PANE_TOOL;
+	modelPanel.bShowCaption = TRUE;
+	wcscpy_s(modelPanel.szName, ARRAYSIZE(modelPanel.szName), L"GLWindow");
+	wcscpy_s(modelPanel.szCaption, ARRAYSIZE(modelPanel.szCaption), L"GLWindow");
+
+	modelWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+	modelWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+	wcscpy_s(modelWorkspace.szName, ARRAYSIZE(modelWorkspace.szName), L"WorkspaceContainer");
+
+	assert(DockModelIO_SaveToFile(&modelRoot, szTempFile));
+	pLoadedModel = DockModelIO_LoadFromFile(szTempFile);
+	assert(pLoadedModel);
+
+	pBuiltTree = DockModelBuildTree(pLoadedModel);
+	assert(pBuiltTree);
+	pCapturedModel = DockModel_CaptureTree(pBuiltTree);
+	assert(pCapturedModel);
+	assert_dock_model_equal(pCapturedModel, &modelRoot);
+
+	DockModel_Destroy(pLoadedModel);
+	DockModel_Destroy(pCapturedModel);
+	DockModelBuildDestroyTree(pBuiltTree);
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -621,6 +674,7 @@ int main(void)
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
+	failed |= test_dock_model_full_pipeline_round_trip();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

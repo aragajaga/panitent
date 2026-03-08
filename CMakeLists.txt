@@ -81,6 +81,7 @@ set(C_SOURCES
     src/docklayout.c
     src/dockgroup.c
     src/dockhost.c
+    src/docklayoutpersist.c
     src/dockpolicy.c
     src/dockmodel.c
     src/dockmodelbuild.c

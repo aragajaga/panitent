@@ -8,5 +8,6 @@ void GetAppDataFilePath(LPCWSTR pszFile, LPWSTR* pszResult);
 void GetModulePath();
 void GetWorkDir();
 void GetSettingsFilePath(PTSTR* ppszSettingsFilePath);
+void GetDockLayoutFilePath(PTSTR* ppszDockLayoutFilePath);
 
 #endif  /* PANITENT_SHELL_PATHUTIL_H_ */

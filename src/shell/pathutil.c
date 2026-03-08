@@ -172,3 +172,16 @@ void GetSettingsFilePath(PTSTR* ppszSettingsFilePath)
 
     *ppszSettingsFilePath = pszSettingsFilePath;
 }
+
+void GetDockLayoutFilePath(PTSTR* ppszDockLayoutFilePath)
+{
+    LPWSTR pszDockLayoutFilePath = NULL;
+    GetAppDataFilePath(_T("docklayout.dat"), &pszDockLayoutFilePath);
+
+    if (!pszDockLayoutFilePath)
+    {
+        return;
+    }
+
+    *ppszDockLayoutFilePath = pszDockLayoutFilePath;
+}

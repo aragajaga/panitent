@@ -3,6 +3,7 @@
 #include "win32/window.h"
 
 #include "dockhost.h"
+#include "docklayoutpersist.h"
 #include "dockshell.h"
 #include "oledroptarget.h"
 #include "panitentwindow.h"
@@ -329,6 +330,11 @@ BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
     if (pSettings)
     {
         Panitent_WriteSettings(pSettings);
+    }
+
+    if (pPanitentWindow->m_pDockHostWindow)
+    {
+        PanitentDockLayout_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
     }
 
     return FALSE;
@@ -1835,19 +1841,20 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     RECT rcDockHost = { 0 };
     Window_GetClientRect((Window*)pDockHostWindow, &rcDockHost);
 
-    /* Create and assign root dock node */
-    TreeNode* pRoot = DockShell_CreateRootNode();
-    if (!pRoot || !pRoot->data)
+    if (!PanitentDockLayout_Restore(PanitentApp_Instance(), pDockHostWindow, &rcDockHost))
     {
-        return;
+        TreeNode* pRoot = DockShell_CreateRootNode();
+        if (!pRoot || !pRoot->data)
+        {
+            return;
+        }
+
+        ((DockData*)pRoot->data)->rc = rcDockHost;
+        DockHostWindow_SetRoot(pDockHostWindow, pRoot);
+
+        // Panitent_DockHostInit(pDockHostWindow, pRoot);
+        PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow, pRoot);
     }
-
-    ((DockData*)pRoot->data)->rc = rcDockHost;
-
-    DockHostWindow_SetRoot(pDockHostWindow, pRoot);
-
-    // Panitent_DockHostInit(pDockHostWindow, pRoot);
-    PanitentApp_DockHostInit(PanitentApp_Instance(), pDockHostWindow, pRoot);
 
     {
         RECT rcClient = { 0 };

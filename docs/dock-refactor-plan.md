@@ -186,3 +186,14 @@ At this point the project has both halves of the layout boundary:
 - pure model -> runtime tree
 
 The next step is to wire that boundary into actual layout persistence and restore.
+
+## Ninth Increment Applied
+
+This change set wires Phase 5 into the application lifecycle for the main dock host:
+- added `docklayoutpersist.*` as an app-level persistence layer;
+- saves the main dock host layout to `docklayout.dat` on shutdown;
+- restores the main dock host layout on startup with fallback to the default shell when restore fails.
+
+Current limitation:
+- this step restores the main dock host structure and known tool/workspace windows;
+- it does not yet restore floating windows or document contents across sessions.
