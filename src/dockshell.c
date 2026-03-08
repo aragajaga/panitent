@@ -25,6 +25,10 @@ static void DockShell_InitDockData(
 	pDockData->bCollapsed = FALSE;
 	pDockData->hWndActiveTab = NULL;
 	pDockData->nRole = nRole;
+	pDockData->nPaneKind =
+		nRole == DOCK_ROLE_WORKSPACE ? DOCK_PANE_DOCUMENT :
+		nRole == DOCK_ROLE_PANEL ? DOCK_PANE_TOOL :
+		DOCK_PANE_NONE;
 	pDockData->nDockSide = nDockSide;
 	if (pszName)
 	{

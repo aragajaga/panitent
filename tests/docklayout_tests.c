@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/dockgroup.h"
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
@@ -300,6 +301,36 @@ static int test_dock_shell_build_main_layout_attaches_workspace_and_zones(void)
 	return 0;
 }
 
+static int test_dock_group_semantics_for_tool_and_document_panes(void)
+{
+	TreeNode* pRoot = DockShell_CreateRootNode();
+	TreeNode* pZone = DockShell_CreateZoneNode(DKS_LEFT);
+	TreeNode* pToolPanelA = DockShell_CreatePanelNode(L"Toolbox");
+	TreeNode* pToolPanelB = DockShell_CreatePanelNode(L"Palette");
+	TreeNode* pWorkspace = DockShell_CreateWorkspaceNode();
+
+	assert(DockShell_AppendPanelToZone(pZone, pToolPanelA));
+	assert(DockShell_AppendPanelToZone(pZone, pToolPanelB));
+
+	pRoot->node1 = pZone;
+	pRoot->node2 = pWorkspace;
+
+	assert(DockGroup_GetNodeKind(pZone) == DOCK_GROUP_TOOL_PANE);
+	assert(DockGroup_GetNodeKind(pWorkspace) == DOCK_GROUP_DOCUMENT_PANE);
+	assert(DockGroup_GetNodePaneKind(pToolPanelA) == DOCK_PANE_TOOL);
+	assert(DockGroup_GetNodePaneKind(pWorkspace) == DOCK_PANE_DOCUMENT);
+	assert(DockGroup_NodeContainsPaneKind(pRoot, DOCK_PANE_DOCUMENT));
+	assert(DockGroup_FindOwningGroup(pRoot, pToolPanelA) == pZone);
+	assert(DockGroup_FindOwningGroup(pRoot, pWorkspace) == pWorkspace);
+
+	assert(DockGroup_CanTabIntoGroup(DOCK_GROUP_TOOL_PANE, DOCK_PANE_TOOL));
+	assert(!DockGroup_CanTabIntoGroup(DOCK_GROUP_TOOL_PANE, DOCK_PANE_DOCUMENT));
+	assert(DockGroup_CanSplitGroup(DOCK_GROUP_DOCUMENT_PANE, DOCK_PANE_DOCUMENT));
+	assert(!DockGroup_CanSplitGroup(DOCK_GROUP_DOCUMENT_PANE, DOCK_PANE_TOOL));
+
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -353,6 +384,7 @@ int main(void)
 	failed |= test_dock_shell_zone_builder_assigns_role_and_side();
 	failed |= test_dock_shell_appends_zone_stack_split();
 	failed |= test_dock_shell_build_main_layout_attaches_workspace_and_zones();
+	failed |= test_dock_group_semantics_for_tool_and_document_panes();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

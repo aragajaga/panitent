@@ -22,6 +22,7 @@ struct DockData {
 	WCHAR lpszCaption[MAX_PATH];
 	WCHAR lpszName[MAX_PATH];
 	DockNodeRole nRole;
+	DockPaneKind nPaneKind;
 	int nDockSide;
 	RECT rc;
 	float fGripPos;

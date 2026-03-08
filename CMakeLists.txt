@@ -79,6 +79,7 @@ set(C_SOURCES
     src/crefptr.c
     src/debug.c
     src/docklayout.c
+    src/dockgroup.c
     src/dockhost.c
     src/dockpolicy.c
     src/dockshell.c
@@ -176,6 +177,7 @@ if(PANITENT_BUILD_TESTS)
 
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
+    src/dockgroup.c
     src/dockshell.c
     src/docklayout.c
     src/dockpolicy.c

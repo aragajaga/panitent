@@ -14,6 +14,13 @@ typedef enum DockNodeRole
 	DOCK_ROLE_PANEL
 } DockNodeRole;
 
+typedef enum DockPaneKind
+{
+	DOCK_PANE_NONE = 0,
+	DOCK_PANE_TOOL,
+	DOCK_PANE_DOCUMENT
+} DockPaneKind;
+
 DockNodeRole DockNodeRole_Resolve(DockNodeRole role, PCWSTR pszName);
 BOOL DockNodeRole_IsRoot(DockNodeRole role, PCWSTR pszName);
 BOOL DockNodeRole_IsZone(DockNodeRole role, PCWSTR pszName);

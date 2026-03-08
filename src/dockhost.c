@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include "win32/window.h"
+#include "win32/windowmap.h"
 #include "win32/dialog.h"
 #include "win32/util.h"
 
@@ -12,6 +13,7 @@
 #include "util/stack.h"
 #include "util/tree.h"
 #include "dockhost.h"
+#include "dockgroup.h"
 #include "docklayout.h"
 #include "dockpolicy.h"
 #include "resource.h"
@@ -134,6 +136,7 @@ static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWind
 static void DockHostWindow_SetAutoHideHotButton(DockHostWindow* pDockHostWindow, int nButton);
 static void DockHostWindow_SetAutoHidePressedButton(DockHostWindow* pDockHostWindow, int nButton);
 static void DockHostWindow_ClearAutoHideCaptionState(DockHostWindow* pDockHostWindow);
+static DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -187,6 +190,7 @@ void DockData_Init(DockData* pDockData)
 	pDockData->bCollapsed = FALSE;
 	pDockData->hWndActiveTab = NULL;
 	pDockData->nRole = DOCK_ROLE_UNKNOWN;
+	pDockData->nPaneKind = DOCK_PANE_NONE;
 	pDockData->nDockSide = DKS_NONE;
 }
 
@@ -1518,36 +1522,19 @@ static BOOL DockHostWindow_ShowAutoHideOverlay(DockHostWindow* pDockHostWindow, 
 
 static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
 {
+	TreeNode* pGroupNode;
 	if (!pDockHostWindow || !pPanelNode)
 	{
 		return NULL;
 	}
 
-	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-	if (!pRoot)
+	pGroupNode = DockGroup_FindOwningGroup(DockHostWindow_GetRoot(pDockHostWindow), pPanelNode);
+	if (!pGroupNode || DockGroup_GetNodeKind(pGroupNode) != DOCK_GROUP_TOOL_PANE)
 	{
 		return NULL;
 	}
 
-	TreeNode* pCurrent = pPanelNode;
-	while (pCurrent && pCurrent != pRoot)
-	{
-		TreeNode* pParent = DockNode_FindParent(pRoot, pCurrent);
-		if (!pParent || !pParent->data)
-		{
-			break;
-		}
-
-		DockData* pDockDataParent = (DockData*)pParent->data;
-		if (DockNodeRole_IsZone(pDockDataParent->nRole, pDockDataParent->lpszName))
-		{
-			return pParent;
-		}
-
-		pCurrent = pParent;
-	}
-
-	return NULL;
+	return pGroupNode;
 }
 
 static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
@@ -3600,6 +3587,34 @@ static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd)
 	return wcscmp(szClassNameBuf, L"__WorkspaceContainer") == 0;
 }
 
+static DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd)
+{
+	WCHAR szClassNameBuf[64] = L"";
+	if (!hWnd || !IsWindow(hWnd))
+	{
+		return DOCK_PANE_NONE;
+	}
+
+	if (DockHostWindow_IsWorkspaceWindow(hWnd))
+	{
+		return DOCK_PANE_DOCUMENT;
+	}
+
+	GetClassNameW(hWnd, szClassNameBuf, ARRAYSIZE(szClassNameBuf));
+	if (wcscmp(szClassNameBuf, L"__DockHostWindow") == 0)
+	{
+		Window* pWindow = WindowMap_Get(hWnd);
+		DockHostWindow* pDockHostWindow = (DockHostWindow*)pWindow;
+		TreeNode* pRoot = pDockHostWindow ? DockHostWindow_GetRoot(pDockHostWindow) : NULL;
+		if (DockGroup_NodeContainsPaneKind(pRoot, DOCK_PANE_DOCUMENT))
+		{
+			return DOCK_PANE_DOCUMENT;
+		}
+	}
+
+	return DOCK_PANE_TOOL;
+}
+
 static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd)
 {
 	if (!pDockHostWindow || !pDockData || !hWnd || !IsWindow(hWnd))
@@ -3621,10 +3636,16 @@ static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockDat
 	if (DockHostWindow_IsWorkspaceWindow(hWnd))
 	{
 		pDockData->nRole = DOCK_ROLE_WORKSPACE;
+		pDockData->nPaneKind = DOCK_PANE_DOCUMENT;
 	}
 	else if (pDockData->nRole == DOCK_ROLE_UNKNOWN)
 	{
 		pDockData->nRole = DOCK_ROLE_PANEL;
+		pDockData->nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
+	}
+	else if (pDockData->nPaneKind == DOCK_PANE_NONE)
+	{
+		pDockData->nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	}
 }
 
@@ -3667,6 +3688,7 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 	}
 
 	DockData* pDockDataLeaf = (DockData*)pLeaf->data;
+	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	DockData_PinHWND(pDockHostWindow, pDockDataLeaf, hWnd);
 
 	if (pDockDataLeaf->lpszName[0] == L'\0')
@@ -3674,6 +3696,7 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 		wcscpy_s(pDockDataLeaf->lpszName, MAX_PATH, pDockDataLeaf->lpszCaption);
 	}
 	pDockDataLeaf->nRole = DOCK_ROLE_PANEL;
+	pDockDataLeaf->nPaneKind = nPaneKind;
 
 	if (!pZoneNode->node1)
 	{
@@ -4158,8 +4181,10 @@ BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
 	}
 
 	DockData* pLeafData = (DockData*)pLeaf->data;
+	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
 	pLeafData->nRole = DOCK_ROLE_PANEL;
+	pLeafData->nPaneKind = nPaneKind;
 
 	if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
 	{
@@ -4252,12 +4277,14 @@ static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, Tree
 	}
 
 	DockData* pLeafData = (DockData*)pLeaf->data;
+	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
 	if (pLeafData->lpszName[0] == L'\0')
 	{
 		wcscpy_s(pLeafData->lpszName, MAX_PATH, pLeafData->lpszCaption);
 	}
 	pLeafData->nRole = DOCK_ROLE_PANEL;
+	pLeafData->nPaneKind = nPaneKind;
 
 	DockData* pSplitData = (DockData*)pSplit->data;
 	wcscpy_s(pSplitData->lpszName, MAX_PATH, L"DockShell.PanelSplit");
@@ -4320,17 +4347,24 @@ BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
 	{
 		TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
 		TreeNode* pAnchorNode = DockNode_FindByHWND(pRoot, pTargetHit->hWndAnchor);
+		DockPaneKind nIncomingPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
+		TreeNode* pGroupNode = DockGroup_FindOwningGroup(pRoot, pAnchorNode);
+		DockGroupKind nGroupKind = DockGroup_GetNodeKind(pGroupNode);
 		if (pAnchorNode && pTargetHit->nDockSide == DKS_CENTER)
 		{
 			TreeNode* pZoneNode = DockHostWindow_FindOwningZoneNode(pDockHostWindow, pAnchorNode);
 			int nZoneSide = DockHostWindow_GetPanelDockSide(pDockHostWindow, pTargetHit->hWndAnchor);
-			if (pZoneNode && nZoneSide != DKS_NONE &&
+			if (DockGroup_CanTabIntoGroup(nGroupKind, nIncomingPaneKind) &&
+				nGroupKind == DOCK_GROUP_TOOL_PANE &&
+				pZoneNode && nZoneSide != DKS_NONE &&
 				DockHostWindow_DockIntoZone(pDockHostWindow, pZoneNode, hWnd, nZoneSide, iDockSize))
 			{
 				return TRUE;
 			}
 		}
-		else if (pAnchorNode && DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
+		else if (pAnchorNode &&
+			DockGroup_CanSplitGroup(nGroupKind, nIncomingPaneKind) &&
+			DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
 		{
 			return TRUE;
 		}
@@ -4383,6 +4417,7 @@ DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 		pDockData->bCollapsed = FALSE;
 		pDockData->hWndActiveTab = NULL;
 		pDockData->nRole = DOCK_ROLE_UNKNOWN;
+		pDockData->nPaneKind = DOCK_PANE_NONE;
 		pDockData->nDockSide = DKS_NONE;
 
 		return pDockData;

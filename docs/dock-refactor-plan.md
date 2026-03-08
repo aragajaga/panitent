@@ -85,6 +85,9 @@ Tasks:
 - add explicit document pane groups;
 - make docking mutations operate on groups first, then derive split layout.
 
+Status:
+- started in this change set.
+
 ### Phase 4. Unify Floating Hosts by Policy
 
 Goal:
@@ -117,3 +120,13 @@ This change set starts Phase 2:
 - reused the same root/workspace builder for local document dock hosts.
 
 This still uses the existing split tree internally, but the shell topology is now explicit and no longer hand-built inline inside app startup code.
+
+## Third Increment Applied
+
+This change set starts Phase 3:
+- added a dedicated `dockgroup.*` semantic layer;
+- introduced explicit `tool` vs `document` pane kind metadata;
+- introduced explicit `tool pane group` vs `document pane group` detection;
+- switched part of local docking policy to group-based checks instead of ad-hoc anchor handling.
+
+This still is not the final typed layout model, but docking rules are now beginning to depend on explicit pane/group semantics instead of only tree shape.
