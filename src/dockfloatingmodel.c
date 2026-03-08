@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "dockfloatingmodel.h"
+#include "dockmodelio.h"
 
 #define DOCKFLOATING_MAGIC 0x474C4644u /* DFLG */
 #define DOCKFLOATING_VERSION 1u
@@ -33,7 +34,24 @@ BOOL DockFloatingLayout_SaveToFile(const DockFloatingLayoutFileModel* pModel, PC
 	BOOL bOk = fwrite(&header, sizeof(header), 1, fp) == 1;
 	if (bOk && header.count > 0)
 	{
-		bOk = fwrite(pModel->entries, sizeof(DockFloatingLayoutEntry), header.count, fp) == header.count;
+		for (uint32_t i = 0; i < header.count && bOk; ++i)
+		{
+			const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+			bOk =
+				fwrite(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
+				fwrite(&pEntry->iDockSizeHint, sizeof(pEntry->iDockSizeHint), 1, fp) == 1 &&
+				fwrite(&pEntry->nChildKind, sizeof(pEntry->nChildKind), 1, fp) == 1 &&
+				fwrite(&pEntry->nViewId, sizeof(pEntry->nViewId), 1, fp) == 1;
+			if (bOk)
+			{
+				uint8_t bHasLayoutModel = pEntry->pLayoutModel ? 1 : 0;
+				bOk = fwrite(&bHasLayoutModel, sizeof(bHasLayoutModel), 1, fp) == 1;
+				if (bOk && bHasLayoutModel)
+				{
+					bOk = DockModelIO_WriteToStream(fp, pEntry->pLayoutModel);
+				}
+			}
+		}
 	}
 
 	fclose(fp);
@@ -66,7 +84,25 @@ BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileM
 		header.count <= ARRAYSIZE(pModel->entries);
 	if (bOk && header.count > 0)
 	{
-		bOk = fread(pModel->entries, sizeof(DockFloatingLayoutEntry), header.count, fp) == header.count;
+		for (uint32_t i = 0; i < header.count && bOk; ++i)
+		{
+			DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+			bOk =
+				fread(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
+				fread(&pEntry->iDockSizeHint, sizeof(pEntry->iDockSizeHint), 1, fp) == 1 &&
+				fread(&pEntry->nChildKind, sizeof(pEntry->nChildKind), 1, fp) == 1 &&
+				fread(&pEntry->nViewId, sizeof(pEntry->nViewId), 1, fp) == 1;
+			if (bOk)
+			{
+				uint8_t bHasLayoutModel = 0;
+				bOk = fread(&bHasLayoutModel, sizeof(bHasLayoutModel), 1, fp) == 1;
+				if (bOk && bHasLayoutModel)
+				{
+					pEntry->pLayoutModel = DockModelIO_ReadFromStream(fp);
+					bOk = pEntry->pLayoutModel != NULL;
+				}
+			}
+		}
 	}
 
 	fclose(fp);
@@ -76,4 +112,20 @@ BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileM
 	}
 
 	return bOk;
+}
+
+void DockFloatingLayout_Destroy(DockFloatingLayoutFileModel* pModel)
+{
+	if (!pModel)
+	{
+		return;
+	}
+
+	for (int i = 0; i < pModel->nEntries; ++i)
+	{
+		DockModel_Destroy(pModel->entries[i].pLayoutModel);
+		pModel->entries[i].pLayoutModel = NULL;
+	}
+
+	pModel->nEntries = 0;
 }

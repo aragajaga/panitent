@@ -406,28 +406,46 @@ static int test_dock_floating_layout_file_round_trip(void)
 	WCHAR szTempFile[MAX_PATH] = L"";
 	DockFloatingLayoutFileModel model = { 0 };
 	DockFloatingLayoutFileModel loaded = { 0 };
+	DockModelNode layoutRoot = { 0 };
+	DockModelNode layoutPanel = { 0 };
 
 	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
 	assert(GetTempFileNameW(szTempPath, L"dfl", 0, szTempFile) != 0);
 
 	model.nEntries = 2;
-	model.entries[0].nViewId = PNT_DOCK_VIEW_TOOLBOX;
 	SetRect(&model.entries[0].rcWindow, 10, 20, 210, 320);
 	model.entries[0].iDockSizeHint = 240;
-	model.entries[1].nViewId = PNT_DOCK_VIEW_PALETTE;
+	model.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+	model.entries[0].nViewId = PNT_DOCK_VIEW_TOOLBOX;
 	SetRect(&model.entries[1].rcWindow, 400, 80, 620, 360);
 	model.entries[1].iDockSizeHint = 260;
+	model.entries[1].nChildKind = FLOAT_DOCK_CHILD_TOOL_HOST;
+	layoutRoot.nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(layoutRoot.szName, ARRAYSIZE(layoutRoot.szName), L"Root");
+	layoutRoot.pChild1 = &layoutPanel;
+	layoutPanel.nRole = DOCK_ROLE_PANEL;
+	layoutPanel.nPaneKind = DOCK_PANE_TOOL;
+	wcscpy_s(layoutPanel.szName, ARRAYSIZE(layoutPanel.szName), L"Palette");
+	wcscpy_s(layoutPanel.szCaption, ARRAYSIZE(layoutPanel.szCaption), L"Palette");
+	model.entries[1].pLayoutModel = &layoutRoot;
 
 	assert(DockFloatingLayout_SaveToFile(&model, szTempFile));
 	assert(DockFloatingLayout_LoadFromFile(szTempFile, &loaded));
 	assert(loaded.nEntries == 2);
+	assert(loaded.entries[0].nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL);
 	assert(loaded.entries[0].nViewId == model.entries[0].nViewId);
 	assert(EqualRect(&loaded.entries[0].rcWindow, &model.entries[0].rcWindow));
 	assert(loaded.entries[0].iDockSizeHint == model.entries[0].iDockSizeHint);
-	assert(loaded.entries[1].nViewId == model.entries[1].nViewId);
+	assert(loaded.entries[1].nChildKind == FLOAT_DOCK_CHILD_TOOL_HOST);
 	assert(EqualRect(&loaded.entries[1].rcWindow, &model.entries[1].rcWindow));
 	assert(loaded.entries[1].iDockSizeHint == model.entries[1].iDockSizeHint);
+	assert(loaded.entries[1].pLayoutModel != NULL);
+	assert(loaded.entries[1].pLayoutModel->nRole == DOCK_ROLE_ROOT);
+	assert(loaded.entries[1].pLayoutModel->pChild1 != NULL);
+	assert(loaded.entries[1].pLayoutModel->pChild1->nRole == DOCK_ROLE_PANEL);
+	assert(wcscmp(loaded.entries[1].pLayoutModel->pChild1->szName, L"Palette") == 0);
 
+	DockFloatingLayout_Destroy(&loaded);
 	DeleteFileW(szTempFile);
 	return 0;
 }

@@ -2,13 +2,17 @@
 
 #include "precomp.h"
 
+#include "dockmodel.h"
 #include "dockviewcatalog.h"
+#include "floatingdockpolicy.h"
 
 typedef struct DockFloatingLayoutEntry
 {
-	PanitentDockViewId nViewId;
 	RECT rcWindow;
 	int iDockSizeHint;
+	FloatingDockChildHostKind nChildKind;
+	PanitentDockViewId nViewId;
+	DockModelNode* pLayoutModel;
 } DockFloatingLayoutEntry;
 
 typedef struct DockFloatingLayoutFileModel
@@ -19,3 +23,4 @@ typedef struct DockFloatingLayoutFileModel
 
 BOOL DockFloatingLayout_SaveToFile(const DockFloatingLayoutFileModel* pModel, PCWSTR pszFilePath);
 BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileModel* pModel);
+void DockFloatingLayout_Destroy(DockFloatingLayoutFileModel* pModel);

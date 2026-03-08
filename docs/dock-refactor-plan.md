@@ -235,11 +235,11 @@ Current limitation:
 This change set starts extending persistence beyond the main dock host:
 - added `dockfloatingpersist.*` for known floating tool panes;
 - introduced a separate `dockfloating.dat` file with versioned floating-window entries;
-- restores known floating tool panes after the main dock host is restored.
+- restores floating tool sessions after the main dock host is restored.
 
 Current limitation:
-- only known floating tool panes are restored in this step;
-- floating document sessions are still not restored.
+- floating tool sessions now preserve direct panes and dock-host tool layouts;
+- unsaved documents are still not restored.
 
 ## Eleventh Increment Applied
 
