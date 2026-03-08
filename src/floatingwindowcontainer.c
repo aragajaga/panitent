@@ -5,6 +5,7 @@
 #include "win32/util.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
+#include "dockgroup.h"
 #include "dockshell.h"
 #include "docklayout.h"
 #include "resource.h"
@@ -83,6 +84,8 @@ static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
     int nSourceDocuments,
     POINT ptScreen,
     WorkspaceDockTargetHit* pDockHit);
+static FloatingDockChildHostKind FloatingWindowContainer_GetChildHostKind(FloatingWindowContainer* pFloatingWindowContainer);
+static int FloatingWindowContainer_CollectDocumentWorkspaceHwnds(FloatingWindowContainer* pFloatingWindowContainer, HWND* pWorkspaceHwnds, int cWorkspaceHwnds);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -118,7 +121,7 @@ static int FloatingWindowContainer_GetCaptionHeight(FloatingWindowContainer* pFl
         return g_captionHeight;
     }
 
-    if (pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    if (FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
         return 22;
     }
@@ -686,6 +689,66 @@ static int FloatingWindowContainer_CollectWorkspaceHwnds(HWND hWndRoot, HWND* pW
     return min(context.nWorkspaceCount, cWorkspaceHwnds);
 }
 
+static FloatingDockChildHostKind FloatingWindowContainer_GetChildHostKind(FloatingWindowContainer* pFloatingWindowContainer)
+{
+    HWND hWndChild;
+    if (!pFloatingWindowContainer)
+    {
+        return FLOAT_DOCK_CHILD_NONE;
+    }
+
+    hWndChild = pFloatingWindowContainer->hWndChild;
+    if (!hWndChild || !IsWindow(hWndChild))
+    {
+        return FLOAT_DOCK_CHILD_NONE;
+    }
+
+    if (FloatingWindowContainer_IsClassName(hWndChild, L"__WorkspaceContainer"))
+    {
+        return FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE;
+    }
+
+    if (!FloatingWindowContainer_IsClassName(hWndChild, L"__DockHostWindow"))
+    {
+        return FLOAT_DOCK_CHILD_TOOL_PANEL;
+    }
+
+    Window* pWindow = WindowMap_Get(hWndChild);
+    DockHostWindow* pDockHostWindow = (DockHostWindow*)pWindow;
+    TreeNode* pRoot = pDockHostWindow ? DockHostWindow_GetRoot(pDockHostWindow) : NULL;
+    if (DockGroup_NodeContainsPaneKind(pRoot, DOCK_PANE_DOCUMENT))
+    {
+        return FLOAT_DOCK_CHILD_DOCUMENT_HOST;
+    }
+
+    return FLOAT_DOCK_CHILD_TOOL_HOST;
+}
+
+static int FloatingWindowContainer_CollectDocumentWorkspaceHwnds(FloatingWindowContainer* pFloatingWindowContainer, HWND* pWorkspaceHwnds, int cWorkspaceHwnds)
+{
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (!pWorkspaceHwnds || cWorkspaceHwnds <= 0)
+    {
+        return 0;
+    }
+
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
+    {
+        pWorkspaceHwnds[0] = pFloatingWindowContainer->hWndChild;
+        return 1;
+    }
+
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_HOST)
+    {
+        return FloatingWindowContainer_CollectWorkspaceHwnds(
+            pFloatingWindowContainer->hWndChild,
+            pWorkspaceHwnds,
+            cWorkspaceHwnds);
+    }
+
+    return 0;
+}
+
 static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
     FloatingWindowContainer* pFloatingWindowContainer,
     POINT ptScreen,
@@ -707,7 +770,8 @@ static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
     }
 
     HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    if (FloatingWindowContainer_IsClassName(hWndChild, L"__WorkspaceContainer"))
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
     {
         Window* pWindow = WindowMap_Get(hWndChild);
         if (!pWindow)
@@ -727,14 +791,14 @@ static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
         return TRUE;
     }
 
-    if (!FloatingWindowContainer_IsClassName(hWndChild, L"__DockHostWindow"))
+    if (nChildKind != FLOAT_DOCK_CHILD_DOCUMENT_HOST)
     {
         return FALSE;
     }
 
     HWND hWndWorkspaceList[FLOAT_WORKSPACE_ENUM_MAX] = { 0 };
-    int nWorkspaceCount = FloatingWindowContainer_CollectWorkspaceHwnds(
-        hWndChild,
+    int nWorkspaceCount = FloatingWindowContainer_CollectDocumentWorkspaceHwnds(
+        pFloatingWindowContainer,
         hWndWorkspaceList,
         ARRAYSIZE(hWndWorkspaceList));
     if (nWorkspaceCount <= 0)
@@ -804,7 +868,8 @@ static BOOL FloatingWindowContainer_MoveDocumentSourceToWorkspace(
     }
 
     HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    if (FloatingWindowContainer_IsClassName(hWndChild, L"__WorkspaceContainer"))
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
     {
         Window* pWindow = WindowMap_Get(hWndChild);
         if (!pWindow)
@@ -816,14 +881,14 @@ static BOOL FloatingWindowContainer_MoveDocumentSourceToWorkspace(
         return TRUE;
     }
 
-    if (!FloatingWindowContainer_IsClassName(hWndChild, L"__DockHostWindow"))
+    if (nChildKind != FLOAT_DOCK_CHILD_DOCUMENT_HOST)
     {
         return FALSE;
     }
 
     HWND hWndWorkspaceList[FLOAT_WORKSPACE_ENUM_MAX] = { 0 };
-    int nWorkspaceCount = FloatingWindowContainer_CollectWorkspaceHwnds(
-        hWndChild,
+    int nWorkspaceCount = FloatingWindowContainer_CollectDocumentWorkspaceHwnds(
+        pFloatingWindowContainer,
         hWndWorkspaceList,
         ARRAYSIZE(hWndWorkspaceList));
     if (nWorkspaceCount <= 0)
@@ -867,12 +932,13 @@ static BOOL FloatingWindowContainer_EnsureWorkspaceChildForSideDock(FloatingWind
     }
 
     HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    if (FloatingWindowContainer_IsClassName(hWndChild, L"__WorkspaceContainer"))
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
     {
         return TRUE;
     }
 
-    if (!FloatingWindowContainer_IsClassName(hWndChild, L"__DockHostWindow"))
+    if (!FloatingDockPolicy_RequiresWorkspaceMergeForSideDock(nChildKind))
     {
         return FALSE;
     }
@@ -897,8 +963,8 @@ static BOOL FloatingWindowContainer_EnsureWorkspaceChildForSideDock(FloatingWind
     }
 
     HWND hWndWorkspaceList[FLOAT_WORKSPACE_ENUM_MAX] = { 0 };
-    int nWorkspaceCount = FloatingWindowContainer_CollectWorkspaceHwnds(
-        hWndChild,
+    int nWorkspaceCount = FloatingWindowContainer_CollectDocumentWorkspaceHwnds(
+        pFloatingWindowContainer,
         hWndWorkspaceList,
         ARRAYSIZE(hWndWorkspaceList));
     if (nWorkspaceCount <= 0)
@@ -1384,7 +1450,7 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
 
 static void FloatingWindowContainer_UpdateDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
 {
-    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
         FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(pFloatingWindowContainer);
         return;
@@ -1646,7 +1712,7 @@ static int FloatingWindowContainer_BuildCaptionButtons(FloatingWindowContainer* 
 
     pButtons[0] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_CLOSE_TILE, HTCLOSE };
     pButtons[1] = (CaptionButton){ (SIZE){ 14, 14 }, fZoomed ? CAPTION_GLYPH_RESTORE_TILE : CAPTION_GLYPH_MAXIMIZE_TILE, HTMAXBUTTON };
-    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
         pButtons[2] = (CaptionButton){ (SIZE){ 14, 14 }, CAPTION_GLYPH_MINIMIZE_TILE, HTMINBUTTON };
     }
@@ -2001,13 +2067,17 @@ void FloatingWindowContainer_OnDestroy(FloatingWindowContainer* window)
 
 static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloatingWindowContainer)
 {
-    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
         return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, TRUE);
     }
 
     if (!pFloatingWindowContainer ||
-        !pFloatingWindowContainer->pDockHostTarget ||
+        !FloatingDockPolicy_CanUseHostDockTarget(
+            pFloatingWindowContainer->nDockPolicy,
+            nChildKind,
+            pFloatingWindowContainer->pDockHostTarget != NULL) ||
         !pFloatingWindowContainer->hWndChild ||
         !IsWindow(pFloatingWindowContainer->hWndChild))
     {
@@ -2063,16 +2133,11 @@ static void FloatingWindowContainer_ShowPanelMenu(FloatingWindowContainer* pFloa
         return;
     }
 
-    BOOL bCanDock = FALSE;
-    if (pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
-    {
-        bCanDock = (pFloatingWindowContainer->hWndChild && IsWindow(pFloatingWindowContainer->hWndChild));
-    }
-    else {
-        bCanDock = (pFloatingWindowContainer->pDockHostTarget &&
-            pFloatingWindowContainer->hWndChild &&
-            IsWindow(pFloatingWindowContainer->hWndChild));
-    }
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    BOOL bCanDock = FloatingDockPolicy_CanShowDockCommand(
+        pFloatingWindowContainer->nDockPolicy,
+        nChildKind,
+        pFloatingWindowContainer->pDockHostTarget != NULL);
 
     AppendMenu(hPopup, MF_STRING | (bCanDock ? MF_ENABLED : MF_GRAYED), IDM_FLOAT_DOCK, L"Doc&k");
     AppendMenu(hPopup, MF_STRING | MF_GRAYED, IDM_FLOAT_AUTOHIDE, L"&Auto Hide");
@@ -2452,13 +2517,17 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
 
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer)
 {
-    if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_DOCUMENT)
+    FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
+    if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
         return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, FALSE);
     }
 
     if (!pFloatingWindowContainer ||
-        !pFloatingWindowContainer->pDockHostTarget ||
+        !FloatingDockPolicy_CanUseHostDockTarget(
+            pFloatingWindowContainer->nDockPolicy,
+            nChildKind,
+            pFloatingWindowContainer->pDockHostTarget != NULL) ||
         !pFloatingWindowContainer->hWndChild ||
         !IsWindow(pFloatingWindowContainer->hWndChild))
     {
@@ -2667,7 +2736,7 @@ void FloatingWindowContainer_SetDockTarget(FloatingWindowContainer* pFloatingWin
     pFloatingWindowContainer->pDockHostTarget = pDockHostWindow;
 }
 
-void FloatingWindowContainer_SetDockPolicy(FloatingWindowContainer* pFloatingWindowContainer, int nDockPolicy)
+void FloatingWindowContainer_SetDockPolicy(FloatingWindowContainer* pFloatingWindowContainer, FloatingDockPolicy nDockPolicy)
 {
     if (!pFloatingWindowContainer)
     {

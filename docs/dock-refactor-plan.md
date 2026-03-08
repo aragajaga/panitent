@@ -97,6 +97,9 @@ Tasks:
 - define a shared floating host contract;
 - restrict document floating hosts to workspace/document targets by policy.
 
+Status:
+- started in this change set.
+
 ### Phase 5. Serialize Only the Model
 
 Goal:
@@ -130,3 +133,13 @@ This change set starts Phase 3:
 - switched part of local docking policy to group-based checks instead of ad-hoc anchor handling.
 
 This still is not the final typed layout model, but docking rules are now beginning to depend on explicit pane/group semantics instead of only tree shape.
+
+## Fourth Increment Applied
+
+This change set starts Phase 4:
+- added a dedicated `floatingdockpolicy.*` module;
+- added explicit floating child-host kinds;
+- started classifying floating children through policy instead of open-coded class-name branches;
+- moved dock-command eligibility and part of floating document/tool decisions into policy helpers.
+
+This does not finish floating-host unification yet, but it creates a shared semantic layer for the next step.

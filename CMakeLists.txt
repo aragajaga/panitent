@@ -88,6 +88,7 @@ set(C_SOURCES
     src/document.c
     src/file_open.c
     src/flexible.c
+    src/floatingdockpolicy.c
     src/floatingwindowcontainer.c
     src/glwindow.c
     src/history.c
@@ -177,6 +178,7 @@ if(PANITENT_BUILD_TESTS)
 
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
+    src/floatingdockpolicy.c
     src/dockgroup.c
     src/dockshell.c
     src/docklayout.c

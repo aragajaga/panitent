@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/floatingdockpolicy.h"
 #include "../src/dockgroup.h"
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
@@ -331,6 +332,48 @@ static int test_dock_group_semantics_for_tool_and_document_panes(void)
 	return 0;
 }
 
+static int test_floating_dock_policy_semantics(void)
+{
+	assert(FloatingDockPolicy_GetPaneKind(FLOAT_DOCK_POLICY_PANEL) == DOCK_PANE_TOOL);
+	assert(FloatingDockPolicy_GetPaneKind(FLOAT_DOCK_POLICY_DOCUMENT) == DOCK_PANE_DOCUMENT);
+	assert(FloatingDockPolicy_UsesDocumentFlow(FLOAT_DOCK_POLICY_DOCUMENT));
+	assert(!FloatingDockPolicy_UsesDocumentFlow(FLOAT_DOCK_POLICY_PANEL));
+
+	assert(FloatingDockPolicy_CanShowDockCommand(
+		FLOAT_DOCK_POLICY_DOCUMENT,
+		FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE,
+		FALSE));
+	assert(FloatingDockPolicy_CanShowDockCommand(
+		FLOAT_DOCK_POLICY_DOCUMENT,
+		FLOAT_DOCK_CHILD_DOCUMENT_HOST,
+		FALSE));
+	assert(!FloatingDockPolicy_CanShowDockCommand(
+		FLOAT_DOCK_POLICY_DOCUMENT,
+		FLOAT_DOCK_CHILD_TOOL_PANEL,
+		TRUE));
+
+	assert(FloatingDockPolicy_CanUseHostDockTarget(
+		FLOAT_DOCK_POLICY_PANEL,
+		FLOAT_DOCK_CHILD_TOOL_PANEL,
+		TRUE));
+	assert(FloatingDockPolicy_CanUseHostDockTarget(
+		FLOAT_DOCK_POLICY_PANEL,
+		FLOAT_DOCK_CHILD_TOOL_HOST,
+		TRUE));
+	assert(!FloatingDockPolicy_CanUseHostDockTarget(
+		FLOAT_DOCK_POLICY_PANEL,
+		FLOAT_DOCK_CHILD_DOCUMENT_HOST,
+		TRUE));
+
+	assert(FloatingDockPolicy_CanMoveDocumentsToWorkspace(FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE));
+	assert(FloatingDockPolicy_CanMoveDocumentsToWorkspace(FLOAT_DOCK_CHILD_DOCUMENT_HOST));
+	assert(!FloatingDockPolicy_CanMoveDocumentsToWorkspace(FLOAT_DOCK_CHILD_TOOL_PANEL));
+	assert(FloatingDockPolicy_RequiresWorkspaceMergeForSideDock(FLOAT_DOCK_CHILD_DOCUMENT_HOST));
+	assert(!FloatingDockPolicy_RequiresWorkspaceMergeForSideDock(FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE));
+
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -385,6 +428,7 @@ int main(void)
 	failed |= test_dock_shell_appends_zone_stack_split();
 	failed |= test_dock_shell_build_main_layout_attaches_workspace_and_zones();
 	failed |= test_dock_group_semantics_for_tool_and_document_panes();
+	failed |= test_floating_dock_policy_semantics();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 
