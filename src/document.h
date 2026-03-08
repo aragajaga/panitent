@@ -9,6 +9,7 @@ typedef struct _Document {
   Canvas* canvas;
   LPWSTR szFilePath;
   History* history;
+  BOOL bRecoveryDirty;
 } Document;
 
 Document* Document_Create();
@@ -24,6 +25,9 @@ BOOL Document_Close(Document* doc);
 void Document_Purge(Document* doc);
 Document* Document_New(int width, int height);
 BOOL Document_IsFilePathSet(Document* doc);
+BOOL Document_IsDirty(Document* doc);
 History* Document_GetHistory(Document* doc);
 Canvas* Document_GetCanvas(Document* doc);
 PCWSTR Document_GetFilePath(Document* document);
+void Document_SetFilePath(Document* document, PCWSTR pszPath);
+void Document_SetRecoveryDirty(Document* document, BOOL bDirty);

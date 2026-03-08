@@ -17,6 +17,7 @@ typedef struct DocumentRecoveryHeader
 	int32_t width;
 	int32_t height;
 	uint32_t bufferSize;
+	WCHAR szOriginalFilePath[MAX_PATH];
 } DocumentRecoveryHeader;
 
 BOOL DocumentRecovery_Save(Document* pDocument, PCWSTR pszPath)
@@ -35,6 +36,10 @@ BOOL DocumentRecovery_Save(Document* pDocument, PCWSTR pszPath)
 		pCanvas->height,
 		(uint32_t)pCanvas->buffer_size
 	};
+	if (Document_IsFilePathSet(pDocument) && Document_GetFilePath(pDocument))
+	{
+		wcscpy_s(header.szOriginalFilePath, ARRAYSIZE(header.szOriginalFilePath), Document_GetFilePath(pDocument));
+	}
 
 	if (_wfopen_s(&fp, pszPath, L"wb") != 0 || !fp)
 	{
@@ -97,7 +102,21 @@ Document* DocumentRecovery_Load(PCWSTR pszPath)
 		return NULL;
 	}
 
-	return Document_CreateWithCanvas(pCanvas);
+	Document* pDocument = Document_CreateWithCanvas(pCanvas);
+	if (!pDocument)
+	{
+		Canvas_Delete(pCanvas);
+		free(pCanvas);
+		return NULL;
+	}
+
+	if (header.szOriginalFilePath[0] != L'\0')
+	{
+		Document_SetFilePath(pDocument, header.szOriginalFilePath);
+		Document_SetRecoveryDirty(pDocument, TRUE);
+	}
+
+	return pDocument;
 }
 
 BOOL DocumentRecovery_OpenInWorkspace(PCWSTR pszPath, WorkspaceContainer* pWorkspaceContainer)

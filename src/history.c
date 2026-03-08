@@ -165,3 +165,27 @@ void History_FinalizeDifferentiation(Document* document)
 
     History_PushRecord(document, record);
 }
+
+void History_MarkSaved(Document* document)
+{
+    if (!document)
+        return;
+
+    History* history = Document_GetHistory(document);
+    if (!history)
+        return;
+
+    history->saved = history->peak;
+}
+
+BOOL History_IsDirty(Document* document)
+{
+    if (!document)
+        return FALSE;
+
+    History* history = Document_GetHistory(document);
+    if (!history)
+        return FALSE;
+
+    return history->peak != history->saved;
+}

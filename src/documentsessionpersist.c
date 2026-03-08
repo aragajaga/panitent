@@ -64,7 +64,7 @@ BOOL PanitentDocumentSession_Save(PanitentApp* pPanitentApp)
 			continue;
 		}
 
-		if (DocumentSessionPersist_IsFileBackedViewport(pViewportWindow))
+		if (DocumentSessionPersist_IsFileBackedViewport(pViewportWindow) && !Document_IsDirty(pDocument))
 		{
 			model.entries[model.nEntryCount].nKind = DOCSESSION_ENTRY_FILE;
 			wcscpy_s(

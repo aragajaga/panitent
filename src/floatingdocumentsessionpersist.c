@@ -114,7 +114,7 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 
 					DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[pWorkspaceSession->nFileCount];
 					PCWSTR pszFilePath = Document_GetFilePath(pDocument);
-					if (Document_IsFilePathSet(pDocument) && pszFilePath && pszFilePath[0])
+					if (Document_IsFilePathSet(pDocument) && pszFilePath && pszFilePath[0] && !Document_IsDirty(pDocument))
 					{
 						pDocEntry->nKind = DOCSESSION_ENTRY_FILE;
 						wcscpy_s(pDocEntry->szFilePath, ARRAYSIZE(pDocEntry->szFilePath), pszFilePath);

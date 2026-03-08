@@ -29,6 +29,7 @@ void Document_Init(Document* pDocument)
     pDocument->history = NULL;
     pDocument->location = NULL;
     pDocument->szFilePath = NULL;
+    pDocument->bRecoveryDirty = FALSE;
 }
 
 Document* Document_Create()
@@ -74,6 +75,16 @@ BOOL Document_IsFilePathSet(Document* doc)
     return doc->szFilePath != NULL;
 }
 
+BOOL Document_IsDirty(Document* doc)
+{
+    if (!doc)
+    {
+        return FALSE;
+    }
+
+    return doc->bRecoveryDirty || History_IsDirty(doc);
+}
+
 Document* Document_LoadFile(PCWSTR pszPath)
 {
     if (!pszPath || !pszPath[0])
@@ -111,6 +122,7 @@ Document* Document_LoadFile(PCWSTR pszPath)
 
     Document_SetCanvas(pDocument, canvas);
     Document_AssignFilePath(pDocument, pszPath);
+    pDocument->bRecoveryDirty = FALSE;
 
     return pDocument;
 }
@@ -218,6 +230,8 @@ void Document_Save(Document* doc)
     ImageFileWriter(pszPath, ib);
 
     Document_AssignFilePath(doc, pszPath);
+    doc->bRecoveryDirty = FALSE;
+    History_MarkSaved(doc);
     Window_Invalidate((Window*)PanitentApp_GetWorkspaceContainer(PanitentApp_Instance()));
 
     free(pszPath);
@@ -300,6 +314,21 @@ PCWSTR Document_GetFilePath(Document* document)
     return document ? document->szFilePath : NULL;
 }
 
+void Document_SetFilePath(Document* document, PCWSTR pszPath)
+{
+    Document_AssignFilePath(document, pszPath);
+}
+
+void Document_SetRecoveryDirty(Document* document, BOOL bDirty)
+{
+    if (!document)
+    {
+        return;
+    }
+
+    document->bRecoveryDirty = bDirty ? TRUE : FALSE;
+}
+
 BOOL Document_AttachToWorkspace(Document* pDocument, WorkspaceContainer* pWorkspaceContainer)
 {
     if (!pDocument)
@@ -338,6 +367,7 @@ static BOOL Document_InitHistory(Document* pDocument)
     }
 
     pDocument->history->peak = initialRecord;
+    pDocument->history->saved = initialRecord;
     return TRUE;
 }
 
