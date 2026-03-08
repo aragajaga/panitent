@@ -207,6 +207,17 @@ This change set removes duplication between default shell bootstrap and layout r
 
 This does not yet restore floating windows or document contents, but it removes one of the main blockers to extending persistence beyond the main dock host.
 
+## Twelfth Increment Applied
+
+This change set starts extending persistence beyond the main dock host:
+- added `dockfloatingpersist.*` for known floating tool panes;
+- introduced a separate `dockfloating.dat` file with versioned floating-window entries;
+- restores known floating tool panes after the main dock host is restored.
+
+Current limitation:
+- only known floating tool panes are restored in this step;
+- floating document sessions are still not restored.
+
 ## Eleventh Increment Applied
 
 This change set hardens the restore path with a validation/repair layer:

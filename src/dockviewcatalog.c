@@ -47,3 +47,43 @@ BOOL PanitentDockViewCatalog_IsKnown(DockNodeRole nRole, PCWSTR pszName)
 {
 	return PanitentDockViewCatalog_Find(nRole, pszName) != PNT_DOCK_VIEW_NONE;
 }
+
+PanitentDockViewId PanitentDockViewCatalog_FindForWindow(PCWSTR pszClassName, PCWSTR pszTitle)
+{
+	if (pszTitle && pszTitle[0] != L'\0')
+	{
+		PanitentDockViewId nByTitle = PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, pszTitle);
+		if (nByTitle != PNT_DOCK_VIEW_NONE)
+		{
+			return nByTitle;
+		}
+	}
+
+	if (!pszClassName || !pszClassName[0])
+	{
+		return PNT_DOCK_VIEW_NONE;
+	}
+
+	if (wcscmp(pszClassName, L"__ToolboxWindow") == 0)
+	{
+		return PNT_DOCK_VIEW_TOOLBOX;
+	}
+	if (wcscmp(pszClassName, L"GLWindowClass") == 0)
+	{
+		return PNT_DOCK_VIEW_GLWINDOW;
+	}
+	if (wcscmp(pszClassName, L"PaletteWindowClass") == 0)
+	{
+		return PNT_DOCK_VIEW_PALETTE;
+	}
+	if (wcscmp(pszClassName, L"__LayersWindow") == 0)
+	{
+		return PNT_DOCK_VIEW_LAYERS;
+	}
+	if (wcscmp(pszClassName, L"__OptionBarWindow") == 0)
+	{
+		return PNT_DOCK_VIEW_OPTIONBAR;
+	}
+
+	return PNT_DOCK_VIEW_NONE;
+}

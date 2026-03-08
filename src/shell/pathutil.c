@@ -185,3 +185,16 @@ void GetDockLayoutFilePath(PTSTR* ppszDockLayoutFilePath)
 
     *ppszDockLayoutFilePath = pszDockLayoutFilePath;
 }
+
+void GetDockFloatingFilePath(PTSTR* ppszDockFloatingFilePath)
+{
+    LPWSTR pszDockFloatingFilePath = NULL;
+    GetAppDataFilePath(_T("dockfloating.dat"), &pszDockFloatingFilePath);
+
+    if (!pszDockFloatingFilePath)
+    {
+        return;
+    }
+
+    *ppszDockFloatingFilePath = pszDockFloatingFilePath;
+}

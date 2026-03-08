@@ -15,3 +15,4 @@ typedef enum PanitentDockViewId
 
 PanitentDockViewId PanitentDockViewCatalog_Find(DockNodeRole nRole, PCWSTR pszName);
 BOOL PanitentDockViewCatalog_IsKnown(DockNodeRole nRole, PCWSTR pszName);
+PanitentDockViewId PanitentDockViewCatalog_FindForWindow(PCWSTR pszClassName, PCWSTR pszTitle);

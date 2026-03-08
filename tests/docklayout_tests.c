@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/dockfloatingmodel.h"
 #include "../src/dockviewcatalog.h"
 #include "../src/dockmodelbuild.h"
 #include "../src/dockmodel.h"
@@ -387,10 +388,45 @@ static int test_dock_view_catalog_maps_known_persistent_views(void)
 	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Palette") == PNT_DOCK_VIEW_PALETTE);
 	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Layers") == PNT_DOCK_VIEW_LAYERS);
 	assert(PanitentDockViewCatalog_Find(DOCK_ROLE_PANEL, L"Option Bar") == PNT_DOCK_VIEW_OPTIONBAR);
+	assert(PanitentDockViewCatalog_FindForWindow(L"__ToolboxWindow", L"Toolbox") == PNT_DOCK_VIEW_TOOLBOX);
+	assert(PanitentDockViewCatalog_FindForWindow(L"__LayersWindow", L"LayersWindow") == PNT_DOCK_VIEW_LAYERS);
+	assert(PanitentDockViewCatalog_FindForWindow(L"__OptionBarWindow", L"Option Bar") == PNT_DOCK_VIEW_OPTIONBAR);
 	assert(PanitentDockViewCatalog_IsKnown(DOCK_ROLE_PANEL, L"Toolbox"));
 	assert(!PanitentDockViewCatalog_IsKnown(DOCK_ROLE_PANEL, L"Unknown Panel"));
 	assert(!PanitentDockViewCatalog_IsKnown(DOCK_ROLE_ZONE, L"DockZone.Left"));
 
+	return 0;
+}
+
+static int test_dock_floating_layout_file_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DockFloatingLayoutFileModel model = { 0 };
+	DockFloatingLayoutFileModel loaded = { 0 };
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dfl", 0, szTempFile) != 0);
+
+	model.nEntries = 2;
+	model.entries[0].nViewId = PNT_DOCK_VIEW_TOOLBOX;
+	SetRect(&model.entries[0].rcWindow, 10, 20, 210, 320);
+	model.entries[0].iDockSizeHint = 240;
+	model.entries[1].nViewId = PNT_DOCK_VIEW_PALETTE;
+	SetRect(&model.entries[1].rcWindow, 400, 80, 620, 360);
+	model.entries[1].iDockSizeHint = 260;
+
+	assert(DockFloatingLayout_SaveToFile(&model, szTempFile));
+	assert(DockFloatingLayout_LoadFromFile(szTempFile, &loaded));
+	assert(loaded.nEntries == 2);
+	assert(loaded.entries[0].nViewId == model.entries[0].nViewId);
+	assert(EqualRect(&loaded.entries[0].rcWindow, &model.entries[0].rcWindow));
+	assert(loaded.entries[0].iDockSizeHint == model.entries[0].iDockSizeHint);
+	assert(loaded.entries[1].nViewId == model.entries[1].nViewId);
+	assert(EqualRect(&loaded.entries[1].rcWindow, &model.entries[1].rcWindow));
+	assert(loaded.entries[1].iDockSizeHint == model.entries[1].iDockSizeHint);
+
+	DeleteFileW(szTempFile);
 	return 0;
 }
 
@@ -782,6 +818,7 @@ int main(void)
 	failed |= test_dock_group_semantics_for_tool_and_document_panes();
 	failed |= test_floating_dock_policy_semantics();
 	failed |= test_dock_view_catalog_maps_known_persistent_views();
+	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

@@ -3,6 +3,7 @@
 #include "win32/window.h"
 
 #include "dockhost.h"
+#include "dockfloatingpersist.h"
 #include "docklayoutpersist.h"
 #include "dockshell.h"
 #include "oledroptarget.h"
@@ -335,6 +336,7 @@ BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
     if (pPanitentWindow->m_pDockHostWindow)
     {
         PanitentDockLayout_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
+        PanitentDockFloating_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
     }
 
     return FALSE;
@@ -1861,4 +1863,6 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
         GetClientRect(hWnd, &rcClient);
         PanitentWindow_LayoutChildren(pPanitentWindow, RECTWIDTH(&rcClient), RECTHEIGHT(&rcClient));
     }
+
+    PanitentDockFloating_Restore(PanitentApp_Instance(), pDockHostWindow);
 }
