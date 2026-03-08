@@ -227,7 +227,7 @@ This change set extends document persistence to floating document windows:
 
 Current limitation:
 - floating document sessions now preserve workspace split structure inside a floating document host;
-- nested tool panes inside floating document hosts are still not part of this persistence path;
+- nested known tool panes inside floating document hosts are restored through the shared dock-host restore path;
 - unsaved documents are still not restored.
 
 ## Twelfth Increment Applied

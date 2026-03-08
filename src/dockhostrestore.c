@@ -16,6 +16,8 @@ typedef struct DockHostRestoreContext
 {
 	PanitentApp* pPanitentApp;
 	DockHostWindow* pDockHostWindow;
+	FnDockHostRestoreNodeAttached pfnNodeAttached;
+	void* pUserData;
 	DockHostRestoreHandleRemap remaps[64];
 	int nRemaps;
 	BOOL bHasWorkspace;
@@ -75,6 +77,17 @@ static BOOL DockHostRestore_AttachWindowsRecursive(DockHostRestoreContext* pCont
 			pDockData->bShowCaption = FALSE;
 			pContext->bHasWorkspace = TRUE;
 		}
+		if (pContext->pfnNodeAttached &&
+			!pContext->pfnNodeAttached(
+				pContext->pPanitentApp,
+				pContext->pDockHostWindow,
+				pNode,
+				pDockData,
+				pWindow,
+				pContext->pUserData))
+		{
+			return FALSE;
+		}
 		DockHostRestore_RecordHandleRemap(pContext, hOld, pDockData->hWnd);
 	}
 
@@ -109,9 +122,28 @@ BOOL PanitentDockHostRestoreAttachKnownViews(
 	TreeNode* pRootNode,
 	BOOL* pbHasWorkspace)
 {
+	return PanitentDockHostRestoreAttachKnownViewsEx(
+		pPanitentApp,
+		pDockHostWindow,
+		pRootNode,
+		NULL,
+		NULL,
+		pbHasWorkspace);
+}
+
+BOOL PanitentDockHostRestoreAttachKnownViewsEx(
+	PanitentApp* pPanitentApp,
+	DockHostWindow* pDockHostWindow,
+	TreeNode* pRootNode,
+	FnDockHostRestoreNodeAttached pfnNodeAttached,
+	void* pUserData,
+	BOOL* pbHasWorkspace)
+{
 	DockHostRestoreContext context = { 0 };
 	context.pPanitentApp = pPanitentApp;
 	context.pDockHostWindow = pDockHostWindow;
+	context.pfnNodeAttached = pfnNodeAttached;
+	context.pUserData = pUserData;
 	if (!DockHostRestore_AttachWindowsRecursive(&context, pRootNode))
 	{
 		return FALSE;

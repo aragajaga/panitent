@@ -6,6 +6,7 @@
 #include "win32/windowmap.h"
 #include "document.h"
 #include "dockhost.h"
+#include "dockhostrestore.h"
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
 #include "floatingchildhost.h"
@@ -136,56 +137,49 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 	FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(pLayoutNode->pChild2, pWorkspaceHwnds, nWorkspaceCount, pEntry, pnWorkspaceIndex);
 }
 
-static BOOL FloatingDocumentPersist_AttachWorkspaceWindowsRecursive(
-	FloatingDocumentRestoreContext* pContext,
+static BOOL FloatingDocumentPersist_OnNodeAttached(
+	PanitentApp* pPanitentApp,
 	DockHostWindow* pDockHostWindow,
-	TreeNode* pNode)
+	TreeNode* pNode,
+	DockData* pDockData,
+	Window* pWindow,
+	void* pUserData)
 {
-	if (!pContext || !pDockHostWindow || !pNode || !pNode->data)
+	UNREFERENCED_PARAMETER(pPanitentApp);
+	UNREFERENCED_PARAMETER(pDockHostWindow);
+	UNREFERENCED_PARAMETER(pNode);
+	if (!pDockData || !pWindow || !pUserData)
+	{
+		return FALSE;
+	}
+
+	if (pDockData->nRole != DOCK_ROLE_WORKSPACE)
 	{
 		return TRUE;
 	}
 
-	DockData* pDockData = (DockData*)pNode->data;
-	if (pDockData->nRole == DOCK_ROLE_WORKSPACE)
+	FloatingDocumentRestoreContext* pContext = (FloatingDocumentRestoreContext*)pUserData;
+	if (pContext->nWorkspaceIndex >= pContext->pEntry->nWorkspaceCount)
 	{
-		if (pContext->nWorkspaceIndex >= pContext->pEntry->nWorkspaceCount)
-		{
-			return FALSE;
-		}
-
-		WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create();
-		if (!pWorkspaceContainer)
-		{
-			return FALSE;
-		}
-
-		if (!Window_CreateWindow((Window*)pWorkspaceContainer, NULL))
-		{
-			free(pWorkspaceContainer);
-			return FALSE;
-		}
-
-		DockData_PinWindow(pDockHostWindow, pDockData, (Window*)pWorkspaceContainer);
-		pDockData->bShowCaption = FALSE;
-
-		FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[pContext->nWorkspaceIndex++];
-		for (int i = 0; i < pWorkspaceSession->nFileCount; ++i)
-		{
-			if (i == pWorkspaceSession->nActiveEntry)
-			{
-				continue;
-			}
-			Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[i], pWorkspaceContainer);
-		}
-		if (pWorkspaceSession->nActiveEntry >= 0 && pWorkspaceSession->nActiveEntry < pWorkspaceSession->nFileCount)
-		{
-			Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[pWorkspaceSession->nActiveEntry], pWorkspaceContainer);
-		}
+		return FALSE;
 	}
 
-	return FloatingDocumentPersist_AttachWorkspaceWindowsRecursive(pContext, pDockHostWindow, pNode->node1) &&
-		FloatingDocumentPersist_AttachWorkspaceWindowsRecursive(pContext, pDockHostWindow, pNode->node2);
+	WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)pWindow;
+	FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[pContext->nWorkspaceIndex++];
+	for (int i = 0; i < pWorkspaceSession->nFileCount; ++i)
+	{
+		if (i == pWorkspaceSession->nActiveEntry)
+		{
+			continue;
+		}
+		Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[i], pWorkspaceContainer);
+	}
+	if (pWorkspaceSession->nActiveEntry >= 0 && pWorkspaceSession->nActiveEntry < pWorkspaceSession->nFileCount)
+	{
+		Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[pWorkspaceSession->nActiveEntry], pWorkspaceContainer);
+	}
+
+	return TRUE;
 }
 
 static BOOL CALLBACK FloatingDocumentPersist_EnumWindowsProc(HWND hWnd, LPARAM lParam)
@@ -363,7 +357,14 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		restoreContext.pDockHostTarget = pDockHostWindow;
 		restoreContext.pEntry = pEntry;
 		restoreContext.nWorkspaceIndex = 0;
-		if (!FloatingDocumentPersist_AttachWorkspaceWindowsRecursive(&restoreContext, pFloatingDockHost, pRootNode))
+		BOOL bHasWorkspace = FALSE;
+		if (!PanitentDockHostRestoreAttachKnownViewsEx(
+			pPanitentApp,
+			pFloatingDockHost,
+			pRootNode,
+			FloatingDocumentPersist_OnNodeAttached,
+			&restoreContext,
+			&bHasWorkspace))
 		{
 			DestroyWindow(hWndFloating);
 			continue;
