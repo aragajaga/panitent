@@ -121,6 +121,22 @@ static DockModelNode* DockModelIO_ReadNode(FILE* fp)
 	return pNode;
 }
 
+BOOL DockModelIO_WriteToStream(FILE* fp, const DockModelNode* pRootNode)
+{
+	return DockModelIO_WriteNode(fp, pRootNode);
+}
+
+DockModelNode* DockModelIO_ReadFromStream(FILE* fp)
+{
+	DockModelNode* pRootNode = DockModelIO_ReadNode(fp);
+	if (pRootNode == (DockModelNode*)(INT_PTR)1)
+	{
+		return NULL;
+	}
+
+	return pRootNode;
+}
+
 BOOL DockModelIO_SaveToFile(const DockModelNode* pRootNode, PCWSTR pszFilePath)
 {
 	FILE* fp = NULL;
@@ -139,7 +155,7 @@ BOOL DockModelIO_SaveToFile(const DockModelNode* pRootNode, PCWSTR pszFilePath)
 	BOOL bOk = FALSE;
 	if (fwrite(&header, sizeof(header), 1, fp) == 1)
 	{
-		bOk = DockModelIO_WriteNode(fp, pRootNode);
+		bOk = DockModelIO_WriteToStream(fp, pRootNode);
 	}
 
 	fclose(fp);
@@ -170,12 +186,7 @@ DockModelNode* DockModelIO_LoadFromFile(PCWSTR pszFilePath)
 		return NULL;
 	}
 
-	pRootNode = DockModelIO_ReadNode(fp);
+	pRootNode = DockModelIO_ReadFromStream(fp);
 	fclose(fp);
-	if (pRootNode == (DockModelNode*)(INT_PTR)1)
-	{
-		return NULL;
-	}
-
 	return pRootNode;
 }

@@ -1,13 +1,21 @@
 #pragma once
 
 #include "precomp.h"
+#include "dockmodel.h"
+
+typedef struct FloatingDocumentWorkspaceSession
+{
+	int nActiveEntry;
+	int nFileCount;
+	WCHAR szFilePaths[32][MAX_PATH];
+} FloatingDocumentWorkspaceSession;
 
 typedef struct FloatingDocumentSessionEntry
 {
 	RECT rcWindow;
-	int nActiveEntry;
-	int nFileCount;
-	WCHAR szFilePaths[32][MAX_PATH];
+	DockModelNode* pLayoutModel;
+	int nWorkspaceCount;
+	FloatingDocumentWorkspaceSession workspaces[16];
 } FloatingDocumentSessionEntry;
 
 typedef struct FloatingDocumentSessionModel
@@ -18,3 +26,4 @@ typedef struct FloatingDocumentSessionModel
 
 BOOL FloatingDocumentSessionModel_SaveToFile(const FloatingDocumentSessionModel* pModel, PCWSTR pszFilePath);
 BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocumentSessionModel* pModel);
+void FloatingDocumentSessionModel_Destroy(FloatingDocumentSessionModel* pModel);

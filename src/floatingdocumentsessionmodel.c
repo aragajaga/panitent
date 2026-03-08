@@ -4,6 +4,7 @@
 #include <stdio.h>
 
 #include "floatingdocumentsessionmodel.h"
+#include "dockmodelio.h"
 
 #define FLOATDOCSESSION_MAGIC 0x53444644u /* DFDS */
 #define FLOATDOCSESSION_VERSION 1u
@@ -33,7 +34,15 @@ BOOL FloatingDocumentSessionModel_SaveToFile(const FloatingDocumentSessionModel*
 	BOOL bOk = fwrite(&header, sizeof(header), 1, fp) == 1;
 	if (bOk && header.count > 0)
 	{
-		bOk = fwrite(pModel->entries, sizeof(FloatingDocumentSessionEntry), header.count, fp) == header.count;
+		for (uint32_t i = 0; i < header.count && bOk; ++i)
+		{
+			const FloatingDocumentSessionEntry* pEntry = &pModel->entries[i];
+			bOk =
+				fwrite(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
+				fwrite(&pEntry->nWorkspaceCount, sizeof(pEntry->nWorkspaceCount), 1, fp) == 1 &&
+				fwrite(pEntry->workspaces, sizeof(FloatingDocumentWorkspaceSession), ARRAYSIZE(pEntry->workspaces), fp) == ARRAYSIZE(pEntry->workspaces) &&
+				DockModelIO_WriteToStream(fp, pEntry->pLayoutModel);
+		}
 	}
 
 	fclose(fp);
@@ -66,7 +75,19 @@ BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocum
 		header.count <= ARRAYSIZE(pModel->entries);
 	if (bOk && header.count > 0)
 	{
-		bOk = fread(pModel->entries, sizeof(FloatingDocumentSessionEntry), header.count, fp) == header.count;
+		for (uint32_t i = 0; i < header.count && bOk; ++i)
+		{
+			FloatingDocumentSessionEntry* pEntry = &pModel->entries[i];
+			bOk =
+				fread(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
+				fread(&pEntry->nWorkspaceCount, sizeof(pEntry->nWorkspaceCount), 1, fp) == 1 &&
+				fread(pEntry->workspaces, sizeof(FloatingDocumentWorkspaceSession), ARRAYSIZE(pEntry->workspaces), fp) == ARRAYSIZE(pEntry->workspaces);
+			if (bOk)
+			{
+				pEntry->pLayoutModel = DockModelIO_ReadFromStream(fp);
+				bOk = pEntry->pLayoutModel != NULL;
+			}
+		}
 	}
 
 	fclose(fp);
@@ -76,4 +97,20 @@ BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocum
 	}
 
 	return bOk;
+}
+
+void FloatingDocumentSessionModel_Destroy(FloatingDocumentSessionModel* pModel)
+{
+	if (!pModel)
+	{
+		return;
+	}
+
+	for (int i = 0; i < pModel->nEntryCount; ++i)
+	{
+		DockModel_Destroy(pModel->entries[i].pLayoutModel);
+		pModel->entries[i].pLayoutModel = NULL;
+	}
+
+	pModel->nEntryCount = 0;
 }

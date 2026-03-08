@@ -223,11 +223,11 @@ Current limitation:
 This change set extends document persistence to floating document windows:
 - added `floatingdocumentsessionmodel.*` for versioned floating-document session round-trip;
 - added `floatingdocumentsessionpersist.*` for app-level save/restore of file-backed floating document sessions;
-- restores file-backed floating document tabs into new floating document windows after the main workspace is restored.
+- restores file-backed floating document sessions into new floating document windows after the main workspace is restored.
 
 Current limitation:
-- floating document sessions are restored as tab groups in a single workspace per floating window;
-- internal split layout inside a floating document host is not yet preserved;
+- floating document sessions now preserve workspace split structure inside a floating document host;
+- nested tool panes inside floating document hosts are still not part of this persistence path;
 - unsaved documents are still not restored.
 
 ## Twelfth Increment Applied

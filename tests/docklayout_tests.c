@@ -462,28 +462,48 @@ static int test_floating_document_session_model_file_round_trip(void)
 {
 	WCHAR szTempPath[MAX_PATH] = L"";
 	WCHAR szTempFile[MAX_PATH] = L"";
-	FloatingDocumentSessionModel model = { 0 };
-	FloatingDocumentSessionModel loaded = { 0 };
+	FloatingDocumentSessionModel* pModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	FloatingDocumentSessionModel* pLoaded = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	DockModelNode layoutRoot = { 0 };
+	DockModelNode layoutWorkspace = { 0 };
+	assert(pModel);
+	assert(pLoaded);
 
 	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
 	assert(GetTempFileNameW(szTempPath, L"fds", 0, szTempFile) != 0);
 
-	model.nEntryCount = 1;
-	SetRect(&model.entries[0].rcWindow, 100, 120, 640, 480);
-	model.entries[0].nActiveEntry = 1;
-	model.entries[0].nFileCount = 2;
-	wcscpy_s(model.entries[0].szFilePaths[0], ARRAYSIZE(model.entries[0].szFilePaths[0]), L"C:\\test\\doc1.png");
-	wcscpy_s(model.entries[0].szFilePaths[1], ARRAYSIZE(model.entries[0].szFilePaths[1]), L"C:\\test\\doc2.png");
+	pModel->nEntryCount = 1;
+	SetRect(&pModel->entries[0].rcWindow, 100, 120, 640, 480);
+	layoutRoot.nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(layoutRoot.szName, ARRAYSIZE(layoutRoot.szName), L"Root");
+	layoutRoot.pChild1 = &layoutWorkspace;
+	layoutWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+	layoutWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+	wcscpy_s(layoutWorkspace.szName, ARRAYSIZE(layoutWorkspace.szName), L"WorkspaceContainer");
+	pModel->entries[0].pLayoutModel = &layoutRoot;
+	pModel->entries[0].nWorkspaceCount = 1;
+	pModel->entries[0].workspaces[0].nActiveEntry = 1;
+	pModel->entries[0].workspaces[0].nFileCount = 2;
+	wcscpy_s(pModel->entries[0].workspaces[0].szFilePaths[0], ARRAYSIZE(pModel->entries[0].workspaces[0].szFilePaths[0]), L"C:\\test\\doc1.png");
+	wcscpy_s(pModel->entries[0].workspaces[0].szFilePaths[1], ARRAYSIZE(pModel->entries[0].workspaces[0].szFilePaths[1]), L"C:\\test\\doc2.png");
 
-	assert(FloatingDocumentSessionModel_SaveToFile(&model, szTempFile));
-	assert(FloatingDocumentSessionModel_LoadFromFile(szTempFile, &loaded));
-	assert(loaded.nEntryCount == 1);
-	assert(EqualRect(&loaded.entries[0].rcWindow, &model.entries[0].rcWindow));
-	assert(loaded.entries[0].nActiveEntry == 1);
-	assert(loaded.entries[0].nFileCount == 2);
-	assert(wcscmp(loaded.entries[0].szFilePaths[0], model.entries[0].szFilePaths[0]) == 0);
-	assert(wcscmp(loaded.entries[0].szFilePaths[1], model.entries[0].szFilePaths[1]) == 0);
+	assert(FloatingDocumentSessionModel_SaveToFile(pModel, szTempFile));
+	assert(FloatingDocumentSessionModel_LoadFromFile(szTempFile, pLoaded));
+	assert(pLoaded->nEntryCount == 1);
+	assert(EqualRect(&pLoaded->entries[0].rcWindow, &pModel->entries[0].rcWindow));
+	assert(pLoaded->entries[0].pLayoutModel != NULL);
+	assert(pLoaded->entries[0].pLayoutModel->nRole == DOCK_ROLE_ROOT);
+	assert(pLoaded->entries[0].pLayoutModel->pChild1 != NULL);
+	assert(pLoaded->entries[0].pLayoutModel->pChild1->nRole == DOCK_ROLE_WORKSPACE);
+	assert(pLoaded->entries[0].nWorkspaceCount == 1);
+	assert(pLoaded->entries[0].workspaces[0].nActiveEntry == 1);
+	assert(pLoaded->entries[0].workspaces[0].nFileCount == 2);
+	assert(wcscmp(pLoaded->entries[0].workspaces[0].szFilePaths[0], pModel->entries[0].workspaces[0].szFilePaths[0]) == 0);
+	assert(wcscmp(pLoaded->entries[0].workspaces[0].szFilePaths[1], pModel->entries[0].workspaces[0].szFilePaths[1]) == 0);
 
+	FloatingDocumentSessionModel_Destroy(pLoaded);
+	free(pLoaded);
+	free(pModel);
 	DeleteFileW(szTempFile);
 	return 0;
 }
