@@ -1356,6 +1356,16 @@ ViewportWindow* WorkspaceContainer_GetCurrentViewport(WorkspaceContainer* pWorks
     return pWorkspaceContainer->m_pViewportWindow;
 }
 
+ViewportWindow* WorkspaceContainer_GetViewportAt(WorkspaceContainer* pWorkspaceContainer, int index)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector)
+    {
+        return NULL;
+    }
+
+    return ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, index);
+}
+
 int WorkspaceContainer_GetViewportCount(WorkspaceContainer* pWorkspaceContainer)
 {
     if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector)

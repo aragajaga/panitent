@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/documentsessionmodel.h"
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockviewcatalog.h"
 #include "../src/dockmodelbuild.h"
@@ -430,6 +431,32 @@ static int test_dock_floating_layout_file_round_trip(void)
 	return 0;
 }
 
+static int test_document_session_model_file_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DocumentSessionModel model = { 0 };
+	DocumentSessionModel loaded = { 0 };
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dds", 0, szTempFile) != 0);
+
+	model.nEntryCount = 2;
+	model.nActiveEntry = 1;
+	wcscpy_s(model.entries[0].szFilePath, ARRAYSIZE(model.entries[0].szFilePath), L"C:\\test\\a.png");
+	wcscpy_s(model.entries[1].szFilePath, ARRAYSIZE(model.entries[1].szFilePath), L"C:\\test\\b.png");
+
+	assert(DocumentSessionModel_SaveToFile(&model, szTempFile));
+	assert(DocumentSessionModel_LoadFromFile(szTempFile, &loaded));
+	assert(loaded.nEntryCount == 2);
+	assert(loaded.nActiveEntry == 1);
+	assert(wcscmp(loaded.entries[0].szFilePath, model.entries[0].szFilePath) == 0);
+	assert(wcscmp(loaded.entries[1].szFilePath, model.entries[1].szFilePath) == 0);
+
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -819,6 +846,7 @@ int main(void)
 	failed |= test_floating_dock_policy_semantics();
 	failed |= test_dock_view_catalog_maps_known_persistent_views();
 	failed |= test_dock_floating_layout_file_round_trip();
+	failed |= test_document_session_model_file_round_trip();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

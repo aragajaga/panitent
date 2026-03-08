@@ -207,6 +207,17 @@ This change set removes duplication between default shell bootstrap and layout r
 
 This does not yet restore floating windows or document contents, but it removes one of the main blockers to extending persistence beyond the main dock host.
 
+## Eleventh Increment Applied
+
+This change set adds file-backed document session persistence for the main workspace:
+- added `documentsessionmodel.*` for versioned session-file round-trip;
+- added `documentsessionpersist.*` for app-level save/restore of file-backed documents;
+- added document/workspace APIs needed to reopen documents into a target workspace instead of only the default one.
+
+Current limitation:
+- only file-backed documents in the main workspace are restored;
+- unsaved documents and floating document sessions are still not restored.
+
 ## Twelfth Increment Applied
 
 This change set starts extending persistence beyond the main dock host:

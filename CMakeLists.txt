@@ -78,6 +78,8 @@ set(C_SOURCES
     src/crashhandler.c
     src/crefptr.c
     src/debug.c
+    src/documentsessionmodel.c
+    src/documentsessionpersist.c
     src/docklayout.c
     src/dockgroup.c
     src/dockhost.c
@@ -188,6 +190,7 @@ if(PANITENT_BUILD_TESTS)
 
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
+    src/documentsessionmodel.c
     src/dockfloatingmodel.c
     src/dockmodel.c
     src/dockmodelbuild.c

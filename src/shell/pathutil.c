@@ -198,3 +198,16 @@ void GetDockFloatingFilePath(PTSTR* ppszDockFloatingFilePath)
 
     *ppszDockFloatingFilePath = pszDockFloatingFilePath;
 }
+
+void GetDocumentSessionFilePath(PTSTR* ppszDocumentSessionFilePath)
+{
+    LPWSTR pszDocumentSessionFilePath = NULL;
+    GetAppDataFilePath(_T("documentsession.dat"), &pszDocumentSessionFilePath);
+
+    if (!pszDocumentSessionFilePath)
+    {
+        return;
+    }
+
+    *ppszDocumentSessionFilePath = pszDocumentSessionFilePath;
+}

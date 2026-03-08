@@ -21,7 +21,7 @@ extern TreeNode* viewportNode;
 static BOOL Document_InitHistory(Document* pDocument);
 static void Document_FreeHistory(History* pHistory);
 static void Document_AssignFilePath(Document* pDocument, PCWSTR pszPath);
-static ViewportWindow* Document_CreateWorkspaceViewport();
+static ViewportWindow* Document_CreateViewportForWorkspace(Document* pDocument, WorkspaceContainer* pWorkspaceContainer);
 
 void Document_Init(Document* pDocument)
 {
@@ -74,23 +74,23 @@ BOOL Document_IsFilePathSet(Document* doc)
     return doc->szFilePath != NULL;
 }
 
-void Document_OpenFile(LPWSTR pszPath)
+Document* Document_LoadFile(PCWSTR pszPath)
 {
     if (!pszPath || !pszPath[0])
     {
-        return;
+        return NULL;
     }
 
     Document* pDocument = Document_Create();
     if (!pDocument)
     {
-        return;
+        return NULL;
     }
 
     if (!Document_InitHistory(pDocument))
     {
         Document_Destroy(pDocument);
-        return;
+        return NULL;
     }
 
     /* Create and set canvas */
@@ -98,7 +98,7 @@ void Document_OpenFile(LPWSTR pszPath)
     if (!ib.bits || ib.width == 0 || ib.height == 0)
     {
         Document_Destroy(pDocument);
-        return;
+        return NULL;
     }
 
     Canvas* canvas = Canvas_CreateFromBuffer(ib.width, ib.height, ib.bits);
@@ -106,19 +106,40 @@ void Document_OpenFile(LPWSTR pszPath)
     if (!canvas)
     {
         Document_Destroy(pDocument);
-        return;
+        return NULL;
     }
 
     Document_SetCanvas(pDocument, canvas);
     Document_AssignFilePath(pDocument, pszPath);
 
-    ViewportWindow* pViewportWindow = Document_CreateWorkspaceViewport();
+    return pDocument;
+}
+
+BOOL Document_OpenFileInWorkspace(PCWSTR pszPath, WorkspaceContainer* pWorkspaceContainer)
+{
+    Document* pDocument = Document_LoadFile(pszPath);
+    if (!pDocument)
+    {
+        return FALSE;
+    }
+
+    ViewportWindow* pViewportWindow = Document_CreateViewportForWorkspace(pDocument, pWorkspaceContainer);
     if (!pViewportWindow)
     {
         Document_Destroy(pDocument);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+void Document_OpenFile(LPWSTR pszPath)
+{
+    if (!pszPath || !pszPath[0])
+    {
         return;
     }
-    ViewportWindow_SetDocument(pViewportWindow, pDocument);
+
+    Document_OpenFileInWorkspace(pszPath, PanitentApp_GetWorkspaceContainer(PanitentApp_Instance()));
 }
 
 void Document_Open(Document* prevDoc)
@@ -228,13 +249,14 @@ Document* Document_New(int width, int height)
 
     Document_SetCanvas(pDocument, pCanvas);
 
-    ViewportWindow* pViewportWindow = Document_CreateWorkspaceViewport();
+    ViewportWindow* pViewportWindow = Document_CreateViewportForWorkspace(
+        pDocument,
+        PanitentApp_GetWorkspaceContainer(PanitentApp_Instance()));
     if (!pViewportWindow)
     {
         Document_Destroy(pDocument);
         return NULL;
     }
-    ViewportWindow_SetDocument(pViewportWindow, pDocument);
 
     return pDocument;
 }
@@ -250,6 +272,11 @@ Canvas* Document_GetCanvas(Document* document)
         return NULL;
 
     return document->canvas;
+}
+
+PCWSTR Document_GetFilePath(Document* document)
+{
+    return document ? document->szFilePath : NULL;
 }
 
 static BOOL Document_InitHistory(Document* pDocument)
@@ -335,10 +362,8 @@ static void Document_AssignFilePath(Document* pDocument, PCWSTR pszPath)
     wcscpy_s(pDocument->szFilePath, cchPath, pszPath);
 }
 
-static ViewportWindow* Document_CreateWorkspaceViewport()
+static ViewportWindow* Document_CreateViewportForWorkspace(Document* pDocument, WorkspaceContainer* pWorkspaceContainer)
 {
-    PanitentApp* pApp = PanitentApp_Instance();
-    WorkspaceContainer* pWorkspaceContainer = PanitentApp_GetWorkspaceContainer(pApp);
     if (!pWorkspaceContainer)
     {
         return NULL;
@@ -357,7 +382,12 @@ static ViewportWindow* Document_CreateWorkspaceViewport()
         return NULL;
     }
 
+    if (pDocument)
+    {
+        ViewportWindow_SetDocument(pViewportWindow, pDocument);
+    }
+
     WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
-    PanitentApp_SetActiveViewport(pApp, pViewportWindow);
+    PanitentApp_SetActiveViewport(PanitentApp_Instance(), pViewportWindow);
     return pViewportWindow;
 }
