@@ -85,6 +85,8 @@ set(C_SOURCES
     src/dockhost.c
     src/dockfloatingmodel.c
     src/dockfloatingpersist.c
+    src/floatingdocumentsessionmodel.c
+    src/floatingdocumentsessionpersist.c
     src/docklayoutpersist.c
     src/dockpolicy.c
     src/dockmodel.c
@@ -191,6 +193,7 @@ if(PANITENT_BUILD_TESTS)
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
     src/documentsessionmodel.c
+    src/floatingdocumentsessionmodel.c
     src/dockfloatingmodel.c
     src/dockmodel.c
     src/dockmodelbuild.c

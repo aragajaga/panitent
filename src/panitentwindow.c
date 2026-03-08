@@ -4,6 +4,7 @@
 
 #include "dockhost.h"
 #include "dockfloatingpersist.h"
+#include "floatingdocumentsessionpersist.h"
 #include "docklayoutpersist.h"
 #include "documentsessionpersist.h"
 #include "dockshell.h"
@@ -339,6 +340,7 @@ BOOL PanitentWindow_OnClose(PanitentWindow* pPanitentWindow)
         PanitentDockLayout_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
         PanitentDockFloating_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
         PanitentDocumentSession_Save(pPanitentApp);
+        PanitentFloatingDocumentSession_Save(pPanitentApp, pPanitentWindow->m_pDockHostWindow);
     }
 
     return FALSE;
@@ -1868,4 +1870,5 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
 
     PanitentDocumentSession_Restore(PanitentApp_Instance());
     PanitentDockFloating_Restore(PanitentApp_Instance(), pDockHostWindow);
+    PanitentFloatingDocumentSession_Restore(PanitentApp_Instance(), pDockHostWindow);
 }

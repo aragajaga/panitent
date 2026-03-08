@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "../src/documentsessionmodel.h"
+#include "../src/floatingdocumentsessionmodel.h"
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockviewcatalog.h"
 #include "../src/dockmodelbuild.h"
@@ -457,6 +458,36 @@ static int test_document_session_model_file_round_trip(void)
 	return 0;
 }
 
+static int test_floating_document_session_model_file_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	FloatingDocumentSessionModel model = { 0 };
+	FloatingDocumentSessionModel loaded = { 0 };
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"fds", 0, szTempFile) != 0);
+
+	model.nEntryCount = 1;
+	SetRect(&model.entries[0].rcWindow, 100, 120, 640, 480);
+	model.entries[0].nActiveEntry = 1;
+	model.entries[0].nFileCount = 2;
+	wcscpy_s(model.entries[0].szFilePaths[0], ARRAYSIZE(model.entries[0].szFilePaths[0]), L"C:\\test\\doc1.png");
+	wcscpy_s(model.entries[0].szFilePaths[1], ARRAYSIZE(model.entries[0].szFilePaths[1]), L"C:\\test\\doc2.png");
+
+	assert(FloatingDocumentSessionModel_SaveToFile(&model, szTempFile));
+	assert(FloatingDocumentSessionModel_LoadFromFile(szTempFile, &loaded));
+	assert(loaded.nEntryCount == 1);
+	assert(EqualRect(&loaded.entries[0].rcWindow, &model.entries[0].rcWindow));
+	assert(loaded.entries[0].nActiveEntry == 1);
+	assert(loaded.entries[0].nFileCount == 2);
+	assert(wcscmp(loaded.entries[0].szFilePaths[0], model.entries[0].szFilePaths[0]) == 0);
+	assert(wcscmp(loaded.entries[0].szFilePaths[1], model.entries[0].szFilePaths[1]) == 0);
+
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -847,6 +878,7 @@ int main(void)
 	failed |= test_dock_view_catalog_maps_known_persistent_views();
 	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_document_session_model_file_round_trip();
+	failed |= test_floating_document_session_model_file_round_trip();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

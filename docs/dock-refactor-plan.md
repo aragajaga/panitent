@@ -220,6 +220,18 @@ Current limitation:
 
 ## Twelfth Increment Applied
 
+This change set extends document persistence to floating document windows:
+- added `floatingdocumentsessionmodel.*` for versioned floating-document session round-trip;
+- added `floatingdocumentsessionpersist.*` for app-level save/restore of file-backed floating document sessions;
+- restores file-backed floating document tabs into new floating document windows after the main workspace is restored.
+
+Current limitation:
+- floating document sessions are restored as tab groups in a single workspace per floating window;
+- internal split layout inside a floating document host is not yet preserved;
+- unsaved documents are still not restored.
+
+## Twelfth Increment Applied
+
 This change set starts extending persistence beyond the main dock host:
 - added `dockfloatingpersist.*` for known floating tool panes;
 - introduced a separate `dockfloating.dat` file with versioned floating-window entries;
