@@ -173,3 +173,16 @@ This change set continues Phase 5:
 - added round-trip tests that validate `model -> file -> model` without involving live Win32 handles.
 
 This still is not connected to settings persistence or runtime rebuild, but it completes the first half of Phase 5: the layout model can now exist outside the running dock host.
+
+## Eighth Increment Applied
+
+This change set continues Phase 5:
+- added a dedicated `dockmodelbuild.*` rebuild module;
+- introduced `dockmodel -> TreeNode/DockData` reconstruction without using live Win32 windows;
+- added tests for `model -> tree -> model` round-trip, including active-tab restoration semantics through synthetic handles.
+
+At this point the project has both halves of the layout boundary:
+- live dock tree -> pure model
+- pure model -> runtime tree
+
+The next step is to wire that boundary into actual layout persistence and restore.
