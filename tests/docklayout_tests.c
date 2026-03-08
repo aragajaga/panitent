@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include "../src/dockmodel.h"
 #include "../src/floatingdockpolicy.h"
 #include "../src/dockgroup.h"
 #include "../src/dockshell.h"
@@ -374,6 +375,49 @@ static int test_floating_dock_policy_semantics(void)
 	return 0;
 }
 
+static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
+{
+	TreeNode* pRoot = DockShell_CreateRootNode();
+	TreeNode* pZone = DockShell_CreateZoneNode(DKS_LEFT);
+	TreeNode* pPanelA = DockShell_CreatePanelNode(L"Toolbox");
+	TreeNode* pPanelB = DockShell_CreatePanelNode(L"Palette");
+	TreeNode* pWorkspace = DockShell_CreateWorkspaceNode();
+	DockData* pZoneData = (DockData*)pZone->data;
+	DockData* pPanelAData = (DockData*)pPanelA->data;
+	DockData* pPanelBData = (DockData*)pPanelB->data;
+	DockModelNode* pModel;
+
+	assert(DockShell_AppendPanelToZone(pZone, pPanelA));
+	assert(DockShell_AppendPanelToZone(pZone, pPanelB));
+	pRoot->node1 = pZone;
+	pRoot->node2 = pWorkspace;
+
+	pPanelAData->hWnd = (HWND)(INT_PTR)0x1001;
+	pPanelBData->hWnd = (HWND)(INT_PTR)0x1002;
+	pZoneData->hWndActiveTab = pPanelBData->hWnd;
+	pZoneData->bCollapsed = TRUE;
+
+	pModel = DockModel_CaptureTree(pRoot);
+	assert(pModel);
+	assert(pModel->nRole == DOCK_ROLE_ROOT);
+	assert(pModel->nPaneKind == DOCK_PANE_NONE);
+	assert(pModel->pChild1);
+	assert(pModel->pChild2);
+	assert(pModel->pChild1->nRole == DOCK_ROLE_ZONE);
+	assert(pModel->pChild1->nDockSide == DKS_LEFT);
+	assert(pModel->pChild1->bCollapsed == TRUE);
+	assert(wcscmp(pModel->pChild1->szActiveTabName, L"Palette") == 0);
+	assert(pModel->pChild1->pChild1);
+	assert(pModel->pChild1->pChild1->nRole == DOCK_ROLE_ZONE_STACK_SPLIT);
+	assert(pModel->pChild1->pChild1->pChild1);
+	assert(pModel->pChild1->pChild1->pChild2);
+	assert(pModel->pChild2->nRole == DOCK_ROLE_WORKSPACE);
+	assert(pModel->pChild2->nPaneKind == DOCK_PANE_DOCUMENT);
+
+	DockModel_Destroy(pModel);
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -429,6 +473,7 @@ int main(void)
 	failed |= test_dock_shell_build_main_layout_attaches_workspace_and_zones();
 	failed |= test_dock_group_semantics_for_tool_and_document_panes();
 	failed |= test_floating_dock_policy_semantics();
+	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

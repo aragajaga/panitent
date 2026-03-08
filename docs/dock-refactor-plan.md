@@ -105,6 +105,9 @@ Status:
 Goal:
 - rebuild runtime/view state from a saved model instead of serializing live HWND trees.
 
+Status:
+- started in this change set.
+
 ## First Increment Applied
 
 This first step is intentionally small:
@@ -152,3 +155,12 @@ This change set continues Phase 4:
 - routed document source resolution, document move/merge logic, and target workspace dock-host wrapping through the adapter.
 
 The floating container still owns the UI flow, but it no longer needs to know as much about the internal structure of every possible child host.
+
+## Sixth Increment Applied
+
+This change set starts Phase 5:
+- added a dedicated `dockmodel.*` snapshot module;
+- introduced capture of the live dock tree into a pure model without `HWND` or `RECT`;
+- kept semantic data in the snapshot: node role, pane kind, dock side, split metadata, collapsed state, and active-tab name.
+
+This is not wired into settings persistence yet, but it establishes the model boundary required to serialize layout without depending on live runtime handles.
