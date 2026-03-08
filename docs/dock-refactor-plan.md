@@ -215,8 +215,8 @@ This change set adds file-backed document session persistence for the main works
 - added document/workspace APIs needed to reopen documents into a target workspace instead of only the default one.
 
 Current limitation:
-- only file-backed documents in the main workspace are restored;
-- unsaved documents and floating document sessions are still not restored.
+- file-backed and recovered unsaved documents in the main workspace are restored;
+- dirty file-backed documents are still restored from the last saved file, not from an autosaved override.
 
 ## Twelfth Increment Applied
 
@@ -228,7 +228,8 @@ This change set extends document persistence to floating document windows:
 Current limitation:
 - floating document sessions now preserve workspace split structure inside a floating document host;
 - nested known tool panes inside floating document hosts are restored through the shared dock-host restore path;
-- unsaved documents are still not restored.
+- unsaved floating documents are restored through recovery snapshots;
+- dirty file-backed documents are still restored from the last saved file, not from an autosaved override.
 
 ## Twelfth Increment Applied
 

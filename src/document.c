@@ -115,6 +115,29 @@ Document* Document_LoadFile(PCWSTR pszPath)
     return pDocument;
 }
 
+Document* Document_CreateWithCanvas(Canvas* pCanvas)
+{
+    if (!pCanvas)
+    {
+        return NULL;
+    }
+
+    Document* pDocument = Document_Create();
+    if (!pDocument)
+    {
+        return NULL;
+    }
+
+    if (!Document_InitHistory(pDocument))
+    {
+        Document_Destroy(pDocument);
+        return NULL;
+    }
+
+    Document_SetCanvas(pDocument, pCanvas);
+    return pDocument;
+}
+
 BOOL Document_OpenFileInWorkspace(PCWSTR pszPath, WorkspaceContainer* pWorkspaceContainer)
 {
     Document* pDocument = Document_LoadFile(pszPath);
@@ -123,8 +146,7 @@ BOOL Document_OpenFileInWorkspace(PCWSTR pszPath, WorkspaceContainer* pWorkspace
         return FALSE;
     }
 
-    ViewportWindow* pViewportWindow = Document_CreateViewportForWorkspace(pDocument, pWorkspaceContainer);
-    if (!pViewportWindow)
+    if (!Document_AttachToWorkspace(pDocument, pWorkspaceContainer))
     {
         Document_Destroy(pDocument);
         return FALSE;
@@ -249,10 +271,9 @@ Document* Document_New(int width, int height)
 
     Document_SetCanvas(pDocument, pCanvas);
 
-    ViewportWindow* pViewportWindow = Document_CreateViewportForWorkspace(
+    if (!Document_AttachToWorkspace(
         pDocument,
-        PanitentApp_GetWorkspaceContainer(PanitentApp_Instance()));
-    if (!pViewportWindow)
+        PanitentApp_GetWorkspaceContainer(PanitentApp_Instance())))
     {
         Document_Destroy(pDocument);
         return NULL;
@@ -277,6 +298,22 @@ Canvas* Document_GetCanvas(Document* document)
 PCWSTR Document_GetFilePath(Document* document)
 {
     return document ? document->szFilePath : NULL;
+}
+
+BOOL Document_AttachToWorkspace(Document* pDocument, WorkspaceContainer* pWorkspaceContainer)
+{
+    if (!pDocument)
+    {
+        return FALSE;
+    }
+
+    ViewportWindow* pViewportWindow = Document_CreateViewportForWorkspace(pDocument, pWorkspaceContainer);
+    if (!pViewportWindow)
+    {
+        return FALSE;
+    }
+
+    return TRUE;
 }
 
 static BOOL Document_InitHistory(Document* pDocument)

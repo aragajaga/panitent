@@ -5,6 +5,7 @@
 #include "win32/window.h"
 #include "win32/windowmap.h"
 #include "document.h"
+#include "documentrecovery.h"
 #include "dockhost.h"
 #include "dockhostrestore.h"
 #include "dockmodel.h"
@@ -79,6 +80,7 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 	const DockModelNode* pLayoutNode,
 	HWND* pWorkspaceHwnds,
 	int nWorkspaceCount,
+	int nFloatingIndex,
 	FloatingDocumentSessionEntry* pEntry,
 	int* pnWorkspaceIndex)
 {
@@ -101,20 +103,42 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 
 				ViewportWindow* pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspace);
 				for (int i = 0; i < WorkspaceContainer_GetViewportCount(pWorkspace) &&
-					pWorkspaceSession->nFileCount < ARRAYSIZE(pWorkspaceSession->szFilePaths); ++i)
+					pWorkspaceSession->nFileCount < ARRAYSIZE(pWorkspaceSession->entries); ++i)
 				{
 					ViewportWindow* pViewportWindow = WorkspaceContainer_GetViewportAt(pWorkspace, i);
 					Document* pDocument = pViewportWindow ? ViewportWindow_GetDocument(pViewportWindow) : NULL;
-					PCWSTR pszFilePath = pDocument ? Document_GetFilePath(pDocument) : NULL;
-					if (!pDocument || !Document_IsFilePathSet(pDocument) || !pszFilePath || !pszFilePath[0])
+					if (!pDocument)
 					{
 						continue;
 					}
 
-					wcscpy_s(
-						pWorkspaceSession->szFilePaths[pWorkspaceSession->nFileCount],
-						ARRAYSIZE(pWorkspaceSession->szFilePaths[pWorkspaceSession->nFileCount]),
-						pszFilePath);
+					DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[pWorkspaceSession->nFileCount];
+					PCWSTR pszFilePath = Document_GetFilePath(pDocument);
+					if (Document_IsFilePathSet(pDocument) && pszFilePath && pszFilePath[0])
+					{
+						pDocEntry->nKind = DOCSESSION_ENTRY_FILE;
+						wcscpy_s(pDocEntry->szFilePath, ARRAYSIZE(pDocEntry->szFilePath), pszFilePath);
+					}
+					else {
+						pDocEntry->nKind = DOCSESSION_ENTRY_RECOVERY;
+						WCHAR szRelative[MAX_PATH] = L"";
+						StringCchPrintfW(
+							szRelative,
+							ARRAYSIZE(szRelative),
+							L"recovery_floatdoc_%02d_%02d_%02d.pdr",
+							nFloatingIndex,
+							pEntry->nWorkspaceCount,
+							pWorkspaceSession->nFileCount);
+						PTSTR pszRecoveryPath = NULL;
+						GetAppDataFilePath(szRelative, &pszRecoveryPath);
+						if (!pszRecoveryPath || !DocumentRecovery_Save(pDocument, pszRecoveryPath))
+						{
+							free(pszRecoveryPath);
+							continue;
+						}
+						StringCchCopyW(pDocEntry->szFilePath, ARRAYSIZE(pDocEntry->szFilePath), pszRecoveryPath);
+						free(pszRecoveryPath);
+					}
 					if (pViewportWindow == pActiveViewport)
 					{
 						pWorkspaceSession->nActiveEntry = pWorkspaceSession->nFileCount;
@@ -133,8 +157,8 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 		return;
 	}
 
-	FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(pLayoutNode->pChild1, pWorkspaceHwnds, nWorkspaceCount, pEntry, pnWorkspaceIndex);
-	FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(pLayoutNode->pChild2, pWorkspaceHwnds, nWorkspaceCount, pEntry, pnWorkspaceIndex);
+	FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(pLayoutNode->pChild1, pWorkspaceHwnds, nWorkspaceCount, nFloatingIndex, pEntry, pnWorkspaceIndex);
+	FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(pLayoutNode->pChild2, pWorkspaceHwnds, nWorkspaceCount, nFloatingIndex, pEntry, pnWorkspaceIndex);
 }
 
 static BOOL FloatingDocumentPersist_OnNodeAttached(
@@ -172,12 +196,28 @@ static BOOL FloatingDocumentPersist_OnNodeAttached(
 		{
 			continue;
 		}
-		Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[i], pWorkspaceContainer);
-	}
-	if (pWorkspaceSession->nActiveEntry >= 0 && pWorkspaceSession->nActiveEntry < pWorkspaceSession->nFileCount)
-	{
-		Document_OpenFileInWorkspace(pWorkspaceSession->szFilePaths[pWorkspaceSession->nActiveEntry], pWorkspaceContainer);
-	}
+			DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[i];
+			if (pDocEntry->nKind == DOCSESSION_ENTRY_FILE)
+			{
+				Document_OpenFileInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
+			}
+			else if (pDocEntry->nKind == DOCSESSION_ENTRY_RECOVERY)
+			{
+				DocumentRecovery_OpenInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
+			}
+		}
+		if (pWorkspaceSession->nActiveEntry >= 0 && pWorkspaceSession->nActiveEntry < pWorkspaceSession->nFileCount)
+		{
+			DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[pWorkspaceSession->nActiveEntry];
+			if (pDocEntry->nKind == DOCSESSION_ENTRY_FILE)
+			{
+				Document_OpenFileInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
+			}
+			else if (pDocEntry->nKind == DOCSESSION_ENTRY_RECOVERY)
+			{
+				DocumentRecovery_OpenInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
+			}
+		}
 
 	return TRUE;
 }
@@ -239,6 +279,7 @@ static BOOL CALLBACK FloatingDocumentPersist_EnumWindowsProc(HWND hWnd, LPARAM l
 		pEntry->pLayoutModel,
 		hWndWorkspaces,
 		nWorkspaceCount,
+		pContext->pModel->nEntryCount - 1,
 		pEntry,
 		&nWorkspaceIndex);
 

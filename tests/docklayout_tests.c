@@ -462,13 +462,17 @@ static int test_document_session_model_file_round_trip(void)
 
 	model.nEntryCount = 2;
 	model.nActiveEntry = 1;
+	model.entries[0].nKind = DOCSESSION_ENTRY_FILE;
 	wcscpy_s(model.entries[0].szFilePath, ARRAYSIZE(model.entries[0].szFilePath), L"C:\\test\\a.png");
+	model.entries[1].nKind = DOCSESSION_ENTRY_RECOVERY;
 	wcscpy_s(model.entries[1].szFilePath, ARRAYSIZE(model.entries[1].szFilePath), L"C:\\test\\b.png");
 
 	assert(DocumentSessionModel_SaveToFile(&model, szTempFile));
 	assert(DocumentSessionModel_LoadFromFile(szTempFile, &loaded));
 	assert(loaded.nEntryCount == 2);
 	assert(loaded.nActiveEntry == 1);
+	assert(loaded.entries[0].nKind == DOCSESSION_ENTRY_FILE);
+	assert(loaded.entries[1].nKind == DOCSESSION_ENTRY_RECOVERY);
 	assert(wcscmp(loaded.entries[0].szFilePath, model.entries[0].szFilePath) == 0);
 	assert(wcscmp(loaded.entries[1].szFilePath, model.entries[1].szFilePath) == 0);
 
@@ -502,8 +506,10 @@ static int test_floating_document_session_model_file_round_trip(void)
 	pModel->entries[0].nWorkspaceCount = 1;
 	pModel->entries[0].workspaces[0].nActiveEntry = 1;
 	pModel->entries[0].workspaces[0].nFileCount = 2;
-	wcscpy_s(pModel->entries[0].workspaces[0].szFilePaths[0], ARRAYSIZE(pModel->entries[0].workspaces[0].szFilePaths[0]), L"C:\\test\\doc1.png");
-	wcscpy_s(pModel->entries[0].workspaces[0].szFilePaths[1], ARRAYSIZE(pModel->entries[0].workspaces[0].szFilePaths[1]), L"C:\\test\\doc2.png");
+	pModel->entries[0].workspaces[0].entries[0].nKind = DOCSESSION_ENTRY_FILE;
+	pModel->entries[0].workspaces[0].entries[1].nKind = DOCSESSION_ENTRY_RECOVERY;
+	wcscpy_s(pModel->entries[0].workspaces[0].entries[0].szFilePath, ARRAYSIZE(pModel->entries[0].workspaces[0].entries[0].szFilePath), L"C:\\test\\doc1.png");
+	wcscpy_s(pModel->entries[0].workspaces[0].entries[1].szFilePath, ARRAYSIZE(pModel->entries[0].workspaces[0].entries[1].szFilePath), L"C:\\test\\doc2.png");
 
 	assert(FloatingDocumentSessionModel_SaveToFile(pModel, szTempFile));
 	assert(FloatingDocumentSessionModel_LoadFromFile(szTempFile, pLoaded));
@@ -516,8 +522,10 @@ static int test_floating_document_session_model_file_round_trip(void)
 	assert(pLoaded->entries[0].nWorkspaceCount == 1);
 	assert(pLoaded->entries[0].workspaces[0].nActiveEntry == 1);
 	assert(pLoaded->entries[0].workspaces[0].nFileCount == 2);
-	assert(wcscmp(pLoaded->entries[0].workspaces[0].szFilePaths[0], pModel->entries[0].workspaces[0].szFilePaths[0]) == 0);
-	assert(wcscmp(pLoaded->entries[0].workspaces[0].szFilePaths[1], pModel->entries[0].workspaces[0].szFilePaths[1]) == 0);
+	assert(pLoaded->entries[0].workspaces[0].entries[0].nKind == DOCSESSION_ENTRY_FILE);
+	assert(pLoaded->entries[0].workspaces[0].entries[1].nKind == DOCSESSION_ENTRY_RECOVERY);
+	assert(wcscmp(pLoaded->entries[0].workspaces[0].entries[0].szFilePath, pModel->entries[0].workspaces[0].entries[0].szFilePath) == 0);
+	assert(wcscmp(pLoaded->entries[0].workspaces[0].entries[1].szFilePath, pModel->entries[0].workspaces[0].entries[1].szFilePath) == 0);
 
 	FloatingDocumentSessionModel_Destroy(pLoaded);
 	free(pLoaded);

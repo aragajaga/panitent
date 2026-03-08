@@ -100,6 +100,7 @@ set(C_SOURCES
     src/dockviewfactory.c
     src/dockinspectordialog.c
     src/document.c
+    src/documentrecovery.c
     src/file_open.c
     src/flexible.c
     src/floatingchildhost.c

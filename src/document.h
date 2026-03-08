@@ -11,11 +11,14 @@ typedef struct _Document {
   History* history;
 } Document;
 
+Document* Document_Create();
+Document* Document_CreateWithCanvas(Canvas* pCanvas);
 void Document_Save(Document* doc);
 void Document_Open(Document* doc);
 void Document_OpenFile(LPWSTR);
 Document* Document_LoadFile(PCWSTR pszPath);
 BOOL Document_OpenFileInWorkspace(PCWSTR pszPath, WorkspaceContainer* pWorkspaceContainer);
+BOOL Document_AttachToWorkspace(Document* pDocument, WorkspaceContainer* pWorkspaceContainer);
 void Document_Destroy(Document* doc);
 BOOL Document_Close(Document* doc);
 void Document_Purge(Document* doc);

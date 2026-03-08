@@ -2,12 +2,13 @@
 
 #include "precomp.h"
 #include "dockmodel.h"
+#include "documentsessionmodel.h"
 
 typedef struct FloatingDocumentWorkspaceSession
 {
 	int nActiveEntry;
 	int nFileCount;
-	WCHAR szFilePaths[32][MAX_PATH];
+	DocumentSessionEntry entries[32];
 } FloatingDocumentWorkspaceSession;
 
 typedef struct FloatingDocumentSessionEntry
