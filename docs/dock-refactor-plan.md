@@ -238,7 +238,17 @@ This change set adds a dedicated cleanup policy for recovery snapshots:
 - main and floating document session save paths now clear stale `recovery_*.pdr` files before writing a new session snapshot.
 
 Current limitation:
-- recovery files are cleaned on save, but there is still no age-based or startup-time garbage collection beyond the current naming patterns.
+- recovery files are cleaned on save and orphaned recovery files are garbage-collected on startup based on live session references;
+- there is still no age-based retention policy beyond current file references and naming patterns.
+
+## Fourteenth Increment Applied
+
+This change set adds startup garbage collection for orphaned recovery snapshots:
+- added `recoverystoregc.*` as a startup-time GC pass;
+- collects referenced recovery files from `documentsession.dat` and `floatingdocumentsession.dat`;
+- deletes only unreferenced `recovery_*.pdr` files after restore completes.
+
+This closes the main recovery lifecycle loop: create -> reference from session -> restore -> garbage collect when orphaned.
 
 ## Twelfth Increment Applied
 

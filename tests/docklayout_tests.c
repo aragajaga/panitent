@@ -573,6 +573,39 @@ static int test_recovery_store_deletes_matching_files_only(void)
 	return 0;
 }
 
+static int test_recovery_store_deletes_only_unreferenced_files(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szDirPath[MAX_PATH] = L"";
+	WCHAR szFileKeep[MAX_PATH] = L"";
+	WCHAR szFileDelete[MAX_PATH] = L"";
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"rcu", 0, szDirPath) != 0);
+	DeleteFileW(szDirPath);
+	assert(CreateDirectoryW(szDirPath, NULL));
+
+	StringCchPrintfW(szFileKeep, ARRAYSIZE(szFileKeep), L"%s\\recovery_main_keep.pdr", szDirPath);
+	StringCchPrintfW(szFileDelete, ARRAYSIZE(szFileDelete), L"%s\\recovery_main_delete.pdr", szDirPath);
+
+	HANDLE hFile = CreateFileW(szFileKeep, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	CloseHandle(hFile);
+	hFile = CreateFileW(szFileDelete, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	CloseHandle(hFile);
+
+	PCWSTR keepList[1] = { szFileKeep };
+	int nDeleted = 0;
+	assert(RecoveryStore_DeleteUnreferencedFilesInDirectory(szDirPath, L"recovery_main_*.pdr", keepList, 1, &nDeleted));
+	assert(nDeleted == 1);
+	assert(GetFileAttributesW(szFileKeep) != INVALID_FILE_ATTRIBUTES);
+	assert(GetFileAttributesW(szFileDelete) == INVALID_FILE_ATTRIBUTES);
+
+	DeleteFileW(szFileKeep);
+	RemoveDirectoryW(szDirPath);
+	return 0;
+}
+
 static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(void)
 {
 	TreeNode* pRoot = DockShell_CreateRootNode();
@@ -965,6 +998,7 @@ int main(void)
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_floating_document_session_model_file_round_trip();
 	failed |= test_recovery_store_deletes_matching_files_only();
+	failed |= test_recovery_store_deletes_only_unreferenced_files();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();

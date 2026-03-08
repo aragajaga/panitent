@@ -7,6 +7,7 @@
 #include "floatingdocumentsessionpersist.h"
 #include "docklayoutpersist.h"
 #include "documentsessionpersist.h"
+#include "recoverystoregc.h"
 #include "dockshell.h"
 #include "oledroptarget.h"
 #include "panitentwindow.h"
@@ -1871,4 +1872,5 @@ void PanitentWindow_PostCreate(PanitentWindow* pPanitentWindow)
     PanitentDocumentSession_Restore(PanitentApp_Instance());
     PanitentDockFloating_Restore(PanitentApp_Instance(), pDockHostWindow);
     PanitentFloatingDocumentSession_Restore(PanitentApp_Instance(), pDockHostWindow);
+    PanitentRecoveryStore_RunStartupGc();
 }

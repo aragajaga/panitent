@@ -3,3 +3,9 @@
 #include "precomp.h"
 
 BOOL RecoveryStore_DeleteFilesInDirectory(PCWSTR pszDirectory, PCWSTR pszPattern, int* pnDeleted);
+BOOL RecoveryStore_DeleteUnreferencedFilesInDirectory(
+	PCWSTR pszDirectory,
+	PCWSTR pszPattern,
+	PCWSTR* pKeepPaths,
+	int cKeepPaths,
+	int* pnDeleted);

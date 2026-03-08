@@ -136,6 +136,7 @@ set(C_SOURCES
     src/swatch2.c
     src/recoverystore.c
     src/recoverystorepersist.c
+    src/recoverystoregc.c
     src/toolbox.c
     src/theme.c
     src/toolwndframe.c
