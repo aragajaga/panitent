@@ -127,7 +127,12 @@ BOOL PanitentDocumentSession_Restore(PanitentApp* pPanitentApp)
 		return FALSE;
 	}
 
-	BOOL bLoaded = DocumentSessionModel_LoadFromFile(pszFilePath, &model);
+	PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
+	BOOL bLoaded = DocumentSessionModel_LoadFromFileEx(pszFilePath, &model, &loadStatus);
+	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
+	{
+		DeleteFileW(pszFilePath);
+	}
 	free(pszFilePath);
 	if (!bLoaded)
 	{

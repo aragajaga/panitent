@@ -60,18 +60,25 @@ BOOL PanitentDockLayout_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDock
 		return FALSE;
 	}
 
-	pModelRoot = DockModelIO_LoadFromFile(pszDockLayoutFilePath);
-	free(pszDockLayoutFilePath);
+	PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
+	pModelRoot = DockModelIO_LoadFromFileEx(pszDockLayoutFilePath, &loadStatus);
 	if (!pModelRoot)
 	{
+		if (loadStatus == PERSIST_LOAD_INVALID_FORMAT)
+		{
+			DeleteFileW(pszDockLayoutFilePath);
+		}
+		free(pszDockLayoutFilePath);
 		return FALSE;
 	}
-
 	if (!DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
 	{
+		DeleteFileW(pszDockLayoutFilePath);
+		free(pszDockLayoutFilePath);
 		DockModel_Destroy(pModelRoot);
 		return FALSE;
 	}
+	free(pszDockLayoutFilePath);
 
 	pRootNode = DockModelBuildTree(pModelRoot);
 	DockModel_Destroy(pModelRoot);

@@ -481,6 +481,32 @@ static int test_document_session_model_file_round_trip(void)
 	return 0;
 }
 
+static int test_persist_load_status_reports_missing_and_invalid_files(void)
+{
+	PersistLoadStatus status = PERSIST_LOAD_OK;
+	DocumentSessionModel docModel = { 0 };
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+
+	assert(!DocumentSessionModel_LoadFromFileEx(L"C:\\definitely_missing_documentsession.dat", &docModel, &status));
+	assert(status == PERSIST_LOAD_NOT_FOUND);
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"inv", 0, szTempFile) != 0);
+	HANDLE hFile = CreateFileW(szTempFile, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	DWORD cbWritten = 0;
+	const char payload[] = "invalid";
+	assert(WriteFile(hFile, payload, (DWORD)sizeof(payload), &cbWritten, NULL));
+	CloseHandle(hFile);
+
+	assert(!DocumentSessionModel_LoadFromFileEx(szTempFile, &docModel, &status));
+	assert(status == PERSIST_LOAD_INVALID_FORMAT);
+	DeleteFileW(szTempFile);
+
+	return 0;
+}
+
 static int test_floating_document_session_model_file_round_trip(void)
 {
 	WCHAR szTempPath[MAX_PATH] = L"";
@@ -996,6 +1022,7 @@ int main(void)
 	failed |= test_dock_view_catalog_maps_known_persistent_views();
 	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_document_session_model_file_round_trip();
+	failed |= test_persist_load_status_reports_missing_and_invalid_files();
 	failed |= test_floating_document_session_model_file_round_trip();
 	failed |= test_recovery_store_deletes_matching_files_only();
 	failed |= test_recovery_store_deletes_only_unreferenced_files();

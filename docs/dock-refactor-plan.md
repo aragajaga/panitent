@@ -250,6 +250,17 @@ This change set adds startup garbage collection for orphaned recovery snapshots:
 
 This closes the main recovery lifecycle loop: create -> reference from session -> restore -> garbage collect when orphaned.
 
+## Fifteenth Increment Applied
+
+This change set adds explicit load-status handling for persisted files:
+- model loaders now distinguish `missing`, `invalid format`, and `io error`;
+- restore paths automatically delete incompatible persisted files instead of repeatedly retrying broken data forever;
+- this creates a concrete migration/reset policy for future file-format changes.
+
+Current limitation:
+- incompatible files are reset, not migrated;
+- there is still no multi-version upgrade path beyond format rejection and fallback.
+
 ## Twelfth Increment Applied
 
 This change set starts extending persistence beyond the main dock host:

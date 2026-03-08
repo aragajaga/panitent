@@ -51,6 +51,11 @@ BOOL FloatingDocumentSessionModel_SaveToFile(const FloatingDocumentSessionModel*
 
 BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocumentSessionModel* pModel)
 {
+	return FloatingDocumentSessionModel_LoadFromFileEx(pszFilePath, pModel, NULL);
+}
+
+BOOL FloatingDocumentSessionModel_LoadFromFileEx(PCWSTR pszFilePath, FloatingDocumentSessionModel* pModel, PersistLoadStatus* pStatus)
+{
 	FILE* fp = NULL;
 	FloatingDocumentSessionFileHeader header = { 0 };
 	if (!pModel)
@@ -58,14 +63,37 @@ BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocum
 		return FALSE;
 	}
 
+	if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_IO_ERROR;
+	}
+
 	memset(pModel, 0, sizeof(*pModel));
 	if (!pszFilePath || !pszFilePath[0])
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
+		return FALSE;
+	}
+
+	DWORD dwAttrs = GetFileAttributesW(pszFilePath);
+	if (dwAttrs == INVALID_FILE_ATTRIBUTES)
+	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
 		return FALSE;
 	}
 
 	if (_wfopen_s(&fp, pszFilePath, L"rb") != 0 || !fp)
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_IO_ERROR;
+		}
 		return FALSE;
 	}
 
@@ -94,6 +122,14 @@ BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocum
 	if (bOk)
 	{
 		pModel->nEntryCount = (int)header.count;
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_OK;
+		}
+	}
+	else if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_INVALID_FORMAT;
 	}
 
 	return bOk;

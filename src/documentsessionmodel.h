@@ -1,6 +1,7 @@
 #pragma once
 
 #include "precomp.h"
+#include "persistload.h"
 
 typedef enum DocumentSessionEntryKind
 {
@@ -23,4 +24,5 @@ typedef struct DocumentSessionModel
 } DocumentSessionModel;
 
 BOOL DocumentSessionModel_SaveToFile(const DocumentSessionModel* pModel, PCWSTR pszFilePath);
+BOOL DocumentSessionModel_LoadFromFileEx(PCWSTR pszFilePath, DocumentSessionModel* pModel, PersistLoadStatus* pStatus);
 BOOL DocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, DocumentSessionModel* pModel);

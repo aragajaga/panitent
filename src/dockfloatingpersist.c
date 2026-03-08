@@ -144,7 +144,12 @@ BOOL PanitentDockFloating_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDo
 		return FALSE;
 	}
 
-	BOOL bLoaded = DockFloatingLayout_LoadFromFile(pszFilePath, &model);
+	PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
+	BOOL bLoaded = DockFloatingLayout_LoadFromFileEx(pszFilePath, &model, &loadStatus);
+	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
+	{
+		DeleteFileW(pszFilePath);
+	}
 	free(pszFilePath);
 	if (!bLoaded)
 	{

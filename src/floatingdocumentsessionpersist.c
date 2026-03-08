@@ -348,7 +348,12 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		return FALSE;
 	}
 
-	BOOL bLoaded = FloatingDocumentSessionModel_LoadFromFile(pszFilePath, pModel);
+	PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
+	BOOL bLoaded = FloatingDocumentSessionModel_LoadFromFileEx(pszFilePath, pModel, &loadStatus);
+	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
+	{
+		DeleteFileW(pszFilePath);
+	}
 	free(pszFilePath);
 	if (!bLoaded)
 	{

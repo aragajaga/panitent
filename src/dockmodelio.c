@@ -164,17 +164,45 @@ BOOL DockModelIO_SaveToFile(const DockModelNode* pRootNode, PCWSTR pszFilePath)
 
 DockModelNode* DockModelIO_LoadFromFile(PCWSTR pszFilePath)
 {
+	return DockModelIO_LoadFromFileEx(pszFilePath, NULL);
+}
+
+DockModelNode* DockModelIO_LoadFromFileEx(PCWSTR pszFilePath, PersistLoadStatus* pStatus)
+{
 	FILE* fp = NULL;
 	DockModelFileHeader header = { 0 };
-	DockModelNode* pRootNode;
+	DockModelNode* pRootNode = NULL;
+
+	if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_IO_ERROR;
+	}
 
 	if (!pszFilePath || !pszFilePath[0])
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
+		return NULL;
+	}
+
+	DWORD dwAttrs = GetFileAttributesW(pszFilePath);
+	if (dwAttrs == INVALID_FILE_ATTRIBUTES)
+	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
 		return NULL;
 	}
 
 	if (_wfopen_s(&fp, pszFilePath, L"rb") != 0 || !fp)
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_IO_ERROR;
+		}
 		return NULL;
 	}
 
@@ -183,10 +211,27 @@ DockModelNode* DockModelIO_LoadFromFile(PCWSTR pszFilePath)
 		header.version != DOCKMODELIO_VERSION)
 	{
 		fclose(fp);
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_INVALID_FORMAT;
+		}
 		return NULL;
 	}
 
 	pRootNode = DockModelIO_ReadFromStream(fp);
 	fclose(fp);
+	if (!pRootNode)
+	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_INVALID_FORMAT;
+		}
+		return NULL;
+	}
+
+	if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_OK;
+	}
 	return pRootNode;
 }

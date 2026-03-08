@@ -3,6 +3,7 @@
 #include "precomp.h"
 
 #include "dockmodel.h"
+#include "persistload.h"
 #include "dockviewcatalog.h"
 #include "floatingdockpolicy.h"
 
@@ -22,5 +23,6 @@ typedef struct DockFloatingLayoutFileModel
 } DockFloatingLayoutFileModel;
 
 BOOL DockFloatingLayout_SaveToFile(const DockFloatingLayoutFileModel* pModel, PCWSTR pszFilePath);
+BOOL DockFloatingLayout_LoadFromFileEx(PCWSTR pszFilePath, DockFloatingLayoutFileModel* pModel, PersistLoadStatus* pStatus);
 BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileModel* pModel);
 void DockFloatingLayout_Destroy(DockFloatingLayoutFileModel* pModel);

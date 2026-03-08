@@ -60,6 +60,11 @@ BOOL DockFloatingLayout_SaveToFile(const DockFloatingLayoutFileModel* pModel, PC
 
 BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileModel* pModel)
 {
+	return DockFloatingLayout_LoadFromFileEx(pszFilePath, pModel, NULL);
+}
+
+BOOL DockFloatingLayout_LoadFromFileEx(PCWSTR pszFilePath, DockFloatingLayoutFileModel* pModel, PersistLoadStatus* pStatus)
+{
 	FILE* fp = NULL;
 	DockFloatingFileHeader header = { 0 };
 	if (!pModel)
@@ -67,14 +72,37 @@ BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileM
 		return FALSE;
 	}
 
+	if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_IO_ERROR;
+	}
+
 	memset(pModel, 0, sizeof(*pModel));
 	if (!pszFilePath || !pszFilePath[0])
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
+		return FALSE;
+	}
+
+	DWORD dwAttrs = GetFileAttributesW(pszFilePath);
+	if (dwAttrs == INVALID_FILE_ATTRIBUTES)
+	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
 		return FALSE;
 	}
 
 	if (_wfopen_s(&fp, pszFilePath, L"rb") != 0 || !fp)
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_IO_ERROR;
+		}
 		return FALSE;
 	}
 
@@ -109,6 +137,14 @@ BOOL DockFloatingLayout_LoadFromFile(PCWSTR pszFilePath, DockFloatingLayoutFileM
 	if (bOk)
 	{
 		pModel->nEntries = (int)header.count;
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_OK;
+		}
+	}
+	else if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_INVALID_FORMAT;
 	}
 
 	return bOk;

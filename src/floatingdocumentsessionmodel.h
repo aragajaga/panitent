@@ -3,6 +3,7 @@
 #include "precomp.h"
 #include "dockmodel.h"
 #include "documentsessionmodel.h"
+#include "persistload.h"
 
 typedef struct FloatingDocumentWorkspaceSession
 {
@@ -26,5 +27,6 @@ typedef struct FloatingDocumentSessionModel
 } FloatingDocumentSessionModel;
 
 BOOL FloatingDocumentSessionModel_SaveToFile(const FloatingDocumentSessionModel* pModel, PCWSTR pszFilePath);
+BOOL FloatingDocumentSessionModel_LoadFromFileEx(PCWSTR pszFilePath, FloatingDocumentSessionModel* pModel, PersistLoadStatus* pStatus);
 BOOL FloatingDocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, FloatingDocumentSessionModel* pModel);
 void FloatingDocumentSessionModel_Destroy(FloatingDocumentSessionModel* pModel);

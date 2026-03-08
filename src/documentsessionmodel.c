@@ -44,6 +44,11 @@ BOOL DocumentSessionModel_SaveToFile(const DocumentSessionModel* pModel, PCWSTR 
 
 BOOL DocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, DocumentSessionModel* pModel)
 {
+	return DocumentSessionModel_LoadFromFileEx(pszFilePath, pModel, NULL);
+}
+
+BOOL DocumentSessionModel_LoadFromFileEx(PCWSTR pszFilePath, DocumentSessionModel* pModel, PersistLoadStatus* pStatus)
+{
 	FILE* fp = NULL;
 	DocumentSessionFileHeader header = { 0 };
 	if (!pModel)
@@ -51,15 +56,38 @@ BOOL DocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, DocumentSessionModel*
 		return FALSE;
 	}
 
+	if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_IO_ERROR;
+	}
+
 	memset(pModel, 0, sizeof(*pModel));
 	pModel->nActiveEntry = -1;
 	if (!pszFilePath || !pszFilePath[0])
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
+		return FALSE;
+	}
+
+	DWORD dwAttrs = GetFileAttributesW(pszFilePath);
+	if (dwAttrs == INVALID_FILE_ATTRIBUTES)
+	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_NOT_FOUND;
+		}
 		return FALSE;
 	}
 
 	if (_wfopen_s(&fp, pszFilePath, L"rb") != 0 || !fp)
 	{
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_IO_ERROR;
+		}
 		return FALSE;
 	}
 
@@ -77,6 +105,14 @@ BOOL DocumentSessionModel_LoadFromFile(PCWSTR pszFilePath, DocumentSessionModel*
 	{
 		pModel->nEntryCount = (int)header.count;
 		pModel->nActiveEntry = header.activeIndex;
+		if (pStatus)
+		{
+			*pStatus = PERSIST_LOAD_OK;
+		}
+	}
+	else if (pStatus)
+	{
+		*pStatus = PERSIST_LOAD_INVALID_FORMAT;
 	}
 
 	return bOk;
