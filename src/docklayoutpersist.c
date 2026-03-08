@@ -252,6 +252,5 @@ BOOL PanitentDockLayout_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDock
 
 	DockLayoutPersist_RemapActiveTabsRecursive(&context, pRootNode);
 	DockHostWindow_SetRoot(pDockHostWindow, pRootNode);
-	DockHostWindow_Rearrange(pDockHostWindow);
 	return pPanitentApp->m_pWorkspaceContainer != NULL;
 }
