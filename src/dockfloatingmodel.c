@@ -7,7 +7,7 @@
 #include "dockmodelio.h"
 
 #define DOCKFLOATING_MAGIC 0x474C4644u /* DFLG */
-#define DOCKFLOATING_VERSION 1u
+#define DOCKFLOATING_VERSION 2u
 
 typedef struct DockFloatingFileHeader
 {
@@ -15,6 +15,13 @@ typedef struct DockFloatingFileHeader
 	uint32_t version;
 	uint32_t count;
 } DockFloatingFileHeader;
+
+typedef struct LegacyDockFloatingLayoutEntryV1
+{
+	PanitentDockViewId nViewId;
+	RECT rcWindow;
+	int iDockSizeHint;
+} LegacyDockFloatingLayoutEntryV1;
 
 BOOL DockFloatingLayout_SaveToFile(const DockFloatingLayoutFileModel* pModel, PCWSTR pszFilePath)
 {
@@ -108,26 +115,43 @@ BOOL DockFloatingLayout_LoadFromFileEx(PCWSTR pszFilePath, DockFloatingLayoutFil
 
 	BOOL bOk = fread(&header, sizeof(header), 1, fp) == 1 &&
 		header.magic == DOCKFLOATING_MAGIC &&
-		header.version == DOCKFLOATING_VERSION &&
+		(header.version == 1u || header.version == DOCKFLOATING_VERSION) &&
 		header.count <= ARRAYSIZE(pModel->entries);
 	if (bOk && header.count > 0)
 	{
-		for (uint32_t i = 0; i < header.count && bOk; ++i)
+		if (header.version == 1u)
 		{
-			DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
-			bOk =
-				fread(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
-				fread(&pEntry->iDockSizeHint, sizeof(pEntry->iDockSizeHint), 1, fp) == 1 &&
-				fread(&pEntry->nChildKind, sizeof(pEntry->nChildKind), 1, fp) == 1 &&
-				fread(&pEntry->nViewId, sizeof(pEntry->nViewId), 1, fp) == 1;
+			LegacyDockFloatingLayoutEntryV1 legacyEntries[32] = { 0 };
+			bOk = fread(legacyEntries, sizeof(LegacyDockFloatingLayoutEntryV1), header.count, fp) == header.count;
 			if (bOk)
 			{
-				uint8_t bHasLayoutModel = 0;
-				bOk = fread(&bHasLayoutModel, sizeof(bHasLayoutModel), 1, fp) == 1;
-				if (bOk && bHasLayoutModel)
+				for (uint32_t i = 0; i < header.count; ++i)
 				{
-					pEntry->pLayoutModel = DockModelIO_ReadFromStream(fp);
-					bOk = pEntry->pLayoutModel != NULL;
+					pModel->entries[i].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+					pModel->entries[i].nViewId = legacyEntries[i].nViewId;
+					pModel->entries[i].rcWindow = legacyEntries[i].rcWindow;
+					pModel->entries[i].iDockSizeHint = legacyEntries[i].iDockSizeHint;
+				}
+			}
+		}
+		else {
+			for (uint32_t i = 0; i < header.count && bOk; ++i)
+			{
+				DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+				bOk =
+					fread(&pEntry->rcWindow, sizeof(pEntry->rcWindow), 1, fp) == 1 &&
+					fread(&pEntry->iDockSizeHint, sizeof(pEntry->iDockSizeHint), 1, fp) == 1 &&
+					fread(&pEntry->nChildKind, sizeof(pEntry->nChildKind), 1, fp) == 1 &&
+					fread(&pEntry->nViewId, sizeof(pEntry->nViewId), 1, fp) == 1;
+				if (bOk)
+				{
+					uint8_t bHasLayoutModel = 0;
+					bOk = fread(&bHasLayoutModel, sizeof(bHasLayoutModel), 1, fp) == 1;
+					if (bOk && bHasLayoutModel)
+					{
+						pEntry->pLayoutModel = DockModelIO_ReadFromStream(fp);
+						bOk = pEntry->pLayoutModel != NULL;
+					}
 				}
 			}
 		}

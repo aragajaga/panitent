@@ -6,7 +6,7 @@
 #include "documentsessionmodel.h"
 
 #define DOCSESSION_MAGIC 0x53534444u /* DDSS */
-#define DOCSESSION_VERSION 1u
+#define DOCSESSION_VERSION 2u
 
 typedef struct DocumentSessionFileHeader
 {
@@ -15,6 +15,11 @@ typedef struct DocumentSessionFileHeader
 	uint32_t count;
 	int32_t activeIndex;
 } DocumentSessionFileHeader;
+
+typedef struct LegacyDocumentSessionEntryV1
+{
+	WCHAR szFilePath[MAX_PATH];
+} LegacyDocumentSessionEntryV1;
 
 BOOL DocumentSessionModel_SaveToFile(const DocumentSessionModel* pModel, PCWSTR pszFilePath)
 {
@@ -93,11 +98,26 @@ BOOL DocumentSessionModel_LoadFromFileEx(PCWSTR pszFilePath, DocumentSessionMode
 
 	BOOL bOk = fread(&header, sizeof(header), 1, fp) == 1 &&
 		header.magic == DOCSESSION_MAGIC &&
-		header.version == DOCSESSION_VERSION &&
+		(header.version == 1u || header.version == DOCSESSION_VERSION) &&
 		header.count <= ARRAYSIZE(pModel->entries);
 	if (bOk && header.count > 0)
 	{
-		bOk = fread(pModel->entries, sizeof(DocumentSessionEntry), header.count, fp) == header.count;
+		if (header.version == 1u)
+		{
+			LegacyDocumentSessionEntryV1 legacyEntries[64] = { 0 };
+			bOk = fread(legacyEntries, sizeof(LegacyDocumentSessionEntryV1), header.count, fp) == header.count;
+			if (bOk)
+			{
+				for (uint32_t i = 0; i < header.count; ++i)
+				{
+					pModel->entries[i].nKind = DOCSESSION_ENTRY_FILE;
+					wcscpy_s(pModel->entries[i].szFilePath, ARRAYSIZE(pModel->entries[i].szFilePath), legacyEntries[i].szFilePath);
+				}
+			}
+		}
+		else {
+			bOk = fread(pModel->entries, sizeof(DocumentSessionEntry), header.count, fp) == header.count;
+		}
 	}
 
 	fclose(fp);

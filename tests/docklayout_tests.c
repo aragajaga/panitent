@@ -507,6 +507,153 @@ static int test_persist_load_status_reports_missing_and_invalid_files(void)
 	return 0;
 }
 
+static int test_document_session_model_loads_legacy_v1_format(void)
+{
+	typedef struct LegacyDocumentSessionEntryV1
+	{
+		WCHAR szFilePath[MAX_PATH];
+	} LegacyDocumentSessionEntryV1;
+
+	typedef struct LegacyHeader
+	{
+		uint32_t magic;
+		uint32_t version;
+		uint32_t count;
+		int32_t activeIndex;
+	} LegacyHeader;
+
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DocumentSessionModel loaded = { 0 };
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dsl", 0, szTempFile) != 0);
+
+	LegacyHeader header = { 0x53534444u, 1u, 2u, 1 };
+	LegacyDocumentSessionEntryV1 entries[2] = { 0 };
+	wcscpy_s(entries[0].szFilePath, ARRAYSIZE(entries[0].szFilePath), L"C:\\legacy\\a.png");
+	wcscpy_s(entries[1].szFilePath, ARRAYSIZE(entries[1].szFilePath), L"C:\\legacy\\b.png");
+
+	FILE* fp = NULL;
+	assert(_wfopen_s(&fp, szTempFile, L"wb") == 0 && fp);
+	assert(fwrite(&header, sizeof(header), 1, fp) == 1);
+	assert(fwrite(entries, sizeof(entries[0]), 2, fp) == 2);
+	fclose(fp);
+
+	PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+	assert(DocumentSessionModel_LoadFromFileEx(szTempFile, &loaded, &status));
+	assert(status == PERSIST_LOAD_OK);
+	assert(loaded.nEntryCount == 2);
+	assert(loaded.nActiveEntry == 1);
+	assert(loaded.entries[0].nKind == DOCSESSION_ENTRY_FILE);
+	assert(loaded.entries[1].nKind == DOCSESSION_ENTRY_FILE);
+	assert(wcscmp(loaded.entries[0].szFilePath, entries[0].szFilePath) == 0);
+	assert(wcscmp(loaded.entries[1].szFilePath, entries[1].szFilePath) == 0);
+
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
+static int test_dock_floating_model_loads_legacy_v1_format(void)
+{
+	typedef struct LegacyHeader
+	{
+		uint32_t magic;
+		uint32_t version;
+		uint32_t count;
+	} LegacyHeader;
+
+	typedef struct LegacyDockFloatingLayoutEntryV1
+	{
+		PanitentDockViewId nViewId;
+		RECT rcWindow;
+		int iDockSizeHint;
+	} LegacyDockFloatingLayoutEntryV1;
+
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	DockFloatingLayoutFileModel loaded = { 0 };
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"dfl", 0, szTempFile) != 0);
+
+	LegacyHeader header = { 0x474C4644u, 1u, 1u };
+	LegacyDockFloatingLayoutEntryV1 entry = { PNT_DOCK_VIEW_TOOLBOX, { 1, 2, 200, 300 }, 240 };
+	FILE* fp = NULL;
+	assert(_wfopen_s(&fp, szTempFile, L"wb") == 0 && fp);
+	assert(fwrite(&header, sizeof(header), 1, fp) == 1);
+	assert(fwrite(&entry, sizeof(entry), 1, fp) == 1);
+	fclose(fp);
+
+	PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+	assert(DockFloatingLayout_LoadFromFileEx(szTempFile, &loaded, &status));
+	assert(status == PERSIST_LOAD_OK);
+	assert(loaded.nEntries == 1);
+	assert(loaded.entries[0].nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL);
+	assert(loaded.entries[0].nViewId == PNT_DOCK_VIEW_TOOLBOX);
+	assert(EqualRect(&loaded.entries[0].rcWindow, &entry.rcWindow));
+	assert(loaded.entries[0].iDockSizeHint == 240);
+
+	DockFloatingLayout_Destroy(&loaded);
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
+static int test_floating_document_session_model_loads_legacy_v1_format(void)
+{
+	typedef struct LegacyHeader
+	{
+		uint32_t magic;
+		uint32_t version;
+		uint32_t count;
+	} LegacyHeader;
+
+	typedef struct LegacyFloatingDocumentSessionEntryV1
+	{
+		RECT rcWindow;
+		int nActiveEntry;
+		int nFileCount;
+		WCHAR szFilePaths[32][MAX_PATH];
+	} LegacyFloatingDocumentSessionEntryV1;
+
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	FloatingDocumentSessionModel* pLoaded = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	assert(pLoaded);
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"fdl", 0, szTempFile) != 0);
+
+	LegacyHeader header = { 0x53444644u, 1u, 1u };
+	LegacyFloatingDocumentSessionEntryV1 entry = { 0 };
+	SetRect(&entry.rcWindow, 10, 20, 500, 300);
+	entry.nActiveEntry = 0;
+	entry.nFileCount = 1;
+	wcscpy_s(entry.szFilePaths[0], ARRAYSIZE(entry.szFilePaths[0]), L"C:\\legacy\\doc.png");
+
+	FILE* fp = NULL;
+	assert(_wfopen_s(&fp, szTempFile, L"wb") == 0 && fp);
+	assert(fwrite(&header, sizeof(header), 1, fp) == 1);
+	assert(fwrite(&entry, sizeof(entry), 1, fp) == 1);
+	fclose(fp);
+
+	PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+	assert(FloatingDocumentSessionModel_LoadFromFileEx(szTempFile, pLoaded, &status));
+	assert(status == PERSIST_LOAD_OK);
+	assert(pLoaded->nEntryCount == 1);
+	assert(pLoaded->entries[0].pLayoutModel != NULL);
+	assert(pLoaded->entries[0].pLayoutModel->nRole == DOCK_ROLE_ROOT);
+	assert(pLoaded->entries[0].pLayoutModel->pChild1 != NULL);
+	assert(pLoaded->entries[0].pLayoutModel->pChild1->nRole == DOCK_ROLE_WORKSPACE);
+	assert(pLoaded->entries[0].nWorkspaceCount == 1);
+	assert(pLoaded->entries[0].workspaces[0].nActiveEntry == 0);
+	assert(pLoaded->entries[0].workspaces[0].nFileCount == 1);
+	assert(pLoaded->entries[0].workspaces[0].entries[0].nKind == DOCSESSION_ENTRY_FILE);
+	assert(wcscmp(pLoaded->entries[0].workspaces[0].entries[0].szFilePath, entry.szFilePaths[0]) == 0);
+
+	FloatingDocumentSessionModel_Destroy(pLoaded);
+	free(pLoaded);
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
 static int test_floating_document_session_model_file_round_trip(void)
 {
 	WCHAR szTempPath[MAX_PATH] = L"";
@@ -1074,6 +1221,9 @@ int main(void)
 	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_persist_load_status_reports_missing_and_invalid_files();
+	failed |= test_document_session_model_loads_legacy_v1_format();
+	failed |= test_dock_floating_model_loads_legacy_v1_format();
+	failed |= test_floating_document_session_model_loads_legacy_v1_format();
 	failed |= test_floating_document_session_model_file_round_trip();
 	failed |= test_recovery_store_deletes_matching_files_only();
 	failed |= test_recovery_store_deletes_only_unreferenced_files();

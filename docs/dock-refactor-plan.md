@@ -272,6 +272,15 @@ Current limitation:
 - incompatible files are reset, not migrated;
 - there is still no multi-version upgrade path beyond format rejection and fallback.
 
+## Seventeenth Increment Applied
+
+This change set adds real backward-compatible loading for legacy session formats:
+- `documentsession.dat`, `dockfloating.dat`, and `floatingdocumentsession.dat` now write `v2`;
+- loaders still understand legacy `v1` payloads and upgrade them into the current in-memory model;
+- migration tests cover `v1 -> current model` for all three session formats.
+
+This replaces simple rejection with an actual compatibility path for the most important persisted files.
+
 ## Twelfth Increment Applied
 
 This change set starts extending persistence beyond the main dock host:
