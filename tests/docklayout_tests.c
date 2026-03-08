@@ -3,6 +3,7 @@
 
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
+#include "../src/docktypes.h"
 #include "../src/workspacedockpolicy.h"
 
 static int test_zone_tab_rect_vertical_starts_from_top(void)
@@ -218,6 +219,18 @@ static int test_core_panel_lock_policy(void)
 	return 0;
 }
 
+static int test_explicit_dock_roles_override_name_fallback(void)
+{
+	assert(!DockPolicy_CanUndockPanel(DOCK_ROLE_WORKSPACE, L"Palette"));
+	assert(!DockPolicy_CanClosePanel(DOCK_ROLE_ZONE, L"Layers"));
+	assert(!DockPolicy_CanPinPanel(DOCK_ROLE_PANEL_SPLIT, L"Toolbox"));
+	assert(DockPolicy_CanClosePanel(DOCK_ROLE_PANEL, L"WorkspaceContainer"));
+	assert(DockNodeRole_IsStructural(DOCK_ROLE_ZONE_STACK_SPLIT, NULL));
+	assert(DockNodeRole_UsesProportionalGrip(DOCK_ROLE_PANEL_SPLIT, NULL));
+
+	return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -267,6 +280,7 @@ int main(void)
 	failed |= test_dock_preview_rect_behavior();
 	failed |= test_zone_tab_click_policy();
 	failed |= test_core_panel_lock_policy();
+	failed |= test_explicit_dock_roles_override_name_fallback();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 

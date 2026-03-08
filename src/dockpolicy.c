@@ -2,60 +2,34 @@
 
 #include "dockpolicy.h"
 
-static BOOL DockPolicy_NameStartsWith(PCWSTR pszName, PCWSTR pszPrefix)
-{
-	if (!pszName || !pszPrefix)
-	{
-		return FALSE;
-	}
-
-	size_t cchPrefix = wcslen(pszPrefix);
-	if (cchPrefix == 0)
-	{
-		return FALSE;
-	}
-
-	return wcsncmp(pszName, pszPrefix, cchPrefix) == 0;
-}
-
-static BOOL DockPolicy_IsCorePanelName(PCWSTR pszName)
-{
-	if (!pszName || !pszName[0])
-	{
-		return FALSE;
-	}
-
-	if (wcscmp(pszName, L"WorkspaceContainer") == 0)
-	{
-		return TRUE;
-	}
-
-	if (wcscmp(pszName, L"Root") == 0)
-	{
-		return TRUE;
-	}
-
-	if (DockPolicy_NameStartsWith(pszName, L"DockZone.") || DockPolicy_NameStartsWith(pszName, L"DockShell."))
-	{
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
 BOOL DockPolicy_CanUndockPanelName(PCWSTR pszName)
 {
-	return DockPolicy_IsCorePanelName(pszName) ? FALSE : TRUE;
+	return DockPolicy_CanUndockPanel(DOCK_ROLE_UNKNOWN, pszName);
 }
 
 BOOL DockPolicy_CanClosePanelName(PCWSTR pszName)
 {
-	return DockPolicy_IsCorePanelName(pszName) ? FALSE : TRUE;
+	return DockPolicy_CanClosePanel(DOCK_ROLE_UNKNOWN, pszName);
 }
 
 BOOL DockPolicy_CanPinPanelName(PCWSTR pszName)
 {
-	return DockPolicy_IsCorePanelName(pszName) ? FALSE : TRUE;
+	return DockPolicy_CanPinPanel(DOCK_ROLE_UNKNOWN, pszName);
+}
+
+BOOL DockPolicy_CanUndockPanel(DockNodeRole role, PCWSTR pszName)
+{
+	return DockNodeRole_IsCorePanel(role, pszName) ? FALSE : TRUE;
+}
+
+BOOL DockPolicy_CanClosePanel(DockNodeRole role, PCWSTR pszName)
+{
+	return DockNodeRole_IsCorePanel(role, pszName) ? FALSE : TRUE;
+}
+
+BOOL DockPolicy_CanPinPanel(DockNodeRole role, PCWSTR pszName)
+{
+	return DockNodeRole_IsCorePanel(role, pszName) ? FALSE : TRUE;
 }
 
 void DockPolicy_ResolveZoneTabClick(BOOL bHasClickedTab, BOOL bClickedIsActive, BOOL bWasCollapsed, DockPolicyZoneTabClickResult* pResult)

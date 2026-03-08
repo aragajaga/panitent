@@ -186,6 +186,7 @@ TreeNode* CreateToolboxNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHost
         memset(pDockDataToolbox, 0, sizeof(DockData));
         pNodeToolbox->data = (void*)pDockDataToolbox;
         wcscpy_s(pDockDataToolbox->lpszName, MAX_PATH, L"Toolbox");
+        pDockDataToolbox->nRole = DOCK_ROLE_PANEL;
         ToolboxWindow* pToolboxWindow = ToolboxWindow_Create((Application*)pPanitentApp);
         Window_CreateWindow((Window*)pToolboxWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataToolbox, (Window*)pToolboxWindow);
@@ -203,6 +204,7 @@ TreeNode* CreateViewportNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHos
         memset(pDockDataViewport, 0, sizeof(DockData));
         pNodeViewport->data = (void*)pDockDataViewport;
         wcscpy_s(pDockDataViewport->lpszName, MAX_PATH, L"WorkspaceContainer");
+        pDockDataViewport->nRole = DOCK_ROLE_WORKSPACE;
         WorkspaceContainer* pWorkspaceContainer = WorkspaceContainer_Create((Application*)pPanitentApp);
         HWND hWndWorkspaceContainer = Window_CreateWindow((Window*)pWorkspaceContainer, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataViewport, (Window*)pWorkspaceContainer);
@@ -222,6 +224,7 @@ TreeNode* CreateGLWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHos
         memset(pDockDataGLWindow, 0, sizeof(DockData));
         pNodeGLWindow->data = (void*)pDockDataGLWindow;
         wcscpy_s(pDockDataGLWindow->lpszName, MAX_PATH, L"GLWindow");
+        pDockDataGLWindow->nRole = DOCK_ROLE_PANEL;
         GLWindow* pGLWindow = GLWindow_Create((struct Application*)pPanitentApp);
         HWND hwndGLWindow = Window_CreateWindow((Window*)pGLWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataGLWindow, (Window*)pGLWindow);
@@ -239,6 +242,7 @@ TreeNode* CreatePaletteWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDo
         memset(pDockDataPalette, 0, sizeof(DockData));
         pNodePalette->data = (void*)pDockDataPalette;
         wcscpy_s(pDockDataPalette->lpszName, MAX_PATH, L"Palette");
+        pDockDataPalette->nRole = DOCK_ROLE_PANEL;
         PaletteWindow* pPaletteWindow = PaletteWindow_Create(pPanitentApp->palette);
         HWND hwndPalette = Window_CreateWindow((Window*)pPaletteWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataPalette, (Window*)pPaletteWindow);
@@ -256,6 +260,7 @@ TreeNode* CreateLayersWindowNode(PanitentApp* pPanitentApp, DockHostWindow* pDoc
         memset(pDockDataLayers, 0, sizeof(DockData));
         pNodeLayers->data = (void*)pDockDataLayers;
         wcscpy_s(pDockDataLayers->lpszName, MAX_PATH, L"Layers");
+        pDockDataLayers->nRole = DOCK_ROLE_PANEL;
         LayersWindow* pLayersWindow = LayersWindow_Create((Application*)pPanitentApp);
         HWND hwndLayers = Window_CreateWindow((Window*)pLayersWindow, NULL);
         DockData_PinWindow(pDockHostWindow, pDockDataLayers, (Window*)pLayersWindow);
@@ -273,6 +278,7 @@ TreeNode* CreateOptionBarNode(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
         memset(pDockDataOptionBar, 0, sizeof(DockData));
         pNodeOptionBar->data = (void*)pDockDataOptionBar;
         _tcscpy_s(pDockDataOptionBar->lpszName, MAX_PATH, _T("Option Bar"));
+        pDockDataOptionBar->nRole = DOCK_ROLE_PANEL;
         OptionBarWindow* pOptionBarWindow = OptionBarWindow_Create();
         HWND hwndLayers = Window_CreateWindow((Window*)pOptionBarWindow, NULL);
         PanitentApp_SetOptionBar(pPanitentApp, pOptionBarWindow);
@@ -293,6 +299,7 @@ TreeNode* CreateSplitNode(PanitentApp* pPanitentApp, LPTSTR pszName, DWORD dwSty
         memset(pDockDataY, 0, sizeof(DockData));
         pNodeY->data = (void*)pDockDataY;
         _tcscpy_s(pDockDataY->lpszName, MAX_PATH, pszName);
+        pDockDataY->nRole = DOCK_ROLE_SHELL_SPLIT;
         pDockDataY->dwStyle = dwStyle;
         pDockDataY->iGripPos = iGripPos;
 
@@ -310,6 +317,7 @@ TreeNode* CreateZoneNode(PCWSTR pszName)
     {
         DockData* pDockData = (DockData*)pZoneNode->data;
         wcscpy_s(pDockData->lpszName, MAX_PATH, pszName);
+        pDockData->nRole = DOCK_ROLE_ZONE;
     }
 
     return pZoneNode;
@@ -339,6 +347,7 @@ static void AppDock_AppendPanelToZone(TreeNode* pZoneNode, TreeNode* pPanelNode,
 
     DockData* pDockDataSplit = (DockData*)pSplit->data;
     wcscpy_s(pDockDataSplit->lpszName, MAX_PATH, L"DockShell.ZoneStack");
+    pDockDataSplit->nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
 
     pSplit->node1 = pZoneNode->node1;
     pSplit->node2 = pPanelNode;
@@ -350,6 +359,7 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     DockData* pDockDataParent = DockData_Create(64, DGA_END | DGP_ABSOLUTE | DGD_VERTICAL, FALSE);
     pNodeParent->data = (void*)pDockDataParent;
     wcscpy_s(pDockDataParent->lpszName, MAX_PATH, L"Root");
+    pDockDataParent->nRole = DOCK_ROLE_ROOT;
 
     /*
      * Dock shell layout:
@@ -368,6 +378,10 @@ void PanitentApp_DockHostInit(PanitentApp* pPanitentApp, DockHostWindow* pDockHo
     TreeNode* pZoneRight = CreateZoneNode(L"DockZone.Right");
     TreeNode* pZoneTop = CreateZoneNode(L"DockZone.Top");
     TreeNode* pZoneBottom = CreateZoneNode(L"DockZone.Bottom");
+    if (pZoneLeft && pZoneLeft->data) { ((DockData*)pZoneLeft->data)->nDockSide = DKS_LEFT; }
+    if (pZoneRight && pZoneRight->data) { ((DockData*)pZoneRight->data)->nDockSide = DKS_RIGHT; }
+    if (pZoneTop && pZoneTop->data) { ((DockData*)pZoneTop->data)->nDockSide = DKS_TOP; }
+    if (pZoneBottom && pZoneBottom->data) { ((DockData*)pZoneBottom->data)->nDockSide = DKS_BOTTOM; }
 
     if (pZoneLeft)
     {

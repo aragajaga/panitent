@@ -81,6 +81,7 @@ set(C_SOURCES
     src/docklayout.c
     src/dockhost.c
     src/dockpolicy.c
+    src/docktypes.c
     src/dockinspectordialog.c
     src/document.c
     src/file_open.c
@@ -176,6 +177,7 @@ if(PANITENT_BUILD_TESTS)
     tests/docklayout_tests.c
     src/docklayout.c
     src/dockpolicy.c
+    src/docktypes.c
     src/workspacedockpolicy.c
   )
 

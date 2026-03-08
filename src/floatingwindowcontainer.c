@@ -1036,6 +1036,7 @@ static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWN
 
     DockData* pRootData = (DockData*)pRootNode->data;
     wcscpy_s(pRootData->lpszName, MAX_PATH, L"Root");
+    pRootData->nRole = DOCK_ROLE_ROOT;
 
     RECT rcFloatingClient = { 0 };
     GetClientRect(hWndTargetParent, &rcFloatingClient);
@@ -1050,6 +1051,7 @@ static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWN
 
     DockData* pWorkspaceData = (DockData*)pWorkspaceNode->data;
     wcscpy_s(pWorkspaceData->lpszName, MAX_PATH, L"WorkspaceContainer");
+    pWorkspaceData->nRole = DOCK_ROLE_WORKSPACE;
     pWorkspaceData->bShowCaption = FALSE;
     DockData_PinWindow(pLocalDockHostWindow, pWorkspaceData, pTargetWorkspaceWindow);
 

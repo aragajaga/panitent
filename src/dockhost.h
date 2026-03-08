@@ -4,6 +4,7 @@
 
 #include "win32/window.h"
 #include "util/tree.h"
+#include "docktypes.h"
 
 #define DGA_START 0
 #define DGA_END 1
@@ -20,6 +21,8 @@ struct DockData {
 	DWORD dwStyle;
 	WCHAR lpszCaption[MAX_PATH];
 	WCHAR lpszName[MAX_PATH];
+	DockNodeRole nRole;
+	int nDockSide;
 	RECT rc;
 	float fGripPos;
 	short iGripPos;
