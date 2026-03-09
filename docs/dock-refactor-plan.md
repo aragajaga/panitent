@@ -616,3 +616,12 @@ This change set extends runtime coverage for transactional catalog operations:
 - delete rollback on `SaveCatalog` failure remains covered.
 
 This keeps the whole named layout catalog mutation surface under explicit late-failure tests, not just the save/apply commands.
+
+## Named Layout Catalog Success Coverage Increment Applied
+
+This change set extends runtime coverage for the positive path of transactional catalog operations:
+- successful move persists the new ordering;
+- successful rename persists the new name;
+- successful delete removes both the catalog entry and the profile bundle files.
+
+This complements the existing late-failure coverage and keeps named layout catalog management covered on both success and rollback paths.
