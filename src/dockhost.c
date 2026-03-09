@@ -15,6 +15,7 @@
 #include "dockhost.h"
 #include "dockhostcaption.h"
 #include "dockhostautohide.h"
+#include "dockhostdrag.h"
 #include "dockhostmodelapply.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
@@ -52,9 +53,6 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_ZONE_MAX_TABS 32
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
-#define DOCK_TARGET_GUIDE_SIZE 24
-#define DOCK_TARGET_GUIDE_GAP 8
-#define DOCK_TARGET_GUIDE_EDGE_MARGIN 12
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 #define DOCK_MIN_PANE_SIZE 96
@@ -63,10 +61,6 @@ static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHos
 static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop);
 
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
-static void DockHostWindow_DestroyDragOverlay(void);
-static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
-static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
-static BOOL DockNode_HasVisibleWindow(TreeNode* pNode);
 static void DockHostWindow_AssignPersistentNameForHWND(DockData* pDockData, HWND hWnd);
 static BOOL DockNode_IsStructural(TreeNode* pNode);
 static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
@@ -80,11 +74,6 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWND hWnd);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
-static void DockHostWindow_GetGlobalTargetGuideRects(const RECT* pHostClient, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
-static void DockHostWindow_GetLocalTargetGuideRects(const RECT* pHostClient, const RECT* pAnchorRect, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
-static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient);
-static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient);
-static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor);
 static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y);
 static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
@@ -325,11 +314,6 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 	}
 
 	return DHT_UNKNOWN;
-}
-
-static BOOL DockNode_HasVisibleWindow(TreeNode* pNode)
-{
-	return DockHostLayout_NodeHasVisibleWindow(pNode);
 }
 
 static BOOL DockNode_IsStructural(TreeNode* pNode)
@@ -1022,87 +1006,6 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 	}
 }
 
-HWND g_hWndDragOverlay;
-
-static void DockHostWindow_DestroyDragOverlay(void)
-{
-	if (g_hWndDragOverlay && IsWindow(g_hWndDragOverlay))
-	{
-		DestroyWindow(g_hWndDragOverlay);
-	}
-
-	g_hWndDragOverlay = NULL;
-}
-
-static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating)
-{
-	if (!hWndFloating || !IsWindow(hWndFloating))
-	{
-		return;
-	}
-
-	POINT ptCursor = { 0 };
-	GetCursorPos(&ptCursor);
-
-	ReleaseCapture();
-	SetForegroundWindow(hWndFloating);
-	SetActiveWindow(hWndFloating);
-
-	/* Continue drag with system non-client move loop. */
-	LPARAM lParam = MAKELPARAM((short)ptCursor.x, (short)ptCursor.y);
-	SendMessage(hWndFloating, WM_NCLBUTTONDOWN, HTCAPTION, lParam);
-}
-
-void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pNode, int x, int y)
-{
-	if (!pDockHostWindow || !pNode || !pNode->data)
-	{
-		return;
-	}
-
-	DockData* pDockData = (DockData*)pNode->data;
-	RECT rcDockLocal = pDockData->rc;
-	int dockWidth = max(Win32_Rect_GetWidth(&rcDockLocal), 1);
-	int dockHeight = max(Win32_Rect_GetHeight(&rcDockLocal), 1);
-
-	int dragOffsetX = x - rcDockLocal.left;
-	int dragOffsetY = y - rcDockLocal.top;
-	dragOffsetX = max(0, min(dragOffsetX, dockWidth - 1));
-	dragOffsetY = max(0, min(dragOffsetY, dockHeight - 1));
-
-	POINT ptCursor = { 0 };
-	GetCursorPos(&ptCursor);
-
-	if (pDockData->nPaneKind == DOCK_PANE_TOOL)
-	{
-		if (!DockHostModelApply_RemoveToolWindow(pDockHostWindow, pDockData->hWnd, TRUE))
-		{
-			return;
-		}
-	}
-	else {
-		DockHostWindow_Undock(pDockHostWindow, pNode);
-	}
-
-	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-	HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
-	FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-	FloatingWindowContainer_PinWindow(pFloatingWindowContainer, pDockData->hWnd);
-
-	RECT rcFloating = rcDockLocal;
-	MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcFloating, 2);
-
-	int width = max(Win32_Rect_GetWidth(&rcFloating), 260);
-	int height = max(Win32_Rect_GetHeight(&rcFloating), 220);
-	int floatingX = ptCursor.x - dragOffsetX;
-	int floatingY = ptCursor.y - dragOffsetY;
-	SetWindowPos(hWndFloating, NULL, floatingX, floatingY, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
-
-	DockHostWindow_Rearrange(pDockHostWindow);
-	DockHostWindow_DestroyDragOverlay();
-	DockHostWindow_ContinueFloatingDrag(hWndFloating);
-}
-
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
 {
 	UNREFERENCED_PARAMETER(keyFlags);
@@ -1124,12 +1027,12 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
 		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
 		int activateDistance = DRAG_UNDOCK_DISTANCE;
-		DockHostWindow_UpdateDragOverlayVisual(pDockHostWindow, distance);
+		DockHostDrag_UpdateOverlayVisual(pDockHostWindow, distance);
 
 		if (distance >= activateDistance)
 		{
 			pDockHostWindow->fCaptionDrag = FALSE;
-			DockHostWindow_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode, x, y);
+			DockHostDrag_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode, x, y);
 		}
 		/*
 		else {
@@ -1160,156 +1063,6 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 			SetCursor(LoadCursor(NULL, IDC_SIZEWE));
 		}
 	}
-}
-
-LRESULT CALLBACK DragOverlayWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
-{
-	switch (message)
-	{
-
-	}
-
-	return DefWindowProc(hWnd, message, wParam, lParam);
-}
-
-static float smoothstepf(float edge0, float edge1, float x)
-{
-	float t = fminf(fmaxf((x - edge0) / (edge1 - edge0), 0.0f), 1.0f);
-	return t * t * (3.0f - 2.0f * t);
-}
-
-static float clampf(float value, float minValue, float maxValue)
-{
-	if (value < minValue)
-	{
-		return minValue;
-	}
-	else if (value > maxValue)
-	{
-		return maxValue;
-	}
-	else {
-		return value;
-	}
-}
-
-#define DRAG_OVERLAY_SIZE 128
-#define DRAG_OVERLAY_CENTER (DRAG_OVERLAY_SIZE / 2)
-
-static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius)
-{
-	if (!pDockHostWindow || !g_hWndDragOverlay || !IsWindow(g_hWndDragOverlay))
-	{
-		return;
-	}
-
-	HDC hdcScreen = GetDC(NULL);
-	HDC hdcMem = CreateCompatibleDC(hdcScreen);
-
-	BITMAPINFO bmi = { 0 };
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = DRAG_OVERLAY_SIZE;
-	bmi.bmiHeader.biHeight = -DRAG_OVERLAY_SIZE;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	unsigned int* pBits = NULL;
-	HBITMAP hBitmap = CreateDIBSection(hdcScreen, &bmi, DIB_RGB_COLORS, (void**)&pBits, NULL, 0);
-	HGDIOBJ hOldObj = SelectObject(hdcMem, hBitmap);
-	memset(pBits, 0, DRAG_OVERLAY_SIZE * DRAG_OVERLAY_SIZE * sizeof(unsigned int));
-
-	float radius = clampf((float)iRadius, 0.0f, (float)(DRAG_OVERLAY_CENTER - 6));
-	float readiness = clampf(radius / (float)DRAG_UNDOCK_DISTANCE, 0.0f, 1.0f);
-	float heat = smoothstepf(0.72f, 1.0f, readiness);
-	float ringHalfWidth = 2.2f + heat * 0.8f;
-	float ringFeather = 2.4f + heat * 1.2f;
-
-	const float coldR = 0x62;
-	const float coldG = 0xC6;
-	const float coldB = 0xFF;
-	const float hotR = 0xFF;
-	const float hotG = 0x8A;
-	const float hotB = 0x4A;
-	float srcR = coldR + (hotR - coldR) * heat;
-	float srcG = coldG + (hotG - coldG) * heat;
-	float srcB = coldB + (hotB - coldB) * heat;
-
-	for (int y = 0; y < DRAG_OVERLAY_SIZE; ++y)
-	{
-		for (int x = 0; x < DRAG_OVERLAY_SIZE; ++x)
-		{
-			float dx = (float)x + 0.5f - (float)DRAG_OVERLAY_CENTER;
-			float dy = (float)y + 0.5f - (float)DRAG_OVERLAY_CENTER;
-			float distance = sqrtf(dx * dx + dy * dy);
-			float ringDistance = fabsf(distance - radius);
-			float core = 1.0f - smoothstepf(ringHalfWidth, ringHalfWidth + ringFeather, ringDistance);
-			float glow = (1.0f - smoothstepf(ringHalfWidth + 1.5f, ringHalfWidth + 8.5f, ringDistance)) * 0.38f;
-			float alphaNorm = clampf(core + glow, 0.0f, 1.0f);
-			if (radius < 1.0f)
-			{
-				alphaNorm = 0.0f;
-			}
-
-			float alphaBoost = 220.0f + heat * 20.0f;
-			BYTE alpha = (BYTE)clampf(alphaBoost * alphaNorm, 0.0f, 255.0f);
-			BYTE red = (BYTE)clampf((srcR * alpha) / 255.0f, 0.0f, 255.0f);
-			BYTE green = (BYTE)clampf((srcG * alpha) / 255.0f, 0.0f, 255.0f);
-			BYTE blue = (BYTE)clampf((srcB * alpha) / 255.0f, 0.0f, 255.0f);
-			pBits[y * DRAG_OVERLAY_SIZE + x] = ((unsigned int)alpha << 24) | ((unsigned int)red << 16) | ((unsigned int)green << 8) | (unsigned int)blue;
-		}
-	}
-
-	POINT ptPos = { pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y };
-	ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptPos);
-	ptPos.x -= DRAG_OVERLAY_CENTER;
-	ptPos.y -= DRAG_OVERLAY_CENTER;
-
-	SIZE sizeWnd = { DRAG_OVERLAY_SIZE, DRAG_OVERLAY_SIZE };
-	POINT ptSrc = { 0, 0 };
-	BLENDFUNCTION blendFunction = { AC_SRC_OVER, 0, 255, AC_SRC_ALPHA };
-	UpdateLayeredWindow(g_hWndDragOverlay, hdcScreen, &ptPos, &sizeWnd, hdcMem, &ptSrc, RGB(0, 0, 0), &blendFunction, ULW_ALPHA);
-
-	SelectObject(hdcMem, hOldObj);
-	DeleteObject(hBitmap);
-	DeleteDC(hdcMem);
-	ReleaseDC(NULL, hdcScreen);
-}
-
-void DockHostWindow_StartDrag(DockHostWindow* pDockHostWindow, int x, int y)
-{
-	UNREFERENCED_PARAMETER(x);
-	UNREFERENCED_PARAMETER(y);
-
-	WNDCLASSEX wcex = { 0 };
-	if (!GetClassInfoEx(GetModuleHandle(NULL), L"__DragOverlayClass", &wcex))
-	{
-		wcex.cbSize = sizeof(wcex);
-		wcex.lpfnWndProc = (WNDPROC)DragOverlayWndProc;
-		wcex.hInstance = GetModuleHandle(NULL);
-		wcex.lpszClassName = L"__DragOverlayClass";
-		RegisterClassEx(&wcex);
-	}
-
-	POINT ptStart = { pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y };
-	ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptStart);
-
-	DockHostWindow_DestroyDragOverlay();
-	g_hWndDragOverlay = CreateWindowEx(
-		WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST,
-		L"__DragOverlayClass",
-		L"DragOverlay",
-		WS_VISIBLE | WS_POPUP,
-		ptStart.x - DRAG_OVERLAY_CENTER,
-		ptStart.y - DRAG_OVERLAY_CENTER,
-		DRAG_OVERLAY_SIZE,
-		DRAG_OVERLAY_SIZE,
-		NULL,
-		NULL,
-		GetModuleHandle(NULL),
-		NULL);
-
-	DockHostWindow_UpdateDragOverlayVisual(pDockHostWindow, 0);
 }
 
 void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)
@@ -1387,7 +1140,7 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 		pDockHostWindow->ptDragPos_.y = y - (rcClient.top + 2);
 		pDockHostWindow->fDrag_ = TRUE;
 
-		DockHostWindow_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
+		DockHostDrag_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
 	}
 	break;
 
@@ -1438,7 +1191,7 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 		if (pHitNode != pPressedNode || nHitButton != nPressedButton)
 		{
 			pDockHostWindow->fDrag_ = FALSE;
-			DockHostWindow_DestroyDragOverlay();
+			DockHostDrag_DestroyOverlay();
 			return;
 		}
 
@@ -1497,7 +1250,7 @@ void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, U
 	}
 
 	pDockHostWindow->fDrag_ = FALSE;
-	DockHostWindow_DestroyDragOverlay();
+	DockHostDrag_DestroyOverlay();
 	if (GetCapture() == hWndDockHost)
 	{
 		ReleaseCapture();
@@ -1944,13 +1697,7 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 
 int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen)
 {
-	DockTargetHit targetHit = { 0 };
-	if (!DockHostWindow_HitTestDockTarget(pDockHostWindow, ptScreen, &targetHit))
-	{
-		return DKS_NONE;
-	}
-
-	return targetHit.nDockSide;
+	return DockHostDrag_HitTestDockSide(pDockHostWindow, ptScreen);
 }
 
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax)
@@ -1997,313 +1744,9 @@ static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iTh
 	return (minDist > threshold) ? DKS_NONE : side;
 }
 
-static void DockHostWindow_GetGlobalTargetGuideRects(const RECT* pHostClient, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
-{
-	if (!pHostClient)
-	{
-		return;
-	}
-
-	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
-	const int edgeInset = DOCK_TARGET_GUIDE_EDGE_MARGIN;
-	const int cx = (pHostClient->left + pHostClient->right) / 2;
-	const int cy = (pHostClient->top + pHostClient->bottom) / 2;
-
-	if (pRectTop)
-	{
-		SetRect(pRectTop,
-			cx - guideSize / 2,
-			pHostClient->top + edgeInset,
-			cx + guideSize / 2,
-			pHostClient->top + edgeInset + guideSize);
-	}
-	if (pRectLeft)
-	{
-		SetRect(pRectLeft,
-			pHostClient->left + edgeInset,
-			cy - guideSize / 2,
-			pHostClient->left + edgeInset + guideSize,
-			cy + guideSize / 2);
-	}
-	if (pRectRight)
-	{
-		SetRect(pRectRight,
-			pHostClient->right - edgeInset - guideSize,
-			cy - guideSize / 2,
-			pHostClient->right - edgeInset,
-			cy + guideSize / 2);
-	}
-	if (pRectBottom)
-	{
-		SetRect(pRectBottom,
-			cx - guideSize / 2,
-			pHostClient->bottom - edgeInset - guideSize,
-			cx + guideSize / 2,
-			pHostClient->bottom - edgeInset);
-	}
-}
-
-static void DockHostWindow_GetLocalTargetGuideRects(const RECT* pHostClient, const RECT* pAnchorRect, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom)
-{
-	if (!pHostClient || !pAnchorRect)
-	{
-		return;
-	}
-
-	const int guideSize = DOCK_TARGET_GUIDE_SIZE;
-	const int guideStep = guideSize + DOCK_TARGET_GUIDE_GAP;
-	int cx = (pAnchorRect->left + pAnchorRect->right) / 2;
-	int cy = (pAnchorRect->top + pAnchorRect->bottom) / 2;
-
-	cx = max(guideStep, min(cx, pHostClient->right - guideStep));
-	cy = max(guideStep, min(cy, pHostClient->bottom - guideStep));
-
-	if (pRectCenter)
-	{
-		SetRect(pRectCenter,
-			cx - guideSize / 2,
-			cy - guideSize / 2,
-			cx + guideSize / 2,
-			cy + guideSize / 2);
-	}
-	if (pRectTop)
-	{
-		SetRect(pRectTop,
-			cx - guideSize / 2,
-			cy - guideStep - guideSize / 2,
-			cx + guideSize / 2,
-			cy - guideStep + guideSize / 2);
-	}
-	if (pRectLeft)
-	{
-		SetRect(pRectLeft,
-			cx - guideStep - guideSize / 2,
-			cy - guideSize / 2,
-			cx - guideStep + guideSize / 2,
-			cy + guideSize / 2);
-	}
-	if (pRectRight)
-	{
-		SetRect(pRectRight,
-			cx + guideStep - guideSize / 2,
-			cy - guideSize / 2,
-			cx + guideStep + guideSize / 2,
-			cy + guideSize / 2);
-	}
-	if (pRectBottom)
-	{
-		SetRect(pRectBottom,
-			cx - guideSize / 2,
-			cy + guideStep - guideSize / 2,
-			cx + guideSize / 2,
-			cy + guideStep + guideSize / 2);
-	}
-}
-
-static int DockHostWindow_HitTestGlobalTargetGuide(const RECT* pHostClient, POINT ptClient)
-{
-	if (!pHostClient || !PtInRect(pHostClient, ptClient))
-	{
-		return DKS_NONE;
-	}
-
-	RECT rcGuideTop = { 0 };
-	RECT rcGuideLeft = { 0 };
-	RECT rcGuideRight = { 0 };
-	RECT rcGuideBottom = { 0 };
-	DockHostWindow_GetGlobalTargetGuideRects(pHostClient, &rcGuideTop, &rcGuideLeft, &rcGuideRight, &rcGuideBottom);
-
-	if (PtInRect(&rcGuideLeft, ptClient))
-	{
-		return DKS_LEFT;
-	}
-	if (PtInRect(&rcGuideRight, ptClient))
-	{
-		return DKS_RIGHT;
-	}
-	if (PtInRect(&rcGuideTop, ptClient))
-	{
-		return DKS_TOP;
-	}
-	if (PtInRect(&rcGuideBottom, ptClient))
-	{
-		return DKS_BOTTOM;
-	}
-
-	return DKS_NONE;
-}
-
-static int DockHostWindow_HitTestLocalTargetGuide(const RECT* pHostClient, const RECT* pAnchorRect, POINT ptClient)
-{
-	if (!pHostClient || !pAnchorRect)
-	{
-		return DKS_NONE;
-	}
-
-	RECT rcGuideCenter = { 0 };
-	RECT rcGuideTop = { 0 };
-	RECT rcGuideLeft = { 0 };
-	RECT rcGuideRight = { 0 };
-	RECT rcGuideBottom = { 0 };
-	DockHostWindow_GetLocalTargetGuideRects(pHostClient, pAnchorRect, &rcGuideCenter, &rcGuideTop, &rcGuideLeft, &rcGuideRight, &rcGuideBottom);
-
-	if (PtInRect(&rcGuideCenter, ptClient))
-	{
-		return DKS_CENTER;
-	}
-
-	if (PtInRect(&rcGuideLeft, ptClient))
-	{
-		return DKS_LEFT;
-	}
-	if (PtInRect(&rcGuideRight, ptClient))
-	{
-		return DKS_RIGHT;
-	}
-	if (PtInRect(&rcGuideTop, ptClient))
-	{
-		return DKS_TOP;
-	}
-	if (PtInRect(&rcGuideBottom, ptClient))
-	{
-		return DKS_BOTTOM;
-	}
-
-	return DKS_NONE;
-}
-
-static TreeNode* DockHostWindow_FindDockAnchorAtPoint(DockHostWindow* pDockHostWindow, POINT ptClient, RECT* pRectAnchor)
-{
-	if (pRectAnchor)
-	{
-		SetRectEmpty(pRectAnchor);
-	}
-
-	TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-	if (!pDockHostWindow || !pRoot)
-	{
-		return NULL;
-	}
-
-	TreeNode* pBestNode = NULL;
-	RECT rcBest = { 0 };
-	LONG bestArea = LONG_MAX;
-
-	TreeTraversalRLOT traversal = { 0 };
-	TreeTraversalRLOT_Init(&traversal, pRoot);
-
-	TreeNode* pCurrent = NULL;
-	while (pCurrent = TreeTraversalRLOT_GetNext(&traversal))
-	{
-		DockData* pDockData = pCurrent ? (DockData*)pCurrent->data : NULL;
-		if (!pDockData || !pDockData->hWnd || !IsWindow(pDockData->hWnd))
-		{
-			continue;
-		}
-
-		if (DockHostWindow_IsWorkspaceWindow(pDockData->hWnd))
-		{
-			continue;
-		}
-
-		if (!DockNode_HasVisibleWindow(pCurrent))
-		{
-			continue;
-		}
-
-		RECT rc = pDockData->rc;
-		if (!PtInRect(&rc, ptClient))
-		{
-			continue;
-		}
-
-		LONG area = Win32_Rect_GetWidth(&rc) * Win32_Rect_GetHeight(&rc);
-		if (!pBestNode || area < bestArea)
-		{
-			pBestNode = pCurrent;
-			rcBest = rc;
-			bestArea = area;
-		}
-	}
-
-	TreeTraversalRLOT_Destroy(&traversal);
-
-	if (pRectAnchor && pBestNode)
-	{
-		*pRectAnchor = rcBest;
-	}
-	return pBestNode;
-}
-
 BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptScreen, DockTargetHit* pTargetHit)
 {
-	if (!pDockHostWindow || !pTargetHit)
-	{
-		return FALSE;
-	}
-
-	memset(pTargetHit, 0, sizeof(*pTargetHit));
-
-	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
-	if (!hWndDockHost || !IsWindow(hWndDockHost))
-	{
-		return FALSE;
-	}
-
-	RECT rcHostScreen = { 0 };
-	GetWindowRect(hWndDockHost, &rcHostScreen);
-	if (!PtInRect(&rcHostScreen, ptScreen))
-	{
-		return FALSE;
-	}
-
-	POINT ptClient = ptScreen;
-	ScreenToClient(hWndDockHost, &ptClient);
-
-	RECT rcClient = { 0 };
-	GetClientRect(hWndDockHost, &rcClient);
-
-	RECT rcAnchor = { 0 };
-	TreeNode* pAnchorNode = DockHostWindow_FindDockAnchorAtPoint(pDockHostWindow, ptClient, &rcAnchor);
-	if (pAnchorNode && pAnchorNode->data)
-	{
-		DockData* pAnchorData = (DockData*)pAnchorNode->data;
-		pTargetHit->bLocalTarget = TRUE;
-		pTargetHit->hWndAnchor = pAnchorData->hWnd;
-		pTargetHit->rcAnchorClient = rcAnchor;
-
-			int localSide = DockHostWindow_HitTestLocalTargetGuide(&rcClient, &rcAnchor, ptClient);
-			if (localSide != DKS_NONE)
-			{
-				pTargetHit->nDockSide = localSide;
-				if (localSide == DKS_CENTER)
-				{
-					pTargetHit->rcPreviewClient = rcAnchor;
-				}
-				else if (!DockLayout_GetDockPreviewRect(&rcAnchor, localSide, &pTargetHit->rcPreviewClient))
-				{
-					pTargetHit->rcPreviewClient = rcAnchor;
-				}
-				return TRUE;
-			}
-	}
-
-	int globalSide = DockHostWindow_HitTestGlobalTargetGuide(&rcClient, ptClient);
-	if (globalSide != DKS_NONE)
-	{
-		pTargetHit->nDockSide = globalSide;
-		pTargetHit->bLocalTarget = FALSE;
-		SetRectEmpty(&pTargetHit->rcAnchorClient);
-		SetRectEmpty(&pTargetHit->rcPreviewClient);
-		DockLayout_GetDockPreviewRect(&rcClient, globalSide, &pTargetHit->rcPreviewClient);
-		return TRUE;
-	}
-
-	/*
-	 * Keep guides visible anywhere inside the host, but do not activate a drop
-	 * preview until the cursor is over a concrete guide icon.
-	 */
-	return TRUE;
+	return DockHostDrag_HitTestDockTarget(pDockHostWindow, ptScreen, pTargetHit);
 }
 
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize)

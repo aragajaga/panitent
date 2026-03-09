@@ -153,6 +153,13 @@ This change set continues the structural decomposition of `dockhost.c`:
 - added `dockhostpaint.*` for zone-tab hit-testing, split-grip rendering, and root/watermark paint content;
 - `dockhost.c` now delegates more of its rendering/content path instead of mixing host orchestration with paint implementation.
 
+## Dock Host Drag Increment Applied
+
+This change set continues the same decomposition on the drag/runtime side:
+- added `dockhostdrag.*` for dock-target guide hit-testing, drag overlay rendering, and undock-to-floating drag flow;
+- `dockhost.c` now delegates caption-drag overlay and dock-target hit-testing through that module;
+- the host file keeps message orchestration, while drag/overlay behavior is separated from the main host implementation.
+
 ## Target Layers
 
 ### 1. Layout Model

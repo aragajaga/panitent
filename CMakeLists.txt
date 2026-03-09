@@ -85,6 +85,7 @@ set(C_SOURCES
     src/dockgroup.c
     src/dockhost.c
     src/dockhostcaption.c
+    src/dockhostdrag.c
     src/dockhostlayout.c
     src/dockhostautohide.c
     src/dockhostmodelapply.c
