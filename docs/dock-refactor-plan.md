@@ -167,6 +167,13 @@ This change set continues the same decomposition on the input side:
 - moved caption button state management, split-drag interaction, caption-drag initiation, and inspector context-menu handling out of `dockhost.c`;
 - `dockhost.c` now routes window messages to a dedicated input layer instead of owning those interaction details directly.
 
+## Dock Host Auto-Hide Host Increment Applied
+
+This change set continues the same decomposition on the auto-hide side:
+- moved auto-hide overlay host creation, paint, and host-window procedure logic into `dockhostautohide.*`;
+- `dockhost.c` no longer owns the overlay host window implementation details directly;
+- auto-hide behavior now sits more coherently beside the rest of the overlay/layout logic instead of being split between modules.
+
 ## Target Layers
 
 ### 1. Layout Model
