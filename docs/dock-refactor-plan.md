@@ -121,6 +121,7 @@ This change set starts using the pure model mutation layer in a live runtime pat
 - tool-pane remove/undock flows now also start using the model-first runtime apply path where possible;
 - this gives the project its first rollback-capable runtime docking flow that is driven by `DockModelOps` instead of only direct tree surgery.
 - follow-up cleanup removed the legacy live-tree fallback for tool docking itself, so tool-pane docking now relies on the model-first runtime path rather than keeping two active implementations.
+- follow-up cleanup also added a generic model-first remove path for docked windows, so `dockhostmutate.*` no longer branches manually between tool/document removal before falling back to raw `DestroyWindow`.
 
 ## Document Group Model Increment Applied
 

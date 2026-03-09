@@ -34,13 +34,7 @@ void DockHostMutate_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* 
     DockData* pDockData = (DockData*)pTargetNode->data;
     if (pDockData->hWnd && IsWindow(pDockData->hWnd))
     {
-        if (pDockData->nPaneKind == DOCK_PANE_TOOL &&
-            DockHostModelApply_RemoveToolWindow(pDockHostWindow, pDockData->hWnd, FALSE))
-        {
-            return;
-        }
-        if (pDockData->nPaneKind == DOCK_PANE_DOCUMENT &&
-            DockHostModelApply_RemoveDocumentWindow(pDockHostWindow, pDockData->hWnd, FALSE))
+        if (DockHostModelApply_RemoveDockedWindow(pDockHostWindow, pDockData->hWnd, FALSE))
         {
             return;
         }
