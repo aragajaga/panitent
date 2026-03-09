@@ -564,3 +564,74 @@ BOOL DockHostModelApply_DockDocumentWindow(DockHostWindow* pDockHostWindow, HWND
     DockModel_Destroy(pTargetModel);
     return bApplied;
 }
+
+BOOL DockHostModelApply_RemoveDocumentWindow(DockHostWindow* pDockHostWindow, HWND hWnd, BOOL bKeepWindowAlive)
+{
+    if (!pDockHostWindow || !hWnd || !IsWindow(hWnd) || !DockHostModelApply_IsWorkspaceHwnd(hWnd))
+    {
+        return FALSE;
+    }
+
+    TreeNode* pLiveRoot = DockHostWindow_GetRoot(pDockHostWindow);
+    TreeNode* pLiveNode = DockNode_FindByHWND(pLiveRoot, hWnd);
+    DockData* pLiveData = pLiveNode ? (DockData*)pLiveNode->data : NULL;
+    if (!pLiveData || pLiveData->nRole != DOCK_ROLE_WORKSPACE)
+    {
+        return FALSE;
+    }
+
+    HWND hWndMainWorkspace = NULL;
+    if (PanitentApp_Instance() && PanitentApp_Instance()->m_pWorkspaceContainer)
+    {
+        hWndMainWorkspace = Window_GetHWND((Window*)PanitentApp_Instance()->m_pWorkspaceContainer);
+    }
+    if (hWnd == hWndMainWorkspace)
+    {
+        return FALSE;
+    }
+
+    DockModelNode* pRollbackModel = DockModel_CaptureHostLayout(pDockHostWindow);
+    DockModelNode* pTargetModel = DockModelOps_CloneTree(pRollbackModel);
+    if (!pRollbackModel || !pTargetModel)
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    DockHostModelApplyContext context = { 0 };
+    context.pPanitentApp = PanitentApp_Instance();
+    DockHostModelApply_CollectViewsRecursiveEx(
+        &context,
+        pLiveRoot,
+        pRollbackModel,
+        pLiveRoot,
+        hWnd);
+
+    DockModelNode* pLiveModelNode = DockModelMatch_FindNodeForLiveData(pLiveRoot, pTargetModel, pLiveData);
+    if (!pLiveModelNode ||
+        !DockModelOps_RemoveNodeById(&pTargetModel, pLiveModelNode->uNodeId) ||
+        !DockModelValidateAndRepairMainLayout(&pTargetModel, NULL))
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    ShowWindow(hWnd, SW_HIDE);
+    BOOL bApplied = DockHostModelApply_ApplyModel(pDockHostWindow, pTargetModel, &context);
+    if (!bApplied)
+    {
+        DockHostModelApply_ApplyModel(pDockHostWindow, pRollbackModel, &context);
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
+    }
+    else if (!bKeepWindowAlive)
+    {
+        DestroyWindow(hWnd);
+    }
+
+    DockModel_Destroy(pRollbackModel);
+    DockModel_Destroy(pTargetModel);
+    return bApplied;
+}

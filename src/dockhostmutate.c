@@ -222,6 +222,11 @@ void DockHostMutate_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* 
         {
             return;
         }
+        if (pDockData->nPaneKind == DOCK_PANE_DOCUMENT &&
+            DockHostModelApply_RemoveDocumentWindow(pDockHostWindow, pDockData->hWnd, FALSE))
+        {
+            return;
+        }
         DestroyWindow(pDockData->hWnd);
     }
 
