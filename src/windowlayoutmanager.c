@@ -15,6 +15,7 @@
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
 #include "dockmodelio.h"
+#include "dockmodelops.h"
 #include "dockmodelvalidate.h"
 #include "dockshell.h"
 #include "dockviewfactory.h"
@@ -443,6 +444,46 @@ static BOOL WindowLayoutManager_ApplyDefault(PanitentWindow* pPanitentWindow)
     BOOL bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, NULL, NULL);
     DockModel_Destroy(pModelRoot);
     return bResult;
+}
+
+BOOL WindowLayoutManager_ApplyLayoutBundle(
+    PanitentWindow* pPanitentWindow,
+    DockModelNode* pModelRoot,
+    const DockFloatingLayoutFileModel* pFloatingModel,
+    const FloatingDocumentLayoutModel* pFloatDocModel)
+{
+    DockModelNode* pWorkingModel = NULL;
+    BOOL bResult = FALSE;
+
+    if (!pPanitentWindow || !pModelRoot)
+    {
+        return FALSE;
+    }
+
+    pWorkingModel = DockModelOps_CloneTree(pModelRoot);
+    if (!pWorkingModel)
+    {
+        return FALSE;
+    }
+
+    if (!DockModelValidateAndRepairMainLayout(&pWorkingModel, NULL))
+    {
+        DockModel_Destroy(pWorkingModel);
+        return FALSE;
+    }
+
+    bResult = WindowLayoutManager_ApplyTransactional(
+        pPanitentWindow,
+        pWorkingModel,
+        pFloatingModel,
+        pFloatDocModel);
+    DockModel_Destroy(pWorkingModel);
+    return bResult;
+}
+
+BOOL WindowLayoutManager_ApplyDefaultLayout(PanitentWindow* pPanitentWindow)
+{
+    return WindowLayoutManager_ApplyDefault(pPanitentWindow);
 }
 
 static void WindowLayoutManager_FillListBox(HWND hWndList, const WindowLayoutCatalog* pCatalog)

@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include "dockhostzone.h"
+#include "dockhosttree.h"
 
 static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount)
 {
@@ -96,4 +97,52 @@ void DockZone_EnsureActiveTab(TreeNode* pZoneNode)
 
 	DockData* pDockData = (DockData*)tabs[0]->data;
 	pZoneData->hWndActiveTab = pDockData ? pDockData->hWnd : NULL;
+}
+
+static int DockHostZone_GetSideTabGutter(DockHostWindow* pDockHostWindow, int nDockSide, int iZoneTabGutter)
+{
+    TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, nDockSide);
+    if (!pZoneNode)
+    {
+        return 0;
+    }
+
+    TreeNode* tabs[DOCK_ZONE_MAX_TABS] = { 0 };
+    int nTabs = DockZone_GetPanelsByCollapsed(pZoneNode, tabs, ARRAYSIZE(tabs), TRUE);
+    return (nTabs > 0) ? iZoneTabGutter : 0;
+}
+
+void DockHostZone_UpdateTabGutters(DockHostWindow* pDockHostWindow, int iZoneTabGutter, int* pLeft, int* pRight, int* pTop, int* pBottom)
+{
+    if (!pDockHostWindow)
+    {
+        if (pLeft) *pLeft = 0;
+        if (pRight) *pRight = 0;
+        if (pTop) *pTop = 0;
+        if (pBottom) *pBottom = 0;
+        return;
+    }
+
+    if (pLeft) *pLeft = DockHostZone_GetSideTabGutter(pDockHostWindow, DKS_LEFT, iZoneTabGutter);
+    if (pRight) *pRight = DockHostZone_GetSideTabGutter(pDockHostWindow, DKS_RIGHT, iZoneTabGutter);
+    if (pTop) *pTop = DockHostZone_GetSideTabGutter(pDockHostWindow, DKS_TOP, iZoneTabGutter);
+    if (pBottom) *pBottom = DockHostZone_GetSideTabGutter(pDockHostWindow, DKS_BOTTOM, iZoneTabGutter);
+}
+
+void DockHostZone_Sync(DockHostWindow* pDockHostWindow, int iZoneTabGutter, int* pLeft, int* pRight, int* pTop, int* pBottom)
+{
+    if (!pDockHostWindow)
+    {
+        DockHostZone_UpdateTabGutters(NULL, iZoneTabGutter, pLeft, pRight, pTop, pBottom);
+        return;
+    }
+
+    const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
+    for (int i = 0; i < ARRAYSIZE(sides); ++i)
+    {
+        TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
+        DockZone_EnsureActiveTab(pZoneNode);
+    }
+
+    DockHostZone_UpdateTabGutters(pDockHostWindow, iZoneTabGutter, pLeft, pRight, pTop, pBottom);
 }

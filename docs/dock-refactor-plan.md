@@ -121,6 +121,17 @@ This change set starts using the pure model mutation layer in a live runtime pat
 - tool-pane remove/undock flows now also start using the model-first runtime apply path where possible;
 - this gives the project its first rollback-capable runtime docking flow that is driven by `DockModelOps` instead of only direct tree surgery.
 
+## Runtime Integration Test Increment Applied
+
+This change set starts covering real runtime docking/layout behavior instead of only pure model and persistence round-trips:
+- added a dedicated `panitent_runtime_tests` target;
+- added hidden-host Win32 runtime scenarios in `tests/dockruntime_tests.c`;
+- added coverage for model-first tool docking against a live `DockHostWindow`;
+- added coverage for invalid layout apply rollback through `windowlayoutmanager`;
+- added coverage for apply/reset preserving the live workspace window while changing tool arrangement.
+
+This does not finish the full runtime test matrix yet, but it turns integration/runtime testing into a real, executable part of the plan instead of a future-only requirement.
+
 ## Target Layers
 
 ### 1. Layout Model

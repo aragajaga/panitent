@@ -26,6 +26,79 @@ typedef struct DockHostModelApplyContext
     int nEntries;
 } DockHostModelApplyContext;
 
+static DockModelNode* DockHostModelApply_FindModelNodeByViewId(DockModelNode* pNode, PanitentDockViewId nViewId)
+{
+    if (!pNode || nViewId == PNT_DOCK_VIEW_NONE)
+    {
+        return NULL;
+    }
+
+    if ((PanitentDockViewId)pNode->uViewId == nViewId)
+    {
+        return pNode;
+    }
+
+    DockModelNode* pFound = DockHostModelApply_FindModelNodeByViewId(pNode->pChild1, nViewId);
+    if (pFound)
+    {
+        return pFound;
+    }
+
+    return DockHostModelApply_FindModelNodeByViewId(pNode->pChild2, nViewId);
+}
+
+static DockModelNode* DockHostModelApply_FindModelNodeByName(DockModelNode* pNode, PCWSTR pszName)
+{
+    if (!pNode || !pszName || !pszName[0])
+    {
+        return NULL;
+    }
+
+    if (wcscmp(pNode->szName, pszName) == 0)
+    {
+        return pNode;
+    }
+
+    DockModelNode* pFound = DockHostModelApply_FindModelNodeByName(pNode->pChild1, pszName);
+    if (pFound)
+    {
+        return pFound;
+    }
+
+    return DockHostModelApply_FindModelNodeByName(pNode->pChild2, pszName);
+}
+
+static DockModelNode* DockHostModelApply_FindModelNodeForLiveData(DockModelNode* pRoot, const DockData* pDockData)
+{
+    if (!pRoot || !pDockData)
+    {
+        return NULL;
+    }
+
+    if (pDockData->uModelNodeId != 0)
+    {
+        DockModelNode* pById = DockModelOps_FindByNodeId(pRoot, pDockData->uModelNodeId);
+        if (pById)
+        {
+            return pById;
+        }
+    }
+
+    PanitentDockViewId nViewId = pDockData->nViewId != PNT_DOCK_VIEW_NONE ?
+        pDockData->nViewId :
+        PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
+    if (nViewId != PNT_DOCK_VIEW_NONE)
+    {
+        DockModelNode* pByViewId = DockHostModelApply_FindModelNodeByViewId(pRoot, nViewId);
+        if (pByViewId)
+        {
+            return pByViewId;
+        }
+    }
+
+    return DockHostModelApply_FindModelNodeByName(pRoot, pDockData->lpszName);
+}
+
 static PanitentDockViewId DockHostModelApply_GetViewIdForHwnd(HWND hWnd)
 {
     WCHAR szTitle[128] = L"";
@@ -267,13 +340,14 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         DockData* pAnchorLiveData = pAnchorLiveNode ? (DockData*)pAnchorLiveNode->data : NULL;
         if (pAnchorLiveData)
         {
+            DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(pTargetModel, pAnchorLiveData);
             if (pTargetHit->nDockSide == DKS_CENTER)
             {
                 int nZoneSide = DockHostWindow_GetPanelDockSide(pDockHostWindow, pTargetHit->hWndAnchor);
                 bMutated = DockModelOps_AppendPanelToZone(pTargetModel, nZoneSide, pPanelNode);
             }
-            else {
-                bMutated = DockModelOps_DockPanelAroundNode(pTargetModel, pAnchorLiveData->uModelNodeId, pTargetHit->nDockSide, pPanelNode);
+            else if (pAnchorModelNode) {
+                bMutated = DockModelOps_DockPanelAroundNode(pTargetModel, pAnchorModelNode->uNodeId, pTargetHit->nDockSide, pPanelNode);
             }
         }
     }
@@ -331,7 +405,9 @@ BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND h
         return FALSE;
     }
 
-    if (!DockModelOps_RemoveNodeById(&pTargetModel, pLiveData->uModelNodeId) ||
+    DockModelNode* pLiveModelNode = DockHostModelApply_FindModelNodeForLiveData(pTargetModel, pLiveData);
+    if (!pLiveModelNode ||
+        !DockModelOps_RemoveNodeById(&pTargetModel, pLiveModelNode->uNodeId) ||
         !DockModelValidateAndRepairMainLayout(&pTargetModel, NULL))
     {
         DockModel_Destroy(pRollbackModel);

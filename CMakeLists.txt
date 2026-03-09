@@ -249,4 +249,34 @@ if(PANITENT_BUILD_TESTS)
   endif()
 
   add_test(NAME panitent_dock_layout COMMAND panitent_dock_tests)
+
+  add_executable(panitent_runtime_tests
+    tests/dockruntime_tests.c
+    ${C_SOURCES}
+  )
+
+  target_compile_features(panitent_runtime_tests PRIVATE c_std_99)
+  target_include_directories(panitent_runtime_tests PRIVATE
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+  )
+  target_compile_definitions(panitent_runtime_tests PRIVATE _UNICODE UNICODE)
+
+  if(MSVC)
+    target_compile_options(panitent_runtime_tests PRIVATE /W3)
+  endif()
+
+  target_link_libraries(
+    panitent_runtime_tests
+    win32fw
+    shlwapi
+    comctl32
+    uxtheme
+    msimg32
+    windowscodecs
+    dbghelp
+    opengl32
+    dwmapi
+  )
+
+  add_test(NAME panitent_runtime_layout COMMAND panitent_runtime_tests)
 endif()

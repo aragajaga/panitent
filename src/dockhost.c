@@ -377,51 +377,15 @@ static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode)
 	return DockNodeRole_UsesProportionalGrip(pDockData->nRole, pDockData->lpszName);
 }
 
-static int DockHostWindow_GetZoneSideTabGutter(DockHostWindow* pDockHostWindow, int nDockSide)
-{
-	TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, nDockSide);
-	if (!pZoneNode)
-	{
-		return 0;
-	}
-
-	TreeNode* tabs[DOCK_ZONE_MAX_TABS] = { 0 };
-	int nTabs = DockZone_GetPanelsByCollapsed(pZoneNode, tabs, ARRAYSIZE(tabs), TRUE);
-	return (nTabs > 0) ? iZoneTabGutter : 0;
-}
-
-static void DockHostWindow_UpdateZoneTabGutters(DockHostWindow* pDockHostWindow)
-{
-	if (!pDockHostWindow)
-	{
-		g_iZoneTabGutterLeft = 0;
-		g_iZoneTabGutterRight = 0;
-		g_iZoneTabGutterTop = 0;
-		g_iZoneTabGutterBottom = 0;
-		return;
-	}
-
-	g_iZoneTabGutterLeft = DockHostWindow_GetZoneSideTabGutter(pDockHostWindow, DKS_LEFT);
-	g_iZoneTabGutterRight = DockHostWindow_GetZoneSideTabGutter(pDockHostWindow, DKS_RIGHT);
-	g_iZoneTabGutterTop = DockHostWindow_GetZoneSideTabGutter(pDockHostWindow, DKS_TOP);
-	g_iZoneTabGutterBottom = DockHostWindow_GetZoneSideTabGutter(pDockHostWindow, DKS_BOTTOM);
-}
-
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow)
 {
-	if (!pDockHostWindow)
-	{
-		return;
-	}
-
-	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
-	for (int i = 0; i < ARRAYSIZE(sides); ++i)
-	{
-		TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
-		DockZone_EnsureActiveTab(pZoneNode);
-	}
-
-	DockHostWindow_UpdateZoneTabGutters(pDockHostWindow);
+	DockHostZone_Sync(
+		pDockHostWindow,
+		iZoneTabGutter,
+		&g_iZoneTabGutterLeft,
+		&g_iZoneTabGutterRight,
+		&g_iZoneTabGutterTop,
+		&g_iZoneTabGutterBottom);
 }
 
 BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect)
