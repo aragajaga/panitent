@@ -568,3 +568,12 @@ This change set extends runtime coverage for direct floating tool restore:
 - repeated direct restore must keep exactly one floating tool host and preserve its child pane layout.
 
 This closes another restore-side blind spot between direct floating panel semantics and dock-host tool restore semantics.
+
+## Floating Tool Host Helper Increment Applied
+
+This change set introduces `floatingtoolhost.*` as the shared helper layer for floating tool windows:
+- capture of pinned floating tool windows is centralized in `FloatingToolHost_CapturePinnedWindowState(...)`;
+- direct restore of tool panels and tool hosts is centralized in `FloatingToolHost_RestoreEntry(...)`;
+- `dockfloatingpersist.c` now uses shared enumeration, destruction, capture, and restore helpers instead of open-coded logic.
+
+This makes tool-side floating persistence closer in structure to the existing `floatingdocumenthost.*` path.

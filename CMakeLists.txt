@@ -102,6 +102,7 @@ set(C_SOURCES
     src/dockhostzone.c
     src/dockfloatingmodel.c
     src/dockfloatingpersist.c
+    src/floatingtoolhost.c
     src/floatingdocumentlayoutmodel.c
     src/floatingdocumentlayoutpersist.c
     src/floatingdocumentsessionmodel.c

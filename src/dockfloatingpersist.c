@@ -10,6 +10,7 @@
 #include "dockmodelbuild.h"
 #include "dockviewfactory.h"
 #include "persistfile.h"
+#include "floatingtoolhost.h"
 #include "floatingwindowcontainer.h"
 #include "floatingchildhost.h"
 #include "shell/pathutil.h"
@@ -24,48 +25,6 @@ static FnDockFloatingRestoreEntryTestHook g_pDockFloatingRestoreEntryTestHook = 
 void PanitentDockFloating_SetRestoreEntryTestHook(FnDockFloatingRestoreEntryTestHook pfnHook)
 {
 	g_pDockFloatingRestoreEntryTestHook = pfnHook;
-}
-
-static BOOL DockFloatingPersist_IsClassName(HWND hWnd, PCWSTR pszClassName)
-{
-	WCHAR szClassName[64] = L"";
-	if (!hWnd || !IsWindow(hWnd) || !pszClassName)
-	{
-		return FALSE;
-	}
-
-	GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
-	return wcscmp(szClassName, pszClassName) == 0;
-}
-
-static BOOL CALLBACK DockFloatingPersist_DestroyExistingEnumProc(HWND hWnd, LPARAM lParam)
-{
-	DWORD processId = 0;
-	UNREFERENCED_PARAMETER(lParam);
-
-	if (!IsWindow(hWnd) || !DockFloatingPersist_IsClassName(hWnd, L"__FloatingWindowContainer"))
-	{
-		return TRUE;
-	}
-
-	GetWindowThreadProcessId(hWnd, &processId);
-	if (processId != GetCurrentProcessId())
-	{
-		return TRUE;
-	}
-
-	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)WindowMap_Get(hWnd);
-	if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_PANEL)
-	{
-		DestroyWindow(hWnd);
-	}
-
-	return TRUE;
-}
-
-static void DockFloatingPersist_DestroyExistingFloatingPanels(void)
-{
-	EnumWindows(DockFloatingPersist_DestroyExistingEnumProc, 0);
 }
 
 static BOOL DockFloatingPersist_MainHostHasView(TreeNode* pNode, PanitentDockViewId nViewId)
@@ -93,64 +52,29 @@ static BOOL DockFloatingPersist_MainHostHasView(TreeNode* pNode, PanitentDockVie
 static BOOL CALLBACK DockFloatingPersist_EnumWindowsProc(HWND hWnd, LPARAM lParam)
 {
 	DockFloatingPersistCollectContext* pContext = (DockFloatingPersistCollectContext*)lParam;
-	DWORD processId = 0;
+	FloatingWindowContainer* pFloatingWindowContainer = NULL;
 	if (!pContext || !pContext->pModel || !IsWindow(hWnd))
 	{
 		return TRUE;
 	}
 
-	GetWindowThreadProcessId(hWnd, &processId);
-	if (processId != GetCurrentProcessId() ||
-		!DockFloatingPersist_IsClassName(hWnd, L"__FloatingWindowContainer"))
+	if (!FloatingToolHost_IsPinnedFloatingWindow(hWnd, &pFloatingWindowContainer))
 	{
 		return TRUE;
 	}
 
-	Window* pWindow = WindowMap_Get(hWnd);
-	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)pWindow;
-	if (!pFloatingWindowContainer ||
-		pFloatingWindowContainer->nDockPolicy != FLOAT_DOCK_POLICY_PANEL ||
-		pContext->pModel->nEntries >= ARRAYSIZE(pContext->pModel->entries))
+	if (pContext->pModel->nEntries >= ARRAYSIZE(pContext->pModel->entries))
 	{
 		return TRUE;
 	}
 
-	FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(pFloatingWindowContainer->hWndChild);
-	if (nChildKind != FLOAT_DOCK_CHILD_TOOL_PANEL &&
-		nChildKind != FLOAT_DOCK_CHILD_TOOL_HOST)
+	DockFloatingLayoutEntry* pEntry = &pContext->pModel->entries[pContext->pModel->nEntries];
+	if (!FloatingToolHost_CapturePinnedWindowState(hWnd, pFloatingWindowContainer, pEntry))
 	{
 		return TRUE;
 	}
 
-	DockFloatingLayoutEntry* pEntry = &pContext->pModel->entries[pContext->pModel->nEntries++];
-	memset(pEntry, 0, sizeof(*pEntry));
-	GetWindowRect(hWnd, &pEntry->rcWindow);
-	pEntry->iDockSizeHint = pFloatingWindowContainer->iDockSizeHint;
-	pEntry->nChildKind = nChildKind;
-
-	if (nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL)
-	{
-		WCHAR szTitle[128] = L"";
-		WCHAR szClassName[64] = L"";
-		GetWindowTextW(pFloatingWindowContainer->hWndChild, szTitle, ARRAYSIZE(szTitle));
-		GetClassNameW(pFloatingWindowContainer->hWndChild, szClassName, ARRAYSIZE(szClassName));
-
-		pEntry->nViewId = PanitentDockViewCatalog_FindForWindow(szClassName, szTitle);
-		if (pEntry->nViewId == PNT_DOCK_VIEW_NONE)
-		{
-			pContext->pModel->nEntries--;
-			return TRUE;
-		}
-	}
-	else {
-		DockHostWindow* pFloatingDockHost = (DockHostWindow*)WindowMap_Get(pFloatingWindowContainer->hWndChild);
-		pEntry->pLayoutModel = pFloatingDockHost ? DockModel_CaptureHostLayout(pFloatingDockHost) : NULL;
-		if (!pEntry->pLayoutModel)
-		{
-			pContext->pModel->nEntries--;
-			return TRUE;
-		}
-	}
+	pContext->pModel->nEntries++;
 
 	return TRUE;
 }
@@ -252,7 +176,7 @@ BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWind
 		return FALSE;
 	}
 
-	DockFloatingPersist_DestroyExistingFloatingPanels();
+	FloatingToolHost_DestroyExistingPinnedWindows();
 
 	BOOL bRestoredAny = FALSE;
 	int nAttempted = 0;
@@ -273,72 +197,10 @@ BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWind
 			continue;
 		}
 
-		FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-		HWND hWndFloating = pFloatingWindowContainer ? Window_CreateWindow((Window*)pFloatingWindowContainer, NULL) : NULL;
-		if (!pFloatingWindowContainer || !hWndFloating || !IsWindow(hWndFloating))
+		if (!FloatingToolHost_RestoreEntry(pPanitentApp, pDockHostWindow, pEntry, NULL))
 		{
 			continue;
 		}
-
-		FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-		FloatingWindowContainer_SetDockPolicy(pFloatingWindowContainer, FLOAT_DOCK_POLICY_PANEL);
-		pFloatingWindowContainer->iDockSizeHint = pEntry->iDockSizeHint;
-
-		if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL)
-		{
-			Window* pChildWindow = PanitentDockViewFactory_CreateWindow(pPanitentApp, pEntry->nViewId);
-			if (!pChildWindow || !Window_CreateWindow(pChildWindow, NULL))
-			{
-				DestroyWindow(hWndFloating);
-				continue;
-			}
-
-			FloatingWindowContainer_PinWindow(pFloatingWindowContainer, Window_GetHWND(pChildWindow));
-		}
-		else if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_HOST && pEntry->pLayoutModel)
-		{
-			DockHostWindow* pFloatingDockHost = DockHostWindow_Create(pPanitentApp);
-			HWND hWndFloatingDockHost = pFloatingDockHost ? Window_CreateWindow((Window*)pFloatingDockHost, NULL) : NULL;
-			if (!pFloatingDockHost || !hWndFloatingDockHost || !IsWindow(hWndFloatingDockHost))
-			{
-				DestroyWindow(hWndFloating);
-				continue;
-			}
-
-			FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndFloatingDockHost);
-			TreeNode* pRootNode = DockModelBuildTree(pEntry->pLayoutModel);
-			if (!pRootNode || !pRootNode->data)
-			{
-				DestroyWindow(hWndFloating);
-				continue;
-			}
-
-			RECT rcDockHost = { 0 };
-			GetClientRect(hWndFloatingDockHost, &rcDockHost);
-			((DockData*)pRootNode->data)->rc = rcDockHost;
-			DockHostWindow_SetRoot(pFloatingDockHost, pRootNode);
-			BOOL bHasWorkspace = FALSE;
-			if (!PanitentDockHostRestoreAttachKnownViews(pPanitentApp, pFloatingDockHost, pRootNode, &bHasWorkspace))
-			{
-				DestroyWindow(hWndFloating);
-				continue;
-			}
-
-			DockHostWindow_Rearrange(pFloatingDockHost);
-		}
-		else {
-			DestroyWindow(hWndFloating);
-			continue;
-		}
-
-		SetWindowPos(
-			hWndFloating,
-			HWND_TOP,
-			pEntry->rcWindow.left,
-			pEntry->rcWindow.top,
-			max(1, pEntry->rcWindow.right - pEntry->rcWindow.left),
-			max(1, pEntry->rcWindow.bottom - pEntry->rcWindow.top),
-			SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
 		bRestoredAny = TRUE;
 		nRestored++;
 	}
