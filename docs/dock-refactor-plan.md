@@ -102,6 +102,7 @@ The next mandatory architecture steps are:
 This change set starts introducing a pure model mutation layer:
 - added `dockmodelops.*` for clone/find/remove/zone-append operations on `DockModelNode`;
 - expanded the layer with pure panel-split docking around an anchor node;
+- expanded the layer with pure root-side docking that can create or use edge zones in model space;
 - added unit tests for model mutation behavior;
 - this is groundwork for moving runtime docking mutations toward model-first editing instead of direct live-tree surgery everywhere.
 

@@ -215,6 +215,23 @@ static DWORD DockModelOps_GetSplitStyleForSide(int nDockSide)
     return dwSplitStyle;
 }
 
+static PCWSTR DockModelOps_GetZoneName(int nDockSide)
+{
+    switch (nDockSide)
+    {
+    case DKS_LEFT:
+        return L"DockZone.Left";
+    case DKS_RIGHT:
+        return L"DockZone.Right";
+    case DKS_TOP:
+        return L"DockZone.Top";
+    case DKS_BOTTOM:
+        return L"DockZone.Bottom";
+    default:
+        return NULL;
+    }
+}
+
 BOOL DockModelOps_AppendPanelToZone(DockModelNode* pRootNode, int nDockSide, DockModelNode* pPanelNode)
 {
 	if (!pRootNode || !pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL)
@@ -325,5 +342,75 @@ BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchor
         return FALSE;
     }
 
+    return TRUE;
+}
+
+BOOL DockModelOps_DockPanelAtRootSide(DockModelNode* pRootNode, int nDockSide, DockModelNode* pPanelNode)
+{
+    if (!pRootNode || pRootNode->nRole != DOCK_ROLE_ROOT || !pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL)
+    {
+        return FALSE;
+    }
+
+    if (DockModelOps_AppendPanelToZone(pRootNode, nDockSide, pPanelNode))
+    {
+        return TRUE;
+    }
+
+    DockModelNode* pExistingChild = pRootNode->pChild1 ? pRootNode->pChild1 : pRootNode->pChild2;
+    if (!pExistingChild)
+    {
+        return FALSE;
+    }
+
+    DWORD dwSplitStyle = DockModelOps_GetSplitStyleForSide(nDockSide);
+    PCWSTR pszZoneName = DockModelOps_GetZoneName(nDockSide);
+    if (dwSplitStyle == 0 || !pszZoneName)
+    {
+        return FALSE;
+    }
+
+    uint32_t uNextNodeId = DockModelOps_GetMaxNodeId(pRootNode) + 1;
+    if (pPanelNode->uNodeId == 0)
+    {
+        pPanelNode->uNodeId = uNextNodeId++;
+    }
+
+    DockModelNode* pZoneNode = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+    DockModelNode* pSplitNode = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+    if (!pZoneNode || !pSplitNode)
+    {
+        free(pZoneNode);
+        free(pSplitNode);
+        return FALSE;
+    }
+
+    pZoneNode->uNodeId = uNextNodeId++;
+    pZoneNode->nRole = DOCK_ROLE_ZONE;
+    pZoneNode->nDockSide = nDockSide;
+    wcscpy_s(pZoneNode->szName, ARRAYSIZE(pZoneNode->szName), pszZoneName);
+    pZoneNode->pChild1 = pPanelNode;
+    pZoneNode->szActiveTabName[0] = L'\0';
+    wcscpy_s(pZoneNode->szActiveTabName, ARRAYSIZE(pZoneNode->szActiveTabName), pPanelNode->szName);
+
+    pSplitNode->uNodeId = uNextNodeId++;
+    pSplitNode->nRole = DOCK_ROLE_SHELL_SPLIT;
+    pSplitNode->dwStyle = dwSplitStyle;
+    pSplitNode->iGripPos = DockLayout_GetZoneSplitGrip(nDockSide, 280);
+    pSplitNode->fGripPos = -1.0f;
+    wcscpy_s(pSplitNode->szName, ARRAYSIZE(pSplitNode->szName), L"DockShell.Root");
+
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
+    {
+        pSplitNode->pChild1 = pZoneNode;
+        pSplitNode->pChild2 = pExistingChild;
+    }
+    else {
+        pSplitNode->pChild1 = pExistingChild;
+        pSplitNode->pChild2 = pZoneNode;
+    }
+
+    pRootNode->pChild1 = pSplitNode;
+    pRootNode->pChild2 = NULL;
     return TRUE;
 }

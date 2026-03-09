@@ -1325,6 +1325,42 @@ static int test_dock_model_ops_dock_panel_around_anchor(void)
     return 0;
 }
 
+static int test_dock_model_ops_dock_panel_at_root_side(void)
+{
+    DockModelNode root = { 0 };
+    DockModelNode workspace = { 0 };
+    DockModelNode panel = { 0 };
+
+    root.uNodeId = 1;
+    root.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(root.szName, ARRAYSIZE(root.szName), L"Root");
+    root.pChild1 = &workspace;
+
+    workspace.uNodeId = 2;
+    workspace.nRole = DOCK_ROLE_WORKSPACE;
+    workspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspace.szName, ARRAYSIZE(workspace.szName), L"WorkspaceContainer");
+
+    panel.uNodeId = 0;
+    panel.nRole = DOCK_ROLE_PANEL;
+    panel.nPaneKind = DOCK_PANE_TOOL;
+    wcscpy_s(panel.szName, ARRAYSIZE(panel.szName), L"GLWindow");
+
+    assert(DockModelOps_DockPanelAtRootSide(&root, DKS_RIGHT, &panel));
+    assert(root.pChild1 != NULL);
+    assert(root.pChild1->nRole == DOCK_ROLE_SHELL_SPLIT);
+    assert(root.pChild1->pChild1 != NULL);
+    assert(root.pChild1->pChild2 != NULL);
+    assert(root.pChild1->pChild2->nRole == DOCK_ROLE_ZONE);
+    assert(root.pChild1->pChild2->nDockSide == DKS_RIGHT);
+    assert(root.pChild1->pChild2->pChild1 != NULL);
+    assert(root.pChild1->pChild2->pChild1->nRole == DOCK_ROLE_PANEL);
+    assert(wcscmp(root.pChild1->pChild2->pChild1->szName, L"GLWindow") == 0);
+    assert(root.pChild1->pChild1->nRole == DOCK_ROLE_WORKSPACE);
+
+    return 0;
+}
+
 static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
 {
 	assert((pActual == NULL) == (pExpected == NULL));
@@ -1700,6 +1736,7 @@ int main(void)
 	failed |= test_dock_model_ops_clone_remove_and_zone_append();
 	failed |= test_default_layout_model_contains_expected_views();
 	failed |= test_dock_model_ops_dock_panel_around_anchor();
+	failed |= test_dock_model_ops_dock_panel_at_root_side();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();
