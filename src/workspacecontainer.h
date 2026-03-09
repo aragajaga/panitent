@@ -19,6 +19,8 @@ struct WorkspaceContainer {
 
 WorkspaceContainer* WorkspaceContainer_Create();
 void WorkspaceContainer_AddViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow);
+void WorkspaceContainer_SetCurrentViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, BOOL bSyncAppState);
+BOOL WorkspaceContainer_DetachViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow);
 ViewportWindow* WorkspaceContainer_GetCurrentViewport(WorkspaceContainer* pWorkspaceContainer);
 ViewportWindow* WorkspaceContainer_GetViewportAt(WorkspaceContainer* pWorkspaceContainer, int index);
 int WorkspaceContainer_GetViewportCount(WorkspaceContainer* pWorkspaceContainer);

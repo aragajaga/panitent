@@ -1409,6 +1409,51 @@ ViewportWindow* WorkspaceContainer_GetCurrentViewport(WorkspaceContainer* pWorks
     return pWorkspaceContainer->m_pViewportWindow;
 }
 
+BOOL WorkspaceContainer_DetachViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector || !pViewportWindow)
+    {
+        return FALSE;
+    }
+
+    int nViewportIndex = ViewportVector_FindIndex(pWorkspaceContainer->m_pViewportVector, pViewportWindow);
+    if (nViewportIndex < 0)
+    {
+        return FALSE;
+    }
+
+    if (!ViewportVector_RemoveAt(pWorkspaceContainer->m_pViewportVector, nViewportIndex, NULL))
+    {
+        return FALSE;
+    }
+
+    BOOL bWasCurrent = pWorkspaceContainer->m_pViewportWindow == pViewportWindow;
+    if (bWasCurrent)
+    {
+        ViewportWindow* pNewCurrent = NULL;
+        int nTabs = (int)ViewportVector_GetSize(pWorkspaceContainer->m_pViewportVector);
+        if (nTabs > 0)
+        {
+            int nNextIndex = min(nViewportIndex, nTabs - 1);
+            pNewCurrent = ViewportVector_Get(pWorkspaceContainer->m_pViewportVector, nNextIndex);
+        }
+
+        WorkspaceContainer_SetCurrentViewport(pWorkspaceContainer, pNewCurrent, TRUE);
+    }
+    else {
+        WorkspaceContainer_LayoutViewports(pWorkspaceContainer);
+        Window_Invalidate((Window*)pWorkspaceContainer);
+
+        if (PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewportWindow)
+        {
+            PanitentApp_SetActiveViewport(PanitentApp_Instance(), pWorkspaceContainer->m_pViewportWindow);
+        }
+        WorkspaceContainer_UpdateWindowTitle(pWorkspaceContainer);
+    }
+
+    return TRUE;
+}
+
 ViewportWindow* WorkspaceContainer_GetViewportAt(WorkspaceContainer* pWorkspaceContainer, int index)
 {
     if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector)

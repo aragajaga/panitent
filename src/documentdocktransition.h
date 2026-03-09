@@ -3,6 +3,14 @@
 #include "precomp.h"
 
 typedef struct WorkspaceContainer WorkspaceContainer;
+typedef struct DockHostWindow DockHostWindow;
+typedef struct DockTargetHit DockTargetHit;
+
+typedef BOOL (*FnDocumentDockTransitionDockTestHook)(
+    DockHostWindow* pTargetDockHostWindow,
+    HWND hWndChild,
+    const DockTargetHit* pDockTarget,
+    int iDockSize);
 
 BOOL DocumentDockTransition_DockSourceToWorkspace(
     HWND hWndSourceRoot,
@@ -10,3 +18,5 @@ BOOL DocumentDockTransition_DockSourceToWorkspace(
     WorkspaceContainer* pWorkspaceTarget,
     int nDockSide,
     int iDockSizeHint);
+
+void DocumentDockTransition_SetDockTestHook(FnDocumentDockTransitionDockTestHook pfnHook);

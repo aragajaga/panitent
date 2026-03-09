@@ -267,14 +267,19 @@ BOOL FloatingChildHost_MoveDocumentsToWorkspace(HWND hWndChild, WorkspaceContain
     return bMoved;
 }
 
-BOOL FloatingChildHost_EnsureWorkspaceChildForSideDock(HWND hWndFloating, HWND* phWndChild)
+BOOL FloatingChildHost_PrepareWorkspaceChildForSideDock(HWND hWndFloating, HWND* phWndChild, FloatingChildHostSideDockPrep* pPrep)
 {
     HWND hWndChild;
     WorkspaceContainer* pMergedWorkspace;
     HWND hWndMergedWorkspace;
-    HWND hWndWorkspaceList[64] = { 0 };
+    HWND hWndWorkspaceList[FLOATING_CHILDHOST_SIDE_DOCK_MAX_WORKSPACES] = { 0 };
     int nWorkspaceCount;
     BOOL bMoved = FALSE;
+
+    if (pPrep)
+    {
+        memset(pPrep, 0, sizeof(*pPrep));
+    }
 
     if (!hWndFloating || !IsWindow(hWndFloating) || !phWndChild)
     {
@@ -290,6 +295,13 @@ BOOL FloatingChildHost_EnsureWorkspaceChildForSideDock(HWND hWndFloating, HWND* 
     FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(hWndChild);
     if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
     {
+        if (pPrep)
+        {
+            pPrep->hWndFloating = hWndFloating;
+            pPrep->hWndOriginalChild = hWndChild;
+            pPrep->hWndPreparedChild = hWndChild;
+            pPrep->pAppActiveViewport = PanitentApp_GetActiveViewport(PanitentApp_Instance());
+        }
         return TRUE;
     }
 
@@ -312,32 +324,87 @@ BOOL FloatingChildHost_EnsureWorkspaceChildForSideDock(HWND hWndFloating, HWND* 
     }
 
     nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(hWndChild, hWndWorkspaceList, ARRAYSIZE(hWndWorkspaceList));
-    if (nWorkspaceCount <= 0)
+    if (nWorkspaceCount <= 0 || nWorkspaceCount > FLOATING_CHILDHOST_SIDE_DOCK_MAX_WORKSPACES)
     {
         DestroyWindow(hWndMergedWorkspace);
         return FALSE;
+    }
+
+    if (pPrep)
+    {
+        pPrep->hWndFloating = hWndFloating;
+        pPrep->hWndOriginalChild = hWndChild;
+        pPrep->hWndPreparedChild = hWndMergedWorkspace;
+        pPrep->pAppActiveViewport = PanitentApp_GetActiveViewport(PanitentApp_Instance());
+        pPrep->nWorkspaceCount = nWorkspaceCount;
     }
 
     for (int i = 0; i < nWorkspaceCount; ++i)
     {
-        Window* pWindow = WindowMap_Get(hWndWorkspaceList[i]);
-        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)pWindow;
-        if (!pWorkspace || WorkspaceContainer_GetViewportCount(pWorkspace) <= 0)
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndWorkspaceList[i]);
+        if (!pWorkspace)
         {
-            continue;
+            if (pPrep)
+            {
+                FloatingChildHost_RollbackWorkspaceChildForSideDock(pPrep, phWndChild);
+            }
+            else {
+                DestroyWindow(hWndMergedWorkspace);
+            }
+            return FALSE;
         }
 
-        WorkspaceContainer_MoveAllViewportsTo(pWorkspace, pMergedWorkspace);
-        bMoved = TRUE;
+        int nViewportCount = WorkspaceContainer_GetViewportCount(pWorkspace);
+        if (pPrep)
+        {
+            pPrep->workspaces[i].hWndWorkspace = hWndWorkspaceList[i];
+            pPrep->workspaces[i].pWorkspace = pWorkspace;
+            pPrep->workspaces[i].pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspace);
+            pPrep->workspaces[i].nViewportCount = min(nViewportCount, FLOATING_CHILDHOST_SIDE_DOCK_MAX_VIEWPORTS);
+            for (int j = 0; j < pPrep->workspaces[i].nViewportCount; ++j)
+            {
+                pPrep->workspaces[i].pViewports[j] = WorkspaceContainer_GetViewportAt(pWorkspace, j);
+            }
+        }
+
+        for (int j = 0; j < nViewportCount && j < FLOATING_CHILDHOST_SIDE_DOCK_MAX_VIEWPORTS; ++j)
+        {
+            ViewportWindow* pViewportWindow = WorkspaceContainer_GetViewportAt(pWorkspace, 0);
+            if (!pViewportWindow)
+            {
+                continue;
+            }
+
+            if (!WorkspaceContainer_DetachViewport(pWorkspace, pViewportWindow))
+            {
+                if (pPrep)
+                {
+                    FloatingChildHost_RollbackWorkspaceChildForSideDock(pPrep, phWndChild);
+                }
+                else {
+                    DestroyWindow(hWndMergedWorkspace);
+                }
+                return FALSE;
+            }
+
+            WorkspaceContainer_AddViewport(pMergedWorkspace, pViewportWindow);
+            bMoved = TRUE;
+        }
     }
 
     if (!bMoved)
     {
-        DestroyWindow(hWndMergedWorkspace);
+        if (pPrep)
+        {
+            FloatingChildHost_RollbackWorkspaceChildForSideDock(pPrep, phWndChild);
+        }
+        else {
+            DestroyWindow(hWndMergedWorkspace);
+        }
         return FALSE;
     }
 
-    DestroyWindow(hWndChild);
+    ShowWindow(hWndChild, SW_HIDE);
     *phWndChild = hWndMergedWorkspace;
 
     RECT rcClient = { 0 };
@@ -351,6 +418,93 @@ BOOL FloatingChildHost_EnsureWorkspaceChildForSideDock(HWND hWndFloating, HWND* 
         max(0, Win32_Rect_GetHeight(&rcClient)),
         SWP_NOACTIVATE | SWP_NOOWNERZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
 
+    return TRUE;
+}
+
+void FloatingChildHost_CommitWorkspaceChildForSideDock(FloatingChildHostSideDockPrep* pPrep)
+{
+    if (!pPrep)
+    {
+        return;
+    }
+
+    if (pPrep->hWndOriginalChild &&
+        pPrep->hWndPreparedChild &&
+        pPrep->hWndOriginalChild != pPrep->hWndPreparedChild &&
+        IsWindow(pPrep->hWndOriginalChild))
+    {
+        DestroyWindow(pPrep->hWndOriginalChild);
+    }
+}
+
+void FloatingChildHost_RollbackWorkspaceChildForSideDock(FloatingChildHostSideDockPrep* pPrep, HWND* phWndChild)
+{
+    if (!pPrep)
+    {
+        return;
+    }
+
+    WorkspaceContainer* pMergedWorkspace = (WorkspaceContainer*)WindowMap_Get(pPrep->hWndPreparedChild);
+    if (pMergedWorkspace)
+    {
+        for (int i = 0; i < pPrep->nWorkspaceCount; ++i)
+        {
+            FloatingChildHostSideDockWorkspaceState* pState = &pPrep->workspaces[i];
+            if (!pState->pWorkspace)
+            {
+                continue;
+            }
+
+            for (int j = 0; j < pState->nViewportCount; ++j)
+            {
+                ViewportWindow* pViewportWindow = pState->pViewports[j];
+                if (!pViewportWindow)
+                {
+                    continue;
+                }
+
+                WorkspaceContainer_DetachViewport(pMergedWorkspace, pViewportWindow);
+                WorkspaceContainer_AddViewport(pState->pWorkspace, pViewportWindow);
+            }
+
+            WorkspaceContainer_SetCurrentViewport(
+                pState->pWorkspace,
+                pState->pActiveViewport,
+                FALSE);
+        }
+    }
+
+    if (pPrep->pAppActiveViewport)
+    {
+        PanitentApp_SetActiveViewport(PanitentApp_Instance(), pPrep->pAppActiveViewport);
+    }
+
+    if (pPrep->hWndOriginalChild && IsWindow(pPrep->hWndOriginalChild))
+    {
+        ShowWindow(pPrep->hWndOriginalChild, SW_SHOW);
+    }
+
+    if (pPrep->hWndPreparedChild &&
+        pPrep->hWndPreparedChild != pPrep->hWndOriginalChild &&
+        IsWindow(pPrep->hWndPreparedChild))
+    {
+        DestroyWindow(pPrep->hWndPreparedChild);
+    }
+
+    if (phWndChild && pPrep->hWndOriginalChild && IsWindow(pPrep->hWndOriginalChild))
+    {
+        *phWndChild = pPrep->hWndOriginalChild;
+    }
+}
+
+BOOL FloatingChildHost_EnsureWorkspaceChildForSideDock(HWND hWndFloating, HWND* phWndChild)
+{
+    FloatingChildHostSideDockPrep prep = { 0 };
+    if (!FloatingChildHost_PrepareWorkspaceChildForSideDock(hWndFloating, phWndChild, &prep))
+    {
+        return FALSE;
+    }
+    FloatingChildHost_CommitWorkspaceChildForSideDock(&prep);
     return TRUE;
 }
 

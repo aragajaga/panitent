@@ -7,6 +7,13 @@
 #include "workspacecontainer.h"
 #include "win32/util.h"
 
+static FnDocumentDockTransitionDockTestHook g_pDocumentDockTransitionDockTestHook = NULL;
+
+void DocumentDockTransition_SetDockTestHook(FnDocumentDockTransitionDockTestHook pfnHook)
+{
+    g_pDocumentDockTransitionDockTestHook = pfnHook;
+}
+
 BOOL DocumentDockTransition_DockSourceToWorkspace(
     HWND hWndSourceRoot,
     HWND* phWndSourceChild,
@@ -37,7 +44,8 @@ BOOL DocumentDockTransition_DockSourceToWorkspace(
         return FALSE;
     }
 
-    if (!FloatingChildHost_EnsureWorkspaceChildForSideDock(hWndSourceRoot, phWndSourceChild))
+    FloatingChildHostSideDockPrep prep = { 0 };
+    if (!FloatingChildHost_PrepareWorkspaceChildForSideDock(hWndSourceRoot, phWndSourceChild, &prep))
     {
         return FALSE;
     }
@@ -73,11 +81,21 @@ BOOL DocumentDockTransition_DockSourceToWorkspace(
 
     HWND hWndChild = *phWndSourceChild;
     *phWndSourceChild = NULL;
-    if (!DockHostWindow_DockHWNDToTarget(pTargetDockHostWindow, hWndChild, &dockTarget, iDockSize))
+    BOOL bDocked = TRUE;
+    if (g_pDocumentDockTransitionDockTestHook)
     {
-        *phWndSourceChild = hWndChild;
+        bDocked = g_pDocumentDockTransitionDockTestHook(pTargetDockHostWindow, hWndChild, &dockTarget, iDockSize);
+    }
+    else {
+        bDocked = DockHostWindow_DockHWNDToTarget(pTargetDockHostWindow, hWndChild, &dockTarget, iDockSize);
+    }
+
+    if (!bDocked)
+    {
+        FloatingChildHost_RollbackWorkspaceChildForSideDock(&prep, phWndSourceChild);
         return FALSE;
     }
 
+    FloatingChildHost_CommitWorkspaceChildForSideDock(&prep);
     return TRUE;
 }
