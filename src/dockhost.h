@@ -74,6 +74,7 @@ typedef struct PanitentApp PanitentApp;
 DockHostWindow* DockHostWindow_Create(PanitentApp* app);
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
+BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot);

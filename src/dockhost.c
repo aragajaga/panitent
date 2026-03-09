@@ -14,6 +14,7 @@
 #include "util/tree.h"
 #include "dockhost.h"
 #include "dockgroup.h"
+#include "dockhostlayout.h"
 #include "docklayout.h"
 #include "dockpolicy.h"
 #include "dockviewcatalog.h"
@@ -78,7 +79,6 @@ static void DockHostWindow_DestroyDragOverlay(void);
 static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
 static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
 static BOOL DockNode_HasVisibleWindow(TreeNode* pNode);
-static BOOL DockNode_HasVisibleWindowInZone(TreeNode* pNode, DockData* pZoneData);
 static void DockHostWindow_AssignPersistentNameForHWND(DockData* pDockData, HWND hWnd);
 static BOOL DockNode_IsStructural(TreeNode* pNode);
 static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
@@ -573,46 +573,9 @@ int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNod
 	return DHT_UNKNOWN;
 }
 
-static BOOL DockNode_HasVisibleWindowInZone(TreeNode* pNode, DockData* pZoneData)
-{
-	if (!pNode)
-	{
-		return FALSE;
-	}
-
-	DockData* pDockData = (DockData*)pNode->data;
-	if (pDockData && DockNodeRole_IsZone(pDockData->nRole, pDockData->lpszName))
-	{
-		pZoneData = pDockData;
-	}
-
-	if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd))
-	{
-		if (pDockData->bCollapsed)
-		{
-			return FALSE;
-		}
-
-		if (!pZoneData)
-		{
-			return TRUE;
-		}
-
-		if (!pZoneData->hWndActiveTab || !IsWindow(pZoneData->hWndActiveTab))
-		{
-			pZoneData->hWndActiveTab = pDockData->hWnd;
-		}
-
-		return pDockData->hWnd == pZoneData->hWndActiveTab;
-	}
-
-	return DockNode_HasVisibleWindowInZone(pNode->node1, pZoneData) ||
-		DockNode_HasVisibleWindowInZone(pNode->node2, pZoneData);
-}
-
 static BOOL DockNode_HasVisibleWindow(TreeNode* pNode)
 {
-	return DockNode_HasVisibleWindowInZone(pNode, NULL);
+	return DockHostLayout_NodeHasVisibleWindow(pNode);
 }
 
 static BOOL DockNode_IsStructural(TreeNode* pNode)
@@ -2245,135 +2208,14 @@ void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
 	}
 
 	DockHostWindow_SyncZones(pDockHostWindow);
- 
+	DockHostLayout_AssignRects(pRoot, iBorderWidth, DOCK_MIN_PANE_SIZE);
+
 	PostOrderTreeTraversal traversal = { 0 };
 	PostOrderTreeTraversal_Init(&traversal, pRoot);
-
 	TreeNode* pCurrentNode = NULL;
 	while (pCurrentNode = PostOrderTreeTraversal_GetNext(&traversal))
 	{
 		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		TreeNode* pChildNode1 = pCurrentNode->node1;
-		TreeNode* pChildNode2 = pCurrentNode->node2;
-
-		/* Draw split if both children present */
-		if (pChildNode1 && pChildNode2)
-		{
-			RECT rcClient = { 0 };
-			DockData_GetClientRect(pDockData, &rcClient);
-
-			RECT rcNode1 = rcClient;
-
-			DWORD dwStyle = pDockData->dwStyle;
-			int iGripPos = pDockData->iGripPos;
-
-			BOOL bHasContentNode1 = DockNode_HasVisibleWindow(pChildNode1);
-			BOOL bHasContentNode2 = DockNode_HasVisibleWindow(pChildNode2);
-			int iSpan = (dwStyle & DGD_VERTICAL) ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
-			if (!(dwStyle & DGP_RELATIVE))
-			{
-				iGripPos = DockLayout_ClampSplitGrip(iSpan, iGripPos, DOCK_MIN_PANE_SIZE);
-				if (DockNode_UsesProportionalGrip(pCurrentNode) &&
-					bHasContentNode1 &&
-					bHasContentNode2)
-				{
-					if (pDockData->fGripPos >= 0.0f)
-					{
-						iGripPos = DockLayout_ScaleGripFromRatio(iSpan, pDockData->fGripPos, DOCK_MIN_PANE_SIZE);
-					}
-					else {
-						pDockData->fGripPos = DockLayout_GetGripRatio(iSpan, iGripPos, DOCK_MIN_PANE_SIZE);
-					}
-				}
-
-				pDockData->iGripPos = (short)iGripPos;
-			}
-
-			if (!bHasContentNode1)
-			{
-				iGripPos = (dwStyle & DGA_END) ? iSpan : 0;
-			}
-			else if (!bHasContentNode2)
-			{
-				iGripPos = (dwStyle & DGA_END) ? 0 : iSpan;
-			}
-
-			if (dwStyle & DGP_RELATIVE)
-			{
-				rcNode1.right = (rcNode1.right - rcNode1.left) / 2 - iBorderWidth / 2;
-			}
-			else {
-				if (dwStyle & DGA_END)
-				{
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode1.bottom = rcNode1.bottom - iGripPos - iBorderWidth / 2;
-					}
-					else {
-						rcNode1.right = rcNode1.right - iGripPos - iBorderWidth / 2;
-					}
-				}
-				else {
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode1.bottom = rcNode1.top + iGripPos - iBorderWidth / 2;
-					}
-					else {
-						rcNode1.right = rcNode1.left + iGripPos - iBorderWidth / 2;
-					}
-				}
-			}
-
-			if (pChildNode1 && pChildNode1->data)
-			{
-				DockData* pDockData = (DockData*)pChildNode1->data;
-				pDockData->rc = rcNode1;
-			}
-
-			/* Second part */
-			RECT rcNode2 = rcClient;
-			if (dwStyle & DGP_RELATIVE)
-			{
-				rcNode2.left += (rcNode2.right - rcNode2.left) / 2 + iBorderWidth / 2;
-			}
-			else {
-				if (dwStyle & DGA_END)
-				{
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode2.top = rcNode2.bottom - iGripPos + iBorderWidth / 2;
-					}
-					else {
-						rcNode2.left = rcNode2.right - iGripPos + iBorderWidth / 2;
-					}
-				}
-				else {
-					if (dwStyle & DGD_VERTICAL)
-					{
-						rcNode2.top = rcNode2.top + iGripPos + iBorderWidth / 2;
-					}
-					else {
-						rcNode2.left = rcNode2.left + iGripPos + iBorderWidth / 2;
-					}
-				}
-			}
-
-			if (pChildNode2 && pChildNode2->data)
-			{
-				DockData* pDockData = (DockData*)pChildNode2->data;
-				pDockData->rc = rcNode2;
-			}
-		}
-		else if (pChildNode1 || pChildNode2) {
-			TreeNode* child = pChildNode1 ? pChildNode1 : pChildNode2;
-
-			RECT rcClient = { 0 };
-			DockData_GetClientRect(pDockData, &rcClient);
-
-			((DockData*)child->data)->rc = rcClient;
-		}
-
 			if (pDockData && pDockData->hWnd)
 			{
 				if (pDockHostWindow->fAutoHideOverlayVisible &&
