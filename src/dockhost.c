@@ -3618,6 +3618,11 @@ static void DockHostWindow_DestroyTreeRecursive(TreeNode* pNode, const HWND* phW
 	free(pNode);
 }
 
+void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve)
+{
+	DockHostWindow_DestroyTreeRecursive(pRootNode, phWndPreserve, cPreserve);
+}
+
 void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve)
 {
 	if (!pDockHostWindow)
@@ -3628,7 +3633,7 @@ void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phW
 	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
 	DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
 	DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
-	DockHostWindow_DestroyTreeRecursive(pDockHostWindow->pRoot_, phWndPreserve, cPreserve);
+	DockHostWindow_DestroyNodeTree(pDockHostWindow->pRoot_, phWndPreserve, cPreserve);
 	pDockHostWindow->pRoot_ = NULL;
 	if (pDockHostWindow->m_pDockInspectorDialog)
 	{

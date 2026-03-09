@@ -118,6 +118,22 @@ static BOOL CALLBACK DockFloatingPersist_EnumWindowsProc(HWND hWnd, LPARAM lPara
 	return TRUE;
 }
 
+BOOL PanitentDockFloating_CaptureModel(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, DockFloatingLayoutFileModel* pModel)
+{
+	UNREFERENCED_PARAMETER(pPanitentApp);
+	UNREFERENCED_PARAMETER(pDockHostWindow);
+
+	if (!pModel)
+	{
+		return FALSE;
+	}
+
+	memset(pModel, 0, sizeof(*pModel));
+	DockFloatingPersistCollectContext context = { pModel };
+	EnumWindows(DockFloatingPersist_EnumWindowsProc, (LPARAM)&context);
+	return TRUE;
+}
+
 BOOL PanitentDockFloating_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
 	PTSTR pszFilePath = NULL;
@@ -134,13 +150,12 @@ BOOL PanitentDockFloating_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockH
 
 BOOL PanitentDockFloating_SaveToFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, PCWSTR pszFilePath)
 {
-	UNREFERENCED_PARAMETER(pPanitentApp);
-	UNREFERENCED_PARAMETER(pDockHostWindow);
-
 	DockFloatingLayoutFileModel model = { 0 };
-	DockFloatingPersistCollectContext context = { &model };
-	EnumWindows(DockFloatingPersist_EnumWindowsProc, (LPARAM)&context);
 	if (!pszFilePath || !pszFilePath[0])
+	{
+		return FALSE;
+	}
+	if (!PanitentDockFloating_CaptureModel(pPanitentApp, pDockHostWindow, &model))
 	{
 		return FALSE;
 	}
@@ -183,10 +198,22 @@ BOOL PanitentDockFloating_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHos
 		return FALSE;
 	}
 
-	BOOL bRestoredAny = FALSE;
-	for (int i = 0; i < model.nEntries; ++i)
+	BOOL bResult = PanitentDockFloating_RestoreModel(pPanitentApp, pDockHostWindow, &model);
+	DockFloatingLayout_Destroy(&model);
+	return bResult;
+}
+
+BOOL PanitentDockFloating_RestoreModel(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const DockFloatingLayoutFileModel* pModel)
+{
+	if (!pModel)
 	{
-		DockFloatingLayoutEntry* pEntry = &model.entries[i];
+		return FALSE;
+	}
+
+	BOOL bRestoredAny = FALSE;
+	for (int i = 0; i < pModel->nEntries; ++i)
+	{
+		const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
 		if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL &&
 			DockFloatingPersist_MainHostHasView(DockHostWindow_GetRoot(pDockHostWindow), pEntry->nViewId))
 		{
@@ -262,7 +289,5 @@ BOOL PanitentDockFloating_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHos
 		bRestoredAny = TRUE;
 	}
 
-	DockFloatingLayout_Destroy(&model);
-
-	return bRestoredAny;
+	return bRestoredAny || pModel->nEntries == 0;
 }

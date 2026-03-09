@@ -79,6 +79,7 @@ TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot);
 TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow);
 void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve);
+void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve);
 
 #define DKS_NONE 0
 #define DKS_LEFT 1
