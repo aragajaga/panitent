@@ -97,6 +97,13 @@ The next mandatory architecture steps are:
 - Reset layout.
 - Verify runtime tree invariants after each step.
 
+## Model-First Increment Applied
+
+This change set starts introducing a pure model mutation layer:
+- added `dockmodelops.*` for clone/find/remove/zone-append operations on `DockModelNode`;
+- added unit tests for model mutation behavior;
+- this is groundwork for moving runtime docking mutations toward model-first editing instead of direct live-tree surgery everywhere.
+
 ## Target Layers
 
 ### 1. Layout Model

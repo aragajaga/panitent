@@ -8,6 +8,7 @@
 #include "../src/dockviewcatalog.h"
 #include "../src/dockmodelbuild.h"
 #include "../src/dockmodel.h"
+#include "../src/dockmodelops.h"
 #include "../src/dockmodelio.h"
 #include "../src/dockmodelvalidate.h"
 #include "../src/floatingdockpolicy.h"
@@ -1154,6 +1155,71 @@ static int test_dock_model_capture_collapses_unary_split_nodes(void)
 	return 0;
 }
 
+static int test_dock_model_ops_clone_remove_and_zone_append(void)
+{
+    DockModelNode root = { 0 };
+    DockModelNode zoneLeft = { 0 };
+    DockModelNode workspace = { 0 };
+    DockModelNode panelA = { 0 };
+    DockModelNode panelB = { 0 };
+
+    root.uNodeId = 1;
+    root.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(root.szName, ARRAYSIZE(root.szName), L"Root");
+    root.pChild1 = &zoneLeft;
+    root.pChild2 = &workspace;
+
+    zoneLeft.uNodeId = 2;
+    zoneLeft.nRole = DOCK_ROLE_ZONE;
+    zoneLeft.nDockSide = DKS_LEFT;
+    wcscpy_s(zoneLeft.szName, ARRAYSIZE(zoneLeft.szName), L"DockZone.Left");
+    zoneLeft.pChild1 = &panelA;
+
+    workspace.uNodeId = 3;
+    workspace.nRole = DOCK_ROLE_WORKSPACE;
+    workspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspace.szName, ARRAYSIZE(workspace.szName), L"WorkspaceContainer");
+
+    panelA.uNodeId = 4;
+    panelA.nRole = DOCK_ROLE_PANEL;
+    panelA.nPaneKind = DOCK_PANE_TOOL;
+    wcscpy_s(panelA.szName, ARRAYSIZE(panelA.szName), L"Toolbox");
+
+    panelB.uNodeId = 0;
+    panelB.nRole = DOCK_ROLE_PANEL;
+    panelB.nPaneKind = DOCK_PANE_TOOL;
+    wcscpy_s(panelB.szName, ARRAYSIZE(panelB.szName), L"Palette");
+
+    DockModelNode* pClone = DockModelOps_CloneTree(&root);
+    assert(pClone != NULL);
+    assert(pClone != &root);
+    assert(pClone->pChild1 != &zoneLeft);
+    assert(pClone->pChild2 != &workspace);
+    assert(DockModelOps_FindByNodeId(pClone, 4) != NULL);
+    assert(DockModelOps_FindParentByNodeId(pClone, 4) != NULL);
+    assert(DockModelOps_GetMaxNodeId(pClone) == 4);
+
+    DockModelNode* pAppendPanel = DockModelOps_CloneTree(&panelB);
+    assert(pAppendPanel != NULL);
+    assert(DockModelOps_AppendPanelToZone(pClone, DKS_LEFT, pAppendPanel));
+    DockModelNode* pZoneClone = DockModelOps_FindByNodeId(pClone, 2);
+    assert(pZoneClone != NULL);
+    assert(pZoneClone->pChild1 != NULL);
+    assert(pZoneClone->pChild1->nRole == DOCK_ROLE_ZONE_STACK_SPLIT);
+    assert(DockModelOps_FindByNodeId(pClone, 4) != NULL);
+    assert(DockModelOps_FindByNodeId(pClone, pAppendPanel->uNodeId) != NULL);
+
+    assert(DockModelOps_RemoveNodeById(&pClone, 4));
+    pZoneClone = DockModelOps_FindByNodeId(pClone, 2);
+    assert(pZoneClone != NULL);
+    assert(pZoneClone->pChild1 != NULL);
+    assert(pZoneClone->pChild1->nRole == DOCK_ROLE_PANEL);
+    assert(wcscmp(pZoneClone->pChild1->szName, L"Palette") == 0);
+
+    DockModel_Destroy(pClone);
+    return 0;
+}
+
 static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
 {
 	assert((pActual == NULL) == (pExpected == NULL));
@@ -1526,6 +1592,7 @@ int main(void)
 	failed |= test_recovery_store_keeps_recent_but_deletes_old_orphans();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_capture_collapses_unary_split_nodes();
+	failed |= test_dock_model_ops_clone_remove_and_zone_append();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();

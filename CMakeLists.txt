@@ -99,6 +99,7 @@ set(C_SOURCES
     src/docklayoutpersist.c
     src/dockpolicy.c
     src/dockmodel.c
+    src/dockmodelops.c
     src/dockmodelbuild.c
     src/dockmodelio.c
     src/dockmodelvalidate.c
@@ -214,6 +215,7 @@ if(PANITENT_BUILD_TESTS)
     src/floatingdocumentsessionmodel.c
     src/dockfloatingmodel.c
     src/dockmodel.c
+    src/dockmodelops.c
     src/dockmodelbuild.c
     src/dockmodelio.c
     src/dockmodelvalidate.c
