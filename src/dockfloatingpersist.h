@@ -15,4 +15,5 @@ BOOL PanitentDockFloating_SaveToFilePath(PanitentApp* pPanitentApp, DockHostWind
 BOOL PanitentDockFloating_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, PCWSTR pszFilePath);
 BOOL PanitentDockFloating_CaptureModel(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, DockFloatingLayoutFileModel* pModel);
 BOOL PanitentDockFloating_RestoreModel(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const DockFloatingLayoutFileModel* pModel);
+BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const DockFloatingLayoutFileModel* pModel, BOOL bRequireAllEntries);
 void PanitentDockFloating_SetRestoreEntryTestHook(FnDockFloatingRestoreEntryTestHook pfnHook);

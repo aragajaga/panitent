@@ -212,15 +212,23 @@ BOOL PanitentDockFloating_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHos
 
 BOOL PanitentDockFloating_RestoreModel(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const DockFloatingLayoutFileModel* pModel)
 {
+	return PanitentDockFloating_RestoreModelEx(pPanitentApp, pDockHostWindow, pModel, FALSE);
+}
+
+BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const DockFloatingLayoutFileModel* pModel, BOOL bRequireAllEntries)
+{
 	if (!pModel)
 	{
 		return FALSE;
 	}
 
 	BOOL bRestoredAny = FALSE;
+	int nAttempted = 0;
+	int nRestored = 0;
 	for (int i = 0; i < pModel->nEntries; ++i)
 	{
 		const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+		nAttempted++;
 		if (g_pDockFloatingRestoreEntryTestHook &&
 			!g_pDockFloatingRestoreEntryTestHook(pEntry))
 		{
@@ -300,6 +308,12 @@ BOOL PanitentDockFloating_RestoreModel(PanitentApp* pPanitentApp, DockHostWindow
 			max(1, pEntry->rcWindow.bottom - pEntry->rcWindow.top),
 			SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
 		bRestoredAny = TRUE;
+		nRestored++;
+	}
+
+	if (bRequireAllEntries)
+	{
+		return nRestored == nAttempted;
 	}
 
 	return bRestoredAny || pModel->nEntries == 0;

@@ -13,6 +13,8 @@
 #include "win32/windowmap.h"
 #include "workspacecontainer.h"
 
+static FnFloatingDocumentLayoutRestoreEntryTestHook g_pFloatingDocumentLayoutRestoreEntryTestHook = NULL;
+
 typedef struct FloatingDocumentLayoutCaptureContext
 {
 	FloatingDocumentLayoutModel* pModel;
@@ -79,10 +81,28 @@ BOOL PanitentFloatingDocumentLayout_CaptureModel(PanitentApp* pPanitentApp, Floa
 	return TRUE;
 }
 
+void PanitentFloatingDocumentLayout_SetRestoreEntryTestHook(FnFloatingDocumentLayoutRestoreEntryTestHook pfnHook)
+{
+	g_pFloatingDocumentLayoutRestoreEntryTestHook = pfnHook;
+}
+
 BOOL PanitentFloatingDocumentLayout_RestoreModel(
 	PanitentApp* pPanitentApp,
 	DockHostWindow* pDockHostWindow,
 	const FloatingDocumentLayoutModel* pModel)
+{
+	return PanitentFloatingDocumentLayout_RestoreModelEx(
+		pPanitentApp,
+		pDockHostWindow,
+		pModel,
+		FALSE);
+}
+
+BOOL PanitentFloatingDocumentLayout_RestoreModelEx(
+	PanitentApp* pPanitentApp,
+	DockHostWindow* pDockHostWindow,
+	const FloatingDocumentLayoutModel* pModel,
+	BOOL bRequireAllEntries)
 {
 	if (!pPanitentApp || !pDockHostWindow || !pModel)
 	{
@@ -93,10 +113,18 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 	FloatingDocumentHost_CollectLiveWorkspaces(&context.reuse);
 
 	BOOL bRestoredAny = FALSE;
+	int nAttempted = 0;
+	int nRestored = 0;
 	for (int i = 0; i < pModel->nEntryCount; ++i)
 	{
 		const FloatingDocumentLayoutEntry* pEntry = &pModel->entries[i];
 		if (!pEntry->pLayoutModel)
+		{
+			continue;
+		}
+		nAttempted++;
+		if (g_pFloatingDocumentLayoutRestoreEntryTestHook &&
+			!g_pFloatingDocumentLayoutRestoreEntryTestHook(pEntry))
 		{
 			continue;
 		}
@@ -120,9 +148,15 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 			continue;
 		}
 		bRestoredAny = TRUE;
+		nRestored++;
 	}
 
 	FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &context.reuse);
+
+	if (bRequireAllEntries)
+	{
+		return nRestored == nAttempted;
+	}
 
 	return bRestoredAny || pModel->nEntryCount == 0;
 }

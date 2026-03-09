@@ -153,6 +153,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - workspace single-document float rollback now preserves original tab order and active document when floating-host creation fails.
 - runtime tests now also cover rollback when `Apply Window Layout` fails during floating tool restore.
 - runtime tests now also cover rollback when `Apply Window Layout` fails during floating document arrangement restore, not only during main layout validation.
+- runtime tests now also cover rollback when floating document layout restore fails partway through a multi-entry target arrangement.
 - runtime tests now also cover repeated application of the same mixed floating layout bundle to check idempotence and prevent duplicate floating windows.
 - runtime tests now also cover repeated named-profile switching across mixed arrangements (`A -> B -> A -> B -> Reset`) to check profile-level idempotence and cleanup.
 - runtime tests now also cover rollback when reapplying a mixed floating layout fails while the same mixed arrangement is already active.

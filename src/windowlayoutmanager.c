@@ -429,15 +429,16 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
     DockHostWindow_SetRoot(pDockHostWindow, pRootNode);
     DockHostWindow_Rearrange(pDockHostWindow);
 
-    if (pFloatingModel && !PanitentDockFloating_RestoreModel(pPanitentApp, pDockHostWindow, pFloatingModel))
+    if (pFloatingModel && !PanitentDockFloating_RestoreModelEx(pPanitentApp, pDockHostWindow, pFloatingModel, TRUE))
     {
         return FALSE;
     }
 
-    if (!PanitentFloatingDocumentLayout_RestoreModel(
+    if (!PanitentFloatingDocumentLayout_RestoreModelEx(
         pPanitentApp,
         pDockHostWindow,
-        pFloatDocModel ? pFloatDocModel : &emptyFloatDocModel))
+        pFloatDocModel ? pFloatDocModel : &emptyFloatDocModel,
+        TRUE))
     {
         return FALSE;
     }
