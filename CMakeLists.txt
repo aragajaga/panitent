@@ -86,6 +86,7 @@ set(C_SOURCES
     src/dockhostlayout.c
     src/dockhostmutate.c
     src/dockhostrestore.c
+    src/dockhosttree.c
     src/dockfloatingmodel.c
     src/dockfloatingpersist.c
     src/floatingdocumentsessionmodel.c
