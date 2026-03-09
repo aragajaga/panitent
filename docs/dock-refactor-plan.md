@@ -214,6 +214,7 @@ This change set continues the same decomposition on the runtime utility side:
 - follow-up cleanup also moved `DockHostWindow_OnCreate`, `OnDestroy`, `OnPaint`, and `OnSize` into the runtime layer, so `dockhost.c` now mostly holds registration/init/message dispatch rather than host lifecycle implementation details.
 - follow-up cleanup also moved `DockHostWindow_PreRegister`, `PreCreate`, `Init`, `Create`, and root accessors into the runtime layer, leaving `dockhost.c` as a much thinner dispatch facade.
 - follow-up cleanup also moved `DockData_Create` and `DockNode_Create` into the runtime layer, so basic dock node construction is no longer split between the host facade and runtime support code.
+- follow-up cleanup also moved `DockHostWindow_OnCommand` and `DockHostWindow_UserProc` into the runtime layer, leaving `dockhost.c` closer to a pure public wrapper file than an implementation hub.
 
 ## Target Layers
 

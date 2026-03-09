@@ -6,6 +6,8 @@ BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpc
 void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow);
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow);
 void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy);
+BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
+LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);

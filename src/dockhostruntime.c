@@ -13,14 +13,14 @@
 #include "dockviewcatalog.h"
 #include "oledroptarget.h"
 #include "panitentapp.h"
+#include "resource.h"
 #include "theme.h"
 #include "toolwndframe.h"
 #include "win32/window.h"
 #include "win32/util.h"
 #include "win32/windowmap.h"
 
-BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
-LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+#define IDM_DOCKINSPECTOR 101
 
 static BOOL DockHostRuntime_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPreserve, int cPreserve)
 {
@@ -207,6 +207,74 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 
         DockHostWindow_Rearrange(pDockHostWindow);
     }
+}
+
+BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam)
+{
+    UNREFERENCED_PARAMETER(lParam);
+
+    switch (LOWORD(wParam))
+    {
+    case IDM_DOCKINSPECTOR:
+        DockHostInput_InvokeInspectorDialog(pDockHostWindow);
+        return TRUE;
+    }
+
+    return FALSE;
+}
+
+LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+{
+    switch (message)
+    {
+    case WM_ERASEBKGND:
+        return 1;
+
+    case WM_MOUSEMOVE:
+        DockHostInput_OnMouseMove(
+            pDockHostWindow,
+            (int)(short)GET_X_LPARAM(lParam),
+            (int)(short)GET_Y_LPARAM(lParam),
+            (UINT)wParam,
+            DockHostMetrics_GetZoneTabGutter());
+        return 0;
+
+    case WM_MOUSELEAVE:
+        DockHostInput_OnMouseLeave(pDockHostWindow);
+        return 0;
+
+    case WM_LBUTTONDOWN:
+        DockHostInput_OnLButtonDown(
+            pDockHostWindow,
+            FALSE,
+            (int)(short)GET_X_LPARAM(lParam),
+            (int)(short)GET_Y_LPARAM(lParam),
+            (UINT)wParam,
+            DockHostMetrics_GetZoneTabGutter());
+        return 0;
+
+    case WM_LBUTTONUP:
+        DockHostInput_OnLButtonUp(
+            pDockHostWindow,
+            (int)(short)GET_X_LPARAM(lParam),
+            (int)(short)GET_Y_LPARAM(lParam),
+            (UINT)wParam);
+        return 0;
+
+    case WM_CAPTURECHANGED:
+        DockHostInput_OnCaptureChanged(pDockHostWindow);
+        return 0;
+
+    case WM_CONTEXTMENU:
+        DockHostInput_OnContextMenu(
+            pDockHostWindow,
+            (HWND)wParam,
+            (int)(short)GET_X_LPARAM(lParam),
+            (int)(short)GET_Y_LPARAM(lParam));
+        return 0;
+    }
+
+    return Window_UserProcDefault((Window*)pDockHostWindow, hWnd, message, wParam, lParam);
 }
 
 void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp)
