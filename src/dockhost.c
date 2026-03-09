@@ -131,39 +131,3 @@ BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd
 	DockHostWindow_DestroyInclusive(pDockHostWindow, pNode);
 	return TRUE;
 }
-
-DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
-{
-	DockData* pDockData = (DockData*)malloc(sizeof(DockData));
-
-	if (pDockData)
-	{
-		memset(pDockData, 0, sizeof(DockData));
-
-		pDockData->dwStyle = dwStyle;
-		pDockData->fGripPos = -1.0f;
-		pDockData->iGripPos = iGripPos;
-		pDockData->bShowCaption = bShowCaption;
-		pDockData->bCollapsed = FALSE;
-		pDockData->hWndActiveTab = NULL;
-		pDockData->nRole = DOCK_ROLE_UNKNOWN;
-		pDockData->nPaneKind = DOCK_PANE_NONE;
-		pDockData->nDockSide = DKS_NONE;
-		pDockData->uModelNodeId = 0;
-		pDockData->nViewId = PNT_DOCK_VIEW_NONE;
-
-		return pDockData;
-	}
-
-	return NULL;
-}
-
-TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
-{
-	TreeNode* pTreeNode = BinaryTree_AllocEmptyNode();
-	DockData* pDockData = DockData_Create(iGripPos, dwStyle, bShowCaption);
-
-	pTreeNode->data = pDockData;
-
-	return pTreeNode;
-}

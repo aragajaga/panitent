@@ -7,6 +7,8 @@ void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow);
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow);
 void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy);
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
+DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
+TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
 BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect);
