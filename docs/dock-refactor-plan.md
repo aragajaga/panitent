@@ -149,6 +149,8 @@ This change set starts covering real runtime docking/layout behavior instead of 
 
 This does not finish the full runtime test matrix yet, but it turns integration/runtime testing into a real, executable part of the plan instead of a future-only requirement.
 - runtime tests now also cover rollback when a document-group undock-to-floating transition fails during floating-host creation.
+- runtime tests now also cover rollback when single-document float from a workspace fails during floating-host creation.
+- workspace single-document float rollback now preserves original tab order and active document when floating-host creation fails.
 
 ## Dock Host Render Increment Applied
 

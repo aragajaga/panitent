@@ -998,6 +998,106 @@ static int test_runtime_single_document_float_uses_document_host_helper(void)
     return 0;
 }
 
+static int test_runtime_single_document_float_rolls_back_on_floating_create_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    HWND hWndViewport = Window_GetHWND((Window*)pViewport);
+    assert(hWndViewport && IsWindow(hWndViewport));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(runtime_fail_floating_document_create);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(NULL);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+    assert(WorkspaceContainer_GetCurrentViewport(pMainWorkspace) == pViewport);
+    assert(PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewport);
+    assert(GetParent(hWndViewport) == hWndMainWorkspace);
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 1);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_non_current_document_float_failure_preserves_order_and_active_tab(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvasA = Canvas_Create(32, 32);
+    Canvas* pCanvasB = Canvas_Create(32, 32);
+    assert(pCanvasA != NULL);
+    assert(pCanvasB != NULL);
+
+    Document* pDocumentA = Document_CreateWithCanvas(pCanvasA);
+    Document* pDocumentB = Document_CreateWithCanvas(pCanvasB);
+    assert(pDocumentA != NULL);
+    assert(pDocumentB != NULL);
+    assert(Document_AttachToWorkspace(pDocumentA, pMainWorkspace));
+    assert(Document_AttachToWorkspace(pDocumentB, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 2);
+
+    ViewportWindow* pViewportA = WorkspaceContainer_GetViewportAt(pMainWorkspace, 0);
+    ViewportWindow* pViewportB = WorkspaceContainer_GetViewportAt(pMainWorkspace, 1);
+    assert(pViewportA != NULL);
+    assert(pViewportB != NULL);
+    assert(WorkspaceContainer_GetCurrentViewport(pMainWorkspace) == pViewportB);
+    assert(PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewportB);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(runtime_fail_floating_document_create);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewportA, 420, 320, FALSE);
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(NULL);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 2);
+    assert(WorkspaceContainer_GetViewportAt(pMainWorkspace, 0) == pViewportA);
+    assert(WorkspaceContainer_GetViewportAt(pMainWorkspace, 1) == pViewportB);
+    assert(WorkspaceContainer_GetCurrentViewport(pMainWorkspace) == pViewportB);
+    assert(PanitentApp_GetActiveViewport(PanitentApp_Instance()) == pViewportB);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_try_dock_floating_workspace_uses_shared_document_transition(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -1273,6 +1373,8 @@ int main(void)
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_rolls_back_on_floating_create_failure();
     failed |= test_runtime_single_document_float_uses_document_host_helper();
+    failed |= test_runtime_single_document_float_rolls_back_on_floating_create_failure();
+    failed |= test_runtime_non_current_document_float_failure_preserves_order_and_active_tab();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 

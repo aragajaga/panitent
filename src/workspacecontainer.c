@@ -69,6 +69,11 @@ static DockHostWindow* WorkspaceContainer_GetOwningDockHost(WorkspaceContainer* 
 static BOOL WorkspaceContainer_IsMainWorkspace(WorkspaceContainer* pWorkspaceContainer);
 static void WorkspaceContainer_TryRemoveEmptyDockedGroup(WorkspaceContainer* pWorkspaceContainer);
 static void WorkspaceContainer_FinalizeEmptySourceAfterDetach(WorkspaceContainer* pWorkspaceContainer);
+static BOOL WorkspaceContainer_RestoreViewportAfterFloatFailure(
+    WorkspaceContainer* pWorkspaceContainer,
+    ViewportWindow* pViewportWindow,
+    int nViewportIndex,
+    ViewportWindow* pOriginalCurrentViewport);
 static BOOL WorkspaceContainer_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
 static BOOL WorkspaceContainer_OnDropFiles(void* pContext, HDROP hDrop);
 
@@ -82,6 +87,7 @@ ViewportVector* ViewportVector_Create();
 void ViewportVector_Init(ViewportVector* pViewportVector);
 BOOL ViewportVector_Reserve(ViewportVector* pViewportVector, size_t newCapacity);
 BOOL ViewportVector_Add(ViewportVector* pViewportVector, ViewportWindow* pViewportWindow);
+BOOL ViewportVector_InsertAt(ViewportVector* pViewportVector, int idx, ViewportWindow* pViewportWindow);
 BOOL ViewportVector_RemoveAt(ViewportVector* pViewportVector, int idx, ViewportWindow** ppViewportWindow);
 size_t ViewportVector_GetSize(ViewportVector* pViewportVector);
 ViewportWindow* ViewportVector_Get(ViewportVector* pViewportVector, int idx);
@@ -626,6 +632,51 @@ static void WorkspaceContainer_FinalizeEmptySourceAfterDetach(WorkspaceContainer
     {
         DestroyWindow(hWndSourceWorkspace);
     }
+}
+
+static BOOL WorkspaceContainer_RestoreViewportAfterFloatFailure(
+    WorkspaceContainer* pWorkspaceContainer,
+    ViewportWindow* pViewportWindow,
+    int nViewportIndex,
+    ViewportWindow* pOriginalCurrentViewport)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector || !pViewportWindow)
+    {
+        return FALSE;
+    }
+
+    HWND hWndWorkspaceContainer = Window_GetHWND((Window*)pWorkspaceContainer);
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
+    if (!hWndWorkspaceContainer || !IsWindow(hWndWorkspaceContainer) || !hWndViewport || !IsWindow(hWndViewport))
+    {
+        return FALSE;
+    }
+
+    SetParent(hWndViewport, hWndWorkspaceContainer);
+
+    DWORD dwStyle = Window_GetStyle((Window*)pViewportWindow);
+    dwStyle &= ~(WS_CAPTION | WS_THICKFRAME);
+    dwStyle |= WS_CHILD;
+    Window_SetStyle((Window*)pViewportWindow, dwStyle);
+    SetWindowPos(
+        hWndViewport,
+        NULL,
+        0,
+        0,
+        0,
+        0,
+        SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+    if (!ViewportVector_InsertAt(pWorkspaceContainer->m_pViewportVector, nViewportIndex, pViewportWindow))
+    {
+        return FALSE;
+    }
+
+    WorkspaceContainer_SetCurrentViewport(
+        pWorkspaceContainer,
+        pOriginalCurrentViewport ? pOriginalCurrentViewport : pViewportWindow,
+        TRUE);
+    return TRUE;
 }
 
 void WorkspaceContainer_UpdateWindowTitle(WorkspaceContainer* pWorkspaceContainer)
@@ -1386,6 +1437,7 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
     }
 
     HWND hWndSourceWorkspace = Window_GetHWND((Window*)pWorkspaceContainer);
+    ViewportWindow* pOriginalCurrentViewport = pWorkspaceContainer->m_pViewportWindow;
 
     int nViewportIndex = ViewportVector_FindIndex(pWorkspaceContainer->m_pViewportVector, pViewportWindow);
     if (nViewportIndex < 0)
@@ -1436,14 +1488,22 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
     WorkspaceContainer* pFloatingWorkspace = WorkspaceContainer_Create();
     if (!pFloatingWorkspace)
     {
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        WorkspaceContainer_RestoreViewportAfterFloatFailure(
+            pWorkspaceContainer,
+            pViewportWindow,
+            nViewportIndex,
+            pOriginalCurrentViewport);
         return;
     }
 
     HWND hWndFloatingWorkspace = Window_CreateWindow((Window*)pFloatingWorkspace, NULL);
     if (!hWndFloatingWorkspace || !IsWindow(hWndFloatingWorkspace))
     {
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        WorkspaceContainer_RestoreViewportAfterFloatFailure(
+            pWorkspaceContainer,
+            pViewportWindow,
+            nViewportIndex,
+            pOriginalCurrentViewport);
         free(pFloatingWorkspace);
         return;
     }
@@ -1472,7 +1532,11 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
         (POINT){ xScreen, yScreen },
         &hWndFloating))
     {
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        WorkspaceContainer_RestoreViewportAfterFloatFailure(
+            pWorkspaceContainer,
+            pViewportWindow,
+            nViewportIndex,
+            pOriginalCurrentViewport);
         DestroyWindow(hWndFloatingWorkspace);
         return;
     }
@@ -1729,6 +1793,43 @@ BOOL ViewportVector_Add(ViewportVector* pViewportVector, ViewportWindow* pViewpo
     }
 
     pViewportVector->pData[pViewportVector->m_size++] = pViewportWindow;
+    return TRUE;
+}
+
+BOOL ViewportVector_InsertAt(ViewportVector* pViewportVector, int idx, ViewportWindow* pViewportWindow)
+{
+    if (!pViewportVector || !pViewportWindow)
+    {
+        return FALSE;
+    }
+
+    if (idx < 0)
+    {
+        idx = 0;
+    }
+
+    if ((size_t)idx > pViewportVector->m_size)
+    {
+        idx = (int)pViewportVector->m_size;
+    }
+
+    if (pViewportVector->m_size >= pViewportVector->m_capacity)
+    {
+        size_t newCapacity = pViewportVector->m_capacity > 0 ?
+            pViewportVector->m_capacity * 2 : 10;
+        if (!ViewportVector_Reserve(pViewportVector, newCapacity))
+        {
+            return FALSE;
+        }
+    }
+
+    for (size_t i = pViewportVector->m_size; i > (size_t)idx; --i)
+    {
+        pViewportVector->pData[i] = pViewportVector->pData[i - 1];
+    }
+
+    pViewportVector->pData[idx] = pViewportWindow;
+    pViewportVector->m_size++;
     return TRUE;
 }
 
