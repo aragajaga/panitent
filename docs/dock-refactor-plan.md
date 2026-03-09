@@ -644,3 +644,13 @@ This change set extends stress coverage from direct layout apply to public comma
 - verifies stable workspace identity, stable floating counts, and stable `GLWindow` placement across the full cycle.
 
 This strengthens Phase 5 using the actual command path that end users trigger, not only helper-level apply calls.
+
+## Direct Floating Helper Stress Increment Applied
+
+This change set extends Phase 5 stress coverage to direct helper APIs:
+- repeatedly applies direct floating tool restore;
+- repeatedly applies direct floating document layout restore;
+- resets back to the default layout after each cycle;
+- verifies stable workspace identity, stable floating counts, and stable docked `GLWindow` placement.
+
+This closes another gap between helper-level semantics and command-level semantics under repeated operation.
