@@ -158,6 +158,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover rollback when reapplying a mixed floating layout fails while the same mixed arrangement is already active.
 - document-side runtime tests now also cover rollback for side-dock failure when a floating document host must merge workspaces before docking.
 - document-side runtime tests now also cover the successful side-dock merge path for a floating document host with multiple workspaces.
+- runtime tests now also cover menu-command application of saved named layouts, not only direct bundle-apply helpers.
 
 ## Dock Host Render Increment Applied
 

@@ -13,6 +13,8 @@
 #include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentlayoutpersist.h"
 #include "../src/floatingwindowcontainer.h"
+#include "../src/resource.h"
+#include "../src/windowlayoutcatalog.h"
 #include "../src/canvas.h"
 #include "../src/document.h"
 #include "../src/dockmodel.h"
@@ -23,6 +25,7 @@
 #include "../src/workspacecontainer.h"
 #include "../src/windowlayoutmanager.h"
 #include "../src/windowlayoutprofile.h"
+#include "../src/shell/pathutil.h"
 #include "../src/win32/window.h"
 #include "../src/win32/windowmap.h"
 
@@ -463,6 +466,19 @@ static void runtime_delete_profile_bundle(uint32_t uId)
         DeleteFileW(pszPath);
         free(pszPath);
     }
+}
+
+static void runtime_delete_window_layout_catalog_file(void)
+{
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    if (!pszCatalogPath)
+    {
+        return;
+    }
+
+    DeleteFileW(pszCatalogPath);
+    free(pszCatalogPath);
 }
 
 static BOOL CALLBACK runtime_enum_floating_windows(HWND hWnd, LPARAM lParam)
@@ -1971,6 +1987,104 @@ static int test_runtime_named_layout_profile_switch_with_mixed_floating_arrangem
     return 0;
 }
 
+static int test_runtime_menu_command_applies_named_mixed_layout_profiles(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    const uint32_t uIdA = 0x7C000000u | (uint32_t)(GetCurrentProcessId() & 0x0000FFFFu);
+    const uint32_t uIdB = uIdA + 1u;
+    runtime_delete_profile_bundle(uIdA);
+    runtime_delete_profile_bundle(uIdB);
+    runtime_delete_window_layout_catalog_file();
+
+    HWND hWndWorkspaceBefore = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceBefore && IsWindow(hWndWorkspaceBefore));
+
+    DockModelNode* pLayoutA = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockFloatingLayoutFileModel floatingA = { 0 };
+    FloatingDocumentLayoutModel floatDocsA = { 0 };
+    assert(pLayoutA != NULL);
+    assert(PanitentDockFloating_CaptureModel(fixture.pApp, fixture.pDockHostWindow, &floatingA));
+    assert(PanitentFloatingDocumentLayout_CaptureModel(fixture.pApp, &floatDocsA));
+    assert(WindowLayoutProfile_SaveBundle(uIdA, pLayoutA, &floatingA, &floatDocsA));
+
+    DockModelNode* pLayoutB = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pLayoutB != NULL);
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pLayoutB, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pLayoutB, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel floatingB = { 0 };
+    floatingB.nEntries = 1;
+    SetRect(&floatingB.entries[0].rcWindow, 180, 140, 500, 470);
+    floatingB.entries[0].iDockSizeHint = 240;
+    floatingB.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingB.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocsB = { 0 };
+    floatDocsB.nEntryCount = 1;
+    SetRect(&floatDocsB.entries[0].rcWindow, 560, 180, 940, 620);
+    floatDocsB.entries[0].pLayoutModel = &floatDocRoot;
+    assert(WindowLayoutProfile_SaveBundle(uIdB, pLayoutB, &floatingB, &floatDocsB));
+
+    WindowLayoutCatalog catalog = { 0 };
+    WindowLayoutCatalog_Init(&catalog);
+    assert(WindowLayoutCatalog_Add(&catalog, uIdA, L"Layout A"));
+    assert(WindowLayoutCatalog_Add(&catalog, uIdB, L"Layout B"));
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    assert(WindowLayoutCatalog_SaveToFile(&catalog, pszCatalogPath));
+    free(pszCatalogPath);
+
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_APPLY_LAYOUT_BASE + 1));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_APPLY_LAYOUT_BASE + 0));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 0);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 0);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+    DockModelNode* pAppliedA = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockModelNode* pRightZoneA = runtime_find_model_zone(pAppliedA, DKS_RIGHT);
+    assert(pAppliedA != NULL);
+    assert(pRightZoneA != NULL);
+    assert(runtime_model_subtree_contains_name(pRightZoneA, L"GLWindow"));
+
+    DockModel_Destroy(pAppliedA);
+    DockModel_Destroy(pLayoutB);
+    DockModel_Destroy(pLayoutA);
+    DockFloatingLayout_Destroy(&floatingA);
+    DockFloatingLayout_Destroy(&floatingB);
+    FloatingDocumentLayoutModel_Destroy(&floatDocsA);
+    runtime_delete_profile_bundle(uIdA);
+    runtime_delete_profile_bundle(uIdB);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 int main(void)
 {
     HRESULT hrOle = OleInitialize(NULL);
@@ -1987,6 +2101,7 @@ int main(void)
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
+    failed |= test_runtime_menu_command_applies_named_mixed_layout_profiles();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
