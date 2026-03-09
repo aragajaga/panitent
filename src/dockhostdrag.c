@@ -374,6 +374,16 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     DockHostDrag_ContinueFloatingDrag(hWndFloating);
 }
 
+int DockHostWindow_HitTestDockSide(DockHostWindow* pDockHostWindow, POINT ptScreen)
+{
+    return DockHostDrag_HitTestDockSide(pDockHostWindow, ptScreen);
+}
+
+BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptScreen, DockTargetHit* pTargetHit)
+{
+    return DockHostDrag_HitTestDockTarget(pDockHostWindow, ptScreen, pTargetHit);
+}
+
 void DockHostDrag_UpdateOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius)
 {
     if (!pDockHostWindow || !g_hWndDragOverlay || !IsWindow(g_hWndDragOverlay))

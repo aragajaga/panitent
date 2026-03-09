@@ -541,3 +541,12 @@ This change set removes another document-side duplication point:
 - `WorkspaceContainer_TryDockFloating(...)` and floating document dock-back flows now route through the same document transition path.
 
 This keeps document docking behavior consistent across workspace-driven and floating-document-driven flows without changing the existing overlay guide behavior.
+
+## Dock Host Thin Facade Increment Applied
+
+This change set removes the last thin public wrapper implementations from `dockhost.c`:
+- dock hit-test entrypoints now live in `dockhostdrag.*`;
+- dock mutate/remove entrypoints now live in `dockhostmutate.*`;
+- `dockhost.c` is reduced further toward a minimal facade over specialized runtime layers.
+
+This does not change public API shape, but it removes another leftover reason for `dockhost.c` to exist as a concrete implementation file instead of a thin coordinator.

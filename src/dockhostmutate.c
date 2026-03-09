@@ -16,6 +16,49 @@ static BOOL DockHostMutate_NodeIsStructural(TreeNode* pNode)
     return DockNodeRole_IsStructural(pDockData->nRole, pDockData->lpszName);
 }
 
+void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
+{
+    DockHostMutate_DestroyInclusive(pDockHostWindow, pTargetNode);
+}
+
+void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
+{
+    DockHostMutate_Undock(pDockHostWindow, pTargetNode);
+}
+
+BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize)
+{
+    return DockHostMutate_DockHWND(pDockHostWindow, hWnd, nDockSide, iDockSize);
+}
+
+BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize)
+{
+    return DockHostMutate_DockHWNDToTarget(pDockHostWindow, hWnd, pTargetHit, iDockSize);
+}
+
+BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd)
+{
+    if (!pDockHostWindow || !hWnd || !IsWindow(hWnd))
+    {
+        return FALSE;
+    }
+
+    TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
+    if (!pRoot)
+    {
+        return FALSE;
+    }
+
+    TreeNode* pNode = DockNode_FindByHWND(pRoot, hWnd);
+    if (!pNode)
+    {
+        return FALSE;
+    }
+
+    DockHostWindow_DestroyInclusive(pDockHostWindow, pNode);
+    return TRUE;
+}
+
 void DockHostMutate_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
     if (!pDockHostWindow || !pTargetNode || !pTargetNode->data)
