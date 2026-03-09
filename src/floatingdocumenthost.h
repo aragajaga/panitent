@@ -68,6 +68,17 @@ BOOL FloatingDocumentHost_RestorePinnedDockHost(
     BOOL* pbHasWorkspace,
     DockHostWindow** ppFloatingDockHostOut,
     HWND* phWndFloatingOut);
+BOOL FloatingDocumentHost_RestorePinnedDockHostWithReuse(
+    PanitentApp* pPanitentApp,
+    DockHostWindow* pDockHostTarget,
+    const RECT* pWindowRect,
+    const DockModelNode* pLayoutModel,
+    FloatingDocumentWorkspaceReuseContext* pReuse,
+    FnDockHostRestoreNodeAttached pfnNodeAttached,
+    void* pNodeAttachedUserData,
+    BOOL* pbHasWorkspace,
+    DockHostWindow** ppFloatingDockHostOut,
+    HWND* phWndFloatingOut);
 
 void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook);
 DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild);

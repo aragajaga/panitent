@@ -330,12 +330,11 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		restoreContext.pDockHostTarget = pDockHostWindow;
 		restoreContext.pEntry = pEntry;
 		BOOL bHasWorkspace = FALSE;
-		if (!FloatingDocumentHost_RestorePinnedDockHost(
+		if (!FloatingDocumentHost_RestorePinnedDockHostWithReuse(
 			pPanitentApp,
 			pDockHostWindow,
 			&pEntry->rcWindow,
 			pEntry->pLayoutModel,
-			FloatingDocumentHost_ResolveReusedWorkspace,
 			&reuse,
 			FloatingDocumentPersist_OnNodeAttached,
 			&restoreContext,

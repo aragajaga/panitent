@@ -132,12 +132,11 @@ BOOL PanitentFloatingDocumentLayout_RestoreModelEx(
 		DockHostWindow* pFloatingDockHost = NULL;
 		HWND hWndFloating = NULL;
 		BOOL bHasWorkspace = FALSE;
-		if (!FloatingDocumentHost_RestorePinnedDockHost(
+		if (!FloatingDocumentHost_RestorePinnedDockHostWithReuse(
 			pPanitentApp,
 			pDockHostWindow,
 			&pEntry->rcWindow,
 			pEntry->pLayoutModel,
-			FloatingDocumentHost_ResolveReusedWorkspace,
 			&context.reuse,
 			NULL,
 			NULL,

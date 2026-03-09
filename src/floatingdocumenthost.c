@@ -522,3 +522,29 @@ BOOL FloatingDocumentHost_RestorePinnedDockHost(
     }
     return TRUE;
 }
+
+BOOL FloatingDocumentHost_RestorePinnedDockHostWithReuse(
+    PanitentApp* pPanitentApp,
+    DockHostWindow* pDockHostTarget,
+    const RECT* pWindowRect,
+    const DockModelNode* pLayoutModel,
+    FloatingDocumentWorkspaceReuseContext* pReuse,
+    FnDockHostRestoreNodeAttached pfnNodeAttached,
+    void* pNodeAttachedUserData,
+    BOOL* pbHasWorkspace,
+    DockHostWindow** ppFloatingDockHostOut,
+    HWND* phWndFloatingOut)
+{
+    return FloatingDocumentHost_RestorePinnedDockHost(
+        pPanitentApp,
+        pDockHostTarget,
+        pWindowRect,
+        pLayoutModel,
+        FloatingDocumentHost_ResolveReusedWorkspace,
+        pReuse,
+        pfnNodeAttached,
+        pNodeAttachedUserData,
+        pbHasWorkspace,
+        ppFloatingDockHostOut,
+        phWndFloatingOut);
+}
