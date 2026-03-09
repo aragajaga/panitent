@@ -15,6 +15,7 @@
 #include "dockhost.h"
 #include "dockhostmutate.h"
 #include "dockhosttree.h"
+#include "dockhostzone.h"
 #include "dockgroup.h"
 #include "dockhostlayout.h"
 #include "docklayout.h"
@@ -91,10 +92,6 @@ static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc
 static void DockHostWindow_GetPanelTabLabel(DockData* pDockData, WCHAR* pszLabel, int cchLabel);
 static int DockHostWindow_GetZoneTabLengthFromLabel(HDC hdc, PCWSTR pszLabel);
 static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide, HWND hWndTab);
-static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount);
-static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity);
-static int DockZone_GetPanelsByCollapsed(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity, BOOL bCollapsed);
-static void DockZone_EnsureActiveTab(TreeNode* pZoneNode);
 static void DockHostWindow_UpdateZoneTabGutters(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
 static BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect);
@@ -592,102 +589,6 @@ static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode)
 
 	DockData* pDockData = (DockData*)pNode->data;
 	return DockNodeRole_UsesProportionalGrip(pDockData->nRole, pDockData->lpszName);
-}
-
-static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount)
-{
-	if (!pNode || !ppNodes || !pnCount || *pnCount >= cCapacity)
-	{
-		return;
-	}
-
-	DockData* pDockData = (DockData*)pNode->data;
-	if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd))
-	{
-		ppNodes[*pnCount] = pNode;
-		(*pnCount)++;
-		return;
-	}
-
-	DockZone_CollectPanels(pNode->node1, ppNodes, cCapacity, pnCount);
-	DockZone_CollectPanels(pNode->node2, ppNodes, cCapacity, pnCount);
-}
-
-static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity)
-{
-	if (!pZoneNode || !ppNodes || cCapacity <= 0)
-	{
-		return 0;
-	}
-
-	int nCount = 0;
-	DockZone_CollectPanels(pZoneNode->node1, ppNodes, cCapacity, &nCount);
-	return nCount;
-}
-
-static int DockZone_GetPanelsByCollapsed(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity, BOOL bCollapsed)
-{
-	if (!pZoneNode || !ppNodes || cCapacity <= 0)
-	{
-		return 0;
-	}
-
-	TreeNode* panels[DOCK_ZONE_MAX_TABS] = { 0 };
-	int nPanels = DockZone_GetPanels(pZoneNode, panels, ARRAYSIZE(panels));
-	int nFiltered = 0;
-	for (int i = 0; i < nPanels && nFiltered < cCapacity; ++i)
-	{
-		DockData* pDockData = panels[i] ? (DockData*)panels[i]->data : NULL;
-		if (!pDockData || !pDockData->hWnd || !IsWindow(pDockData->hWnd))
-		{
-			continue;
-		}
-
-		if ((pDockData->bCollapsed ? TRUE : FALSE) != (bCollapsed ? TRUE : FALSE))
-		{
-			continue;
-		}
-
-		ppNodes[nFiltered++] = panels[i];
-	}
-
-	return nFiltered;
-}
-
-static void DockZone_EnsureActiveTab(TreeNode* pZoneNode)
-{
-	if (!pZoneNode || !pZoneNode->data)
-	{
-		return;
-	}
-
-	DockData* pZoneData = (DockData*)pZoneNode->data;
-	TreeNode* tabs[DOCK_ZONE_MAX_TABS] = { 0 };
-	int nTabs = DockZone_GetPanelsByCollapsed(pZoneNode, tabs, ARRAYSIZE(tabs), FALSE);
-	if (nTabs <= 0)
-	{
-		pZoneData->hWndActiveTab = NULL;
-		return;
-	}
-
-	if (!pZoneData->hWndActiveTab || !IsWindow(pZoneData->hWndActiveTab))
-	{
-		DockData* pDockData = (DockData*)tabs[0]->data;
-		pZoneData->hWndActiveTab = pDockData ? pDockData->hWnd : NULL;
-		return;
-	}
-
-	for (int i = 0; i < nTabs; ++i)
-	{
-		DockData* pDockData = (DockData*)tabs[i]->data;
-		if (pDockData && pDockData->hWnd == pZoneData->hWndActiveTab)
-		{
-			return;
-		}
-	}
-
-	DockData* pDockData = (DockData*)tabs[0]->data;
-	pZoneData->hWndActiveTab = pDockData ? pDockData->hWnd : NULL;
 }
 
 static int DockHostWindow_GetZoneSideTabGutter(DockHostWindow* pDockHostWindow, int nDockSide)
