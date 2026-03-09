@@ -61,6 +61,28 @@ static TreeNode* runtime_find_live_node_by_name(TreeNode* pNode, PCWSTR pszName)
     return runtime_find_live_node_by_name(pNode->node2, pszName);
 }
 
+static TreeNode* runtime_find_live_node_by_hwnd(TreeNode* pNode, HWND hWnd)
+{
+    if (!pNode || !hWnd)
+    {
+        return NULL;
+    }
+
+    DockData* pDockData = (DockData*)pNode->data;
+    if (pDockData && pDockData->hWnd == hWnd)
+    {
+        return pNode;
+    }
+
+    TreeNode* pFound = runtime_find_live_node_by_hwnd(pNode->node1, hWnd);
+    if (pFound)
+    {
+        return pFound;
+    }
+
+    return runtime_find_live_node_by_hwnd(pNode->node2, hWnd);
+}
+
 static DockModelNode* runtime_find_model_node_by_name(DockModelNode* pNode, PCWSTR pszName)
 {
     if (!pNode || !pszName)
@@ -715,6 +737,90 @@ static int test_runtime_document_workspace_model_docking_creates_split_group(voi
     return 0;
 }
 
+static int test_runtime_layout_apply_preserves_workspace_binding_by_node_id(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pIncomingWorkspace = WorkspaceContainer_Create();
+    assert(pIncomingWorkspace != NULL);
+    HWND hWndIncomingWorkspace = Window_CreateWindow((Window*)pIncomingWorkspace, NULL);
+    assert(hWndIncomingWorkspace && IsWindow(hWndIncomingWorkspace));
+    ShowWindow(hWndIncomingWorkspace, SW_HIDE);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pIncomingWorkspace));
+
+    DockTargetHit targetHit = { 0 };
+    targetHit.nDockSide = DKS_RIGHT;
+    targetHit.bLocalTarget = TRUE;
+    targetHit.hWndAnchor = hWndMainWorkspace;
+    assert(DockHostWindow_DockHWNDToTarget(fixture.pDockHostWindow, hWndIncomingWorkspace, &targetHit, 240));
+
+    TreeNode* pMainWorkspaceNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndMainWorkspace);
+    TreeNode* pIncomingWorkspaceNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndIncomingWorkspace);
+    DockData* pMainWorkspaceData = pMainWorkspaceNode ? (DockData*)pMainWorkspaceNode->data : NULL;
+    DockData* pIncomingWorkspaceData = pIncomingWorkspaceNode ? (DockData*)pIncomingWorkspaceNode->data : NULL;
+    assert(pMainWorkspaceData != NULL);
+    assert(pIncomingWorkspaceData != NULL);
+    assert(pMainWorkspaceData->uModelNodeId != 0);
+    assert(pIncomingWorkspaceData->uModelNodeId != 0);
+
+    const uint32_t uMainNodeId = pMainWorkspaceData->uModelNodeId;
+    const uint32_t uIncomingNodeId = pIncomingWorkspaceData->uModelNodeId;
+
+    DockModelNode* pCurrentModel = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pCurrentModel != NULL);
+
+    /* Swap the two workspace nodes while keeping their original node ids. */
+    DockModelNode* pSwapped = DockModelOps_CloneTree(pCurrentModel);
+    assert(pSwapped != NULL);
+    DockModelNode* pSplit = pSwapped->pChild1;
+    while (pSplit && !(pSplit->nRole == DOCK_ROLE_PANEL_SPLIT &&
+        pSplit->pChild1 && pSplit->pChild1->nRole == DOCK_ROLE_WORKSPACE &&
+        pSplit->pChild2 && pSplit->pChild2->nRole == DOCK_ROLE_WORKSPACE))
+    {
+        if (pSplit->pChild1 && runtime_count_model_role(pSplit->pChild1, DOCK_ROLE_WORKSPACE) >= 2)
+        {
+            pSplit = pSplit->pChild1;
+        }
+        else if (pSplit->pChild2 && runtime_count_model_role(pSplit->pChild2, DOCK_ROLE_WORKSPACE) >= 2)
+        {
+            pSplit = pSplit->pChild2;
+        }
+        else {
+            pSplit = NULL;
+        }
+    }
+    assert(pSplit != NULL);
+
+    DockModelNode* pTmp = pSplit->pChild1;
+    pSplit->pChild1 = pSplit->pChild2;
+    pSplit->pChild2 = pTmp;
+
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pSwapped, NULL, NULL));
+
+    pMainWorkspaceNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndMainWorkspace);
+    pIncomingWorkspaceNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndIncomingWorkspace);
+    pMainWorkspaceData = pMainWorkspaceNode ? (DockData*)pMainWorkspaceNode->data : NULL;
+    pIncomingWorkspaceData = pIncomingWorkspaceNode ? (DockData*)pIncomingWorkspaceNode->data : NULL;
+    assert(pMainWorkspaceData != NULL);
+    assert(pIncomingWorkspaceData != NULL);
+    assert(pMainWorkspaceData->uModelNodeId == uMainNodeId);
+    assert(pIncomingWorkspaceData->uModelNodeId == uIncomingNodeId);
+
+    DockModel_Destroy(pSwapped);
+    DockModel_Destroy(pCurrentModel);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -841,6 +947,7 @@ int main(void)
     failed |= test_runtime_apply_mixed_floating_layout_bundle();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
+    failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 
     if (bOleInitialized)
     {

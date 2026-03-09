@@ -126,6 +126,7 @@ This change set starts using the pure model mutation layer in a live runtime pat
 This change set starts lifting document-group runtime/layout behavior toward the same model-first boundary:
 - main-layout validation now accepts multiple `WorkspaceContainer` nodes instead of treating workspace as a singleton;
 - `windowlayoutmanager` now preserves multiple live workspace windows during transactional apply/reset;
+- `windowlayoutmanager` now matches preserved workspaces by model node identity instead of only traversal order, with a single-workspace fallback for default reset/apply;
 - `dockmodelops.*` gained a pure workspace split operation around an anchor node;
 - `dockhostmodelapply.*` gained a model-first runtime path for docking incoming document workspaces around an existing workspace;
 - pure and runtime tests now cover multi-workspace layout validation and live document-workspace side docking.

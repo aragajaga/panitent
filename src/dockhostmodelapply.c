@@ -6,6 +6,7 @@
 #include "dockhosttree.h"
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
+#include "dockmodelmatch.h"
 #include "dockmodelops.h"
 #include "dockmodelvalidate.h"
 #include "dockviewcatalog.h"
@@ -28,27 +29,6 @@ typedef struct DockHostModelApplyContext
     int nEntries;
 } DockHostModelApplyContext;
 
-static DockModelNode* DockHostModelApply_FindModelNodeByViewId(DockModelNode* pNode, PanitentDockViewId nViewId)
-{
-    if (!pNode || nViewId == PNT_DOCK_VIEW_NONE)
-    {
-        return NULL;
-    }
-
-    if ((PanitentDockViewId)pNode->uViewId == nViewId)
-    {
-        return pNode;
-    }
-
-    DockModelNode* pFound = DockHostModelApply_FindModelNodeByViewId(pNode->pChild1, nViewId);
-    if (pFound)
-    {
-        return pFound;
-    }
-
-    return DockHostModelApply_FindModelNodeByViewId(pNode->pChild2, nViewId);
-}
-
 static BOOL DockHostModelApply_IsWorkspaceHwnd(HWND hWnd)
 {
     WCHAR szClassName[64] = L"";
@@ -59,153 +39,6 @@ static BOOL DockHostModelApply_IsWorkspaceHwnd(HWND hWnd)
 
     GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
     return wcscmp(szClassName, L"__WorkspaceContainer") == 0;
-}
-
-static BOOL DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(
-    const TreeNode* pNode,
-    HWND hWndTarget,
-    int* pnOrdinal,
-    BOOL* pbFound)
-{
-    if (!pNode || !pNode->data || !pnOrdinal || !pbFound || *pbFound)
-    {
-        return *pbFound;
-    }
-
-    const DockData* pDockData = (const DockData*)pNode->data;
-    if (pDockData->nRole == DOCK_ROLE_WORKSPACE)
-    {
-        if (pDockData->hWnd == hWndTarget)
-        {
-            *pbFound = TRUE;
-            return TRUE;
-        }
-        (*pnOrdinal)++;
-    }
-
-    DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pNode->node1, hWndTarget, pnOrdinal, pbFound);
-    DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pNode->node2, hWndTarget, pnOrdinal, pbFound);
-    return *pbFound;
-}
-
-static DockModelNode* DockHostModelApply_FindWorkspaceByOrdinalRecursive(
-    DockModelNode* pNode,
-    int nTargetOrdinal,
-    int* pnCurrentOrdinal)
-{
-    if (!pNode || !pnCurrentOrdinal)
-    {
-        return NULL;
-    }
-
-    if (pNode->nRole == DOCK_ROLE_WORKSPACE)
-    {
-        if (*pnCurrentOrdinal == nTargetOrdinal)
-        {
-            return pNode;
-        }
-
-        (*pnCurrentOrdinal)++;
-    }
-
-    DockModelNode* pFound = DockHostModelApply_FindWorkspaceByOrdinalRecursive(
-        pNode->pChild1,
-        nTargetOrdinal,
-        pnCurrentOrdinal);
-    if (pFound)
-    {
-        return pFound;
-    }
-
-    return DockHostModelApply_FindWorkspaceByOrdinalRecursive(
-        pNode->pChild2,
-        nTargetOrdinal,
-        pnCurrentOrdinal);
-}
-
-static DockModelNode* DockHostModelApply_FindWorkspaceByLiveHwnd(
-    const TreeNode* pLiveRoot,
-    DockModelNode* pModelRoot,
-    HWND hWndWorkspace)
-{
-    int nOrdinal = 0;
-    BOOL bFound = FALSE;
-    if (!pLiveRoot || !pModelRoot || !hWndWorkspace)
-    {
-        return NULL;
-    }
-
-    if (!DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pLiveRoot, hWndWorkspace, &nOrdinal, &bFound) || !bFound)
-    {
-        return NULL;
-    }
-
-    int nCurrentOrdinal = 0;
-    return DockHostModelApply_FindWorkspaceByOrdinalRecursive(pModelRoot, nOrdinal, &nCurrentOrdinal);
-}
-
-static DockModelNode* DockHostModelApply_FindModelNodeByName(DockModelNode* pNode, PCWSTR pszName)
-{
-    if (!pNode || !pszName || !pszName[0])
-    {
-        return NULL;
-    }
-
-    if (wcscmp(pNode->szName, pszName) == 0)
-    {
-        return pNode;
-    }
-
-    DockModelNode* pFound = DockHostModelApply_FindModelNodeByName(pNode->pChild1, pszName);
-    if (pFound)
-    {
-        return pFound;
-    }
-
-    return DockHostModelApply_FindModelNodeByName(pNode->pChild2, pszName);
-}
-
-static DockModelNode* DockHostModelApply_FindModelNodeForLiveData(
-    const TreeNode* pLiveRoot,
-    DockModelNode* pRoot,
-    const DockData* pDockData)
-{
-    if (!pRoot || !pDockData)
-    {
-        return NULL;
-    }
-
-    if (pDockData->uModelNodeId != 0)
-    {
-        DockModelNode* pById = DockModelOps_FindByNodeId(pRoot, pDockData->uModelNodeId);
-        if (pById)
-        {
-            return pById;
-        }
-    }
-
-    if (pDockData->nRole == DOCK_ROLE_WORKSPACE && pDockData->hWnd && IsWindow(pDockData->hWnd))
-    {
-        DockModelNode* pWorkspaceNode = DockHostModelApply_FindWorkspaceByLiveHwnd(pLiveRoot, pRoot, pDockData->hWnd);
-        if (pWorkspaceNode)
-        {
-            return pWorkspaceNode;
-        }
-    }
-
-    PanitentDockViewId nViewId = pDockData->nViewId != PNT_DOCK_VIEW_NONE ?
-        pDockData->nViewId :
-        PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
-    if (nViewId != PNT_DOCK_VIEW_NONE)
-    {
-        DockModelNode* pByViewId = DockHostModelApply_FindModelNodeByViewId(pRoot, nViewId);
-        if (pByViewId)
-        {
-            return pByViewId;
-        }
-    }
-
-    return DockHostModelApply_FindModelNodeByName(pRoot, pDockData->lpszName);
 }
 
 static PanitentDockViewId DockHostModelApply_GetViewIdForHwnd(HWND hWnd)
@@ -284,7 +117,7 @@ static void DockHostModelApply_CollectViewsRecursive(
         PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
     if (nViewId != PNT_DOCK_VIEW_NONE && pDockData->hWnd && IsWindow(pDockData->hWnd))
     {
-        DockModelNode* pModelNode = DockHostModelApply_FindModelNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
+        DockModelNode* pModelNode = DockModelMatch_FindNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
         DockHostModelApply_AddPreservedView(
             pContext,
             nViewId,
@@ -318,7 +151,7 @@ static void DockHostModelApply_CollectViewsRecursiveEx(
         PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
     if (nViewId != PNT_DOCK_VIEW_NONE && pDockData->hWnd && IsWindow(pDockData->hWnd))
     {
-        DockModelNode* pModelNode = DockHostModelApply_FindModelNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
+        DockModelNode* pModelNode = DockModelMatch_FindNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
         DockHostModelApply_AddPreservedView(
             pContext,
             nViewId,
@@ -550,7 +383,7 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         DockData* pAnchorLiveData = pAnchorLiveNode ? (DockData*)pAnchorLiveNode->data : NULL;
         if (pAnchorLiveData)
         {
-            DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(
+            DockModelNode* pAnchorModelNode = DockModelMatch_FindNodeForLiveData(
                 DockHostWindow_GetRoot(pDockHostWindow),
                 pTargetModel,
                 pAnchorLiveData);
@@ -623,7 +456,7 @@ BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND h
         DockHostWindow_GetRoot(pDockHostWindow),
         hWnd);
 
-    DockModelNode* pLiveModelNode = DockHostModelApply_FindModelNodeForLiveData(
+    DockModelNode* pLiveModelNode = DockModelMatch_FindNodeForLiveData(
         DockHostWindow_GetRoot(pDockHostWindow),
         pTargetModel,
         pLiveData);
@@ -688,7 +521,7 @@ BOOL DockHostModelApply_DockDocumentWindow(DockHostWindow* pDockHostWindow, HWND
     context.pPanitentApp = PanitentApp_Instance();
     DockHostModelApply_CollectViewsRecursive(&context, pLiveRoot, pRollbackModel, pLiveRoot);
 
-    DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(
+    DockModelNode* pAnchorModelNode = DockModelMatch_FindNodeForLiveData(
         pLiveRoot,
         pTargetModel,
         pAnchorLiveData);
