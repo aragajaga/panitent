@@ -36,6 +36,7 @@
 
 static const WCHAR g_szWindowLayoutsFileName[] = L"windowlayouts.dat";
 static FnWindowLayoutManagerMessageSink g_pWindowLayoutManagerMessageSink = NULL;
+static FnWindowLayoutManagerPromptSink g_pWindowLayoutManagerPromptSink = NULL;
 
 typedef struct WindowLayoutNameDialogContext
 {
@@ -94,6 +95,11 @@ static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWS
 void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink)
 {
     g_pWindowLayoutManagerMessageSink = pfnMessageSink;
+}
+
+void WindowLayoutManager_SetPromptSink(FnWindowLayoutManagerPromptSink pfnPromptSink)
+{
+    g_pWindowLayoutManagerPromptSink = pfnPromptSink;
 }
 
 static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType)
@@ -622,6 +628,17 @@ static BOOL WindowLayoutManager_PromptForName(HWND hWndParent, PCWSTR pszTitle, 
     if (!pszName || cchName == 0)
     {
         return FALSE;
+    }
+
+    if (g_pWindowLayoutManagerPromptSink)
+    {
+        return g_pWindowLayoutManagerPromptSink(
+            hWndParent,
+            pszTitle,
+            pszPrompt,
+            pszInitialName,
+            pszName,
+            cchName);
     }
 
     StringCchCopyW(context.szTitle, ARRAYSIZE(context.szTitle), pszTitle ? pszTitle : L"Save Window Layout");

@@ -49,6 +49,7 @@ typedef struct FloatingCountContext
 } FloatingCountContext;
 
 static int g_runtimeWindowLayoutMessageCount = 0;
+static WCHAR g_runtimeWindowLayoutPromptName[WINDOW_LAYOUT_NAME_MAX] = L"";
 
 static BOOL runtime_is_class_name(HWND hWnd, PCWSTR pszClassName);
 
@@ -88,6 +89,28 @@ static int runtime_capture_window_layout_message(HWND hWndParent, PCWSTR pszText
     UNREFERENCED_PARAMETER(uType);
     g_runtimeWindowLayoutMessageCount++;
     return IDOK;
+}
+
+static BOOL runtime_capture_window_layout_prompt(
+    HWND hWndParent,
+    PCWSTR pszTitle,
+    PCWSTR pszPrompt,
+    PCWSTR pszInitialName,
+    WCHAR* pszName,
+    size_t cchName)
+{
+    UNREFERENCED_PARAMETER(hWndParent);
+    UNREFERENCED_PARAMETER(pszTitle);
+    UNREFERENCED_PARAMETER(pszPrompt);
+    UNREFERENCED_PARAMETER(pszInitialName);
+
+    if (!pszName || cchName == 0 || g_runtimeWindowLayoutPromptName[0] == L'\0')
+    {
+        return FALSE;
+    }
+
+    StringCchCopyW(pszName, cchName, g_runtimeWindowLayoutPromptName);
+    return TRUE;
 }
 
 static BOOL runtime_fail_document_dock_once(
@@ -2266,6 +2289,99 @@ static int test_runtime_menu_command_applies_named_mixed_layout_profiles(void)
     return 0;
 }
 
+static int test_runtime_menu_command_saves_and_overwrites_named_layout(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_window_layout_catalog_file();
+    runtime_delete_profile_bundle(1);
+
+    wcscpy_s(g_runtimeWindowLayoutPromptName, ARRAYSIZE(g_runtimeWindowLayoutPromptName), L"Layout A");
+    WindowLayoutManager_SetPromptSink(runtime_capture_window_layout_prompt);
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_SAVE_LAYOUT));
+    WindowLayoutManager_SetPromptSink(NULL);
+    g_runtimeWindowLayoutPromptName[0] = L'\0';
+
+    WindowLayoutCatalog catalog = { 0 };
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &catalog, NULL));
+    assert(catalog.nEntryCount == 1);
+    assert(wcscmp(catalog.entries[0].szName, L"Layout A") == 0);
+    const uint32_t uIdA = catalog.entries[0].uId;
+    free(pszCatalogPath);
+
+    DockModelNode* pMixedLayout = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pMixedLayout != NULL);
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pMixedLayout, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pMixedLayout, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel mixedFloating = { 0 };
+    mixedFloating.nEntries = 1;
+    SetRect(&mixedFloating.entries[0].rcWindow, 180, 140, 500, 470);
+    mixedFloating.entries[0].iDockSizeHint = 240;
+    mixedFloating.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    mixedFloating.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel mixedFloatDocs = { 0 };
+    mixedFloatDocs.nEntryCount = 1;
+    SetRect(&mixedFloatDocs.entries[0].rcWindow, 560, 180, 940, 620);
+    mixedFloatDocs.entries[0].pLayoutModel = &floatDocRoot;
+
+    assert(WindowLayoutManager_ApplyLayoutBundle(
+        &fixture.panitentWindow,
+        pMixedLayout,
+        &mixedFloating,
+        &mixedFloatDocs));
+
+    wcscpy_s(g_runtimeWindowLayoutPromptName, ARRAYSIZE(g_runtimeWindowLayoutPromptName), L"Layout A");
+    WindowLayoutManager_SetPromptSink(runtime_capture_window_layout_prompt);
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_SAVE_LAYOUT));
+    WindowLayoutManager_SetPromptSink(NULL);
+    g_runtimeWindowLayoutPromptName[0] = L'\0';
+
+    pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    WindowLayoutCatalog_Init(&catalog);
+    assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &catalog, NULL));
+    assert(catalog.nEntryCount == 1);
+    assert(catalog.entries[0].uId == uIdA);
+    free(pszCatalogPath);
+
+    DockModelNode* pLoadedLayout = NULL;
+    DockFloatingLayoutFileModel loadedFloating = { 0 };
+    FloatingDocumentLayoutModel loadedFloatDocs = { 0 };
+    assert(WindowLayoutProfile_LoadBundle(uIdA, &pLoadedLayout, &loadedFloating, &loadedFloatDocs));
+    assert(pLoadedLayout != NULL);
+    assert(loadedFloating.nEntries == 1);
+    assert(loadedFloatDocs.nEntryCount == 1);
+    DockModelNode* pRightZone = runtime_find_model_zone(pLoadedLayout, DKS_RIGHT);
+    assert(pRightZone != NULL);
+    assert(!runtime_model_subtree_contains_name(pRightZone, L"GLWindow"));
+
+    DockModel_Destroy(pLoadedLayout);
+    DockFloatingLayout_Destroy(&loadedFloating);
+    FloatingDocumentLayoutModel_Destroy(&loadedFloatDocs);
+    DockModel_Destroy(pMixedLayout);
+    runtime_delete_profile_bundle(uIdA);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -2485,6 +2601,7 @@ int main(void)
     failed |= test_runtime_menu_command_applies_named_mixed_layout_profiles();
     failed |= test_runtime_menu_command_apply_rolls_back_on_failure();
     failed |= test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state();
+    failed |= test_runtime_menu_command_saves_and_overwrites_named_layout();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
