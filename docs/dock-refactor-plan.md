@@ -654,3 +654,12 @@ This change set extends Phase 5 stress coverage to direct helper APIs:
 - verifies stable workspace identity, stable floating counts, and stable docked `GLWindow` placement.
 
 This closes another gap between helper-level semantics and command-level semantics under repeated operation.
+
+## Floating Document Create Layer Increment Applied
+
+This change set splits the creation/bootstrap side of `floatingdocumenthost.c` into `floatingdocumentcreate.c`:
+- pinned floating document window creation;
+- pinned floating dock-host bootstrap;
+- create-hook plumbing used by runtime tests.
+
+This leaves `floatingdocumenthost.c` focused on restore wiring and reduces one more runtime hub in the floating document path.
