@@ -11,6 +11,7 @@
 #include "floatingdocumenthost.h"
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
+#include "documentsessionworkspace.h"
 #include "persistfile.h"
 #include "floatingchildhost.h"
 #include "floatingwindowcontainer.h"
@@ -33,6 +34,44 @@ typedef struct FloatingDocumentRestoreContext
 	FloatingDocumentSessionEntry* pEntry;
 	BOOL abConsumed[16];
 } FloatingDocumentRestoreContext;
+
+typedef struct FloatingDocumentWorkspaceRecoveryPathContext
+{
+	int nFloatingIndex;
+	int nWorkspaceIndex;
+} FloatingDocumentWorkspaceRecoveryPathContext;
+
+static BOOL FloatingDocumentPersist_BuildRecoveryPath(
+	void* pUserData,
+	int nIndex,
+	WCHAR* pszBuffer,
+	size_t cchBuffer)
+{
+	FloatingDocumentWorkspaceRecoveryPathContext* pContext = (FloatingDocumentWorkspaceRecoveryPathContext*)pUserData;
+	if (!pContext || !pszBuffer || cchBuffer == 0)
+	{
+		return FALSE;
+	}
+
+	WCHAR szRelative[MAX_PATH] = L"";
+	StringCchPrintfW(
+		szRelative,
+		ARRAYSIZE(szRelative),
+		L"recovery_floatdoc_%02d_%02d_%02d.pdr",
+		pContext->nFloatingIndex,
+		pContext->nWorkspaceIndex,
+		nIndex);
+	PTSTR pszRecoveryPath = NULL;
+	GetAppDataFilePath(szRelative, &pszRecoveryPath);
+	if (!pszRecoveryPath)
+	{
+		return FALSE;
+	}
+
+	StringCchCopyW(pszBuffer, cchBuffer, pszRecoveryPath);
+	free(pszRecoveryPath);
+	return TRUE;
+}
 
 static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 	const DockModelNode* pLayoutNode,
@@ -58,52 +97,18 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 				FloatingDocumentWorkspaceSession* pWorkspaceSession = &pEntry->workspaces[pEntry->nWorkspaceCount];
 				memset(pWorkspaceSession, 0, sizeof(*pWorkspaceSession));
 				pWorkspaceSession->uWorkspaceNodeId = pLayoutNode->uNodeId;
-				pWorkspaceSession->nActiveEntry = -1;
-
-				ViewportWindow* pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspace);
-				for (int i = 0; i < WorkspaceContainer_GetViewportCount(pWorkspace) &&
-					pWorkspaceSession->nFileCount < ARRAYSIZE(pWorkspaceSession->entries); ++i)
-				{
-					ViewportWindow* pViewportWindow = WorkspaceContainer_GetViewportAt(pWorkspace, i);
-					Document* pDocument = pViewportWindow ? ViewportWindow_GetDocument(pViewportWindow) : NULL;
-					if (!pDocument)
-					{
-						continue;
-					}
-
-					DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[pWorkspaceSession->nFileCount];
-					PCWSTR pszFilePath = Document_GetFilePath(pDocument);
-					if (Document_IsFilePathSet(pDocument) && pszFilePath && pszFilePath[0] && !Document_IsDirty(pDocument))
-					{
-						pDocEntry->nKind = DOCSESSION_ENTRY_FILE;
-						wcscpy_s(pDocEntry->szFilePath, ARRAYSIZE(pDocEntry->szFilePath), pszFilePath);
-					}
-					else {
-						pDocEntry->nKind = DOCSESSION_ENTRY_RECOVERY;
-						WCHAR szRelative[MAX_PATH] = L"";
-						StringCchPrintfW(
-							szRelative,
-							ARRAYSIZE(szRelative),
-							L"recovery_floatdoc_%02d_%02d_%02d.pdr",
-							nFloatingIndex,
-							pEntry->nWorkspaceCount,
-							pWorkspaceSession->nFileCount);
-						PTSTR pszRecoveryPath = NULL;
-						GetAppDataFilePath(szRelative, &pszRecoveryPath);
-						if (!pszRecoveryPath || !DocumentRecovery_Save(pDocument, pszRecoveryPath))
-						{
-							free(pszRecoveryPath);
-							continue;
-						}
-						StringCchCopyW(pDocEntry->szFilePath, ARRAYSIZE(pDocEntry->szFilePath), pszRecoveryPath);
-						free(pszRecoveryPath);
-					}
-					if (pViewportWindow == pActiveViewport)
-					{
-						pWorkspaceSession->nActiveEntry = pWorkspaceSession->nFileCount;
-					}
-					pWorkspaceSession->nFileCount++;
-				}
+				FloatingDocumentWorkspaceRecoveryPathContext pathContext = {
+					nFloatingIndex,
+					pEntry->nWorkspaceCount
+				};
+				DocumentSessionWorkspace_CaptureEntries(
+					pWorkspace,
+					pWorkspaceSession->entries,
+					ARRAYSIZE(pWorkspaceSession->entries),
+					&pWorkspaceSession->nFileCount,
+					&pWorkspaceSession->nActiveEntry,
+					FloatingDocumentPersist_BuildRecoveryPath,
+					&pathContext);
 
 				if (pWorkspaceSession->nFileCount > 0)
 				{
@@ -164,36 +169,11 @@ static BOOL FloatingDocumentPersist_OnNodeAttached(
 	WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)pWindow;
 	pContext->abConsumed[iWorkspaceIndex] = TRUE;
 	FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[iWorkspaceIndex];
-	for (int i = 0; i < pWorkspaceSession->nFileCount; ++i)
-	{
-		if (i == pWorkspaceSession->nActiveEntry)
-		{
-			continue;
-		}
-			DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[i];
-			if (pDocEntry->nKind == DOCSESSION_ENTRY_FILE)
-			{
-				Document_OpenFileInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
-			}
-			else if (pDocEntry->nKind == DOCSESSION_ENTRY_RECOVERY)
-			{
-				DocumentRecovery_OpenInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
-			}
-		}
-		if (pWorkspaceSession->nActiveEntry >= 0 && pWorkspaceSession->nActiveEntry < pWorkspaceSession->nFileCount)
-		{
-			DocumentSessionEntry* pDocEntry = &pWorkspaceSession->entries[pWorkspaceSession->nActiveEntry];
-			if (pDocEntry->nKind == DOCSESSION_ENTRY_FILE)
-			{
-				Document_OpenFileInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
-			}
-			else if (pDocEntry->nKind == DOCSESSION_ENTRY_RECOVERY)
-			{
-				DocumentRecovery_OpenInWorkspace(pDocEntry->szFilePath, pWorkspaceContainer);
-			}
-		}
-
-	return TRUE;
+	return DocumentSessionWorkspace_RestoreEntries(
+		pWorkspaceContainer,
+		pWorkspaceSession->entries,
+		pWorkspaceSession->nFileCount,
+		pWorkspaceSession->nActiveEntry);
 }
 
 static BOOL FloatingDocumentPersist_OnPinnedWindowCapture(

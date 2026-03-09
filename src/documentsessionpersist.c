@@ -5,18 +5,13 @@
 #include "document.h"
 #include "documentrecovery.h"
 #include "documentsessionmodel.h"
+#include "documentsessionworkspace.h"
 #include "panitentapp.h"
 #include "persistfile.h"
 #include "recoverystorepersist.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "shell/pathutil.h"
-
-static BOOL DocumentSessionPersist_IsFileBackedViewport(ViewportWindow* pViewportWindow)
-{
-	Document* pDocument = pViewportWindow ? ViewportWindow_GetDocument(pViewportWindow) : NULL;
-	return pDocument && Document_IsFilePathSet(pDocument) && Document_GetFilePath(pDocument) && Document_GetFilePath(pDocument)[0] != L'\0';
-}
 
 static BOOL DocumentSessionPersist_BuildRecoveryPath(WCHAR* pszBuffer, size_t cchBuffer, int index)
 {
@@ -58,40 +53,16 @@ BOOL PanitentDocumentSession_Save(PanitentApp* pPanitentApp)
 
 	RecoveryStore_DeleteFilesByPattern(L"recovery_main_*.pdr", NULL);
 
-	ViewportWindow* pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspaceContainer);
-	for (int i = 0; i < WorkspaceContainer_GetViewportCount(pWorkspaceContainer) && model.nEntryCount < ARRAYSIZE(model.entries); ++i)
+	if (!DocumentSessionWorkspace_CaptureEntries(
+		pWorkspaceContainer,
+		model.entries,
+		ARRAYSIZE(model.entries),
+		&model.nEntryCount,
+		&model.nActiveEntry,
+		(FnDocumentSessionWorkspaceBuildRecoveryPath)DocumentSessionPersist_BuildRecoveryPath,
+		NULL))
 	{
-		ViewportWindow* pViewportWindow = WorkspaceContainer_GetViewportAt(pWorkspaceContainer, i);
-		Document* pDocument = pViewportWindow ? ViewportWindow_GetDocument(pViewportWindow) : NULL;
-		if (!pDocument)
-		{
-			continue;
-		}
-
-		if (DocumentSessionPersist_IsFileBackedViewport(pViewportWindow) && !Document_IsDirty(pDocument))
-		{
-			model.entries[model.nEntryCount].nKind = DOCSESSION_ENTRY_FILE;
-			wcscpy_s(
-				model.entries[model.nEntryCount].szFilePath,
-				ARRAYSIZE(model.entries[model.nEntryCount].szFilePath),
-				Document_GetFilePath(pDocument));
-		}
-		else {
-			model.entries[model.nEntryCount].nKind = DOCSESSION_ENTRY_RECOVERY;
-			if (!DocumentSessionPersist_BuildRecoveryPath(
-				model.entries[model.nEntryCount].szFilePath,
-				ARRAYSIZE(model.entries[model.nEntryCount].szFilePath),
-				model.nEntryCount) ||
-				!DocumentRecovery_Save(pDocument, model.entries[model.nEntryCount].szFilePath))
-			{
-				continue;
-			}
-		}
-		if (pViewportWindow == pActiveViewport)
-		{
-			model.nActiveEntry = model.nEntryCount;
-		}
-		model.nEntryCount++;
+		return FALSE;
 	}
 
 	GetDocumentSessionFilePath(&pszFilePath);
@@ -140,35 +111,9 @@ BOOL PanitentDocumentSession_Restore(PanitentApp* pPanitentApp)
 		return FALSE;
 	}
 
-	BOOL bRestoredAny = FALSE;
-	for (int i = 0; i < model.nEntryCount; ++i)
-	{
-		if (i == model.nActiveEntry)
-		{
-			continue;
-		}
-
-		BOOL bOpened =
-			model.entries[i].nKind == DOCSESSION_ENTRY_FILE ?
-			Document_OpenFileInWorkspace(model.entries[i].szFilePath, pWorkspaceContainer) :
-			DocumentRecovery_OpenInWorkspace(model.entries[i].szFilePath, pWorkspaceContainer);
-		if (bOpened)
-		{
-			bRestoredAny = TRUE;
-		}
-	}
-
-	if (model.nActiveEntry >= 0 && model.nActiveEntry < model.nEntryCount)
-	{
-		BOOL bOpened =
-			model.entries[model.nActiveEntry].nKind == DOCSESSION_ENTRY_FILE ?
-			Document_OpenFileInWorkspace(model.entries[model.nActiveEntry].szFilePath, pWorkspaceContainer) :
-			DocumentRecovery_OpenInWorkspace(model.entries[model.nActiveEntry].szFilePath, pWorkspaceContainer);
-		if (bOpened)
-		{
-			bRestoredAny = TRUE;
-		}
-	}
-
-	return bRestoredAny;
+	return DocumentSessionWorkspace_RestoreEntries(
+		pWorkspaceContainer,
+		model.entries,
+		model.nEntryCount,
+		model.nActiveEntry);
 }

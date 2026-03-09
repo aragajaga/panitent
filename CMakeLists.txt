@@ -81,6 +81,7 @@ set(C_SOURCES
     src/documentdocktransition.c
     src/documentsessionmodel.c
     src/documentsessionpersist.c
+    src/documentsessionworkspace.c
     src/dockdefaultlayoutmodel.c
     src/docklayout.c
     src/dockgroup.c
