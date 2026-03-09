@@ -2,7 +2,6 @@
 
 #include "dockhostdrag.h"
 
-#include "floatingdocumenthost.h"
 #include "dockhostlayout.h"
 #include "dockhostmodelapply.h"
 #include "docklayout.h"
@@ -334,13 +333,7 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
             return;
         }
     }
-    else if (nPaneKind == DOCK_PANE_DOCUMENT) {
-        if (!DockHostModelApply_RemoveDocumentWindow(pDockHostWindow, hWndChild, TRUE))
-        {
-            return;
-        }
-    }
-    else {
+    else if (nPaneKind != DOCK_PANE_DOCUMENT) {
         DockHostWindow_Undock(pDockHostWindow, pNode);
     }
 
@@ -356,7 +349,7 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     HWND hWndFloating = NULL;
     if (nPaneKind == DOCK_PANE_DOCUMENT)
     {
-        if (!FloatingDocumentHost_CreatePinnedWindow(
+        if (!DockHostModelApply_UndockDocumentWindowToFloating(
             pDockHostWindow,
             hWndChild,
             &rcFloatingWindow,
@@ -364,8 +357,6 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
             ptCursor,
             &hWndFloating))
         {
-            ShowWindow(hWndChild, SW_SHOW);
-            UpdateWindow(hWndChild);
             return;
         }
     }
