@@ -604,3 +604,12 @@ This change set extracts transactional catalog operations out of the manage-dial
 - delete now saves the updated catalog before removing profile bundle files, so save failure cannot leave a broken catalog/profile pair.
 
 This reduces `windowlayoutmanager.c` UI coupling and closes another late-failure gap in named layout management.
+
+## Named Layout Catalog Failure Coverage Increment Applied
+
+This change set extends runtime coverage for transactional catalog operations:
+- move rollback on `SaveCatalog` failure;
+- rename rollback on `SaveCatalog` failure;
+- delete rollback on `SaveCatalog` failure remains covered.
+
+This keeps the whole named layout catalog mutation surface under explicit late-failure tests, not just the save/apply commands.

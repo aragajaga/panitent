@@ -3007,6 +3007,81 @@ static int test_runtime_catalog_delete_rolls_back_on_catalog_save_failure(void)
     return 0;
 }
 
+static int test_runtime_catalog_move_rolls_back_on_catalog_save_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_window_layout_catalog_file();
+
+    WindowLayoutCatalog catalog = { 0 };
+    WindowLayoutCatalog_Init(&catalog);
+    assert(WindowLayoutCatalog_Add(&catalog, 1, L"Layout A"));
+    assert(WindowLayoutCatalog_Add(&catalog, 2, L"Layout B"));
+
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    assert(WindowLayoutCatalog_SaveToFile(&catalog, pszCatalogPath));
+
+    WindowLayoutManager_SetSaveCatalogSink(runtime_fail_window_layout_save_catalog);
+    assert(!WindowLayoutManager_MoveCatalogEntry(&fixture.panitentWindow, &catalog, 0, 1));
+    WindowLayoutManager_SetSaveCatalogSink(NULL);
+
+    assert(catalog.nEntryCount == 2);
+    assert(catalog.entries[0].uId == 1);
+    assert(catalog.entries[1].uId == 2);
+
+    WindowLayoutCatalog loadedCatalog = { 0 };
+    PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+    assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &loadedCatalog, &status));
+    assert(status == PERSIST_LOAD_OK);
+    assert(loadedCatalog.nEntryCount == 2);
+    assert(loadedCatalog.entries[0].uId == 1);
+    assert(loadedCatalog.entries[1].uId == 2);
+
+    free(pszCatalogPath);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_catalog_rename_rolls_back_on_catalog_save_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_window_layout_catalog_file();
+
+    WindowLayoutCatalog catalog = { 0 };
+    WindowLayoutCatalog_Init(&catalog);
+    assert(WindowLayoutCatalog_Add(&catalog, 1, L"Layout A"));
+
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    assert(WindowLayoutCatalog_SaveToFile(&catalog, pszCatalogPath));
+
+    WindowLayoutManager_SetSaveCatalogSink(runtime_fail_window_layout_save_catalog);
+    assert(!WindowLayoutManager_RenameCatalogEntry(&fixture.panitentWindow, &catalog, 0, L"Layout B"));
+    WindowLayoutManager_SetSaveCatalogSink(NULL);
+
+    assert(catalog.nEntryCount == 1);
+    assert(wcscmp(catalog.entries[0].szName, L"Layout A") == 0);
+
+    WindowLayoutCatalog loadedCatalog = { 0 };
+    PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+    assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &loadedCatalog, &status));
+    assert(status == PERSIST_LOAD_OK);
+    assert(loadedCatalog.nEntryCount == 1);
+    assert(wcscmp(loadedCatalog.entries[0].szName, L"Layout A") == 0);
+
+    free(pszCatalogPath);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -3234,6 +3309,8 @@ int main(void)
     failed |= test_runtime_menu_command_save_failure_does_not_persist_catalog_entry();
     failed |= test_runtime_menu_command_save_catalog_failure_removes_new_bundle();
     failed |= test_runtime_catalog_delete_rolls_back_on_catalog_save_failure();
+    failed |= test_runtime_catalog_move_rolls_back_on_catalog_save_failure();
+    failed |= test_runtime_catalog_rename_rolls_back_on_catalog_save_failure();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
