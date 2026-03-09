@@ -1799,6 +1799,81 @@ static int test_runtime_multi_workspace_floating_document_session_restore_is_ide
     return 0;
 }
 
+static int test_runtime_multi_workspace_floating_document_layout_restore_is_idempotent(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocSplit = { 0 };
+    DockModelNode floatDocWorkspace1 = { 0 };
+    DockModelNode floatDocWorkspace2 = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocSplit;
+    floatDocSplit.nRole = DOCK_ROLE_PANEL_SPLIT;
+    floatDocSplit.dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
+    floatDocSplit.fGripPos = 0.5f;
+    wcscpy_s(floatDocSplit.szName, ARRAYSIZE(floatDocSplit.szName), L"DockShell.PanelSplit");
+    floatDocSplit.pChild1 = &floatDocWorkspace1;
+    floatDocSplit.pChild2 = &floatDocWorkspace2;
+    floatDocWorkspace1.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace1.nPaneKind = DOCK_PANE_DOCUMENT;
+    floatDocWorkspace1.uNodeId = 401;
+    wcscpy_s(floatDocWorkspace1.szName, ARRAYSIZE(floatDocWorkspace1.szName), L"WorkspaceContainer");
+    floatDocWorkspace2.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace2.nPaneKind = DOCK_PANE_DOCUMENT;
+    floatDocWorkspace2.uNodeId = 402;
+    wcscpy_s(floatDocWorkspace2.szName, ARRAYSIZE(floatDocWorkspace2.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    floatDocModel.nEntryCount = 1;
+    SetRect(&floatDocModel.entries[0].rcWindow, 560, 180, 940, 620);
+    floatDocModel.entries[0].pLayoutModel = &floatDocRoot;
+
+    assert(PanitentFloatingDocumentLayout_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatDocModel));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    HWND hWndFloatingDocument = runtime_find_floating_document_window();
+    assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
+    FloatingWindowContainer* pFloatingDocument = (FloatingWindowContainer*)WindowMap_Get(hWndFloatingDocument);
+    assert(pFloatingDocument != NULL);
+    assert(pFloatingDocument->hWndChild && IsWindow(pFloatingDocument->hWndChild));
+
+    HWND hWorkspaceHwnds[8] = { 0 };
+    int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        pFloatingDocument->hWndChild,
+        hWorkspaceHwnds,
+        ARRAYSIZE(hWorkspaceHwnds));
+    assert(nWorkspaceCount == 2);
+
+    assert(PanitentFloatingDocumentLayout_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatDocModel));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    hWndFloatingDocument = runtime_find_floating_document_window();
+    assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
+    pFloatingDocument = (FloatingWindowContainer*)WindowMap_Get(hWndFloatingDocument);
+    assert(pFloatingDocument != NULL);
+    assert(pFloatingDocument->hWndChild && IsWindow(pFloatingDocument->hWndChild));
+
+    memset(hWorkspaceHwnds, 0, sizeof(hWorkspaceHwnds));
+    nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        pFloatingDocument->hWndChild,
+        hWorkspaceHwnds,
+        ARRAYSIZE(hWorkspaceHwnds));
+    assert(nWorkspaceCount == 2);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_try_dock_floating_workspace_uses_shared_document_transition(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -2822,6 +2897,7 @@ int main(void)
     failed |= test_runtime_non_current_document_float_failure_preserves_order_and_active_tab();
     failed |= test_runtime_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_multi_workspace_floating_document_session_restore_is_idempotent();
+    failed |= test_runtime_multi_workspace_floating_document_layout_restore_is_idempotent();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_document_side_dock_merges_floating_document_host_successfully();
     failed |= test_runtime_document_side_dock_failure_rolls_back_floating_document_host_merge();
