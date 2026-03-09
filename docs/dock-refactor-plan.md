@@ -625,3 +625,22 @@ This change set extends runtime coverage for the positive path of transactional 
 - successful delete removes both the catalog entry and the profile bundle files.
 
 This complements the existing late-failure coverage and keeps named layout catalog management covered on both success and rollback paths.
+
+## Mixed Layout Stress Coverage Increment Applied
+
+This change set starts Phase 5 stress coverage with a repeated mixed layout cycle test:
+- repeatedly applies a mixed tool/document floating arrangement;
+- repeatedly resets back to the default arrangement;
+- verifies stable workspace identity, stable floating counts, and stable docked `GLWindow` placement across the cycle.
+
+This adds an explicit repeated-operation gate instead of relying only on one-shot runtime scenarios.
+
+## Mixed Profile Command Stress Increment Applied
+
+This change set extends stress coverage from direct layout apply to public command-driven profile switching:
+- repeatedly applies named profile `B` with mixed floating arrangement;
+- repeatedly switches back to named profile `A`;
+- finishes with `Reset Window Layout`;
+- verifies stable workspace identity, stable floating counts, and stable `GLWindow` placement across the full cycle.
+
+This strengthens Phase 5 using the actual command path that end users trigger, not only helper-level apply calls.
