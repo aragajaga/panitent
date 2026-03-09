@@ -113,6 +113,13 @@ This change set introduces a pure default layout model:
 - `Reset Window Layout` now uses a model-first default layout path instead of building a runtime tree and snapshotting it back into a model;
 - added tests that validate the default model contains the expected workspace and core tool views.
 
+## Runtime Model-Apply Increment Applied
+
+This change set starts using the pure model mutation layer in a live runtime path:
+- added `dockhostmodelapply.*`;
+- tool-pane docking in `dockhostmutate.*` now attempts a model-first mutation/apply path before falling back to the legacy live-tree path;
+- this gives the project its first rollback-capable runtime docking flow that is driven by `DockModelOps` instead of only direct tree surgery.
+
 ## Target Layers
 
 ### 1. Layout Model

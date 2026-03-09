@@ -2,6 +2,7 @@
 
 #include "dockhostmutate.h"
 
+#include "dockhostmodelapply.h"
 #include "dockgroup.h"
 #include "docklayout.h"
 #include "win32/window.h"
@@ -299,6 +300,17 @@ BOOL DockHostMutate_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
         return FALSE;
     }
 
+    if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_TOOL)
+    {
+        DockTargetHit targetHit = { 0 };
+        targetHit.nDockSide = nDockSide;
+        targetHit.bLocalTarget = FALSE;
+        if (DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, &targetHit, iDockSize))
+        {
+            return TRUE;
+        }
+    }
+
     TreeNode* pOldRoot = DockHostWindow_GetRoot(pDockHostWindow);
     if (!pOldRoot)
     {
@@ -397,6 +409,14 @@ BOOL DockHostMutate_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
     if (!pDockHostWindow || !hWnd || !IsWindow(hWnd) || !pTargetHit || pTargetHit->nDockSide == DKS_NONE)
     {
         return FALSE;
+    }
+
+    if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_TOOL)
+    {
+        if (DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize))
+        {
+            return TRUE;
+        }
     }
 
     if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))
