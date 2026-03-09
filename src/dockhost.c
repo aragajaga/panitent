@@ -15,6 +15,7 @@
 #include "dockhost.h"
 #include "dockhostcaption.h"
 #include "dockhostautohide.h"
+#include "dockhostmodelapply.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
 #include "dockhosttree.h"
@@ -1722,7 +1723,16 @@ void DockHostWindow_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* 
 	POINT ptCursor = { 0 };
 	GetCursorPos(&ptCursor);
 
-	DockHostWindow_Undock(pDockHostWindow, pNode);
+	if (pDockData->nPaneKind == DOCK_PANE_TOOL)
+	{
+		if (!DockHostModelApply_RemoveToolWindow(pDockHostWindow, pDockData->hWnd, TRUE))
+		{
+			return;
+		}
+	}
+	else {
+		DockHostWindow_Undock(pDockHostWindow, pNode);
+	}
 
 	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
 	HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);

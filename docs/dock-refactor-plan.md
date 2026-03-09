@@ -118,6 +118,7 @@ This change set introduces a pure default layout model:
 This change set starts using the pure model mutation layer in a live runtime path:
 - added `dockhostmodelapply.*`;
 - tool-pane docking in `dockhostmutate.*` now attempts a model-first mutation/apply path before falling back to the legacy live-tree path;
+- tool-pane remove/undock flows now also start using the model-first runtime apply path where possible;
 - this gives the project its first rollback-capable runtime docking flow that is driven by `DockModelOps` instead of only direct tree surgery.
 
 ## Target Layers

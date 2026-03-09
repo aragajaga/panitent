@@ -3,6 +3,7 @@
 #include "dockhostpanelmenu.h"
 
 #include "dockhostautohide.h"
+#include "dockhostmodelapply.h"
 #include "dockhosttree.h"
 #include "dockhostzone.h"
 #include "dockpolicy.h"
@@ -82,7 +83,16 @@ BOOL DockHostPanelMenu_MovePanelToNewWindow(DockHostWindow* pDockHostWindow, Tre
 	MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcPanelScreen, 2);
 
 	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
-	DockHostWindow_Undock(pDockHostWindow, pPanelNode);
+	if (pPanelData->nPaneKind == DOCK_PANE_TOOL)
+	{
+		if (!DockHostModelApply_RemoveToolWindow(pDockHostWindow, hWndPanel, TRUE))
+		{
+			return FALSE;
+		}
+	}
+	else {
+		DockHostWindow_Undock(pDockHostWindow, pPanelNode);
+	}
 
 	FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
 	HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);

@@ -86,6 +86,30 @@ static void DockHostModelApply_CollectViewsRecursive(DockHostModelApplyContext* 
     DockHostModelApply_CollectViewsRecursive(pContext, pNode->node2);
 }
 
+static void DockHostModelApply_CollectViewsRecursiveEx(DockHostModelApplyContext* pContext, TreeNode* pNode, HWND hWndIncludeHidden)
+{
+    if (!pContext || !pNode || !pNode->data)
+    {
+        return;
+    }
+
+    DockData* pDockData = (DockData*)pNode->data;
+    PanitentDockViewId nViewId = pDockData->nViewId != PNT_DOCK_VIEW_NONE ?
+        pDockData->nViewId :
+        PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
+    if (nViewId != PNT_DOCK_VIEW_NONE && pDockData->hWnd && IsWindow(pDockData->hWnd))
+    {
+        DockHostModelApply_AddPreservedView(pContext, nViewId, pDockData->hWnd);
+    }
+    else if (hWndIncludeHidden && pDockData->hWnd == hWndIncludeHidden)
+    {
+        DockHostModelApply_AddPreservedView(pContext, DockHostModelApply_GetViewIdForHwnd(hWndIncludeHidden), hWndIncludeHidden);
+    }
+
+    DockHostModelApply_CollectViewsRecursiveEx(pContext, pNode->node1, hWndIncludeHidden);
+    DockHostModelApply_CollectViewsRecursiveEx(pContext, pNode->node2, hWndIncludeHidden);
+}
+
 static Window* DockHostModelApply_ResolveView(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,
@@ -277,5 +301,58 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         ShowWindow(hWnd, SW_SHOW);
         UpdateWindow(hWnd);
     }
+    return bApplied;
+}
+
+BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND hWnd, BOOL bKeepWindowAlive)
+{
+    if (!pDockHostWindow || !hWnd || !IsWindow(hWnd))
+    {
+        return FALSE;
+    }
+
+    TreeNode* pLiveNode = DockNode_FindByHWND(DockHostWindow_GetRoot(pDockHostWindow), hWnd);
+    DockData* pLiveData = pLiveNode ? (DockData*)pLiveNode->data : NULL;
+    if (!pLiveData || pLiveData->nPaneKind != DOCK_PANE_TOOL)
+    {
+        return FALSE;
+    }
+
+    DockHostModelApplyContext context = { 0 };
+    context.pPanitentApp = PanitentApp_Instance();
+    DockHostModelApply_CollectViewsRecursiveEx(&context, DockHostWindow_GetRoot(pDockHostWindow), hWnd);
+
+    DockModelNode* pRollbackModel = DockModel_CaptureHostLayout(pDockHostWindow);
+    DockModelNode* pTargetModel = DockModelOps_CloneTree(pRollbackModel);
+    if (!pRollbackModel || !pTargetModel)
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    if (!DockModelOps_RemoveNodeById(&pTargetModel, pLiveData->uModelNodeId) ||
+        !DockModelValidateAndRepairMainLayout(&pTargetModel, NULL))
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    ShowWindow(hWnd, SW_HIDE);
+    BOOL bApplied = DockHostModelApply_ApplyModel(pDockHostWindow, pTargetModel, &context);
+    if (!bApplied)
+    {
+        DockHostModelApply_ApplyModel(pDockHostWindow, pRollbackModel, &context);
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
+    }
+    else if (!bKeepWindowAlive)
+    {
+        DestroyWindow(hWnd);
+    }
+
+    DockModel_Destroy(pRollbackModel);
+    DockModel_Destroy(pTargetModel);
     return bApplied;
 }
