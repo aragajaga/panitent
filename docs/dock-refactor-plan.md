@@ -146,6 +146,13 @@ This change set starts covering real runtime docking/layout behavior instead of 
 
 This does not finish the full runtime test matrix yet, but it turns integration/runtime testing into a real, executable part of the plan instead of a future-only requirement.
 
+## Dock Host Render Increment Applied
+
+This change set continues the structural decomposition of `dockhost.c`:
+- moved split-rect/orientation helpers into `dockhostlayout.*`;
+- added `dockhostpaint.*` for zone-tab hit-testing, split-grip rendering, and root/watermark paint content;
+- `dockhost.c` now delegates more of its rendering/content path instead of mixing host orchestration with paint implementation.
+
 ## Target Layers
 
 ### 1. Layout Model

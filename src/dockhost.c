@@ -18,6 +18,7 @@
 #include "dockhostmodelapply.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
+#include "dockhostpaint.h"
 #include "dockhosttree.h"
 #include "dockhostzone.h"
 #include "dockgroup.h"
@@ -59,20 +60,6 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_MIN_PANE_SIZE 96
 static const WCHAR szAutoHideOverlayHostClassName[] = L"__DockAutoHideOverlayHost";
 
-typedef struct DockHostWatermarkCache DockHostWatermarkCache;
-struct DockHostWatermarkCache
-{
-	HBITMAP hSourceBitmap;
-	HBITMAP hTintedBitmap;
-	int width;
-	int height;
-	COLORREF tint;
-};
-
-static DockHostWatermarkCache g_dockHostWatermarkCache = { 0 };
-
-static BOOL DockHostWindow_EnsureWatermarkCache(HDC hdc, int idBitmap, COLORREF tint);
-static BOOL DockHostWindow_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
 static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop);
 
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
@@ -85,21 +72,13 @@ static BOOL DockNode_IsStructural(TreeNode* pNode);
 static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize);
-static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iOffset, int iTabLength, RECT* pRect);
-static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab);
-static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc);
-static void DockHostWindow_GetPanelTabLabel(DockData* pDockData, WCHAR* pszLabel, int cchLabel);
-static int DockHostWindow_GetZoneTabLengthFromLabel(HDC hdc, PCWSTR pszLabel);
 static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide, HWND hWndTab);
-static void DockHostWindow_UpdateZoneTabGutters(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
 BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect);
 BOOL DockHostWindow_EnsureAutoHideOverlayHost(DockHostWindow* pDockHostWindow);
 static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWND hWnd);
-static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect);
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y);
-static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode);
 static int DockHostWindow_HitTestSideInRect(const RECT* pRect, POINT pt, int iThresholdMin, int iThresholdMax);
 static void DockHostWindow_GetGlobalTargetGuideRects(const RECT* pHostClient, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
 static void DockHostWindow_GetLocalTargetGuideRects(const RECT* pHostClient, const RECT* pAnchorRect, RECT* pRectCenter, RECT* pRectTop, RECT* pRectLeft, RECT* pRectRight, RECT* pRectBottom);
@@ -110,8 +89,6 @@ static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, Tree
 static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeNode* pSplitNode, int x, int y);
 static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
 static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
-static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc);
-static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect);
 static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
 static int Dock_HitTypeToCaptionButton(int nHitType);
 static void DockHostWindow_SetCaptionHotButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton);
@@ -712,230 +689,6 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 	return DefWindowProc(hWnd, message, wParam, lParam);
 }
 
-static void DockHostWindow_GetPanelTabLabel(DockData* pDockData, WCHAR* pszLabel, int cchLabel)
-{
-	if (!pszLabel || cchLabel <= 0)
-	{
-		return;
-	}
-
-	wcsncpy_s(pszLabel, cchLabel, L"Tab", _TRUNCATE);
-	if (!pDockData)
-	{
-		return;
-	}
-
-	PCWSTR pszSource = pDockData->lpszCaption[0] ? pDockData->lpszCaption : pDockData->lpszName;
-	if (pszSource && pszSource[0])
-	{
-		wcsncpy_s(pszLabel, cchLabel, pszSource, _TRUNCATE);
-	}
-}
-
-static int DockHostWindow_GetZoneTabLengthFromLabel(HDC hdc, PCWSTR pszLabel)
-{
-	if (!hdc || !pszLabel || !pszLabel[0])
-	{
-		return DOCKLAYOUT_ZONE_TAB_LENGTH;
-	}
-
-	int cch = (int)wcslen(pszLabel);
-	SIZE size = { 0 };
-	if (!GetTextExtentPoint32(hdc, pszLabel, cch, &size))
-	{
-		return DOCKLAYOUT_ZONE_TAB_LENGTH;
-	}
-
-	int iTabLength = max(size.cx + 16, DOCKLAYOUT_ZONE_TAB_THICKNESS * 2);
-	iTabLength = min(iTabLength, 280);
-	return iTabLength;
-}
-
-static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iOffset, int iTabLength, RECT* pRect)
-{
-	if (!pDockHostWindow || !pRect)
-	{
-		return FALSE;
-	}
-
-	RECT rcClient = { 0 };
-	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
-	return DockLayout_GetZoneTabRectByOffset(&rcClient, nDockSide, iOffset, iTabLength, pRect);
-}
-
-static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab)
-{
-	POINT pt = { x, y };
-	if (phWndTab)
-	{
-		*phWndTab = NULL;
-	}
-
-	HWND hWndHost = Window_GetHWND((Window*)pDockHostWindow);
-	HDC hdc = hWndHost ? GetDC(hWndHost) : NULL;
-	HFONT hFontPrev = NULL;
-	if (hdc)
-	{
-		hFontPrev = (HFONT)SelectObject(hdc, PanitentApp_GetUIFont(PanitentApp_Instance()));
-	}
-
-	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
-	for (int i = 0; i < ARRAYSIZE(sides); ++i)
-	{
-		TreeNode* pZone = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
-		if (!pZone)
-		{
-			continue;
-		}
-
-		TreeNode* tabs[DOCK_ZONE_MAX_TABS] = { 0 };
-		int nTabs = DockZone_GetPanelsByCollapsed(pZone, tabs, ARRAYSIZE(tabs), TRUE);
-		if (nTabs <= 0)
-		{
-			continue;
-		}
-
-		int iOffset = 0;
-		for (int iTab = 0; iTab < nTabs; ++iTab)
-		{
-			DockData* pDockDataTab = tabs[iTab] ? (DockData*)tabs[iTab]->data : NULL;
-			WCHAR szLabel[64] = L"";
-			DockHostWindow_GetPanelTabLabel(pDockDataTab, szLabel, ARRAYSIZE(szLabel));
-			int iTabLength = DockHostWindow_GetZoneTabLengthFromLabel(hdc, szLabel);
-
-			RECT rcTab = { 0 };
-			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iOffset, iTabLength, &rcTab))
-			{
-				iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
-				continue;
-			}
-			iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
-
-			if (PtInRect(&rcTab, pt))
-			{
-				if (phWndTab && tabs[iTab] && tabs[iTab]->data)
-				{
-					*phWndTab = ((DockData*)tabs[iTab]->data)->hWnd;
-				}
-
-				if (hdc)
-				{
-					SelectObject(hdc, hFontPrev);
-					ReleaseDC(hWndHost, hdc);
-				}
-				return sides[i];
-			}
-		}
-	}
-
-	if (hdc)
-	{
-		SelectObject(hdc, hFontPrev);
-		ReleaseDC(hWndHost, hdc);
-	}
-
-	return DKS_NONE;
-}
-
-static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc)
-{
-	HFONT hUIFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-	HFONT hFontPrev = (HFONT)SelectObject(hdc, hUIFont);
-	SetBkMode(hdc, TRANSPARENT);
-	SetTextColor(hdc, COLORREF_WHITE);
-
-	const int sides[] = { DKS_LEFT, DKS_RIGHT, DKS_TOP, DKS_BOTTOM };
-	for (int i = 0; i < ARRAYSIZE(sides); ++i)
-	{
-		TreeNode* pZone = DockHostWindow_GetZoneNode(pDockHostWindow, sides[i]);
-		if (!pZone)
-		{
-			continue;
-		}
-
-		TreeNode* tabs[DOCK_ZONE_MAX_TABS] = { 0 };
-		int nTabs = DockZone_GetPanelsByCollapsed(pZone, tabs, ARRAYSIZE(tabs), TRUE);
-		if (nTabs <= 0)
-		{
-			continue;
-		}
-
-		int iOffset = 0;
-		for (int iTab = 0; iTab < nTabs; ++iTab)
-		{
-			DockData* pDockDataTab = tabs[iTab] ? (DockData*)tabs[iTab]->data : NULL;
-			HWND hWndTab = pDockDataTab ? pDockDataTab->hWnd : NULL;
-			WCHAR szLabel[64] = L"";
-			DockHostWindow_GetPanelTabLabel(pDockDataTab, szLabel, ARRAYSIZE(szLabel));
-			int iTabLength = DockHostWindow_GetZoneTabLengthFromLabel(hdc, szLabel);
-
-			RECT rcTab = { 0 };
-			if (!DockHostWindow_GetZoneTabRect(pDockHostWindow, sides[i], iOffset, iTabLength, &rcTab))
-			{
-				iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
-				continue;
-			}
-			iOffset += iTabLength + DOCKLAYOUT_ZONE_TAB_GAP;
-
-			BOOL bActive = pDockHostWindow->fAutoHideOverlayVisible &&
-				pDockHostWindow->nAutoHideOverlaySide == sides[i] &&
-				hWndTab &&
-				hWndTab == pDockHostWindow->hWndAutoHideOverlay;
-
-			SelectObject(hdc, GetStockObject(DC_BRUSH));
-			SelectObject(hdc, GetStockObject(DC_PEN));
-			{
-				PanitentThemeColors colors = { 0 };
-				PanitentTheme_GetColors(&colors);
-				SetDCBrushColor(hdc, bActive ? colors.accentActive : colors.accent);
-				SetDCPenColor(hdc, colors.border);
-			}
-			Rectangle(hdc, rcTab.left, rcTab.top, rcTab.right, rcTab.bottom);
-
-			int cchLabel = (int)wcslen(szLabel);
-			SIZE textSize = { 0 };
-			if (!GetTextExtentPoint32(hdc, szLabel, cchLabel, &textSize))
-			{
-				textSize.cx = 0;
-				textSize.cy = 0;
-			}
-
-			if (sides[i] == DKS_LEFT || sides[i] == DKS_RIGHT)
-			{
-				LOGFONT lf = { 0 };
-				GetObject(hUIFont, sizeof(lf), &lf);
-				lf.lfEscapement = (sides[i] == DKS_LEFT) ? 900 : 2700;
-				lf.lfOrientation = lf.lfEscapement;
-				HFONT hVertical = CreateFontIndirect(&lf);
-				HFONT hOldVertical = (HFONT)SelectObject(hdc, hVertical);
-				UINT uPrevAlign = SetTextAlign(hdc, TA_LEFT | TA_TOP | TA_NOUPDATECP);
-
-				int iTabThickness = Win32_Rect_GetWidth(&rcTab);
-				int iTabSpan = Win32_Rect_GetHeight(&rcTab);
-				int tx = max(rcTab.left, rcTab.left + (iTabThickness - textSize.cy) / 2);
-				int ty = max(rcTab.top, rcTab.top + (iTabSpan - textSize.cx) / 2);
-				if (sides[i] == DKS_LEFT)
-				{
-					ty = min(rcTab.bottom, rcTab.top + (iTabSpan + textSize.cx) / 2);
-				}
-				else {
-					tx = min(rcTab.right, rcTab.right - (iTabThickness - textSize.cy) / 2);
-				}
-
-				TextOut(hdc, tx, ty, szLabel, (int)wcsnlen_s(szLabel, ARRAYSIZE(szLabel)));
-				SetTextAlign(hdc, uPrevAlign);
-				SelectObject(hdc, hOldVertical);
-				DeleteObject(hVertical);
-			}
-			else {
-				DrawText(hdc, szLabel, -1, &rcTab, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
-			}
-		}
-	}
-
-	SelectObject(hdc, hFontPrev);
-}
-
 static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, int nDockSide, HWND hWndTab)
 {
 	if (!pDockHostWindow || !hWndTab || !IsWindow(hWndTab))
@@ -952,79 +705,6 @@ static BOOL DockHostWindow_ToggleZoneCollapsed(DockHostWindow* pDockHostWindow, 
 	}
 
 	return DockHostWindow_ShowAutoHideOverlay(pDockHostWindow, nDockSide, hWndTab);
-}
-
-static BOOL DockHostWindow_IsSplitVertical(TreeNode* pNode)
-{
-	if (!pNode || !pNode->data)
-	{
-		return FALSE;
-	}
-
-	return ((((DockData*)pNode->data)->dwStyle & DGD_VERTICAL) != 0) ? TRUE : FALSE;
-}
-
-static BOOL DockHostWindow_GetSplitRect(TreeNode* pNode, RECT* pRect)
-{
-	if (!pNode || !pRect || !pNode->data || !pNode->node1 || !pNode->node2)
-	{
-		return FALSE;
-	}
-
-	DockData* pDockData = (DockData*)pNode->data;
-	if (pDockData->dwStyle & DGP_RELATIVE)
-	{
-		return FALSE;
-	}
-
-	if (!DockNode_HasVisibleWindow(pNode->node1) || !DockNode_HasVisibleWindow(pNode->node2))
-	{
-		return FALSE;
-	}
-
-	RECT rcClient = { 0 };
-	if (!DockData_GetClientRect(pDockData, &rcClient))
-	{
-		return FALSE;
-	}
-
-	BOOL bVertical = DockHostWindow_IsSplitVertical(pNode);
-	int iSpan = bVertical ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
-	if (iSpan <= 0)
-	{
-		return FALSE;
-	}
-
-	int iGrip = DockLayout_ClampSplitGrip(iSpan, pDockData->iGripPos, 0);
-	int iPos = 0;
-	if (pDockData->dwStyle & DGA_END)
-	{
-		iPos = bVertical ? (rcClient.bottom - iGrip) : (rcClient.right - iGrip);
-	}
-	else {
-		iPos = bVertical ? (rcClient.top + iGrip) : (rcClient.left + iGrip);
-	}
-
-	int iThickness = max(iBorderWidth, 4);
-	int iHalf = iThickness / 2;
-
-	RECT rcSplit = rcClient;
-	if (bVertical)
-	{
-		rcSplit.top = iPos - iHalf;
-		rcSplit.bottom = rcSplit.top + iThickness;
-	}
-	else {
-		rcSplit.left = iPos - iHalf;
-		rcSplit.right = rcSplit.left + iThickness;
-	}
-
-	if (!IntersectRect(pRect, &rcSplit, &rcClient))
-	{
-		return FALSE;
-	}
-
-	return Win32_Rect_GetWidth(pRect) > 0 && Win32_Rect_GetHeight(pRect) > 0;
 }
 
 static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow, int x, int y)
@@ -1045,7 +725,7 @@ static TreeNode* DockHostWindow_HitTestSplitGrip(DockHostWindow* pDockHostWindow
 	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
 	{
 		RECT rcSplit = { 0 };
-		if (!DockHostWindow_GetSplitRect(pCurrentNode, &rcSplit))
+		if (!DockHostLayout_GetSplitRect(pCurrentNode, &rcSplit, iBorderWidth))
 		{
 			continue;
 		}
@@ -1097,7 +777,7 @@ static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int 
 		return;
 	}
 
-	BOOL bVertical = DockHostWindow_IsSplitVertical(pDockHostWindow->pSplitNode);
+	BOOL bVertical = DockHostLayout_IsSplitVertical(pDockHostWindow->pSplitNode);
 	int iSpan = bVertical ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
 	if (iSpan <= 0)
 	{
@@ -1130,63 +810,6 @@ static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow)
 	pDockHostWindow->pSplitNode = NULL;
 	pDockHostWindow->iSplitDragStartGrip = 0;
 	ReleaseCapture();
-}
-
-static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC hdc)
-{
-	if (!pDockHostWindow || !pDockHostWindow->pRoot_)
-	{
-		return;
-	}
-
-	TreeTraversalRLOT traversal = { 0 };
-	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
-
-	TreeNode* pCurrentNode = NULL;
-	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
-	{
-		RECT rcSplit = { 0 };
-		if (!DockHostWindow_GetSplitRect(pCurrentNode, &rcSplit))
-		{
-			continue;
-		}
-
-		BOOL bVertical = DockHostWindow_IsSplitVertical(pCurrentNode);
-		SelectObject(hdc, GetStockObject(DC_BRUSH));
-		SelectObject(hdc, GetStockObject(DC_PEN));
-		{
-			PanitentThemeColors colors = { 0 };
-			PanitentTheme_GetColors(&colors);
-			SetDCBrushColor(hdc, colors.splitterFill);
-			SetDCPenColor(hdc, colors.border);
-		}
-		Rectangle(hdc, rcSplit.left, rcSplit.top, rcSplit.right, rcSplit.bottom);
-
-		{
-			PanitentThemeColors colors = { 0 };
-			PanitentTheme_GetColors(&colors);
-			SetDCBrushColor(hdc, colors.splitterGrip);
-		}
-		if (bVertical)
-		{
-			int cx = (rcSplit.left + rcSplit.right) / 2;
-			int cy = (rcSplit.top + rcSplit.bottom) / 2;
-			for (int i = -1; i <= 1; ++i)
-			{
-				Rectangle(hdc, cx - 2 + i * 8, cy - 1, cx + 2 + i * 8, cy + 1);
-			}
-		}
-		else {
-			int cx = (rcSplit.left + rcSplit.right) / 2;
-			int cy = (rcSplit.top + rcSplit.bottom) / 2;
-			for (int i = -1; i <= 1; ++i)
-			{
-				Rectangle(hdc, cx - 1, cy - 2 + i * 8, cx + 1, cy + 2 + i * 8);
-			}
-		}
-	}
-
-	TreeTraversalRLOT_Destroy(&traversal);
 }
 
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
@@ -1331,250 +954,6 @@ void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow)
 	}
 }
 
-#define DOCKHOSTBGMARGIN 16
-
-static BOOL DockHostWindow_EnsureWatermarkCache(HDC hdc, int idBitmap, COLORREF tint)
-{
-	HDC hdcMask = NULL;
-	HBITMAP hOldBitmap = NULL;
-	BITMAP bm = { 0 };
-	BITMAPINFO bmi = { 0 };
-	uint32_t* pPixels = NULL;
-	HDC hdcColored = NULL;
-	HBITMAP hOldColored = NULL;
-	BYTE targetR = GetRValue(tint);
-	BYTE targetG = GetGValue(tint);
-	BYTE targetB = GetBValue(tint);
-
-	if (!hdc)
-	{
-		return FALSE;
-	}
-
-	if (!g_dockHostWatermarkCache.hSourceBitmap)
-	{
-		g_dockHostWatermarkCache.hSourceBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(idBitmap));
-		if (!g_dockHostWatermarkCache.hSourceBitmap)
-		{
-			return FALSE;
-		}
-
-		if (!GetObject(g_dockHostWatermarkCache.hSourceBitmap, sizeof(BITMAP), &bm))
-		{
-			DeleteObject(g_dockHostWatermarkCache.hSourceBitmap);
-			g_dockHostWatermarkCache.hSourceBitmap = NULL;
-			return FALSE;
-		}
-
-		g_dockHostWatermarkCache.width = bm.bmWidth;
-		g_dockHostWatermarkCache.height = bm.bmHeight;
-	}
-
-	if (g_dockHostWatermarkCache.hTintedBitmap &&
-		g_dockHostWatermarkCache.tint == tint)
-	{
-		return TRUE;
-	}
-
-	if (g_dockHostWatermarkCache.hTintedBitmap)
-	{
-		DeleteObject(g_dockHostWatermarkCache.hTintedBitmap);
-		g_dockHostWatermarkCache.hTintedBitmap = NULL;
-	}
-
-	if (g_dockHostWatermarkCache.width <= 0 || g_dockHostWatermarkCache.height <= 0)
-	{
-		return FALSE;
-	}
-
-	hdcMask = CreateCompatibleDC(hdc);
-	if (!hdcMask)
-	{
-		return FALSE;
-	}
-
-	hOldBitmap = (HBITMAP)SelectObject(hdcMask, g_dockHostWatermarkCache.hSourceBitmap);
-	if (!hOldBitmap)
-	{
-		DeleteDC(hdcMask);
-		return FALSE;
-	}
-
-	bmi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	bmi.bmiHeader.biWidth = g_dockHostWatermarkCache.width;
-	bmi.bmiHeader.biHeight = -g_dockHostWatermarkCache.height;
-	bmi.bmiHeader.biPlanes = 1;
-	bmi.bmiHeader.biBitCount = 32;
-	bmi.bmiHeader.biCompression = BI_RGB;
-
-	g_dockHostWatermarkCache.hTintedBitmap = CreateDIBSection(
-		hdc,
-		&bmi,
-		DIB_RGB_COLORS,
-		(LPVOID*)&pPixels,
-		NULL,
-		0);
-	if (!g_dockHostWatermarkCache.hTintedBitmap || !pPixels)
-	{
-		g_dockHostWatermarkCache.hTintedBitmap = NULL;
-		SelectObject(hdcMask, hOldBitmap);
-		DeleteDC(hdcMask);
-		return FALSE;
-	}
-
-	hdcColored = CreateCompatibleDC(hdc);
-	if (!hdcColored)
-	{
-		DeleteObject(g_dockHostWatermarkCache.hTintedBitmap);
-		g_dockHostWatermarkCache.hTintedBitmap = NULL;
-		SelectObject(hdcMask, hOldBitmap);
-		DeleteDC(hdcMask);
-		return FALSE;
-	}
-
-	hOldColored = (HBITMAP)SelectObject(hdcColored, g_dockHostWatermarkCache.hTintedBitmap);
-	if (!hOldColored)
-	{
-		DeleteDC(hdcColored);
-		DeleteObject(g_dockHostWatermarkCache.hTintedBitmap);
-		g_dockHostWatermarkCache.hTintedBitmap = NULL;
-		SelectObject(hdcMask, hOldBitmap);
-		DeleteDC(hdcMask);
-		return FALSE;
-	}
-
-	for (int y = 0; y < g_dockHostWatermarkCache.height; ++y)
-	{
-		for (int x = 0; x < g_dockHostWatermarkCache.width; ++x)
-		{
-			COLORREF srcColor = GetPixel(hdcMask, x, y);
-			BYTE mask = (BYTE)(((int)GetRValue(srcColor) + (int)GetGValue(srcColor) + (int)GetBValue(srcColor)) / 3);
-			BYTE outR = (BYTE)(((int)targetR * (int)mask + 127) / 255);
-			BYTE outG = (BYTE)(((int)targetG * (int)mask + 127) / 255);
-			BYTE outB = (BYTE)(((int)targetB * (int)mask + 127) / 255);
-
-			pPixels[(size_t)y * (size_t)g_dockHostWatermarkCache.width + (size_t)x] =
-				((uint32_t)mask << 24) |
-				((uint32_t)outR << 16) |
-				((uint32_t)outG << 8) |
-				(uint32_t)outB;
-		}
-	}
-
-	g_dockHostWatermarkCache.tint = tint;
-
-	SelectObject(hdcColored, hOldColored);
-	DeleteDC(hdcColored);
-	SelectObject(hdcMask, hOldBitmap);
-	DeleteDC(hdcMask);
-	return TRUE;
-}
-
-static BOOL DockHostWindow_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint)
-{
-	HDC hdcColored = NULL;
-	HBITMAP hOldColored = NULL;
-	int destWidth = 0;
-	int destHeight = 0;
-	BOOL fDrawn = FALSE;
-
-	if (!hdc || !pDestRect)
-	{
-		return FALSE;
-	}
-
-	destWidth = pDestRect->right - pDestRect->left;
-	destHeight = pDestRect->bottom - pDestRect->top;
-	if (destWidth <= 0 || destHeight <= 0)
-	{
-		return FALSE;
-	}
-
-	if (!DockHostWindow_EnsureWatermarkCache(hdc, idBitmap, tint))
-	{
-		return FALSE;
-	}
-
-	hdcColored = CreateCompatibleDC(hdc);
-	if (!hdcColored)
-	{
-		return FALSE;
-	}
-
-	hOldColored = (HBITMAP)SelectObject(hdcColored, g_dockHostWatermarkCache.hTintedBitmap);
-	if (!hOldColored)
-	{
-		DeleteDC(hdcColored);
-		return FALSE;
-	}
-
-	{
-		BLENDFUNCTION blend = { 0 };
-		blend.BlendOp = AC_SRC_OVER;
-		blend.SourceConstantAlpha = 0xFF;
-		blend.AlphaFormat = AC_SRC_ALPHA;
-		fDrawn = AlphaBlend(
-			hdc,
-			pDestRect->left,
-			pDestRect->top,
-			destWidth,
-			destHeight,
-			hdcColored,
-			0,
-			0,
-			g_dockHostWatermarkCache.width,
-			g_dockHostWatermarkCache.height,
-			blend);
-	}
-
-	SelectObject(hdcColored, hOldColored);
-	DeleteDC(hdcColored);
-	return fDrawn;
-}
-
-static void DockHostWindow_PaintContent(DockHostWindow* pDockHostWindow, HDC hdc, const RECT* pClientRect)
-{
-	SelectObject(hdc, GetStockObject(DC_BRUSH));
-	{
-		PanitentThemeColors colors = { 0 };
-		PanitentTheme_GetColors(&colors);
-		SetDCBrushColor(hdc, colors.rootBackground);
-	}
-	FillRect(hdc, pClientRect, (HBRUSH)GetStockObject(DC_BRUSH));
-
-	if (pDockHostWindow->pRoot_) {
-		DockHostWindow_SyncZones(pDockHostWindow);
-		DockNode_Paint(pDockHostWindow, pDockHostWindow->pRoot_, hdc, pDockHostWindow->hCaptionBrush_);
-		DockHostWindow_DrawSplitGrips(pDockHostWindow, hdc);
-		DockHostWindow_DrawZoneTabs(pDockHostWindow, hdc);
-	}
-	else {
-		HBITMAP hBitmap = LoadBitmap(GetModuleHandle(NULL), MAKEINTRESOURCE(IDB_DOCKHOSTBG));
-		if (hBitmap)
-		{
-			BITMAP bm = { 0 };
-			GetObject(hBitmap, sizeof(BITMAP), &bm);
-			if (bm.bmWidth > 0 && bm.bmHeight > 0)
-			{
-				PanitentThemeColors colors = { 0 };
-				RECT rcLogo = { 0 };
-				int clientWidth = pClientRect->right - pClientRect->left;
-				int clientHeight = pClientRect->bottom - pClientRect->top;
-
-				PanitentTheme_GetColors(&colors);
-				SetRect(
-					&rcLogo,
-					clientWidth - bm.bmWidth - DOCKHOSTBGMARGIN,
-					clientHeight - bm.bmHeight - DOCKHOSTBGMARGIN,
-					clientWidth - DOCKHOSTBGMARGIN,
-					clientHeight - DOCKHOSTBGMARGIN);
-				DockHostWindow_DrawMaskedBitmap(hdc, &rcLogo, IDB_DOCKHOSTBG, colors.accentActive);
-			}
-			DeleteObject(hBitmap);
-		}
-	}
-}
-
 void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 {
 	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
@@ -1604,7 +983,14 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 		}
 	}
 
-	DockHostWindow_PaintContent(pDockHostWindow, hdcTarget, &rcClient);
+	DockHostWindow_SyncZones(pDockHostWindow);
+	DockHostPaint_PaintContent(
+		pDockHostWindow,
+		hdcTarget,
+		&rcClient,
+		pDockHostWindow->hCaptionBrush_,
+		iZoneTabGutter,
+		iBorderWidth);
 
 	if (hdcTarget == hdcBuffer)
 	{
@@ -1766,7 +1152,7 @@ void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, U
 	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
 	if (pSplitNode && pSplitNode->data)
 	{
-		if (DockHostWindow_IsSplitVertical(pSplitNode))
+		if (DockHostLayout_IsSplitVertical(pSplitNode))
 		{
 			SetCursor(LoadCursor(NULL, IDC_SIZENS));
 		}
@@ -1947,7 +1333,7 @@ void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleC
 	}
 
 	HWND hWndZoneTab = NULL;
-	int zoneSide = DockHostWindow_HitTestZoneTab(pDockHostWindow, x, y, &hWndZoneTab);
+	int zoneSide = DockHostPaint_HitTestZoneTab(pDockHostWindow, x, y, &hWndZoneTab, iZoneTabGutter);
 	if (zoneSide != DKS_NONE)
 	{
 		DockHostWindow_ToggleZoneCollapsed(pDockHostWindow, zoneSide, hWndZoneTab);

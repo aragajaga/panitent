@@ -59,6 +59,79 @@ static BOOL DockHostLayout_NodeUsesProportionalGrip(TreeNode* pNode)
 	return DockNodeRole_UsesProportionalGrip(pDockData->nRole, pDockData->lpszName);
 }
 
+BOOL DockHostLayout_IsSplitVertical(TreeNode* pNode)
+{
+    if (!pNode || !pNode->data)
+    {
+        return FALSE;
+    }
+
+    return ((((DockData*)pNode->data)->dwStyle & DGD_VERTICAL) != 0) ? TRUE : FALSE;
+}
+
+BOOL DockHostLayout_GetSplitRect(TreeNode* pNode, RECT* pRect, int iBorderWidth)
+{
+    if (!pNode || !pRect || !pNode->data || !pNode->node1 || !pNode->node2)
+    {
+        return FALSE;
+    }
+
+    DockData* pDockData = (DockData*)pNode->data;
+    if (pDockData->dwStyle & DGP_RELATIVE)
+    {
+        return FALSE;
+    }
+
+    if (!DockHostLayout_NodeHasVisibleWindow(pNode->node1) || !DockHostLayout_NodeHasVisibleWindow(pNode->node2))
+    {
+        return FALSE;
+    }
+
+    RECT rcClient = { 0 };
+    if (!DockData_GetClientRect(pDockData, &rcClient))
+    {
+        return FALSE;
+    }
+
+    BOOL bVertical = DockHostLayout_IsSplitVertical(pNode);
+    int iSpan = bVertical ? Win32_Rect_GetHeight(&rcClient) : Win32_Rect_GetWidth(&rcClient);
+    if (iSpan <= 0)
+    {
+        return FALSE;
+    }
+
+    int iGrip = DockLayout_ClampSplitGrip(iSpan, pDockData->iGripPos, 0);
+    int iPos = 0;
+    if (pDockData->dwStyle & DGA_END)
+    {
+        iPos = bVertical ? (rcClient.bottom - iGrip) : (rcClient.right - iGrip);
+    }
+    else {
+        iPos = bVertical ? (rcClient.top + iGrip) : (rcClient.left + iGrip);
+    }
+
+    int iThickness = max(iBorderWidth, 4);
+    int iHalf = iThickness / 2;
+
+    RECT rcSplit = rcClient;
+    if (bVertical)
+    {
+        rcSplit.top = iPos - iHalf;
+        rcSplit.bottom = rcSplit.top + iThickness;
+    }
+    else {
+        rcSplit.left = iPos - iHalf;
+        rcSplit.right = rcSplit.left + iThickness;
+    }
+
+    if (!IntersectRect(pRect, &rcSplit, &rcClient))
+    {
+        return FALSE;
+    }
+
+    return Win32_Rect_GetWidth(pRect) > 0 && Win32_Rect_GetHeight(pRect) > 0;
+}
+
 static void DockHostLayout_AssignRectsRecursive(TreeNode* pNode, int iBorderWidth, int iMinPaneSize)
 {
 	if (!pNode || !pNode->data)

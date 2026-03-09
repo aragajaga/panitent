@@ -90,6 +90,7 @@ set(C_SOURCES
     src/dockhostmodelapply.c
     src/dockhostmutate.c
     src/dockhostpanelmenu.c
+    src/dockhostpaint.c
     src/dockhostrestore.c
     src/dockhosttree.c
     src/dockhostzone.c
