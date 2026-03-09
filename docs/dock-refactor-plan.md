@@ -559,3 +559,12 @@ This change set centralizes preparation of live workspace reuse for floating doc
 - session restore no longer open-codes viewport clearing for reused workspaces.
 
 This keeps layout restore and session restore aligned around one workspace-reuse lifecycle entrypoint.
+
+## Floating Tool Host Restore Coverage Increment Applied
+
+This change set extends runtime coverage for direct floating tool restore:
+- added an idempotence test for `FLOAT_DOCK_CHILD_TOOL_HOST` restore with multiple known panes;
+- the runtime matrix now covers both direct floating tool panels and floating tool hosts;
+- repeated direct restore must keep exactly one floating tool host and preserve its child pane layout.
+
+This closes another restore-side blind spot between direct floating panel semantics and dock-host tool restore semantics.

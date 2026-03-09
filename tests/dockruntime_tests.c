@@ -179,6 +179,30 @@ static HWND runtime_find_floating_document_window(void)
     return NULL;
 }
 
+static HWND runtime_find_floating_tool_host_window(void)
+{
+    for (HWND hWnd = GetTopWindow(NULL); hWnd; hWnd = GetNextWindow(hWnd, GW_HWNDNEXT))
+    {
+        if (!runtime_is_class_name(hWnd, L"__FloatingWindowContainer"))
+        {
+            continue;
+        }
+
+        FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWnd);
+        if (!pFloating || pFloating->nDockPolicy != FLOAT_DOCK_POLICY_PANEL)
+        {
+            continue;
+        }
+
+        if (pFloating->hWndChild && runtime_is_class_name(pFloating->hWndChild, L"__DockHostWindow"))
+        {
+            return hWnd;
+        }
+    }
+
+    return NULL;
+}
+
 static BOOL CALLBACK runtime_destroy_floating_windows_proc(HWND hWnd, LPARAM lParam)
 {
     DWORD processId = 0;
@@ -1033,6 +1057,92 @@ static int test_runtime_direct_floating_tool_restore_is_idempotent(void)
     assert(counts.nToolPanels == 1);
     assert(counts.nToolHosts == 0);
 
+    DockModel_Destroy(pTarget);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_direct_floating_tool_host_restore_is_idempotent(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    DockModelNode* pTarget = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pTarget != NULL);
+
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pTarget, L"GLWindow");
+    DockModelNode* pPalette = runtime_find_model_node_by_name(pTarget, L"Palette");
+    assert(pGLWindow != NULL);
+    assert(pPalette != NULL);
+    assert(DockModelOps_RemoveNodeById(&pTarget, pGLWindow->uNodeId));
+    assert(DockModelOps_RemoveNodeById(&pTarget, pPalette->uNodeId));
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, NULL, NULL));
+
+    DockFloatingLayoutFileModel floatingModel = { 0 };
+    DockModelNode floatRoot = { 0 };
+    DockModelNode floatSplit = { 0 };
+    DockModelNode floatGL = { 0 };
+    DockModelNode floatPalette = { 0 };
+
+    floatingModel.nEntries = 1;
+    SetRect(&floatingModel.entries[0].rcWindow, 140, 160, 500, 520);
+    floatingModel.entries[0].iDockSizeHint = 260;
+    floatingModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_HOST;
+    floatingModel.entries[0].pLayoutModel = &floatRoot;
+
+    floatRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatRoot.szName, ARRAYSIZE(floatRoot.szName), L"Root");
+    floatRoot.pChild1 = &floatSplit;
+
+    floatSplit.nRole = DOCK_ROLE_PANEL_SPLIT;
+    floatSplit.nPaneKind = DOCK_PANE_TOOL;
+    floatSplit.dwStyle = DGP_RELATIVE | DGD_VERTICAL;
+    floatSplit.fGripPos = 0.5f;
+    wcscpy_s(floatSplit.szName, ARRAYSIZE(floatSplit.szName), L"DockShell.PanelSplit");
+    floatSplit.pChild1 = &floatGL;
+    floatSplit.pChild2 = &floatPalette;
+
+    floatGL.nRole = DOCK_ROLE_PANEL;
+    floatGL.nPaneKind = DOCK_PANE_TOOL;
+    floatGL.uViewId = PNT_DOCK_VIEW_GLWINDOW;
+    floatGL.bShowCaption = TRUE;
+    wcscpy_s(floatGL.szName, ARRAYSIZE(floatGL.szName), L"GLWindow");
+    wcscpy_s(floatGL.szCaption, ARRAYSIZE(floatGL.szCaption), L"GLWindow");
+
+    floatPalette.nRole = DOCK_ROLE_PANEL;
+    floatPalette.nPaneKind = DOCK_PANE_TOOL;
+    floatPalette.uViewId = PNT_DOCK_VIEW_PALETTE;
+    floatPalette.bShowCaption = TRUE;
+    wcscpy_s(floatPalette.szName, ARRAYSIZE(floatPalette.szName), L"Palette");
+    wcscpy_s(floatPalette.szCaption, ARRAYSIZE(floatPalette.szCaption), L"Palette");
+
+    assert(PanitentDockFloating_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatingModel));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 0);
+    assert(counts.nToolHosts == 1);
+
+    assert(PanitentDockFloating_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatingModel));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 0);
+    assert(counts.nToolHosts == 1);
+
+    HWND hWndFloating = runtime_find_floating_tool_host_window();
+    assert(hWndFloating && IsWindow(hWndFloating));
+    FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWndFloating);
+    assert(pFloating != NULL);
+    assert(pFloating->hWndChild && runtime_is_class_name(pFloating->hWndChild, L"__DockHostWindow"));
+
+    DockHostWindow* pFloatingDockHost = (DockHostWindow*)WindowMap_Get(pFloating->hWndChild);
+    assert(pFloatingDockHost != NULL);
+    DockModelNode* pApplied = DockModel_CaptureHostLayout(pFloatingDockHost);
+    assert(pApplied != NULL);
+    assert(runtime_model_subtree_contains_name(pApplied, L"GLWindow"));
+    assert(runtime_model_subtree_contains_name(pApplied, L"Palette"));
+
+    DockModel_Destroy(pApplied);
     DockModel_Destroy(pTarget);
     runtime_fixture_destroy(&fixture);
     return 0;
@@ -2897,6 +3007,7 @@ int main(void)
     failed |= test_runtime_named_layout_profile_switch_round_trip();
     failed |= test_runtime_apply_mixed_floating_layout_bundle();
     failed |= test_runtime_direct_floating_tool_restore_is_idempotent();
+    failed |= test_runtime_direct_floating_tool_host_restore_is_idempotent();
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
