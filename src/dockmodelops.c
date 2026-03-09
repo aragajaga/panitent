@@ -188,6 +188,33 @@ static DockModelNode* DockModelOps_FindZoneBySide(DockModelNode* pNode, int nDoc
 	return DockModelOps_FindZoneBySide(pNode->pChild2, nDockSide);
 }
 
+static DWORD DockModelOps_GetSplitStyleForSide(int nDockSide)
+{
+    DWORD dwSplitStyle = DGP_ABSOLUTE;
+    switch (nDockSide)
+    {
+    case DKS_LEFT:
+    case DKS_RIGHT:
+        dwSplitStyle |= DGD_HORIZONTAL;
+        break;
+    case DKS_TOP:
+    case DKS_BOTTOM:
+        dwSplitStyle |= DGD_VERTICAL;
+        break;
+    default:
+        return 0;
+    }
+
+    if (nDockSide == DKS_RIGHT || nDockSide == DKS_BOTTOM)
+    {
+        dwSplitStyle |= DGA_END;
+    }
+    else {
+        dwSplitStyle |= DGA_START;
+    }
+    return dwSplitStyle;
+}
+
 BOOL DockModelOps_AppendPanelToZone(DockModelNode* pRootNode, int nDockSide, DockModelNode* pPanelNode)
 {
 	if (!pRootNode || !pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL)
@@ -228,4 +255,75 @@ BOOL DockModelOps_AppendPanelToZone(DockModelNode* pRootNode, int nDockSide, Doc
 	pSplit->pChild2 = pPanelNode;
 	pZoneNode->pChild1 = pSplit;
 	return TRUE;
+}
+
+BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchorNodeId, int nDockSide, DockModelNode* pPanelNode)
+{
+    if (!pRootNode || !pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL || uAnchorNodeId == 0)
+    {
+        return FALSE;
+    }
+
+    DockModelNode* pAnchorNode = DockModelOps_FindByNodeId(pRootNode, uAnchorNodeId);
+    if (!pAnchorNode)
+    {
+        return FALSE;
+    }
+
+    DockModelNode* pParentNode = DockModelOps_FindParentByNodeId(pRootNode, uAnchorNodeId);
+    DWORD dwSplitStyle = DockModelOps_GetSplitStyleForSide(nDockSide);
+    if (dwSplitStyle == 0)
+    {
+        return FALSE;
+    }
+
+    uint32_t uNextNodeId = DockModelOps_GetMaxNodeId(pRootNode) + 1;
+    if (pPanelNode->uNodeId == 0)
+    {
+        pPanelNode->uNodeId = uNextNodeId++;
+    }
+
+    DockModelNode* pSplit = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+    if (!pSplit)
+    {
+        return FALSE;
+    }
+
+    pSplit->uNodeId = uNextNodeId;
+    pSplit->nRole = DOCK_ROLE_PANEL_SPLIT;
+    pSplit->dwStyle = dwSplitStyle;
+    pSplit->iGripPos = DockLayout_GetZoneSplitGrip(nDockSide, 280);
+    pSplit->fGripPos = -1.0f;
+    wcscpy_s(pSplit->szName, ARRAYSIZE(pSplit->szName), L"DockShell.PanelSplit");
+
+    if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
+    {
+        pSplit->pChild1 = pPanelNode;
+        pSplit->pChild2 = pAnchorNode;
+    }
+    else {
+        pSplit->pChild1 = pAnchorNode;
+        pSplit->pChild2 = pPanelNode;
+    }
+
+    if (!pParentNode)
+    {
+        DockModelOps_DestroySingleNode(pSplit);
+        return FALSE;
+    }
+
+    if (pParentNode->pChild1 == pAnchorNode)
+    {
+        pParentNode->pChild1 = pSplit;
+    }
+    else if (pParentNode->pChild2 == pAnchorNode)
+    {
+        pParentNode->pChild2 = pSplit;
+    }
+    else {
+        DockModelOps_DestroySingleNode(pSplit);
+        return FALSE;
+    }
+
+    return TRUE;
 }

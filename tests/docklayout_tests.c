@@ -1278,6 +1278,53 @@ static int test_default_layout_model_contains_expected_views(void)
     return 0;
 }
 
+static int test_dock_model_ops_dock_panel_around_anchor(void)
+{
+    DockModelNode root = { 0 };
+    DockModelNode zone = { 0 };
+    DockModelNode workspace = { 0 };
+    DockModelNode anchor = { 0 };
+    DockModelNode incoming = { 0 };
+
+    root.uNodeId = 1;
+    root.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(root.szName, ARRAYSIZE(root.szName), L"Root");
+    root.pChild1 = &zone;
+    root.pChild2 = &workspace;
+
+    zone.uNodeId = 2;
+    zone.nRole = DOCK_ROLE_ZONE;
+    zone.nDockSide = DKS_LEFT;
+    wcscpy_s(zone.szName, ARRAYSIZE(zone.szName), L"DockZone.Left");
+    zone.pChild1 = &anchor;
+
+    workspace.uNodeId = 3;
+    workspace.nRole = DOCK_ROLE_WORKSPACE;
+    workspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspace.szName, ARRAYSIZE(workspace.szName), L"WorkspaceContainer");
+
+    anchor.uNodeId = 4;
+    anchor.nRole = DOCK_ROLE_PANEL;
+    anchor.nPaneKind = DOCK_PANE_TOOL;
+    wcscpy_s(anchor.szName, ARRAYSIZE(anchor.szName), L"Toolbox");
+
+    incoming.uNodeId = 0;
+    incoming.nRole = DOCK_ROLE_PANEL;
+    incoming.nPaneKind = DOCK_PANE_TOOL;
+    wcscpy_s(incoming.szName, ARRAYSIZE(incoming.szName), L"Palette");
+
+    assert(DockModelOps_DockPanelAroundNode(&root, 4, DKS_BOTTOM, &incoming));
+    assert(zone.pChild1 != NULL);
+    assert(zone.pChild1->nRole == DOCK_ROLE_PANEL_SPLIT);
+    assert((zone.pChild1->dwStyle & DGD_VERTICAL) != 0);
+    assert(zone.pChild1->pChild1 != NULL);
+    assert(zone.pChild1->pChild2 != NULL);
+    assert(wcscmp(zone.pChild1->pChild1->szName, L"Toolbox") == 0);
+    assert(wcscmp(zone.pChild1->pChild2->szName, L"Palette") == 0);
+
+    return 0;
+}
+
 static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
 {
 	assert((pActual == NULL) == (pExpected == NULL));
@@ -1652,6 +1699,7 @@ int main(void)
 	failed |= test_dock_model_capture_collapses_unary_split_nodes();
 	failed |= test_dock_model_ops_clone_remove_and_zone_append();
 	failed |= test_default_layout_model_contains_expected_views();
+	failed |= test_dock_model_ops_dock_panel_around_anchor();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();
