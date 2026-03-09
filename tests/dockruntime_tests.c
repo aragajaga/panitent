@@ -994,6 +994,44 @@ static int test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent(void)
     return 0;
 }
 
+static int test_runtime_direct_floating_tool_restore_is_idempotent(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    DockModelNode* pTarget = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pTarget != NULL);
+
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pTarget, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pTarget, pGLWindow->uNodeId));
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, NULL, NULL));
+
+    DockFloatingLayoutFileModel floatingModel = { 0 };
+    floatingModel.nEntries = 1;
+    SetRect(&floatingModel.entries[0].rcWindow, 140, 160, 440, 480);
+    floatingModel.entries[0].iDockSizeHint = 240;
+    floatingModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingModel.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    assert(PanitentDockFloating_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatingModel));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+
+    assert(PanitentDockFloating_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &floatingModel));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+
+    DockModel_Destroy(pTarget);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -2719,6 +2757,7 @@ int main(void)
     failed |= test_runtime_window_layout_apply_and_reset_preserves_workspace();
     failed |= test_runtime_named_layout_profile_switch_round_trip();
     failed |= test_runtime_apply_mixed_floating_layout_bundle();
+    failed |= test_runtime_direct_floating_tool_restore_is_idempotent();
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();

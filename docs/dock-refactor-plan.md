@@ -166,6 +166,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover menu-command save and overwrite semantics for named layouts through a testable name-prompt hook.
 - command-driven save now also has an explicit failure path: if profile bundle save fails, the catalog entry is not persisted, and runtime tests cover that path through a testable save hook.
 - runtime tests now also cover repeated floating document session restore for both single-workspace and multi-workspace floating document hosts.
+- floating tool restore is now treated as idempotent too, and runtime tests cover repeated direct `PanitentDockFloating_RestoreModel(...)` without duplicate floating tool windows.
 - floating document session restore now also reuses/destroys existing live floating document workspaces through the same host helpers used by floating document layout restore, and runtime tests cover repeated session restore idempotence.
 
 ## Dock Host Render Increment Applied

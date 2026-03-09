@@ -38,6 +38,36 @@ static BOOL DockFloatingPersist_IsClassName(HWND hWnd, PCWSTR pszClassName)
 	return wcscmp(szClassName, pszClassName) == 0;
 }
 
+static BOOL CALLBACK DockFloatingPersist_DestroyExistingEnumProc(HWND hWnd, LPARAM lParam)
+{
+	DWORD processId = 0;
+	UNREFERENCED_PARAMETER(lParam);
+
+	if (!IsWindow(hWnd) || !DockFloatingPersist_IsClassName(hWnd, L"__FloatingWindowContainer"))
+	{
+		return TRUE;
+	}
+
+	GetWindowThreadProcessId(hWnd, &processId);
+	if (processId != GetCurrentProcessId())
+	{
+		return TRUE;
+	}
+
+	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)WindowMap_Get(hWnd);
+	if (pFloatingWindowContainer && pFloatingWindowContainer->nDockPolicy == FLOAT_DOCK_POLICY_PANEL)
+	{
+		DestroyWindow(hWnd);
+	}
+
+	return TRUE;
+}
+
+static void DockFloatingPersist_DestroyExistingFloatingPanels(void)
+{
+	EnumWindows(DockFloatingPersist_DestroyExistingEnumProc, 0);
+}
+
 static BOOL DockFloatingPersist_MainHostHasView(TreeNode* pNode, PanitentDockViewId nViewId)
 {
 	if (!pNode || nViewId == PNT_DOCK_VIEW_NONE)
@@ -221,6 +251,8 @@ BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWind
 	{
 		return FALSE;
 	}
+
+	DockFloatingPersist_DestroyExistingFloatingPanels();
 
 	BOOL bRestoredAny = FALSE;
 	int nAttempted = 0;
