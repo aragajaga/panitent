@@ -35,6 +35,7 @@
 #define WINDOW_LAYOUT_MAX_MENU_ITEMS (IDM_WINDOW_APPLY_LAYOUT_LAST - IDM_WINDOW_APPLY_LAYOUT_BASE + 1)
 
 static const WCHAR g_szWindowLayoutsFileName[] = L"windowlayouts.dat";
+static FnWindowLayoutManagerMessageSink g_pWindowLayoutManagerMessageSink = NULL;
 
 typedef struct WindowLayoutNameDialogContext
 {
@@ -88,6 +89,22 @@ static void WindowLayoutManager_CollectWorkspaceEntriesRecursive(
     const TreeNode* pLiveRoot,
     DockModelNode* pModelRoot,
     TreeNode* pNode);
+static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType);
+
+void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink)
+{
+    g_pWindowLayoutManagerMessageSink = pfnMessageSink;
+}
+
+static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType)
+{
+    if (g_pWindowLayoutManagerMessageSink)
+    {
+        return g_pWindowLayoutManagerMessageSink(hWndParent, pszText, pszCaption, uType);
+    }
+
+    return MessageBoxW(hWndParent, pszText, pszCaption, uType);
+}
 
 static HMENU WindowLayoutManager_GetWindowMenu(PanitentWindow* pPanitentWindow)
 {
@@ -650,7 +667,7 @@ static INT_PTR CALLBACK WindowLayoutManager_NameDialogProc(HWND hWnd, UINT messa
             GetDlgItemTextW(hWnd, IDC_WINDOW_LAYOUT_NAME_EDIT, pContext->szName, ARRAYSIZE(pContext->szName));
             if (pContext->szName[0] == L'\0')
             {
-                MessageBoxW(hWnd, L"Layout name cannot be empty.", L"Window Layout", MB_OK | MB_ICONWARNING);
+                WindowLayoutManager_ShowMessage(hWnd, L"Layout name cannot be empty.", L"Window Layout", MB_OK | MB_ICONWARNING);
                 return TRUE;
             }
             EndDialog(hWnd, IDOK);
@@ -736,7 +753,7 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                 }
                 if (!WindowLayoutCatalog_Rename(&pContext->catalog, nIndex, szName))
                 {
-                    MessageBoxW(hWnd, L"A layout with this name already exists.", L"Window Layout", MB_OK | MB_ICONWARNING);
+                    WindowLayoutManager_ShowMessage(hWnd, L"A layout with this name already exists.", L"Window Layout", MB_OK | MB_ICONWARNING);
                     return TRUE;
                 }
                 WindowLayoutManager_SaveCatalog(&pContext->catalog);
@@ -810,7 +827,7 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
         {
             if (!WindowLayoutManager_ApplyProfile(pPanitentWindow, catalog.entries[nIndex].uId))
             {
-                MessageBoxW(hWndParent, L"Failed to apply the selected window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
+                WindowLayoutManager_ShowMessage(hWndParent, L"Failed to apply the selected window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
             }
         }
         return TRUE;
@@ -842,14 +859,14 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
             uId = WindowLayoutCatalog_AllocateId(&catalog);
             if (!WindowLayoutCatalog_Add(&catalog, uId, szName))
             {
-                MessageBoxW(hWndParent, L"Failed to create the window layout entry.", L"Window Layout", MB_OK | MB_ICONERROR);
+                WindowLayoutManager_ShowMessage(hWndParent, L"Failed to create the window layout entry.", L"Window Layout", MB_OK | MB_ICONERROR);
                 return TRUE;
             }
         }
 
         if (!WindowLayoutManager_SaveProfile(pPanitentWindow, uId) || !WindowLayoutManager_SaveCatalog(&catalog))
         {
-            MessageBoxW(hWndParent, L"Failed to save the current window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
+            WindowLayoutManager_ShowMessage(hWndParent, L"Failed to save the current window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
         }
         WindowLayoutManager_RefreshApplyMenu(pPanitentWindow);
         return TRUE;
@@ -868,7 +885,7 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
     case IDM_WINDOW_RESET_LAYOUT:
         if (!WindowLayoutManager_ApplyDefault(pPanitentWindow))
         {
-            MessageBoxW(hWndParent, L"Failed to reset the window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
+            WindowLayoutManager_ShowMessage(hWndParent, L"Failed to reset the window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
         }
         return TRUE;
     }
