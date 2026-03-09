@@ -2,6 +2,7 @@
 #include <ole2.h>
 
 #include "../src/dockhost.h"
+#include "../src/dockhostdrag.h"
 #include "../src/dockhostmodelapply.h"
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockfloatingpersist.h"
@@ -785,6 +786,69 @@ static int test_runtime_empty_document_group_cleanup_uses_model_first_remove(voi
     return 0;
 }
 
+static int test_runtime_document_group_undock_to_floating_uses_model_first_remove(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pIncomingWorkspace = WorkspaceContainer_Create();
+    assert(pIncomingWorkspace != NULL);
+    HWND hWndIncomingWorkspace = Window_CreateWindow((Window*)pIncomingWorkspace, NULL);
+    assert(hWndIncomingWorkspace && IsWindow(hWndIncomingWorkspace));
+    ShowWindow(hWndIncomingWorkspace, SW_HIDE);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pIncomingWorkspace));
+
+    DockTargetHit targetHit = { 0 };
+    targetHit.nDockSide = DKS_RIGHT;
+    targetHit.bLocalTarget = TRUE;
+    targetHit.hWndAnchor = hWndMainWorkspace;
+    assert(DockHostWindow_DockHWNDToTarget(fixture.pDockHostWindow, hWndIncomingWorkspace, &targetHit, 240));
+
+    TreeNode* pIncomingNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndIncomingWorkspace);
+    DockData* pIncomingData = pIncomingNode ? (DockData*)pIncomingNode->data : NULL;
+    assert(pIncomingNode != NULL);
+    assert(pIncomingData != NULL);
+
+    int x = pIncomingData->rc.left + max(1, Win32_Rect_GetWidth(&pIncomingData->rc) / 2);
+    int y = pIncomingData->rc.top + 8;
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    DockHostDrag_UndockToFloating(fixture.pDockHostWindow, pIncomingNode, x, y);
+
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 1);
+    assert(IsWindow(hWndIncomingWorkspace));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 1);
+    assert(counts.nDocumentHosts == 0);
+
+    WCHAR szParentClass[64] = L"";
+    HWND hWndParent = GetParent(hWndIncomingWorkspace);
+    assert(hWndParent && IsWindow(hWndParent));
+    GetClassNameW(hWndParent, szParentClass, ARRAYSIZE(szParentClass));
+    assert(wcscmp(szParentClass, L"__FloatingWindowContainer") == 0);
+
+    DockModelNode* pApplied = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pApplied != NULL);
+    assert(runtime_count_model_role(pApplied, DOCK_ROLE_WORKSPACE) == 1);
+
+    DockModel_Destroy(pApplied);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_layout_apply_preserves_workspace_binding_by_node_id(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -996,6 +1060,7 @@ int main(void)
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
+    failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 
     if (bOleInitialized)

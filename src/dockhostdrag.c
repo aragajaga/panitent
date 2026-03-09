@@ -307,6 +307,8 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     }
 
     DockData* pDockData = (DockData*)pNode->data;
+    HWND hWndChild = pDockData->hWnd;
+    DockPaneKind nPaneKind = pDockData->nPaneKind;
     RECT rcDockLocal = pDockData->rc;
     int dockWidth = max(Win32_Rect_GetWidth(&rcDockLocal), 1);
     int dockHeight = max(Win32_Rect_GetHeight(&rcDockLocal), 1);
@@ -319,9 +321,20 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     POINT ptCursor = { 0 };
     GetCursorPos(&ptCursor);
 
-    if (pDockData->nPaneKind == DOCK_PANE_TOOL)
+    if (!hWndChild || !IsWindow(hWndChild))
     {
-        if (!DockHostModelApply_RemoveToolWindow(pDockHostWindow, pDockData->hWnd, TRUE))
+        return;
+    }
+
+    if (nPaneKind == DOCK_PANE_TOOL)
+    {
+        if (!DockHostModelApply_RemoveToolWindow(pDockHostWindow, hWndChild, TRUE))
+        {
+            return;
+        }
+    }
+    else if (nPaneKind == DOCK_PANE_DOCUMENT) {
+        if (!DockHostModelApply_RemoveDocumentWindow(pDockHostWindow, hWndChild, TRUE))
         {
             return;
         }
@@ -333,7 +346,10 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
     HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
     FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-    FloatingWindowContainer_PinWindow(pFloatingWindowContainer, pDockData->hWnd);
+    FloatingWindowContainer_SetDockPolicy(
+        pFloatingWindowContainer,
+        nPaneKind == DOCK_PANE_DOCUMENT ? FLOAT_DOCK_POLICY_DOCUMENT : FLOAT_DOCK_POLICY_PANEL);
+    FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndChild);
 
     RECT rcFloating = rcDockLocal;
     MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcFloating, 2);
