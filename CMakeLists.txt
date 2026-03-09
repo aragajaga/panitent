@@ -129,6 +129,7 @@ set(C_SOURCES
     src/floatingdocumentdock.c
     src/floatingdocumenthost.c
     src/floatingdocumentreuse.c
+    src/floatingdocumentrestore.c
     src/floatingdockpolicy.c
     src/floatingwindowcontainer.c
     src/glwindow.c

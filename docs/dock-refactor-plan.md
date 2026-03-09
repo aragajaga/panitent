@@ -663,3 +663,11 @@ This change set splits the creation/bootstrap side of `floatingdocumenthost.c` i
 - create-hook plumbing used by runtime tests.
 
 This leaves `floatingdocumenthost.c` focused on restore wiring and reduces one more runtime hub in the floating document path.
+
+## Floating Document Restore Layer Increment Applied
+
+This change set moves the restore wiring side of `floatingdocumenthost.c` into `floatingdocumentrestore.c`:
+- pinned floating dock-host restore;
+- reuse-aware restore wrapper.
+
+After this split, the floating document path is explicitly separated into create, reuse/capture, and restore layers.
