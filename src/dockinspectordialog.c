@@ -51,63 +51,102 @@ struct TreeViewNodePair {
 
 void DockInspectorDialog_Update(DockInspectorDialog* pDockInspectorDialog, TreeNode* pTreeRoot)
 {
-    if (pDockInspectorDialog && pDockInspectorDialog->m_pTreeView)
+    if (!pDockInspectorDialog)
     {
-        TreeViewCtl* pTreeView = pDockInspectorDialog->m_pTreeView;
-        TreeViewCtl_DeleteAllItems(pTreeView);
+        return;
+    }
 
-        Queue* pQueue = CreateQueue();
+    pDockInspectorDialog->m_pTreeRoot = pTreeRoot;
 
-        TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
-        memset(pPair, 0, sizeof(TreeViewNodePair));
-        pPair->pTreeNode = pTreeRoot;
-        pPair->hti = TVI_ROOT;
-        Queue_Enqueue(pQueue, pPair);
+    if (!pDockInspectorDialog->m_pTreeView)
+    {
+        return;
+    }
 
-        while (!Queue_IsEmpty(pQueue))
+    TreeViewCtl* pTreeView = pDockInspectorDialog->m_pTreeView;
+    TreeViewCtl_DeleteAllItems(pTreeView);
+    if (!pTreeRoot)
+    {
+        return;
+    }
+
+    Queue* pQueue = CreateQueue();
+    if (!pQueue)
+    {
+        return;
+    }
+
+    TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+    if (!pPair)
+    {
+        free(pQueue);
+        return;
+    }
+
+    memset(pPair, 0, sizeof(TreeViewNodePair));
+    pPair->pTreeNode = pTreeRoot;
+    pPair->hti = TVI_ROOT;
+    Queue_Enqueue(pQueue, pPair);
+
+    while (!Queue_IsEmpty(pQueue))
+    {
+        pPair = Queue_Dequeue(pQueue);
+        if (!pPair)
         {
-            pPair = Queue_Dequeue(pQueue);
+            continue;
+        }
 
-            TreeNode* pCurrentNode = pPair->pTreeNode;
-            HTREEITEM hParentItem = pPair->hti;
+        TreeNode* pCurrentNode = pPair->pTreeNode;
+        HTREEITEM hParentItem = pPair->hti;
+        free(pPair);
 
-            TVINSERTSTRUCT tvInsert = { 0 };
-            tvInsert.hParent = hParentItem;
-            tvInsert.hInsertAfter = TVI_LAST;
-            tvInsert.item.mask = TVIF_TEXT;
-            tvInsert.item.lParam = (LPARAM)pCurrentNode->data;
+        if (!pCurrentNode)
+        {
+            continue;
+        }
 
-            if (pCurrentNode && pCurrentNode->data && ((DockData*)pCurrentNode->data)->lpszName)
+        TVINSERTSTRUCT tvInsert = { 0 };
+        tvInsert.hParent = hParentItem;
+        tvInsert.hInsertAfter = TVI_LAST;
+        tvInsert.item.mask = TVIF_TEXT;
+        tvInsert.item.lParam = (LPARAM)pCurrentNode->data;
+
+        if (pCurrentNode->data && ((DockData*)pCurrentNode->data)->lpszName)
+        {
+            tvInsert.item.pszText = ((DockData*)pCurrentNode->data)->lpszName;
+        }
+        else {
+            tvInsert.item.pszText = L"< Unknown >";
+        }
+
+        HTREEITEM hItem = TreeView_InsertItem(Window_GetHWND((Window*)pTreeView), &tvInsert);
+
+        if (pCurrentNode->node1)
+        {
+            TreeViewNodePair* pChildPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+            if (pChildPair)
             {
-                tvInsert.item.pszText = ((DockData*)pCurrentNode->data)->lpszName;
+                memset(pChildPair, 0, sizeof(TreeViewNodePair));
+                pChildPair->pTreeNode = pCurrentNode->node1;
+                pChildPair->hti = hItem;
+                Queue_Enqueue(pQueue, pChildPair);
             }
-            else {
-                tvInsert.item.pszText = L"< Unknown >";
-            }
+        }
 
-            HTREEITEM hItem = TreeView_InsertItem(Window_GetHWND((Window*)pTreeView), &tvInsert);
-
-            if (pCurrentNode->node1)
+        if (pCurrentNode->node2)
+        {
+            TreeViewNodePair* pChildPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
+            if (pChildPair)
             {
-                TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
-                memset(pPair, 0, sizeof(TreeViewNodePair));
-                pPair->pTreeNode = pCurrentNode->node1;
-                pPair->hti = hItem;
-                Queue_Enqueue(pQueue, pPair);
-            }
-
-            if (pCurrentNode->node2)
-            {
-                TreeViewNodePair* pPair = (TreeViewNodePair*)malloc(sizeof(TreeViewNodePair));
-                memset(pPair, 0, sizeof(TreeViewNodePair));
-                pPair->pTreeNode = pCurrentNode->node2;
-                pPair->hti = hItem;
-                Queue_Enqueue(pQueue, pPair);
+                memset(pChildPair, 0, sizeof(TreeViewNodePair));
+                pChildPair->pTreeNode = pCurrentNode->node2;
+                pChildPair->hti = hItem;
+                Queue_Enqueue(pQueue, pChildPair);
             }
         }
     }
 
-    pDockInspectorDialog->m_pTreeRoot = pTreeRoot;
+    free(pQueue);
 }
 
 void DockInspectorDialog_OnInitDialog(DockInspectorDialog* pDockInspectorDialog)

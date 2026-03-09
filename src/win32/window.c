@@ -124,7 +124,7 @@ BOOL Window_OnClose(Window* pWindow)
 
 void Window_OnDestroy(Window* pWindow)
 {
-    PostQuitMessage(0);
+    UNREFERENCED_PARAMETER(pWindow);
 }
 
 BOOL Window_OnCommand(Window* pWindow, WPARAM wParam, LPARAM lParam)
