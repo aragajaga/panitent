@@ -2,6 +2,10 @@
 
 #include "dockhost.h"
 
+BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs);
+void DockHostWindow_OnDestroy(DockHostWindow* pDockHostWindow);
+void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow);
+void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, int cy);
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
 void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
