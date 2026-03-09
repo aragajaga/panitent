@@ -20,9 +20,7 @@ typedef struct FloatingDocumentLayoutCaptureContext
 
 typedef struct FloatingDocumentLayoutApplyContext
 {
-	HWND hWorkspaceHwnds[32];
-	int nWorkspaceCount;
-	int iNextWorkspace;
+	FloatingDocumentWorkspaceReuseContext reuse;
 } FloatingDocumentLayoutApplyContext;
 
 static BOOL FloatingDocumentLayout_OnPinnedWindowCapture(
@@ -81,77 +79,6 @@ BOOL PanitentFloatingDocumentLayout_CaptureModel(PanitentApp* pPanitentApp, Floa
 	return TRUE;
 }
 
-static BOOL WindowLayoutManager_CollectFloatingDocumentWorkspaces(HWND hWndChild, HWND* pWorkspaceHwnds, int cWorkspaceHwnds, int* pnCount)
-{
-	int nFound = FloatingChildHost_CollectDocumentWorkspaceHwnds(hWndChild, pWorkspaceHwnds, cWorkspaceHwnds);
-	if (pnCount)
-	{
-		*pnCount = nFound;
-	}
-	return nFound > 0;
-}
-
-static BOOL FloatingDocumentLayout_OnPinnedWindowCollectLive(
-	HWND hWnd,
-	FloatingWindowContainer* pFloatingWindowContainer,
-	void* pUserData)
-{
-	FloatingDocumentLayoutApplyContext* pContext = (FloatingDocumentLayoutApplyContext*)pUserData;
-	if (!pContext || !IsWindow(hWnd))
-	{
-		return TRUE;
-	}
-
-	HWND hWndChild = pFloatingWindowContainer->hWndChild;
-	if (!hWndChild || !IsWindow(hWndChild))
-	{
-		return TRUE;
-	}
-
-	HWND hWorkspaceHwnds[16] = { 0 };
-	int nWorkspaceCount = 0;
-	if (WindowLayoutManager_CollectFloatingDocumentWorkspaces(hWndChild, hWorkspaceHwnds, ARRAYSIZE(hWorkspaceHwnds), &nWorkspaceCount))
-	{
-		for (int i = 0; i < nWorkspaceCount && pContext->nWorkspaceCount < ARRAYSIZE(pContext->hWorkspaceHwnds); ++i)
-		{
-			SetParent(hWorkspaceHwnds[i], HWND_DESKTOP);
-			pContext->hWorkspaceHwnds[pContext->nWorkspaceCount++] = hWorkspaceHwnds[i];
-		}
-	}
-
-	DestroyWindow(hWnd);
-	return TRUE;
-}
-
-static Window* FloatingDocumentLayout_ResolveWorkspace(
-	PanitentApp* pPanitentApp,
-	DockHostWindow* pDockHostWindow,
-	TreeNode* pNode,
-	DockData* pDockData,
-	PanitentDockViewId nViewId,
-	void* pUserData)
-{
-	UNREFERENCED_PARAMETER(pPanitentApp);
-	UNREFERENCED_PARAMETER(pDockHostWindow);
-	UNREFERENCED_PARAMETER(pNode);
-	UNREFERENCED_PARAMETER(pDockData);
-
-	FloatingDocumentLayoutApplyContext* pContext = (FloatingDocumentLayoutApplyContext*)pUserData;
-	if (nViewId != PNT_DOCK_VIEW_WORKSPACE || !pContext)
-	{
-		return NULL;
-	}
-
-	if (pContext->iNextWorkspace < pContext->nWorkspaceCount)
-	{
-		HWND hWndWorkspace = pContext->hWorkspaceHwnds[pContext->iNextWorkspace++];
-		return (Window*)WindowMap_Get(hWndWorkspace);
-	}
-
-	WorkspaceContainer* pWorkspace = WorkspaceContainer_Create();
-	return (Window*)pWorkspace;
-}
-
 BOOL PanitentFloatingDocumentLayout_RestoreModel(
 	PanitentApp* pPanitentApp,
 	DockHostWindow* pDockHostWindow,
@@ -163,7 +90,7 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 	}
 
 	FloatingDocumentLayoutApplyContext context = { 0 };
-	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentLayout_OnPinnedWindowCollectLive, &context);
+	FloatingDocumentHost_CollectLiveWorkspaces(&context.reuse);
 
 	BOOL bRestoredAny = FALSE;
 	for (int i = 0; i < pModel->nEntryCount; ++i)
@@ -182,8 +109,8 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 			pDockHostWindow,
 			&pEntry->rcWindow,
 			pEntry->pLayoutModel,
-			FloatingDocumentLayout_ResolveWorkspace,
-			&context,
+			FloatingDocumentHost_ResolveReusedWorkspace,
+			&context.reuse,
 			NULL,
 			NULL,
 			&bHasWorkspace,
@@ -195,22 +122,7 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 		bRestoredAny = TRUE;
 	}
 
-	if (context.iNextWorkspace < context.nWorkspaceCount)
-	{
-		WorkspaceContainer* pMainWorkspace = PanitentApp_GetWorkspaceContainer(pPanitentApp);
-		for (int i = context.iNextWorkspace; i < context.nWorkspaceCount; ++i)
-		{
-			WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(context.hWorkspaceHwnds[i]);
-			if (pWorkspace && pMainWorkspace)
-			{
-				WorkspaceContainer_MoveAllViewportsTo(pWorkspace, pMainWorkspace);
-			}
-			if (context.hWorkspaceHwnds[i] && IsWindow(context.hWorkspaceHwnds[i]))
-			{
-				DestroyWindow(context.hWorkspaceHwnds[i]);
-			}
-		}
-	}
+	FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &context.reuse);
 
 	return bRestoredAny || pModel->nEntryCount == 0;
 }

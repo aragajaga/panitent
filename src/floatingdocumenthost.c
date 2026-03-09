@@ -11,6 +11,7 @@
 #include "win32/window.h"
 #include "win32/windowmap.h"
 #include "win32/util.h"
+#include "workspacecontainer.h"
 
 static FnFloatingDocumentHostCreatePinnedWindowHook g_pCreatePinnedWindowTestHook = NULL;
 
@@ -103,6 +104,104 @@ BOOL FloatingDocumentHost_ForEachPinnedWindow(FnFloatingDocumentHostWindowCallba
     context.bResult = TRUE;
     EnumWindows(FloatingDocumentHost_EnumPinnedWindowsProc, (LPARAM)&context);
     return context.bResult;
+}
+
+static BOOL FloatingDocumentHost_OnPinnedWindowCollectLive(
+    HWND hWnd,
+    FloatingWindowContainer* pFloatingWindowContainer,
+    void* pUserData)
+{
+    FloatingDocumentWorkspaceReuseContext* pContext = (FloatingDocumentWorkspaceReuseContext*)pUserData;
+    if (!pContext || !IsWindow(hWnd))
+    {
+        return TRUE;
+    }
+
+    HWND hWndChild = pFloatingWindowContainer->hWndChild;
+    if (!hWndChild || !IsWindow(hWndChild))
+    {
+        return TRUE;
+    }
+
+    HWND hWorkspaceHwnds[16] = { 0 };
+    int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        hWndChild,
+        hWorkspaceHwnds,
+        ARRAYSIZE(hWorkspaceHwnds));
+    if (nWorkspaceCount > 0)
+    {
+        for (int i = 0; i < nWorkspaceCount && pContext->nWorkspaceCount < ARRAYSIZE(pContext->hWorkspaceHwnds); ++i)
+        {
+            SetParent(hWorkspaceHwnds[i], HWND_DESKTOP);
+            pContext->hWorkspaceHwnds[pContext->nWorkspaceCount++] = hWorkspaceHwnds[i];
+        }
+    }
+
+    DestroyWindow(hWnd);
+    return TRUE;
+}
+
+BOOL FloatingDocumentHost_CollectLiveWorkspaces(FloatingDocumentWorkspaceReuseContext* pContext)
+{
+    if (!pContext)
+    {
+        return FALSE;
+    }
+
+    memset(pContext, 0, sizeof(*pContext));
+    return FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentHost_OnPinnedWindowCollectLive, pContext);
+}
+
+Window* FloatingDocumentHost_ResolveReusedWorkspace(
+    PanitentApp* pPanitentApp,
+    DockHostWindow* pDockHostWindow,
+    TreeNode* pNode,
+    DockData* pDockData,
+    PanitentDockViewId nViewId,
+    void* pUserData)
+{
+    UNREFERENCED_PARAMETER(pPanitentApp);
+    UNREFERENCED_PARAMETER(pDockHostWindow);
+    UNREFERENCED_PARAMETER(pNode);
+    UNREFERENCED_PARAMETER(pDockData);
+
+    FloatingDocumentWorkspaceReuseContext* pContext = (FloatingDocumentWorkspaceReuseContext*)pUserData;
+    if (nViewId != PNT_DOCK_VIEW_WORKSPACE || !pContext)
+    {
+        return NULL;
+    }
+
+    if (pContext->iNextWorkspace < pContext->nWorkspaceCount)
+    {
+        HWND hWndWorkspace = pContext->hWorkspaceHwnds[pContext->iNextWorkspace++];
+        return (Window*)WindowMap_Get(hWndWorkspace);
+    }
+
+    return (Window*)WorkspaceContainer_Create();
+}
+
+void FloatingDocumentHost_DisposeUnusedReusedWorkspaces(
+    PanitentApp* pPanitentApp,
+    FloatingDocumentWorkspaceReuseContext* pContext)
+{
+    if (!pContext || pContext->iNextWorkspace >= pContext->nWorkspaceCount)
+    {
+        return;
+    }
+
+    WorkspaceContainer* pMainWorkspace = PanitentApp_GetWorkspaceContainer(pPanitentApp);
+    for (int i = pContext->iNextWorkspace; i < pContext->nWorkspaceCount; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(pContext->hWorkspaceHwnds[i]);
+        if (pWorkspace && pMainWorkspace)
+        {
+            WorkspaceContainer_MoveAllViewportsTo(pWorkspace, pMainWorkspace);
+        }
+        if (pContext->hWorkspaceHwnds[i] && IsWindow(pContext->hWorkspaceHwnds[i]))
+        {
+            DestroyWindow(pContext->hWorkspaceHwnds[i]);
+        }
+    }
 }
 
 BOOL FloatingDocumentHost_CapturePinnedWindowState(

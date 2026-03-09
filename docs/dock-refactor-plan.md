@@ -336,6 +336,7 @@ This change set continues floating-host unification on the document side:
 - floating document layout/session capture and live-window filtering now also share a common enumeration/filter helper for pinned floating document windows;
 - floating document layout/session capture paths now also share a common pinned-window state helper for window bounds, child layout capture, and workspace collection;
 - main document session restore and floating document session workspace restore now also share a common workspace-entry capture/restore helper instead of duplicating active/non-active document open order and recovery/file entry logic;
+- floating document layout restore now also uses shared live-workspace recycle/resolve/dispose helpers from `floatingdocumenthost.*` instead of keeping that workflow open-coded inside the layout persistence layer;
 - runtime tests now cover single-document float creation through that shared helper path.
 
 ## Fifth Increment Applied

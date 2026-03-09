@@ -4,6 +4,7 @@
 typedef struct DockModelNode DockModelNode;
 typedef struct Window Window;
 typedef struct FloatingWindowContainer FloatingWindowContainer;
+typedef struct WorkspaceContainer WorkspaceContainer;
 
 typedef struct PanitentApp PanitentApp;
 typedef BOOL (*FnFloatingDocumentHostCreatePinnedWindowHook)(
@@ -17,6 +18,13 @@ typedef BOOL (*FnFloatingDocumentHostWindowCallback)(
     HWND hWndFloating,
     FloatingWindowContainer* pFloatingWindowContainer,
     void* pUserData);
+
+typedef struct FloatingDocumentWorkspaceReuseContext
+{
+    HWND hWorkspaceHwnds[32];
+    int nWorkspaceCount;
+    int iNextWorkspace;
+} FloatingDocumentWorkspaceReuseContext;
 typedef Window* (*FnDockHostRestoreResolveView)(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,
@@ -73,3 +81,14 @@ BOOL FloatingDocumentHost_CapturePinnedWindowState(
     HWND* pWorkspaceHwnds,
     int cWorkspaceHwnds,
     int* pnWorkspaceCount);
+BOOL FloatingDocumentHost_CollectLiveWorkspaces(FloatingDocumentWorkspaceReuseContext* pContext);
+Window* FloatingDocumentHost_ResolveReusedWorkspace(
+    PanitentApp* pPanitentApp,
+    DockHostWindow* pDockHostWindow,
+    TreeNode* pNode,
+    DockData* pDockData,
+    PanitentDockViewId nViewId,
+    void* pUserData);
+void FloatingDocumentHost_DisposeUnusedReusedWorkspaces(
+    PanitentApp* pPanitentApp,
+    FloatingDocumentWorkspaceReuseContext* pContext);
