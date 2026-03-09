@@ -41,53 +41,16 @@
 
 static const WCHAR szClassName[] = L"__DockHostWindow";
 
-POINT captionPos;
-
-BOOL fSuggestTop;
-
-#define DOCK_ZONE_MAX_TABS 32
-#define DOCK_CAPTION_INSET 3
-#define DRAG_UNDOCK_DISTANCE 32
 #define IDM_DOCKINSPECTOR 101
-#define WINDOWBUTTONSIZE 14
-#define WINDOWBUTTONSPACING 3
-#define DOCK_MIN_PANE_SIZE 96
 static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop);
 
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
-static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
 BOOL DockHostWindow_EnsureAutoHideOverlayHost(DockHostWindow* pDockHostWindow);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
-
-#define DHT_UNKNOWN 0
-#define DHT_CAPTION 1
-#define DHT_CLOSEBTN 2
-#define DHT_PINBTN 3
-#define DHT_MOREBTN 4
-
-static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow)
-{
-	int iLeft = 0;
-	int iRight = 0;
-	int iTop = 0;
-	int iBottom = 0;
-	DockHostZone_Sync(
-		pDockHostWindow,
-		DockHostMetrics_GetZoneTabGutter(),
-		&iLeft,
-		&iRight,
-		&iTop,
-		&iBottom);
-	DockHostMetrics_SetRootGutters(
-		iLeft,
-		iRight,
-		iTop,
-		iBottom);
-}
 
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
@@ -170,7 +133,7 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 		}
 	}
 
-	DockHostWindow_SyncZones(pDockHostWindow);
+	DockHostZone_SyncHostGutters(pDockHostWindow, DockHostMetrics_GetZoneTabGutter());
 	DockHostPaint_PaintContent(
 		pDockHostWindow,
 		hdcTarget,

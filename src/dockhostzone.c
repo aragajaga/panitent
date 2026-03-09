@@ -1,6 +1,7 @@
 #include "precomp.h"
 
 #include "dockhostzone.h"
+#include "dockhostmetrics.h"
 #include "dockhosttree.h"
 
 static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCapacity, int* pnCount)
@@ -145,4 +146,14 @@ void DockHostZone_Sync(DockHostWindow* pDockHostWindow, int iZoneTabGutter, int*
     }
 
     DockHostZone_UpdateTabGutters(pDockHostWindow, iZoneTabGutter, pLeft, pRight, pTop, pBottom);
+}
+
+void DockHostZone_SyncHostGutters(DockHostWindow* pDockHostWindow, int iZoneTabGutter)
+{
+    int iLeft = 0;
+    int iRight = 0;
+    int iTop = 0;
+    int iBottom = 0;
+    DockHostZone_Sync(pDockHostWindow, iZoneTabGutter, &iLeft, &iRight, &iTop, &iBottom);
+    DockHostMetrics_SetRootGutters(iLeft, iRight, iTop, iBottom);
 }
