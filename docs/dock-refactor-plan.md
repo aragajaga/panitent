@@ -160,6 +160,13 @@ This change set continues the same decomposition on the drag/runtime side:
 - `dockhost.c` now delegates caption-drag overlay and dock-target hit-testing through that module;
 - the host file keeps message orchestration, while drag/overlay behavior is separated from the main host implementation.
 
+## Dock Host Input Increment Applied
+
+This change set continues the same decomposition on the input side:
+- added `dockhostinput.*` for mouse/capture/context-menu interaction flow;
+- moved caption button state management, split-drag interaction, caption-drag initiation, and inspector context-menu handling out of `dockhost.c`;
+- `dockhost.c` now routes window messages to a dedicated input layer instead of owning those interaction details directly.
+
 ## Target Layers
 
 ### 1. Layout Model

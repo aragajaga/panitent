@@ -16,6 +16,7 @@
 #include "dockhostcaption.h"
 #include "dockhostautohide.h"
 #include "dockhostdrag.h"
+#include "dockhostinput.h"
 #include "dockhostmodelapply.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
@@ -53,6 +54,7 @@ static int g_iZoneTabGutterBottom = 0;
 #define DOCK_ZONE_MAX_TABS 32
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
+#define IDM_DOCKINSPECTOR 101
 #define WINDOWBUTTONSIZE 14
 #define WINDOWBUTTONSPACING 3
 #define DOCK_MIN_PANE_SIZE 96
@@ -79,14 +81,9 @@ static void DockHostWindow_BeginSplitDrag(DockHostWindow* pDockHostWindow, TreeN
 static void DockHostWindow_UpdateSplitDrag(DockHostWindow* pDockHostWindow, int x, int y);
 static void DockHostWindow_EndSplitDrag(DockHostWindow* pDockHostWindow);
 static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
-static int Dock_HitTypeToCaptionButton(int nHitType);
-static void DockHostWindow_SetCaptionHotButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton);
-static void DockHostWindow_SetCaptionPressedButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton);
-static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWindow);
 DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
-void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
@@ -172,149 +169,6 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 #define DHT_CLOSEBTN 2
 #define DHT_PINBTN 3
 #define DHT_MOREBTN 4
-
-static int Dock_HitTypeToCaptionButton(int nHitType)
-{
-	switch (nHitType)
-	{
-	case DHT_CLOSEBTN:
-		return DCB_CLOSE;
-	case DHT_PINBTN:
-		return DCB_PIN;
-	case DHT_MOREBTN:
-		return DCB_MORE;
-	default:
-		return DCB_NONE;
-	}
-}
-
-static void DockHostWindow_SetCaptionHotButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton)
-{
-	if (!pDockHostWindow)
-	{
-		return;
-	}
-
-	if (nButton == DCB_NONE)
-	{
-		pNode = NULL;
-	}
-
-	if (pDockHostWindow->pCaptionHotNode == pNode &&
-		pDockHostWindow->nCaptionHotButton == nButton)
-	{
-		return;
-	}
-
-	pDockHostWindow->pCaptionHotNode = pNode;
-	pDockHostWindow->nCaptionHotButton = nButton;
-	Window_Invalidate((Window*)pDockHostWindow);
-}
-
-static void DockHostWindow_SetCaptionPressedButton(DockHostWindow* pDockHostWindow, TreeNode* pNode, int nButton)
-{
-	if (!pDockHostWindow)
-	{
-		return;
-	}
-
-	if (nButton == DCB_NONE)
-	{
-		pNode = NULL;
-	}
-
-	if (pDockHostWindow->pCaptionPressedNode == pNode &&
-		pDockHostWindow->nCaptionPressedButton == nButton)
-	{
-		return;
-	}
-
-	pDockHostWindow->pCaptionPressedNode = pNode;
-	pDockHostWindow->nCaptionPressedButton = nButton;
-	Window_Invalidate((Window*)pDockHostWindow);
-}
-
-static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWindow)
-{
-	if (!pDockHostWindow)
-	{
-		return;
-	}
-
-	BOOL bChanged =
-		(pDockHostWindow->pCaptionHotNode != NULL) ||
-		(pDockHostWindow->nCaptionHotButton != DCB_NONE) ||
-		(pDockHostWindow->pCaptionPressedNode != NULL) ||
-		(pDockHostWindow->nCaptionPressedButton != DCB_NONE);
-
-	pDockHostWindow->pCaptionHotNode = NULL;
-	pDockHostWindow->nCaptionHotButton = DCB_NONE;
-	pDockHostWindow->pCaptionPressedNode = NULL;
-	pDockHostWindow->nCaptionPressedButton = DCB_NONE;
-
-	if (bChanged)
-	{
-		Window_Invalidate((Window*)pDockHostWindow);
-	}
-}
-
-int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
-{
-	if (!pDockHostWindow->pRoot_)
-	{
-		return 0;
-	}
-
-	TreeTraversalRLOT traversal = { 0 };
-	TreeTraversalRLOT_Init(&traversal, pDockHostWindow->pRoot_);
-	
-	TreeNode* pCurrentNode = NULL;
-	TreeNode* pHittedNode = NULL;
-	while (pCurrentNode = TreeTraversalRLOT_GetNext(&traversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		POINT pt = { 0 };
-		pt.x = x;
-		pt.y = y;
-		if (PtInRect(&pDockData->rc, pt))
-		{
-			pHittedNode = pCurrentNode;
-			break;
-		}
-	}
-	TreeTraversalRLOT_Destroy(&traversal);
-
-	/*
-	int localX = x - pHittedDock->rc.left;
-	int localY = y - pHittedDock->rc.top;
-	*/
-
-	*ppTreeNode = pHittedNode;
-
-	if (pHittedNode && pHittedNode->data)
-	{
-		DockData* pDockDataHit = (DockData*)pHittedNode->data;
-		if (Dock_CloseButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanClosePanel(pDockDataHit->nRole, pDockDataHit->lpszName))
-		{
-			return DHT_CLOSEBTN;
-		}
-		else if (Dock_PinButtonHitTest(pDockDataHit, x, y) && DockPolicy_CanPinPanel(pDockDataHit->nRole, pDockDataHit->lpszName))
-		{
-			return DHT_PINBTN;
-		}
-		else if (Dock_MoreButtonHitTest(pDockDataHit, x, y))
-		{
-			return DHT_MOREBTN;
-		}
-		else if (Dock_CaptionHitTest(pDockDataHit, x, y) && DockPolicy_CanUndockPanel(pDockDataHit->nRole, pDockDataHit->lpszName))
-		{
-			return DHT_CAPTION;
-		}
-	}
-
-	return DHT_UNKNOWN;
-}
 
 static BOOL DockNode_IsStructural(TreeNode* pNode)
 {
@@ -1006,300 +860,6 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 	}
 }
 
-void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags)
-{
-	UNREFERENCED_PARAMETER(keyFlags);
-	TRACKMOUSEEVENT tme = { 0 };
-	tme.cbSize = sizeof(tme);
-	tme.dwFlags = TME_LEAVE;
-	tme.hwndTrack = Window_GetHWND((Window*)pDockHostWindow);
-	TrackMouseEvent(&tme);
-
-	if (pDockHostWindow->fSplitDrag)
-	{
-		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
-		DockHostWindow_UpdateSplitDrag(pDockHostWindow, x, y);
-		return;
-	}
-
-	if (pDockHostWindow->fCaptionDrag)
-	{
-		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
-		int distance = (int)roundf(sqrtf((powf(pDockHostWindow->ptDragPos_.x - x, 2.0f) + powf(pDockHostWindow->ptDragPos_.y - y, 2.0f))));
-		int activateDistance = DRAG_UNDOCK_DISTANCE;
-		DockHostDrag_UpdateOverlayVisual(pDockHostWindow, distance);
-
-		if (distance >= activateDistance)
-		{
-			pDockHostWindow->fCaptionDrag = FALSE;
-			DockHostDrag_UndockToFloating(pDockHostWindow, pDockHostWindow->m_pSubjectNode, x, y);
-		}
-		/*
-		else {
-			POINT pt = { 0 };
-			pt.x = pDockHostWindow->ptDragPos_.x;
-			pt.y = pDockHostWindow->ptDragPos_.y;
-			HDC hScreenDC = GetDC(NULL);
-			ClientToScreen(pDockHostWindow->base.hWnd, &pt);
-
-			Ellipse(hScreenDC, pt.x - activateDistance, pt.y - activateDistance, pt.x + activateDistance, pt.y + activateDistance);
-		}
-		*/
-		return;
-	}
-
-	TreeNode* pHitNode = NULL;
-	int nHitType = DockHostWindow_HitTest(pDockHostWindow, &pHitNode, x, y);
-	DockHostWindow_SetCaptionHotButton(pDockHostWindow, pHitNode, Dock_HitTypeToCaptionButton(nHitType));
-
-	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
-	if (pSplitNode && pSplitNode->data)
-	{
-		if (DockHostLayout_IsSplitVertical(pSplitNode))
-		{
-			SetCursor(LoadCursor(NULL, IDC_SIZENS));
-		}
-		else {
-			SetCursor(LoadCursor(NULL, IDC_SIZEWE));
-		}
-	}
-}
-
-void DockHostWindow_OnLButtonDown(DockHostWindow* pDockHostWindow, BOOL fDoubleClick, int x, int y, UINT keyFlags)
-{
-	UNREFERENCED_PARAMETER(fDoubleClick);
-	UNREFERENCED_PARAMETER(keyFlags);
-
-	HWND hWnd = Window_GetHWND((Window*)pDockHostWindow);
-
-	/* Get whole dock window client rect */
-	RECT rcClient = { 0 };
-	GetClientRect(hWnd, &rcClient);
-
-	if (pDockHostWindow->fAutoHideOverlayVisible)
-	{
-		POINT pt = { x, y };
-		if (PtInRect(&pDockHostWindow->rcAutoHideOverlay, pt))
-		{
-			return;
-		}
-	}
-
-	HWND hWndZoneTab = NULL;
-	int zoneSide = DockHostPaint_HitTestZoneTab(pDockHostWindow, x, y, &hWndZoneTab, iZoneTabGutter);
-	if (zoneSide != DKS_NONE)
-	{
-		DockHostWindow_ToggleZoneCollapsed(pDockHostWindow, zoneSide, hWndZoneTab);
-		return;
-	}
-
-	if (pDockHostWindow->fAutoHideOverlayVisible)
-	{
-		POINT pt = { x, y };
-		if (!PtInRect(&pDockHostWindow->rcAutoHideOverlay, pt))
-		{
-			DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
-			Window_Invalidate((Window*)pDockHostWindow);
-		}
-	}
-
-	TreeNode* pSplitNode = DockHostWindow_HitTestSplitGrip(pDockHostWindow, x, y);
-	if (pSplitNode)
-	{
-		DockHostWindow_BeginSplitDrag(pDockHostWindow, pSplitNode, x, y);
-		return;
-	}
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
-	int nHitButton = Dock_HitTypeToCaptionButton(htType);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-	case DHT_PINBTN:
-	case DHT_MOREBTN:
-	{
-		DockHostWindow_SetCaptionHotButton(pDockHostWindow, pTreeNode, nHitButton);
-		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, pTreeNode, nHitButton);
-		SetCapture(hWnd);
-		return;
-	}
-	break;
-
-	case DHT_CAPTION:
-	{
-		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
-		pDockHostWindow->fCaptionDrag = TRUE;
-		pDockHostWindow->m_pSubjectNode = pTreeNode;
-
-		SetCapture(hWnd);
-
-		/* Save click position */
-		pDockHostWindow->ptDragPos_.x = x - (rcClient.left + 2);
-		pDockHostWindow->ptDragPos_.y = y - (rcClient.top + 2);
-		pDockHostWindow->fDrag_ = TRUE;
-
-		DockHostDrag_StartDrag(pDockHostWindow, pDockHostWindow->ptDragPos_.x, pDockHostWindow->ptDragPos_.y);
-	}
-	break;
-
-	default:
-		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
-		break;
-	}
-}
-
-void DockHostWindow_InvokeDockInspectorDialog(DockHostWindow* pDockHostWindow)
-{
-	INT_PTR hDialog = Dialog_CreateWindow((Dialog*)pDockHostWindow->m_pDockInspectorDialog, IDD_DOCKINSPECTOR, Window_GetHWND((Window*)pDockHostWindow), FALSE);
-	HWND hWndDialog = (HWND)hDialog;
-	if (hWndDialog && IsWindow(hWndDialog))
-	{
-		/* Important. Idk why */
-		ShowWindow(hWndDialog, SW_SHOW);
-	}
-}
-
-void DockHostWindow_OnLButtonUp(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags) {
-	UNREFERENCED_PARAMETER(keyFlags);
-
-	HWND hWndDockHost = Window_GetHWND((Window*)pDockHostWindow);
-
-	if (pDockHostWindow->fSplitDrag)
-	{
-		DockHostWindow_EndSplitDrag(pDockHostWindow);
-		return;
-	}
-
-	if (pDockHostWindow->nCaptionPressedButton != DCB_NONE)
-	{
-		TreeNode* pHitNode = NULL;
-		int htType = DockHostWindow_HitTest(pDockHostWindow, &pHitNode, x, y);
-		int nHitButton = Dock_HitTypeToCaptionButton(htType);
-
-		TreeNode* pPressedNode = pDockHostWindow->pCaptionPressedNode;
-		int nPressedButton = pDockHostWindow->nCaptionPressedButton;
-		DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
-		DockHostWindow_SetCaptionHotButton(pDockHostWindow, pHitNode, nHitButton);
-
-		if (GetCapture() == hWndDockHost)
-		{
-			ReleaseCapture();
-		}
-
-		if (pHitNode != pPressedNode || nHitButton != nPressedButton)
-		{
-			pDockHostWindow->fDrag_ = FALSE;
-			DockHostDrag_DestroyOverlay();
-			return;
-		}
-
-		switch (nPressedButton)
-		{
-		case DCB_CLOSE:
-			DockHostWindow_DestroyInclusive(pDockHostWindow, pPressedNode);
-			Window_Invalidate((Window*)pDockHostWindow);
-			return;
-
-		case DCB_PIN:
-			DockHostPanelMenu_TogglePanelPinned(pDockHostWindow, pPressedNode);
-			return;
-
-		case DCB_MORE:
-		{
-			POINT ptScreen = { x, y };
-			ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptScreen);
-			DockHostPanelMenu_Show(pDockHostWindow, pPressedNode, ptScreen);
-			return;
-		}
-		}
-	}
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, x, y);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-	{
-		DockHostWindow_DestroyInclusive(pDockHostWindow, pTreeNode);
-		Window_Invalidate((Window*)pDockHostWindow);
-	}
-	break;
-
-	case DHT_PINBTN:
-	{
-		DockHostPanelMenu_TogglePanelPinned(pDockHostWindow, pTreeNode);
-	}
-	break;
-
-	case DHT_MOREBTN:
-	{
-		POINT ptScreen = { x, y };
-		ClientToScreen(Window_GetHWND((Window*)pDockHostWindow), &ptScreen);
-		DockHostPanelMenu_Show(pDockHostWindow, pTreeNode, ptScreen);
-	}
-	break;
-
-	case DHT_CAPTION:
-	{
-		/* Do nothing. */
-	}
-	break;
-	}
-
-	pDockHostWindow->fDrag_ = FALSE;
-	DockHostDrag_DestroyOverlay();
-	if (GetCapture() == hWndDockHost)
-	{
-		ReleaseCapture();
-	}
-}
-
-#define IDM_DOCKINSPECTOR 101
-
-void DockHostWindow_OnContextMenu(DockHostWindow* pDockHostWindow, HWND hWndContext, int x, int y)
-{
-	UNREFERENCED_PARAMETER(hWndContext);
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	ScreenToClient(Window_GetHWND((Window*)pDockHostWindow), &pt);
-
-	TreeNode* pTreeNode = NULL;
-	int htType = DockHostWindow_HitTest(pDockHostWindow, &pTreeNode, pt.x, pt.y);
-
-	switch (htType)
-	{
-	case DHT_CLOSEBTN:
-	case DHT_PINBTN:
-	case DHT_MOREBTN:
-			{
-				/* Do nothing. */
-			}
-			break;
-
-	case DHT_CAPTION:
-		{
-			/* Do nothing. */
-		}
-		break;
-
-	case DHT_UNKNOWN:
-		{
-			HMENU hMenu = CreatePopupMenu();
-			if (hMenu)
-			{
-				InsertMenu(hMenu, -1, MF_BYPOSITION, IDM_DOCKINSPECTOR, L"Inspect Element...");
-				TrackPopupMenu(hMenu, 0, x, y, 0, Window_GetHWND((Window*)pDockHostWindow), NULL);
-			}
-		}
-		break;
-	}
-}
-
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
@@ -1307,7 +867,7 @@ BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LP
 	switch (LOWORD(wParam))
 	{
 	case IDM_DOCKINSPECTOR:
-		DockHostWindow_InvokeDockInspectorDialog(pDockHostWindow);
+		DockHostInput_InvokeInspectorDialog(pDockHostWindow);
 		return TRUE;
 	}
 
@@ -1324,38 +884,32 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 		break;
 
 	case WM_MOUSEMOVE:
-		DockHostWindow_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		DockHostInput_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, iZoneTabGutter);
 		return 0;
 		break;
 
 	case WM_MOUSELEAVE:
-		DockHostWindow_SetCaptionHotButton(pDockHostWindow, NULL, DCB_NONE);
+		DockHostInput_OnMouseLeave(pDockHostWindow);
 		return 0;
 		break;
 
 	case WM_LBUTTONDOWN:
-		DockHostWindow_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		DockHostInput_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, iZoneTabGutter);
 		return 0;
 		break;
 
 	case WM_LBUTTONUP:
-		DockHostWindow_OnLButtonUp(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
+		DockHostInput_OnLButtonUp(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam);
 		return 0;
 		break;
 
 	case WM_CAPTURECHANGED:
-			if (pDockHostWindow->fSplitDrag)
-			{
-				pDockHostWindow->fSplitDrag = FALSE;
-				pDockHostWindow->pSplitNode = NULL;
-				pDockHostWindow->iSplitDragStartGrip = 0;
-			}
-			DockHostWindow_SetCaptionPressedButton(pDockHostWindow, NULL, DCB_NONE);
+			DockHostInput_OnCaptureChanged(pDockHostWindow);
 			return 0;
 			break;
 
 	case WM_CONTEXTMENU:
-			DockHostWindow_OnContextMenu(pDockHostWindow, (HWND)wParam, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam));
+			DockHostInput_OnContextMenu(pDockHostWindow, (HWND)wParam, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam));
 			return 0;
 			break;
 	}
@@ -1495,7 +1049,7 @@ void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phW
 	}
 
 	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
-	DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
+	DockHostInput_ClearCaptionState(pDockHostWindow);
 	DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
 	DockHostWindow_DestroyNodeTree(pDockHostWindow->pRoot_, phWndPreserve, cPreserve);
 	pDockHostWindow->pRoot_ = NULL;
