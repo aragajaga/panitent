@@ -157,6 +157,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover repeated named-profile switching across mixed arrangements (`A -> B -> A -> B -> Reset`) to check profile-level idempotence and cleanup.
 - runtime tests now also cover rollback when reapplying a mixed floating layout fails while the same mixed arrangement is already active.
 - document-side runtime tests now also cover rollback for side-dock failure when a floating document host must merge workspaces before docking.
+- document-side runtime tests now also cover the successful side-dock merge path for a floating document host with multiple workspaces.
 
 ## Dock Host Render Increment Applied
 

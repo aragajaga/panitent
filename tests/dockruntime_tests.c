@@ -88,6 +88,30 @@ static BOOL runtime_fail_document_dock_once(
     return FALSE;
 }
 
+static HWND runtime_find_floating_document_window(void)
+{
+    for (HWND hWnd = GetTopWindow(NULL); hWnd; hWnd = GetNextWindow(hWnd, GW_HWNDNEXT))
+    {
+        if (!runtime_is_class_name(hWnd, L"__FloatingWindowContainer"))
+        {
+            continue;
+        }
+
+        FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWnd);
+        if (!pFloating || pFloating->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT)
+        {
+            continue;
+        }
+
+        if (pFloating->hWndChild && IsWindow(pFloating->hWndChild))
+        {
+            return hWnd;
+        }
+    }
+
+    return NULL;
+}
+
 static BOOL CALLBACK runtime_destroy_floating_windows_proc(HWND hWnd, LPARAM lParam)
 {
     DWORD processId = 0;
@@ -1552,27 +1576,7 @@ static int test_runtime_document_side_dock_failure_rolls_back_floating_document_
     assert(counts.nDocumentHosts == 1);
     assert(counts.nDocumentWorkspaces == 0);
 
-    HWND hWndFloatingDocument = NULL;
-    for (HWND hWnd = GetTopWindow(NULL); hWnd; hWnd = GetNextWindow(hWnd, GW_HWNDNEXT))
-    {
-        if (!runtime_is_class_name(hWnd, L"__FloatingWindowContainer"))
-        {
-            continue;
-        }
-
-        FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWnd);
-        if (!pFloating || pFloating->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT)
-        {
-            continue;
-        }
-
-        if (pFloating->hWndChild && IsWindow(pFloating->hWndChild))
-        {
-            hWndFloatingDocument = hWnd;
-            break;
-        }
-    }
-
+    HWND hWndFloatingDocument = runtime_find_floating_document_window();
     assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
     FloatingWindowContainer* pFloatingDocument = (FloatingWindowContainer*)WindowMap_Get(hWndFloatingDocument);
     assert(pFloatingDocument != NULL);
@@ -1586,6 +1590,17 @@ static int test_runtime_document_side_dock_failure_rolls_back_floating_document_
         hWorkspaceHwnds,
         ARRAYSIZE(hWorkspaceHwnds));
     assert(nWorkspaceCountBefore == 2);
+
+    for (int i = 0; i < nWorkspaceCountBefore; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(hWorkspaceHwnds[i]);
+        assert(pWorkspace != NULL);
+        Canvas* pCanvas = Canvas_Create(32, 32);
+        Document* pDocument = Document_CreateWithCanvas(pCanvas);
+        assert(pCanvas != NULL);
+        assert(pDocument != NULL);
+        assert(Document_AttachToWorkspace(pDocument, pWorkspace));
+    }
 
     DocumentDockTransition_SetDockTestHook(runtime_fail_document_dock_once);
     assert(!DocumentDockTransition_DockSourceToWorkspace(
@@ -1617,6 +1632,101 @@ static int test_runtime_document_side_dock_failure_rolls_back_floating_document_
     assert(pAfter != NULL);
     assert(pRightZone != NULL);
     assert(runtime_model_subtree_contains_name(pRightZone, L"GLWindow"));
+
+    DockModel_Destroy(pAfter);
+    DockModel_Destroy(pLayout);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_document_side_dock_merges_floating_document_host_successfully(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    DockModelNode* pLayout = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pLayout != NULL);
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocSplit = { 0 };
+    DockModelNode floatDocWorkspace1 = { 0 };
+    DockModelNode floatDocWorkspace2 = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocSplit;
+    floatDocSplit.nRole = DOCK_ROLE_PANEL_SPLIT;
+    floatDocSplit.dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
+    floatDocSplit.fGripPos = 0.5f;
+    wcscpy_s(floatDocSplit.szName, ARRAYSIZE(floatDocSplit.szName), L"DockShell.PanelSplit");
+    floatDocSplit.pChild1 = &floatDocWorkspace1;
+    floatDocSplit.pChild2 = &floatDocWorkspace2;
+    floatDocWorkspace1.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace1.nPaneKind = DOCK_PANE_DOCUMENT;
+    floatDocWorkspace1.uNodeId = 201;
+    wcscpy_s(floatDocWorkspace1.szName, ARRAYSIZE(floatDocWorkspace1.szName), L"WorkspaceContainer");
+    floatDocWorkspace2.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace2.nPaneKind = DOCK_PANE_DOCUMENT;
+    floatDocWorkspace2.uNodeId = 202;
+    wcscpy_s(floatDocWorkspace2.szName, ARRAYSIZE(floatDocWorkspace2.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    floatDocModel.nEntryCount = 1;
+    SetRect(&floatDocModel.entries[0].rcWindow, 560, 180, 940, 620);
+    floatDocModel.entries[0].pLayoutModel = &floatDocRoot;
+
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pLayout, NULL, &floatDocModel));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    HWND hWndFloatingDocument = runtime_find_floating_document_window();
+    assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
+    FloatingWindowContainer* pFloatingDocument = (FloatingWindowContainer*)WindowMap_Get(hWndFloatingDocument);
+    assert(pFloatingDocument != NULL);
+    assert(pFloatingDocument->hWndChild && IsWindow(pFloatingDocument->hWndChild));
+    assert(FloatingChildHost_GetKind(pFloatingDocument->hWndChild) == FLOAT_DOCK_CHILD_DOCUMENT_HOST);
+
+    HWND hWorkspaceHwnds[8] = { 0 };
+    int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        pFloatingDocument->hWndChild,
+        hWorkspaceHwnds,
+        ARRAYSIZE(hWorkspaceHwnds));
+    assert(nWorkspaceCount == 2);
+    for (int i = 0; i < nWorkspaceCount; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(hWorkspaceHwnds[i]);
+        assert(pWorkspace != NULL);
+        Canvas* pCanvas = Canvas_Create(32, 32);
+        Document* pDocument = Document_CreateWithCanvas(pCanvas);
+        assert(pCanvas != NULL);
+        assert(pDocument != NULL);
+        assert(Document_AttachToWorkspace(pDocument, pWorkspace));
+    }
+
+    assert(DocumentDockTransition_DockSourceToWorkspace(
+        hWndFloatingDocument,
+        &pFloatingDocument->hWndChild,
+        pMainWorkspace,
+        DKS_RIGHT,
+        240));
+    assert(pFloatingDocument->hWndChild == NULL);
+    DestroyWindow(hWndFloatingDocument);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts == 0);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 2);
+
+    DockModelNode* pAfter = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pAfter != NULL);
+    assert(runtime_count_model_role(pAfter, DOCK_ROLE_WORKSPACE) == 2);
 
     DockModel_Destroy(pAfter);
     DockModel_Destroy(pLayout);
@@ -1885,6 +1995,7 @@ int main(void)
     failed |= test_runtime_single_document_float_rolls_back_on_floating_create_failure();
     failed |= test_runtime_non_current_document_float_failure_preserves_order_and_active_tab();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
+    failed |= test_runtime_document_side_dock_merges_floating_document_host_successfully();
     failed |= test_runtime_document_side_dock_failure_rolls_back_floating_document_host_merge();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 
