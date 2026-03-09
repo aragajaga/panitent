@@ -51,6 +51,7 @@ typedef struct FloatingCountContext
 static int g_runtimeWindowLayoutMessageCount = 0;
 static WCHAR g_runtimeWindowLayoutPromptName[WINDOW_LAYOUT_NAME_MAX] = L"";
 static int g_runtimeFloatingDocumentLayoutRestoreFailCountdown = -1;
+static int g_runtimeDockFloatingRestoreFailCountdown = -1;
 
 static BOOL runtime_is_class_name(HWND hWnd, PCWSTR pszClassName);
 
@@ -79,6 +80,20 @@ static BOOL runtime_fail_floating_document_create(
 static BOOL runtime_fail_floating_tool_restore(const DockFloatingLayoutEntry* pEntry)
 {
     UNREFERENCED_PARAMETER(pEntry);
+    return FALSE;
+}
+
+static BOOL runtime_fail_floating_tool_restore_on_countdown(const DockFloatingLayoutEntry* pEntry)
+{
+    UNREFERENCED_PARAMETER(pEntry);
+
+    if (g_runtimeDockFloatingRestoreFailCountdown > 0)
+    {
+        g_runtimeDockFloatingRestoreFailCountdown--;
+        return TRUE;
+    }
+
+    PanitentDockFloating_SetRestoreEntryTestHook(NULL);
     return FALSE;
 }
 
@@ -1141,6 +1156,72 @@ static int test_runtime_direct_floating_tool_host_restore_is_idempotent(void)
     assert(pApplied != NULL);
     assert(runtime_model_subtree_contains_name(pApplied, L"GLWindow"));
     assert(runtime_model_subtree_contains_name(pApplied, L"Palette"));
+
+    DockModel_Destroy(pApplied);
+    DockModel_Destroy(pTarget);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_direct_floating_tool_restore_strict_mode_rolls_back_on_partial_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    DockModelNode* pTarget = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pTarget != NULL);
+
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pTarget, L"GLWindow");
+    DockModelNode* pPalette = runtime_find_model_node_by_name(pTarget, L"Palette");
+    assert(pGLWindow != NULL);
+    assert(pPalette != NULL);
+    assert(DockModelOps_RemoveNodeById(&pTarget, pGLWindow->uNodeId));
+    assert(DockModelOps_RemoveNodeById(&pTarget, pPalette->uNodeId));
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, NULL, NULL));
+
+    DockFloatingLayoutFileModel activeModel = { 0 };
+    activeModel.nEntries = 1;
+    SetRect(&activeModel.entries[0].rcWindow, 140, 160, 440, 480);
+    activeModel.entries[0].iDockSizeHint = 240;
+    activeModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    activeModel.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+    assert(PanitentDockFloating_RestoreModel(fixture.pApp, fixture.pDockHostWindow, &activeModel));
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+
+    DockFloatingLayoutFileModel targetModel = { 0 };
+    targetModel.nEntries = 2;
+    SetRect(&targetModel.entries[0].rcWindow, 140, 160, 440, 480);
+    targetModel.entries[0].iDockSizeHint = 240;
+    targetModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    targetModel.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+    SetRect(&targetModel.entries[1].rcWindow, 500, 160, 800, 480);
+    targetModel.entries[1].iDockSizeHint = 240;
+    targetModel.entries[1].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    targetModel.entries[1].nViewId = PNT_DOCK_VIEW_PALETTE;
+
+    g_runtimeDockFloatingRestoreFailCountdown = 1;
+    PanitentDockFloating_SetRestoreEntryTestHook(runtime_fail_floating_tool_restore_on_countdown);
+    assert(!PanitentDockFloating_RestoreModelEx(fixture.pApp, fixture.pDockHostWindow, &targetModel, TRUE));
+    PanitentDockFloating_SetRestoreEntryTestHook(NULL);
+    g_runtimeDockFloatingRestoreFailCountdown = -1;
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+
+    DockModelNode* pApplied = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockModelNode* pRightZone = runtime_find_model_zone(pApplied, DKS_RIGHT);
+    assert(pApplied != NULL);
+    assert(pRightZone != NULL);
+    assert(!runtime_model_subtree_contains_name(pRightZone, L"GLWindow"));
+    assert(!runtime_model_subtree_contains_name(pRightZone, L"Palette"));
+
+    HWND hWndFloating = runtime_find_floating_tool_host_window();
+    assert(hWndFloating == NULL);
 
     DockModel_Destroy(pApplied);
     DockModel_Destroy(pTarget);
@@ -3008,6 +3089,7 @@ int main(void)
     failed |= test_runtime_apply_mixed_floating_layout_bundle();
     failed |= test_runtime_direct_floating_tool_restore_is_idempotent();
     failed |= test_runtime_direct_floating_tool_host_restore_is_idempotent();
+    failed |= test_runtime_direct_floating_tool_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();

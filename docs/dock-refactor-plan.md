@@ -577,3 +577,12 @@ This change set introduces `floatingtoolhost.*` as the shared helper layer for f
 - `dockfloatingpersist.c` now uses shared enumeration, destruction, capture, and restore helpers instead of open-coded logic.
 
 This makes tool-side floating persistence closer in structure to the existing `floatingdocumenthost.*` path.
+
+## Strict Floating Tool Restore Increment Applied
+
+This change set makes strict direct floating tool restore transactional:
+- `PanitentDockFloating_RestoreModelEx(..., TRUE)` now captures the current floating tool state before restore;
+- if a partial restore fails, existing floating tool windows are cleared and the previous floating tool state is restored;
+- runtime coverage now includes partial-failure rollback from an already active floating tool state.
+
+This closes another direct-helper transaction gap outside `WindowLayoutManager`.

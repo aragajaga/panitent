@@ -21,6 +21,67 @@ typedef struct DockFloatingPersistCollectContext
 } DockFloatingPersistCollectContext;
 
 static FnDockFloatingRestoreEntryTestHook g_pDockFloatingRestoreEntryTestHook = NULL;
+static BOOL DockFloatingPersist_MainHostHasView(TreeNode* pNode, PanitentDockViewId nViewId);
+
+static BOOL DockFloatingPersist_RestoreEntries(
+	PanitentApp* pPanitentApp,
+	DockHostWindow* pDockHostWindow,
+	const DockFloatingLayoutFileModel* pModel,
+	BOOL bUseRestoreHook,
+	BOOL* pbRestoredAny,
+	int* pnAttempted,
+	int* pnRestored)
+{
+	if (pbRestoredAny)
+	{
+		*pbRestoredAny = FALSE;
+	}
+	if (pnAttempted)
+	{
+		*pnAttempted = 0;
+	}
+	if (pnRestored)
+	{
+		*pnRestored = 0;
+	}
+
+	for (int i = 0; i < pModel->nEntries; ++i)
+	{
+		const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+		if (pnAttempted)
+		{
+			(*pnAttempted)++;
+		}
+		if (bUseRestoreHook &&
+			g_pDockFloatingRestoreEntryTestHook &&
+			!g_pDockFloatingRestoreEntryTestHook(pEntry))
+		{
+			return FALSE;
+		}
+
+		if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL &&
+			DockFloatingPersist_MainHostHasView(DockHostWindow_GetRoot(pDockHostWindow), pEntry->nViewId))
+		{
+			continue;
+		}
+
+		if (!FloatingToolHost_RestoreEntry(pPanitentApp, pDockHostWindow, pEntry, NULL))
+		{
+			continue;
+		}
+
+		if (pbRestoredAny)
+		{
+			*pbRestoredAny = TRUE;
+		}
+		if (pnRestored)
+		{
+			(*pnRestored)++;
+		}
+	}
+
+	return TRUE;
+}
 
 void PanitentDockFloating_SetRestoreEntryTestHook(FnDockFloatingRestoreEntryTestHook pfnHook)
 {
@@ -176,39 +237,40 @@ BOOL PanitentDockFloating_RestoreModelEx(PanitentApp* pPanitentApp, DockHostWind
 		return FALSE;
 	}
 
+	DockFloatingLayoutFileModel rollbackModel = { 0 };
+	if (bRequireAllEntries)
+	{
+		PanitentDockFloating_CaptureModel(pPanitentApp, pDockHostWindow, &rollbackModel);
+	}
+
 	FloatingToolHost_DestroyExistingPinnedWindows();
 
 	BOOL bRestoredAny = FALSE;
 	int nAttempted = 0;
 	int nRestored = 0;
-	for (int i = 0; i < pModel->nEntries; ++i)
+	BOOL bCompleted = DockFloatingPersist_RestoreEntries(
+		pPanitentApp,
+		pDockHostWindow,
+		pModel,
+		TRUE,
+		&bRestoredAny,
+		&nAttempted,
+		&nRestored);
+
+	if (bRequireAllEntries && (!bCompleted || nRestored != nAttempted))
 	{
-		const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
-		nAttempted++;
-		if (g_pDockFloatingRestoreEntryTestHook &&
-			!g_pDockFloatingRestoreEntryTestHook(pEntry))
-		{
-			return FALSE;
-		}
-
-		if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL &&
-			DockFloatingPersist_MainHostHasView(DockHostWindow_GetRoot(pDockHostWindow), pEntry->nViewId))
-		{
-			continue;
-		}
-
-		if (!FloatingToolHost_RestoreEntry(pPanitentApp, pDockHostWindow, pEntry, NULL))
-		{
-			continue;
-		}
-		bRestoredAny = TRUE;
-		nRestored++;
+		FloatingToolHost_DestroyExistingPinnedWindows();
+		PanitentDockFloating_RestoreModelEx(pPanitentApp, pDockHostWindow, &rollbackModel, FALSE);
+		DockFloatingLayout_Destroy(&rollbackModel);
+		return FALSE;
 	}
+
+	DockFloatingLayout_Destroy(&rollbackModel);
 
 	if (bRequireAllEntries)
 	{
 		return nRestored == nAttempted;
 	}
 
-	return bRestoredAny || pModel->nEntries == 0;
+	return bCompleted && (bRestoredAny || pModel->nEntries == 0);
 }
