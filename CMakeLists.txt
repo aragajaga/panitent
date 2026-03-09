@@ -94,6 +94,7 @@ set(C_SOURCES
     src/dockhostpanelmenu.c
     src/dockhostpaint.c
     src/dockhostrestore.c
+    src/dockhostruntime.c
     src/dockhosttree.c
     src/dockhostzone.c
     src/dockfloatingmodel.c

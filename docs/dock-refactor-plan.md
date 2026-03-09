@@ -176,6 +176,13 @@ This change set continues the same decomposition on the auto-hide side:
 - `dockhost.c` no longer owns the overlay host window implementation details directly;
 - auto-hide behavior now sits more coherently beside the rest of the overlay/layout logic instead of being split between modules.
 
+## Dock Host Runtime Utility Increment Applied
+
+This change set continues the same decomposition on the runtime utility side:
+- added `dockhostruntime.*` for host content rect, pinning, pane-kind resolution, theme refresh, and layout tree teardown/preserve logic;
+- `dockhost.c` no longer owns those runtime utility details directly;
+- the host file is now closer to lifecycle/message coordination than to general-purpose dock runtime plumbing.
+
 ## Target Layers
 
 ### 1. Layout Model
