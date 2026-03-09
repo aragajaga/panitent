@@ -645,6 +645,16 @@ This change set extends stress coverage from direct layout apply to public comma
 
 This strengthens Phase 5 using the actual command path that end users trigger, not only helper-level apply calls.
 
+## Mixed Profile Failure Stress Increment Applied
+
+This change set extends command-driven stress coverage with failure injection:
+- repeatedly activates the mixed named profile;
+- repeatedly re-applies the same mixed profile with a forced floating-document restore failure;
+- verifies rollback to the already-active mixed state;
+- then switches back to the default profile and repeats.
+
+This adds a repeated failure-path gate on the real user-facing command path, not only on one-shot rollback scenarios.
+
 ## Direct Floating Helper Stress Increment Applied
 
 This change set extends Phase 5 stress coverage to direct helper APIs:
