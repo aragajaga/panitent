@@ -121,6 +121,15 @@ This change set starts using the pure model mutation layer in a live runtime pat
 - tool-pane remove/undock flows now also start using the model-first runtime apply path where possible;
 - this gives the project its first rollback-capable runtime docking flow that is driven by `DockModelOps` instead of only direct tree surgery.
 
+## Document Group Model Increment Applied
+
+This change set starts lifting document-group runtime/layout behavior toward the same model-first boundary:
+- main-layout validation now accepts multiple `WorkspaceContainer` nodes instead of treating workspace as a singleton;
+- `windowlayoutmanager` now preserves multiple live workspace windows during transactional apply/reset;
+- `dockmodelops.*` gained a pure workspace split operation around an anchor node;
+- `dockhostmodelapply.*` gained a model-first runtime path for docking incoming document workspaces around an existing workspace;
+- pure and runtime tests now cover multi-workspace layout validation and live document-workspace side docking.
+
 ## Runtime Integration Test Increment Applied
 
 This change set starts covering real runtime docking/layout behavior instead of only pure model and persistence round-trips:

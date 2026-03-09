@@ -99,6 +99,11 @@ static BOOL DockModelOps_IsSplitRole(DockNodeRole nRole)
 		nRole == DOCK_ROLE_PANEL_SPLIT;
 }
 
+static BOOL DockModelOps_IsDockLeafRole(DockNodeRole nRole)
+{
+    return nRole == DOCK_ROLE_PANEL || nRole == DOCK_ROLE_WORKSPACE;
+}
+
 static void DockModelOps_DestroySingleNode(DockModelNode* pNode)
 {
 	if (!pNode)
@@ -274,9 +279,9 @@ BOOL DockModelOps_AppendPanelToZone(DockModelNode* pRootNode, int nDockSide, Doc
 	return TRUE;
 }
 
-BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchorNodeId, int nDockSide, DockModelNode* pPanelNode)
+BOOL DockModelOps_DockLeafAroundNode(DockModelNode* pRootNode, uint32_t uAnchorNodeId, int nDockSide, DockModelNode* pLeafNode)
 {
-    if (!pRootNode || !pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL || uAnchorNodeId == 0)
+    if (!pRootNode || !pLeafNode || !DockModelOps_IsDockLeafRole(pLeafNode->nRole) || uAnchorNodeId == 0)
     {
         return FALSE;
     }
@@ -295,9 +300,9 @@ BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchor
     }
 
     uint32_t uNextNodeId = DockModelOps_GetMaxNodeId(pRootNode) + 1;
-    if (pPanelNode->uNodeId == 0)
+    if (pLeafNode->uNodeId == 0)
     {
-        pPanelNode->uNodeId = uNextNodeId++;
+        pLeafNode->uNodeId = uNextNodeId++;
     }
 
     DockModelNode* pSplit = (DockModelNode*)calloc(1, sizeof(DockModelNode));
@@ -315,12 +320,12 @@ BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchor
 
     if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
     {
-        pSplit->pChild1 = pPanelNode;
+        pSplit->pChild1 = pLeafNode;
         pSplit->pChild2 = pAnchorNode;
     }
     else {
         pSplit->pChild1 = pAnchorNode;
-        pSplit->pChild2 = pPanelNode;
+        pSplit->pChild2 = pLeafNode;
     }
 
     if (!pParentNode)
@@ -343,6 +348,26 @@ BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchor
     }
 
     return TRUE;
+}
+
+BOOL DockModelOps_DockPanelAroundNode(DockModelNode* pRootNode, uint32_t uAnchorNodeId, int nDockSide, DockModelNode* pPanelNode)
+{
+    if (!pPanelNode || pPanelNode->nRole != DOCK_ROLE_PANEL)
+    {
+        return FALSE;
+    }
+
+    return DockModelOps_DockLeafAroundNode(pRootNode, uAnchorNodeId, nDockSide, pPanelNode);
+}
+
+BOOL DockModelOps_DockWorkspaceAroundNode(DockModelNode* pRootNode, uint32_t uAnchorNodeId, int nDockSide, DockModelNode* pWorkspaceNode)
+{
+    if (!pWorkspaceNode || pWorkspaceNode->nRole != DOCK_ROLE_WORKSPACE)
+    {
+        return FALSE;
+    }
+
+    return DockModelOps_DockLeafAroundNode(pRootNode, uAnchorNodeId, nDockSide, pWorkspaceNode);
 }
 
 BOOL DockModelOps_DockPanelAtRootSide(DockModelNode* pRootNode, int nDockSide, DockModelNode* pPanelNode)

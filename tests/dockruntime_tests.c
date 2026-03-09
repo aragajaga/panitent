@@ -8,11 +8,14 @@
 #include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentlayoutpersist.h"
 #include "../src/floatingwindowcontainer.h"
+#include "../src/canvas.h"
+#include "../src/document.h"
 #include "../src/dockmodel.h"
 #include "../src/dockmodelops.h"
 #include "../src/dockshell.h"
 #include "../src/panitentapp.h"
 #include "../src/panitentwindow.h"
+#include "../src/workspacecontainer.h"
 #include "../src/windowlayoutmanager.h"
 #include "../src/windowlayoutprofile.h"
 #include "../src/win32/window.h"
@@ -98,6 +101,33 @@ static DockModelNode* runtime_find_model_zone(DockModelNode* pNode, int nDockSid
     }
 
     return runtime_find_model_zone(pNode->pChild2, nDockSide);
+}
+
+static int runtime_count_live_role(TreeNode* pNode, DockNodeRole nRole)
+{
+    if (!pNode || !pNode->data)
+    {
+        return 0;
+    }
+
+    DockData* pDockData = (DockData*)pNode->data;
+    int nCount = pDockData->nRole == nRole ? 1 : 0;
+    return nCount +
+        runtime_count_live_role(pNode->node1, nRole) +
+        runtime_count_live_role(pNode->node2, nRole);
+}
+
+static int runtime_count_model_role(const DockModelNode* pNode, DockNodeRole nRole)
+{
+    if (!pNode)
+    {
+        return 0;
+    }
+
+    int nCount = pNode->nRole == nRole ? 1 : 0;
+    return nCount +
+        runtime_count_model_role(pNode->pChild1, nRole) +
+        runtime_count_model_role(pNode->pChild2, nRole);
 }
 
 static BOOL runtime_model_subtree_contains_name(const DockModelNode* pNode, PCWSTR pszName)
@@ -642,6 +672,49 @@ static int test_runtime_apply_mixed_floating_layout_bundle(void)
     return 0;
 }
 
+static int test_runtime_document_workspace_model_docking_creates_split_group(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pIncomingWorkspace = WorkspaceContainer_Create();
+    assert(pIncomingWorkspace != NULL);
+    HWND hWndIncomingWorkspace = Window_CreateWindow((Window*)pIncomingWorkspace, NULL);
+    assert(hWndIncomingWorkspace && IsWindow(hWndIncomingWorkspace));
+    ShowWindow(hWndIncomingWorkspace, SW_HIDE);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pIncomingWorkspace));
+
+    DockTargetHit targetHit = { 0 };
+    targetHit.nDockSide = DKS_RIGHT;
+    targetHit.bLocalTarget = TRUE;
+    targetHit.hWndAnchor = hWndMainWorkspace;
+    assert(DockHostWindow_DockHWNDToTarget(fixture.pDockHostWindow, hWndIncomingWorkspace, &targetHit, 240));
+
+    HWND hWndWorkspaceAfterDock = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceAfterDock == hWndMainWorkspace);
+    assert(GetParent(hWndIncomingWorkspace) == fixture.hWndDockHost);
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 2);
+
+    DockModelNode* pApplied = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pApplied != NULL);
+    assert(runtime_count_model_role(pApplied, DOCK_ROLE_WORKSPACE) == 2);
+
+    assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 1);
+
+    DockModel_Destroy(pApplied);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -767,6 +840,7 @@ int main(void)
     failed |= test_runtime_named_layout_profile_switch_round_trip();
     failed |= test_runtime_apply_mixed_floating_layout_bundle();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
+    failed |= test_runtime_document_workspace_model_docking_creates_split_group();
 
     if (bOleInitialized)
     {

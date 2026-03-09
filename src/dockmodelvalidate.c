@@ -7,6 +7,7 @@
 typedef struct DockModelValidateContext
 {
 	BOOL seenViews[PNT_DOCK_VIEW_OPTIONBAR + 1];
+	int nWorkspaceCount;
 	DockModelValidateStats stats;
 } DockModelValidateContext;
 
@@ -233,12 +234,7 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 		pNode->bCollapsed = FALSE;
 		pNode->szActiveTabName[0] = L'\0';
 		DockModelValidate_SetStringIfDifferent(pNode->szName, ARRAYSIZE(pNode->szName), L"WorkspaceContainer", pContext);
-		if (pContext->seenViews[PNT_DOCK_VIEW_WORKSPACE])
-		{
-			pContext->stats.nErrors++;
-			return FALSE;
-		}
-		pContext->seenViews[PNT_DOCK_VIEW_WORKSPACE] = TRUE;
+		pContext->nWorkspaceCount++;
 		break;
 
 	case DOCK_ROLE_PANEL:
@@ -338,7 +334,7 @@ BOOL DockModelValidateAndRepairMainLayout(DockModelNode** ppRootNode, DockModelV
 		return FALSE;
 	}
 
-	if (!context.seenViews[PNT_DOCK_VIEW_WORKSPACE])
+	if (context.nWorkspaceCount <= 0)
 	{
 		context.stats.nErrors++;
 		if (pStats)

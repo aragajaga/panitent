@@ -50,7 +50,10 @@ typedef struct WindowLayoutManageDialogContext
 
 typedef struct WindowLayoutApplyContext
 {
-    WorkspaceContainer* pWorkspaceContainer;
+    HWND hWorkspaceHwnds[32];
+    int nWorkspaceCount;
+    int iNextWorkspace;
+    HWND hWndMainWorkspace;
 } WindowLayoutApplyContext;
 
 static HMENU WindowLayoutManager_GetWindowMenu(PanitentWindow* pPanitentWindow);
@@ -75,6 +78,7 @@ static Window* WindowLayoutManager_ResolveView(
     DockData* pDockData,
     PanitentDockViewId nViewId,
     void* pUserData);
+static void WindowLayoutManager_CollectWorkspaceHwndsRecursive(TreeNode* pNode, HWND* phWnds, int cHwnds, int* pnHwnds);
 
 static HMENU WindowLayoutManager_GetWindowMenu(PanitentWindow* pPanitentWindow)
 {
@@ -228,19 +232,47 @@ static Window* WindowLayoutManager_ResolveView(
 {
     UNREFERENCED_PARAMETER(pDockHostWindow);
     UNREFERENCED_PARAMETER(pNode);
-    UNREFERENCED_PARAMETER(pDockData);
 
     WindowLayoutApplyContext* pContext = (WindowLayoutApplyContext*)pUserData;
-    if (nViewId == PNT_DOCK_VIEW_WORKSPACE && pContext && pContext->pWorkspaceContainer)
+    if (nViewId == PNT_DOCK_VIEW_WORKSPACE && pContext)
     {
-        if (!pPanitentApp->m_pWorkspaceContainer)
+        if (pContext->iNextWorkspace < pContext->nWorkspaceCount)
         {
-            pPanitentApp->m_pWorkspaceContainer = pContext->pWorkspaceContainer;
+            HWND hWndWorkspace = pContext->hWorkspaceHwnds[pContext->iNextWorkspace++];
+            Window* pWindow = (Window*)WindowMap_Get(hWndWorkspace);
+            if (pWindow)
+            {
+                if (hWndWorkspace == pContext->hWndMainWorkspace)
+                {
+                    pPanitentApp->m_pWorkspaceContainer = (WorkspaceContainer*)pWindow;
+                }
+                return pWindow;
+            }
         }
-        return (Window*)pContext->pWorkspaceContainer;
     }
 
     return NULL;
+}
+
+static void WindowLayoutManager_CollectWorkspaceHwndsRecursive(TreeNode* pNode, HWND* phWnds, int cHwnds, int* pnHwnds)
+{
+    if (!pNode || !pNode->data || !phWnds || cHwnds <= 0 || !pnHwnds)
+    {
+        return;
+    }
+
+    DockData* pDockData = (DockData*)pNode->data;
+    if (pDockData->nRole == DOCK_ROLE_WORKSPACE &&
+        pDockData->hWnd &&
+        IsWindow(pDockData->hWnd) &&
+        *pnHwnds < cHwnds)
+    {
+        phWnds[*pnHwnds] = pDockData->hWnd;
+        (*pnHwnds)++;
+    }
+
+    WindowLayoutManager_CollectWorkspaceHwndsRecursive(pNode->node1, phWnds, cHwnds, pnHwnds);
+    WindowLayoutManager_CollectWorkspaceHwndsRecursive(pNode->node2, phWnds, cHwnds, pnHwnds);
 }
 
 static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, DockModelNode* pModelRoot, const DockFloatingLayoutFileModel* pFloatingModel, const FloatingDocumentLayoutModel* pFloatDocModel)
@@ -249,7 +281,6 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
     DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
     WorkspaceContainer* pWorkspaceContainer = pPanitentApp ? pPanitentApp->m_pWorkspaceContainer : NULL;
     FloatingDocumentLayoutModel emptyFloatDocModel = { 0 };
-    HWND hWndWorkspace = pWorkspaceContainer ? Window_GetHWND((Window*)pWorkspaceContainer) : NULL;
     RECT rcDockHost = { 0 };
     TreeNode* pRootNode;
 
@@ -271,10 +302,21 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
     }
     ((DockData*)pRootNode->data)->rc = rcDockHost;
 
+    WindowLayoutApplyContext context = { 0 };
+    context.hWndMainWorkspace = pWorkspaceContainer ? Window_GetHWND((Window*)pWorkspaceContainer) : NULL;
+    WindowLayoutManager_CollectWorkspaceHwndsRecursive(
+        DockHostWindow_GetRoot(pDockHostWindow),
+        context.hWorkspaceHwnds,
+        ARRAYSIZE(context.hWorkspaceHwnds),
+        &context.nWorkspaceCount);
+
     WindowLayoutManager_DestroyFloatingToolWindows();
-    if (hWndWorkspace && IsWindow(hWndWorkspace))
+    if (context.nWorkspaceCount > 0)
     {
-        DockHostWindow_ClearLayout(pDockHostWindow, &hWndWorkspace, 1);
+        DockHostWindow_ClearLayout(
+            pDockHostWindow,
+            context.hWorkspaceHwnds,
+            context.nWorkspaceCount);
     }
     else {
         DockHostWindow_ClearLayout(pDockHostWindow, NULL, 0);
@@ -283,8 +325,6 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
     pPanitentApp->m_pPaletteWindow = NULL;
     PanitentApp_SetOptionBar(pPanitentApp, NULL);
 
-    WindowLayoutApplyContext context = { 0 };
-    context.pWorkspaceContainer = pWorkspaceContainer;
     BOOL bHasWorkspace = FALSE;
     if (!PanitentDockHostRestoreAttachKnownViewsEx(
         pPanitentApp,
@@ -296,9 +336,12 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
         NULL,
         &bHasWorkspace))
     {
-        if (hWndWorkspace && IsWindow(hWndWorkspace))
+        if (context.nWorkspaceCount > 0)
         {
-            DockHostWindow_DestroyNodeTree(pRootNode, &hWndWorkspace, 1);
+            DockHostWindow_DestroyNodeTree(
+                pRootNode,
+                context.hWorkspaceHwnds,
+                context.nWorkspaceCount);
         }
         else {
             DockHostWindow_DestroyNodeTree(pRootNode, NULL, 0);

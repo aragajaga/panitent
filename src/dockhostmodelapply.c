@@ -16,7 +16,9 @@
 typedef struct DockHostModelApplyViewEntry
 {
     PanitentDockViewId nViewId;
+    uint32_t uModelNodeId;
     HWND hWnd;
+    BOOL bMainWorkspace;
 } DockHostModelApplyViewEntry;
 
 typedef struct DockHostModelApplyContext
@@ -47,6 +49,101 @@ static DockModelNode* DockHostModelApply_FindModelNodeByViewId(DockModelNode* pN
     return DockHostModelApply_FindModelNodeByViewId(pNode->pChild2, nViewId);
 }
 
+static BOOL DockHostModelApply_IsWorkspaceHwnd(HWND hWnd)
+{
+    WCHAR szClassName[64] = L"";
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return FALSE;
+    }
+
+    GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
+    return wcscmp(szClassName, L"__WorkspaceContainer") == 0;
+}
+
+static BOOL DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(
+    const TreeNode* pNode,
+    HWND hWndTarget,
+    int* pnOrdinal,
+    BOOL* pbFound)
+{
+    if (!pNode || !pNode->data || !pnOrdinal || !pbFound || *pbFound)
+    {
+        return *pbFound;
+    }
+
+    const DockData* pDockData = (const DockData*)pNode->data;
+    if (pDockData->nRole == DOCK_ROLE_WORKSPACE)
+    {
+        if (pDockData->hWnd == hWndTarget)
+        {
+            *pbFound = TRUE;
+            return TRUE;
+        }
+        (*pnOrdinal)++;
+    }
+
+    DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pNode->node1, hWndTarget, pnOrdinal, pbFound);
+    DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pNode->node2, hWndTarget, pnOrdinal, pbFound);
+    return *pbFound;
+}
+
+static DockModelNode* DockHostModelApply_FindWorkspaceByOrdinalRecursive(
+    DockModelNode* pNode,
+    int nTargetOrdinal,
+    int* pnCurrentOrdinal)
+{
+    if (!pNode || !pnCurrentOrdinal)
+    {
+        return NULL;
+    }
+
+    if (pNode->nRole == DOCK_ROLE_WORKSPACE)
+    {
+        if (*pnCurrentOrdinal == nTargetOrdinal)
+        {
+            return pNode;
+        }
+
+        (*pnCurrentOrdinal)++;
+    }
+
+    DockModelNode* pFound = DockHostModelApply_FindWorkspaceByOrdinalRecursive(
+        pNode->pChild1,
+        nTargetOrdinal,
+        pnCurrentOrdinal);
+    if (pFound)
+    {
+        return pFound;
+    }
+
+    return DockHostModelApply_FindWorkspaceByOrdinalRecursive(
+        pNode->pChild2,
+        nTargetOrdinal,
+        pnCurrentOrdinal);
+}
+
+static DockModelNode* DockHostModelApply_FindWorkspaceByLiveHwnd(
+    const TreeNode* pLiveRoot,
+    DockModelNode* pModelRoot,
+    HWND hWndWorkspace)
+{
+    int nOrdinal = 0;
+    BOOL bFound = FALSE;
+    if (!pLiveRoot || !pModelRoot || !hWndWorkspace)
+    {
+        return NULL;
+    }
+
+    if (!DockHostModelApply_GetLiveWorkspaceOrdinalRecursive(pLiveRoot, hWndWorkspace, &nOrdinal, &bFound) || !bFound)
+    {
+        return NULL;
+    }
+
+    int nCurrentOrdinal = 0;
+    return DockHostModelApply_FindWorkspaceByOrdinalRecursive(pModelRoot, nOrdinal, &nCurrentOrdinal);
+}
+
 static DockModelNode* DockHostModelApply_FindModelNodeByName(DockModelNode* pNode, PCWSTR pszName)
 {
     if (!pNode || !pszName || !pszName[0])
@@ -68,7 +165,10 @@ static DockModelNode* DockHostModelApply_FindModelNodeByName(DockModelNode* pNod
     return DockHostModelApply_FindModelNodeByName(pNode->pChild2, pszName);
 }
 
-static DockModelNode* DockHostModelApply_FindModelNodeForLiveData(DockModelNode* pRoot, const DockData* pDockData)
+static DockModelNode* DockHostModelApply_FindModelNodeForLiveData(
+    const TreeNode* pLiveRoot,
+    DockModelNode* pRoot,
+    const DockData* pDockData)
 {
     if (!pRoot || !pDockData)
     {
@@ -81,6 +181,15 @@ static DockModelNode* DockHostModelApply_FindModelNodeForLiveData(DockModelNode*
         if (pById)
         {
             return pById;
+        }
+    }
+
+    if (pDockData->nRole == DOCK_ROLE_WORKSPACE && pDockData->hWnd && IsWindow(pDockData->hWnd))
+    {
+        DockModelNode* pWorkspaceNode = DockHostModelApply_FindWorkspaceByLiveHwnd(pLiveRoot, pRoot, pDockData->hWnd);
+        if (pWorkspaceNode)
+        {
+            return pWorkspaceNode;
         }
     }
 
@@ -113,7 +222,12 @@ static PanitentDockViewId DockHostModelApply_GetViewIdForHwnd(HWND hWnd)
     return PanitentDockViewCatalog_FindForWindow(szClassName, szTitle);
 }
 
-static BOOL DockHostModelApply_AddPreservedView(DockHostModelApplyContext* pContext, PanitentDockViewId nViewId, HWND hWnd)
+static BOOL DockHostModelApply_AddPreservedView(
+    DockHostModelApplyContext* pContext,
+    PanitentDockViewId nViewId,
+    uint32_t uModelNodeId,
+    HWND hWnd,
+    BOOL bMainWorkspace)
 {
     if (!pContext || nViewId == PNT_DOCK_VIEW_NONE || !hWnd || !IsWindow(hWnd))
     {
@@ -122,7 +236,19 @@ static BOOL DockHostModelApply_AddPreservedView(DockHostModelApplyContext* pCont
 
     for (int i = 0; i < pContext->nEntries; ++i)
     {
-        if (pContext->entries[i].nViewId == nViewId || pContext->entries[i].hWnd == hWnd)
+        if (pContext->entries[i].hWnd == hWnd)
+        {
+            return TRUE;
+        }
+
+        if (nViewId == PNT_DOCK_VIEW_WORKSPACE)
+        {
+            if (uModelNodeId != 0 && pContext->entries[i].uModelNodeId == uModelNodeId)
+            {
+                return TRUE;
+            }
+        }
+        else if (pContext->entries[i].nViewId == nViewId)
         {
             return TRUE;
         }
@@ -134,12 +260,18 @@ static BOOL DockHostModelApply_AddPreservedView(DockHostModelApplyContext* pCont
     }
 
     pContext->entries[pContext->nEntries].nViewId = nViewId;
+    pContext->entries[pContext->nEntries].uModelNodeId = uModelNodeId;
     pContext->entries[pContext->nEntries].hWnd = hWnd;
+    pContext->entries[pContext->nEntries].bMainWorkspace = bMainWorkspace;
     pContext->nEntries++;
     return TRUE;
 }
 
-static void DockHostModelApply_CollectViewsRecursive(DockHostModelApplyContext* pContext, TreeNode* pNode)
+static void DockHostModelApply_CollectViewsRecursive(
+    DockHostModelApplyContext* pContext,
+    const TreeNode* pLiveRoot,
+    DockModelNode* pModelRoot,
+    TreeNode* pNode)
 {
     if (!pContext || !pNode || !pNode->data)
     {
@@ -152,14 +284,28 @@ static void DockHostModelApply_CollectViewsRecursive(DockHostModelApplyContext* 
         PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
     if (nViewId != PNT_DOCK_VIEW_NONE && pDockData->hWnd && IsWindow(pDockData->hWnd))
     {
-        DockHostModelApply_AddPreservedView(pContext, nViewId, pDockData->hWnd);
+        DockModelNode* pModelNode = DockHostModelApply_FindModelNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
+        DockHostModelApply_AddPreservedView(
+            pContext,
+            nViewId,
+            pModelNode ? pModelNode->uNodeId : 0,
+            pDockData->hWnd,
+            nViewId == PNT_DOCK_VIEW_WORKSPACE &&
+                pContext->pPanitentApp &&
+                pContext->pPanitentApp->m_pWorkspaceContainer &&
+                pDockData->hWnd == Window_GetHWND((Window*)pContext->pPanitentApp->m_pWorkspaceContainer));
     }
 
-    DockHostModelApply_CollectViewsRecursive(pContext, pNode->node1);
-    DockHostModelApply_CollectViewsRecursive(pContext, pNode->node2);
+    DockHostModelApply_CollectViewsRecursive(pContext, pLiveRoot, pModelRoot, pNode->node1);
+    DockHostModelApply_CollectViewsRecursive(pContext, pLiveRoot, pModelRoot, pNode->node2);
 }
 
-static void DockHostModelApply_CollectViewsRecursiveEx(DockHostModelApplyContext* pContext, TreeNode* pNode, HWND hWndIncludeHidden)
+static void DockHostModelApply_CollectViewsRecursiveEx(
+    DockHostModelApplyContext* pContext,
+    const TreeNode* pLiveRoot,
+    DockModelNode* pModelRoot,
+    TreeNode* pNode,
+    HWND hWndIncludeHidden)
 {
     if (!pContext || !pNode || !pNode->data)
     {
@@ -172,15 +318,29 @@ static void DockHostModelApply_CollectViewsRecursiveEx(DockHostModelApplyContext
         PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
     if (nViewId != PNT_DOCK_VIEW_NONE && pDockData->hWnd && IsWindow(pDockData->hWnd))
     {
-        DockHostModelApply_AddPreservedView(pContext, nViewId, pDockData->hWnd);
+        DockModelNode* pModelNode = DockHostModelApply_FindModelNodeForLiveData(pLiveRoot, pModelRoot, pDockData);
+        DockHostModelApply_AddPreservedView(
+            pContext,
+            nViewId,
+            pModelNode ? pModelNode->uNodeId : 0,
+            pDockData->hWnd,
+            nViewId == PNT_DOCK_VIEW_WORKSPACE &&
+                pContext->pPanitentApp &&
+                pContext->pPanitentApp->m_pWorkspaceContainer &&
+                pDockData->hWnd == Window_GetHWND((Window*)pContext->pPanitentApp->m_pWorkspaceContainer));
     }
     else if (hWndIncludeHidden && pDockData->hWnd == hWndIncludeHidden)
     {
-        DockHostModelApply_AddPreservedView(pContext, DockHostModelApply_GetViewIdForHwnd(hWndIncludeHidden), hWndIncludeHidden);
+        DockHostModelApply_AddPreservedView(
+            pContext,
+            DockHostModelApply_GetViewIdForHwnd(hWndIncludeHidden),
+            0,
+            hWndIncludeHidden,
+            FALSE);
     }
 
-    DockHostModelApply_CollectViewsRecursiveEx(pContext, pNode->node1, hWndIncludeHidden);
-    DockHostModelApply_CollectViewsRecursiveEx(pContext, pNode->node2, hWndIncludeHidden);
+    DockHostModelApply_CollectViewsRecursiveEx(pContext, pLiveRoot, pModelRoot, pNode->node1, hWndIncludeHidden);
+    DockHostModelApply_CollectViewsRecursiveEx(pContext, pLiveRoot, pModelRoot, pNode->node2, hWndIncludeHidden);
 }
 
 static Window* DockHostModelApply_ResolveView(
@@ -203,10 +363,27 @@ static Window* DockHostModelApply_ResolveView(
 
     for (int i = 0; i < pContext->nEntries; ++i)
     {
+        if (nViewId == PNT_DOCK_VIEW_WORKSPACE)
+        {
+            if (pDockData &&
+                pDockData->uModelNodeId != 0 &&
+                pContext->entries[i].uModelNodeId == pDockData->uModelNodeId)
+            {
+                Window* pWindow = (Window*)WindowMap_Get(pContext->entries[i].hWnd);
+                if (pContext->entries[i].bMainWorkspace && pWindow)
+                {
+                    pPanitentApp->m_pWorkspaceContainer = (WorkspaceContainer*)pWindow;
+                }
+                return pWindow;
+            }
+
+            continue;
+        }
+
         if (pContext->entries[i].nViewId == nViewId)
         {
             Window* pWindow = (Window*)WindowMap_Get(pContext->entries[i].hWnd);
-            if (nViewId == PNT_DOCK_VIEW_WORKSPACE && pWindow)
+            if (pContext->entries[i].bMainWorkspace && pWindow)
             {
                 pPanitentApp->m_pWorkspaceContainer = (WorkspaceContainer*)pWindow;
             }
@@ -267,6 +444,30 @@ static DockModelNode* DockHostModelApply_CreatePanelModel(HWND hWnd)
     return pPanelNode;
 }
 
+static DockModelNode* DockHostModelApply_CreateWorkspaceModel(HWND hWnd)
+{
+    if (!DockHostModelApply_IsWorkspaceHwnd(hWnd))
+    {
+        return NULL;
+    }
+
+    DockModelNode* pWorkspaceNode = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+    if (!pWorkspaceNode)
+    {
+        return NULL;
+    }
+
+    pWorkspaceNode->uViewId = (uint32_t)PNT_DOCK_VIEW_WORKSPACE;
+    pWorkspaceNode->nRole = DOCK_ROLE_WORKSPACE;
+    pWorkspaceNode->nPaneKind = DOCK_PANE_DOCUMENT;
+    pWorkspaceNode->dwStyle = DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL;
+    pWorkspaceNode->iGripPos = 64;
+    pWorkspaceNode->fGripPos = -1.0f;
+    pWorkspaceNode->bShowCaption = FALSE;
+    wcscpy_s(pWorkspaceNode->szName, ARRAYSIZE(pWorkspaceNode->szName), L"WorkspaceContainer");
+    return pWorkspaceNode;
+}
+
 static BOOL DockHostModelApply_ApplyModel(DockHostWindow* pDockHostWindow, DockModelNode* pModelRoot, DockHostModelApplyContext* pContext)
 {
     if (!pDockHostWindow || !pModelRoot || !pContext)
@@ -317,11 +518,6 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         return FALSE;
     }
 
-    DockHostModelApplyContext context = { 0 };
-    context.pPanitentApp = PanitentApp_Instance();
-    DockHostModelApply_CollectViewsRecursive(&context, DockHostWindow_GetRoot(pDockHostWindow));
-    DockHostModelApply_AddPreservedView(&context, DockHostModelApply_GetViewIdForHwnd(hWnd), hWnd);
-
     DockModelNode* pRollbackModel = DockModel_CaptureHostLayout(pDockHostWindow);
     DockModelNode* pTargetModel = DockModelOps_CloneTree(pRollbackModel);
     DockModelNode* pPanelNode = DockHostModelApply_CreatePanelModel(hWnd);
@@ -333,6 +529,20 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         return FALSE;
     }
 
+    DockHostModelApplyContext context = { 0 };
+    context.pPanitentApp = PanitentApp_Instance();
+    DockHostModelApply_CollectViewsRecursive(
+        &context,
+        DockHostWindow_GetRoot(pDockHostWindow),
+        pRollbackModel,
+        DockHostWindow_GetRoot(pDockHostWindow));
+    DockHostModelApply_AddPreservedView(
+        &context,
+        DockHostModelApply_GetViewIdForHwnd(hWnd),
+        0,
+        hWnd,
+        FALSE);
+
     BOOL bMutated = FALSE;
     if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))
     {
@@ -340,7 +550,10 @@ BOOL DockHostModelApply_DockToolWindow(DockHostWindow* pDockHostWindow, HWND hWn
         DockData* pAnchorLiveData = pAnchorLiveNode ? (DockData*)pAnchorLiveNode->data : NULL;
         if (pAnchorLiveData)
         {
-            DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(pTargetModel, pAnchorLiveData);
+            DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(
+                DockHostWindow_GetRoot(pDockHostWindow),
+                pTargetModel,
+                pAnchorLiveData);
             if (pTargetHit->nDockSide == DKS_CENTER)
             {
                 int nZoneSide = DockHostWindow_GetPanelDockSide(pDockHostWindow, pTargetHit->hWndAnchor);
@@ -392,10 +605,6 @@ BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND h
         return FALSE;
     }
 
-    DockHostModelApplyContext context = { 0 };
-    context.pPanitentApp = PanitentApp_Instance();
-    DockHostModelApply_CollectViewsRecursiveEx(&context, DockHostWindow_GetRoot(pDockHostWindow), hWnd);
-
     DockModelNode* pRollbackModel = DockModel_CaptureHostLayout(pDockHostWindow);
     DockModelNode* pTargetModel = DockModelOps_CloneTree(pRollbackModel);
     if (!pRollbackModel || !pTargetModel)
@@ -405,7 +614,19 @@ BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND h
         return FALSE;
     }
 
-    DockModelNode* pLiveModelNode = DockHostModelApply_FindModelNodeForLiveData(pTargetModel, pLiveData);
+    DockHostModelApplyContext context = { 0 };
+    context.pPanitentApp = PanitentApp_Instance();
+    DockHostModelApply_CollectViewsRecursiveEx(
+        &context,
+        DockHostWindow_GetRoot(pDockHostWindow),
+        pRollbackModel,
+        DockHostWindow_GetRoot(pDockHostWindow),
+        hWnd);
+
+    DockModelNode* pLiveModelNode = DockHostModelApply_FindModelNodeForLiveData(
+        DockHostWindow_GetRoot(pDockHostWindow),
+        pTargetModel,
+        pLiveData);
     if (!pLiveModelNode ||
         !DockModelOps_RemoveNodeById(&pTargetModel, pLiveModelNode->uNodeId) ||
         !DockModelValidateAndRepairMainLayout(&pTargetModel, NULL))
@@ -426,6 +647,84 @@ BOOL DockHostModelApply_RemoveToolWindow(DockHostWindow* pDockHostWindow, HWND h
     else if (!bKeepWindowAlive)
     {
         DestroyWindow(hWnd);
+    }
+
+    DockModel_Destroy(pRollbackModel);
+    DockModel_Destroy(pTargetModel);
+    return bApplied;
+}
+
+BOOL DockHostModelApply_DockDocumentWindow(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize)
+{
+    UNREFERENCED_PARAMETER(iDockSize);
+
+    if (!pDockHostWindow || !hWnd || !IsWindow(hWnd) || !DockHostModelApply_IsWorkspaceHwnd(hWnd) ||
+        !pTargetHit || !pTargetHit->bLocalTarget || pTargetHit->nDockSide == DKS_NONE ||
+        pTargetHit->nDockSide == DKS_CENTER || !pTargetHit->hWndAnchor || !IsWindow(pTargetHit->hWndAnchor))
+    {
+        return FALSE;
+    }
+
+    TreeNode* pLiveRoot = DockHostWindow_GetRoot(pDockHostWindow);
+    TreeNode* pAnchorLiveNode = DockNode_FindByHWND(pLiveRoot, pTargetHit->hWndAnchor);
+    DockData* pAnchorLiveData = pAnchorLiveNode ? (DockData*)pAnchorLiveNode->data : NULL;
+    if (!pAnchorLiveData || pAnchorLiveData->nRole != DOCK_ROLE_WORKSPACE)
+    {
+        return FALSE;
+    }
+
+    DockModelNode* pRollbackModel = DockModel_CaptureHostLayout(pDockHostWindow);
+    DockModelNode* pTargetModel = DockModelOps_CloneTree(pRollbackModel);
+    DockModelNode* pWorkspaceNode = DockHostModelApply_CreateWorkspaceModel(hWnd);
+    if (!pRollbackModel || !pTargetModel || !pWorkspaceNode)
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        DockModel_Destroy(pWorkspaceNode);
+        return FALSE;
+    }
+
+    DockHostModelApplyContext context = { 0 };
+    context.pPanitentApp = PanitentApp_Instance();
+    DockHostModelApply_CollectViewsRecursive(&context, pLiveRoot, pRollbackModel, pLiveRoot);
+
+    DockModelNode* pAnchorModelNode = DockHostModelApply_FindModelNodeForLiveData(
+        pLiveRoot,
+        pTargetModel,
+        pAnchorLiveData);
+    if (!pAnchorModelNode ||
+        !DockModelOps_DockWorkspaceAroundNode(pTargetModel, pAnchorModelNode->uNodeId, pTargetHit->nDockSide, pWorkspaceNode))
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    DockHostModelApply_AddPreservedView(
+        &context,
+        PNT_DOCK_VIEW_WORKSPACE,
+        pWorkspaceNode->uNodeId,
+        hWnd,
+        FALSE);
+
+    if (!DockModelValidateAndRepairMainLayout(&pTargetModel, NULL))
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockModel_Destroy(pTargetModel);
+        return FALSE;
+    }
+
+    ShowWindow(hWnd, SW_HIDE);
+    BOOL bApplied = DockHostModelApply_ApplyModel(pDockHostWindow, pTargetModel, &context);
+    if (!bApplied)
+    {
+        DockHostModelApply_ApplyModel(pDockHostWindow, pRollbackModel, &context);
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
+    }
+    else {
+        ShowWindow(hWnd, SW_SHOW);
+        UpdateWindow(hWnd);
     }
 
     DockModel_Destroy(pRollbackModel);

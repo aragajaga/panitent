@@ -423,6 +423,13 @@ BOOL DockHostMutate_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
             return TRUE;
         }
     }
+    else if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_DOCUMENT)
+    {
+        if (DockHostModelApply_DockDocumentWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize))
+        {
+            return TRUE;
+        }
+    }
 
     if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))
     {

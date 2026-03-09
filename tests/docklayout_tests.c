@@ -1455,6 +1455,38 @@ static int test_dock_model_file_round_trip(void)
 	return 0;
 }
 
+static int test_dock_model_ops_dock_workspace_around_node(void)
+{
+    DockModelNode root = { 0 };
+    DockModelNode workspaceA = { 0 };
+    DockModelNode workspaceB = { 0 };
+
+    root.uNodeId = 1;
+    root.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(root.szName, ARRAYSIZE(root.szName), L"Root");
+    root.pChild1 = &workspaceA;
+
+    workspaceA.uNodeId = 2;
+    workspaceA.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceA.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspaceA.szName, ARRAYSIZE(workspaceA.szName), L"WorkspaceContainer");
+
+    workspaceB.uNodeId = 0;
+    workspaceB.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceB.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspaceB.szName, ARRAYSIZE(workspaceB.szName), L"WorkspaceContainer");
+
+    assert(DockModelOps_DockWorkspaceAroundNode(&root, 2, DKS_RIGHT, &workspaceB));
+    assert(root.pChild1 != NULL);
+    assert(root.pChild1->nRole == DOCK_ROLE_PANEL_SPLIT);
+    assert(root.pChild1->pChild1 != NULL);
+    assert(root.pChild1->pChild2 != NULL);
+    assert(root.pChild1->pChild1->nRole == DOCK_ROLE_WORKSPACE);
+    assert(root.pChild1->pChild2->nRole == DOCK_ROLE_WORKSPACE);
+
+    return 0;
+}
+
 static int test_dock_model_build_tree_round_trip(void)
 {
 	DockModelNode modelRoot = { 0 };
@@ -1660,6 +1692,40 @@ static int test_dock_model_validate_rejects_unknown_or_duplicate_views(void)
 	return 0;
 }
 
+static int test_dock_model_validate_accepts_multiple_workspaces(void)
+{
+    DockModelNode root = { 0 };
+    DockModelNode split = { 0 };
+    DockModelNode workspaceA = { 0 };
+    DockModelNode workspaceB = { 0 };
+    DockModelNode* pRoot = &root;
+
+    root.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(root.szName, ARRAYSIZE(root.szName), L"Root");
+    root.pChild1 = &split;
+
+    split.nRole = DOCK_ROLE_PANEL_SPLIT;
+    split.dwStyle = DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL;
+    split.iGripPos = 220;
+    wcscpy_s(split.szName, ARRAYSIZE(split.szName), L"DockShell.PanelSplit");
+    split.pChild1 = &workspaceA;
+    split.pChild2 = &workspaceB;
+
+    workspaceA.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceA.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspaceA.szName, ARRAYSIZE(workspaceA.szName), L"WorkspaceContainer");
+
+    workspaceB.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceB.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(workspaceB.szName, ARRAYSIZE(workspaceB.szName), L"WorkspaceContainer");
+
+    assert(DockModelValidateAndRepairMainLayout(&pRoot, NULL));
+    assert(pRoot == &root);
+    assert(split.pChild1 && split.pChild2);
+
+    return 0;
+}
+
 static int test_workspace_document_dock_split_policy(void)
 {
 	/* Single detached tab returning into its empty origin group: center-only. */
@@ -1737,11 +1803,13 @@ int main(void)
 	failed |= test_default_layout_model_contains_expected_views();
 	failed |= test_dock_model_ops_dock_panel_around_anchor();
 	failed |= test_dock_model_ops_dock_panel_at_root_side();
+	failed |= test_dock_model_ops_dock_workspace_around_node();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();
 	failed |= test_dock_model_validate_repairs_metadata_and_active_tab();
 	failed |= test_dock_model_validate_rejects_unknown_or_duplicate_views();
+	failed |= test_dock_model_validate_accepts_multiple_workspaces();
 	failed |= test_workspace_document_dock_split_policy();
 	failed |= test_workspace_empty_group_cleanup_policy();
 
