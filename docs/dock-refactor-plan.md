@@ -29,6 +29,9 @@ See:
 
 The concrete contract and follow-up plan are documented in `docs/window-layout-contract.md`.
 
+The current forward-looking polish plan is documented in:
+- `docs/dock-polish-plan.md`
+
 ## Current Risks
 
 The following risks are still considered active architectural debt and must be treated as part of the plan:
