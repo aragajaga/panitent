@@ -86,6 +86,8 @@ TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide);
 TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
 int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel);
 TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
+BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect);
+BOOL DockHostWindow_EnsureAutoHideOverlayHost(DockHostWindow* pDockHostWindow);
 void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve);
 void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve);
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
@@ -97,6 +99,11 @@ void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNod
 #define DKS_TOP 3
 #define DKS_BOTTOM 4
 #define DKS_CENTER 5
+
+#define DCB_NONE 0
+#define DCB_CLOSE 1
+#define DCB_PIN 2
+#define DCB_MORE 3
 
 typedef struct DockTargetHit DockTargetHit;
 struct DockTargetHit {
