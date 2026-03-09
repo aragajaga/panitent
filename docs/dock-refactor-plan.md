@@ -151,6 +151,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover rollback when a document-group undock-to-floating transition fails during floating-host creation.
 - runtime tests now also cover rollback when single-document float from a workspace fails during floating-host creation.
 - workspace single-document float rollback now preserves original tab order and active document when floating-host creation fails.
+- runtime tests now also cover rollback when `Apply Window Layout` fails during floating tool restore.
 - runtime tests now also cover rollback when `Apply Window Layout` fails during floating document arrangement restore, not only during main layout validation.
 
 ## Dock Host Render Increment Applied

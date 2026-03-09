@@ -19,6 +19,13 @@ typedef struct DockFloatingPersistCollectContext
 	DockFloatingLayoutFileModel* pModel;
 } DockFloatingPersistCollectContext;
 
+static FnDockFloatingRestoreEntryTestHook g_pDockFloatingRestoreEntryTestHook = NULL;
+
+void PanitentDockFloating_SetRestoreEntryTestHook(FnDockFloatingRestoreEntryTestHook pfnHook)
+{
+	g_pDockFloatingRestoreEntryTestHook = pfnHook;
+}
+
 static BOOL DockFloatingPersist_IsClassName(HWND hWnd, PCWSTR pszClassName)
 {
 	WCHAR szClassName[64] = L"";
@@ -214,6 +221,12 @@ BOOL PanitentDockFloating_RestoreModel(PanitentApp* pPanitentApp, DockHostWindow
 	for (int i = 0; i < pModel->nEntries; ++i)
 	{
 		const DockFloatingLayoutEntry* pEntry = &pModel->entries[i];
+		if (g_pDockFloatingRestoreEntryTestHook &&
+			!g_pDockFloatingRestoreEntryTestHook(pEntry))
+		{
+			return FALSE;
+		}
+
 		if (pEntry->nChildKind == FLOAT_DOCK_CHILD_TOOL_PANEL &&
 			DockFloatingPersist_MainHostHasView(DockHostWindow_GetRoot(pDockHostWindow), pEntry->nViewId))
 		{
