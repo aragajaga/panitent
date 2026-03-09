@@ -37,6 +37,7 @@
 static const WCHAR g_szWindowLayoutsFileName[] = L"windowlayouts.dat";
 static FnWindowLayoutManagerMessageSink g_pWindowLayoutManagerMessageSink = NULL;
 static FnWindowLayoutManagerSaveProfileSink g_pWindowLayoutManagerSaveProfileSink = NULL;
+static FnWindowLayoutManagerSaveCatalogSink g_pWindowLayoutManagerSaveCatalogSink = NULL;
 static FnWindowLayoutManagerPromptSink g_pWindowLayoutManagerPromptSink = NULL;
 
 typedef struct WindowLayoutNameDialogContext
@@ -92,6 +93,7 @@ static void WindowLayoutManager_CollectWorkspaceEntriesRecursive(
     DockModelNode* pModelRoot,
     TreeNode* pNode);
 static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType);
+static void WindowLayoutManager_DeleteProfileBundleFiles(uint32_t uId);
 
 void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink)
 {
@@ -101,6 +103,11 @@ void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMess
 void WindowLayoutManager_SetSaveProfileSink(FnWindowLayoutManagerSaveProfileSink pfnSaveProfileSink)
 {
     g_pWindowLayoutManagerSaveProfileSink = pfnSaveProfileSink;
+}
+
+void WindowLayoutManager_SetSaveCatalogSink(FnWindowLayoutManagerSaveCatalogSink pfnSaveCatalogSink)
+{
+    g_pWindowLayoutManagerSaveCatalogSink = pfnSaveCatalogSink;
 }
 
 void WindowLayoutManager_SetPromptSink(FnWindowLayoutManagerPromptSink pfnPromptSink)
@@ -185,6 +192,11 @@ static BOOL WindowLayoutManager_LoadCatalog(WindowLayoutCatalog* pCatalog)
 
 static BOOL WindowLayoutManager_SaveCatalog(const WindowLayoutCatalog* pCatalog)
 {
+    if (g_pWindowLayoutManagerSaveCatalogSink)
+    {
+        return g_pWindowLayoutManagerSaveCatalogSink(pCatalog);
+    }
+
     PTSTR pszPath = NULL;
     if (!pCatalog || !WindowLayoutManager_GetCatalogPath(&pszPath))
     {
@@ -194,6 +206,31 @@ static BOOL WindowLayoutManager_SaveCatalog(const WindowLayoutCatalog* pCatalog)
     BOOL bSaved = WindowLayoutCatalog_SaveToFile(pCatalog, pszPath);
     free(pszPath);
     return bSaved;
+}
+
+static void WindowLayoutManager_DeleteProfileBundleFiles(uint32_t uId)
+{
+    PTSTR pszDockLayoutPath = NULL;
+    PTSTR pszDockFloatingPath = NULL;
+    PTSTR pszFloatDocLayoutPath = NULL;
+    WindowLayoutProfile_GetDockLayoutPath(uId, &pszDockLayoutPath);
+    WindowLayoutProfile_GetDockFloatingPath(uId, &pszDockFloatingPath);
+    WindowLayoutProfile_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath);
+    if (pszDockLayoutPath)
+    {
+        DeleteFileW(pszDockLayoutPath);
+        free(pszDockLayoutPath);
+    }
+    if (pszDockFloatingPath)
+    {
+        DeleteFileW(pszDockFloatingPath);
+        free(pszDockFloatingPath);
+    }
+    if (pszFloatDocLayoutPath)
+    {
+        DeleteFileW(pszFloatDocLayoutPath);
+        free(pszFloatDocLayoutPath);
+    }
 }
 
 void WindowLayoutManager_RefreshApplyMenu(PanitentWindow* pPanitentWindow)
@@ -867,6 +904,7 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
         WindowLayoutCatalog catalog = { 0 };
         WCHAR szName[WINDOW_LAYOUT_NAME_MAX] = L"";
         uint32_t uId;
+        BOOL bCreatedNewEntry = FALSE;
 
         WindowLayoutManager_LoadCatalog(&catalog);
         if (!WindowLayoutManager_PromptForName(hWndParent, L"Save Window Layout", L"Layout name:", L"", szName, ARRAYSIZE(szName)))
@@ -886,13 +924,19 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
                 WindowLayoutManager_ShowMessage(hWndParent, L"Failed to create the window layout entry.", L"Window Layout", MB_OK | MB_ICONERROR);
                 return TRUE;
             }
+            bCreatedNewEntry = TRUE;
         }
 
         BOOL bSavedProfile = g_pWindowLayoutManagerSaveProfileSink ?
             g_pWindowLayoutManagerSaveProfileSink(pPanitentWindow, uId) :
             WindowLayoutManager_SaveProfile(pPanitentWindow, uId);
-        if (!bSavedProfile || !WindowLayoutManager_SaveCatalog(&catalog))
+        BOOL bSavedCatalog = bSavedProfile && WindowLayoutManager_SaveCatalog(&catalog);
+        if (!bSavedProfile || !bSavedCatalog)
         {
+            if (bSavedProfile && !bSavedCatalog && bCreatedNewEntry)
+            {
+                WindowLayoutManager_DeleteProfileBundleFiles(uId);
+            }
             WindowLayoutManager_ShowMessage(hWndParent, L"Failed to save the current window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
         }
         WindowLayoutManager_RefreshApplyMenu(pPanitentWindow);
