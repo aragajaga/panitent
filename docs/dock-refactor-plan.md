@@ -212,6 +212,7 @@ This change set continues the same decomposition on the runtime utility side:
 - the host file is now closer to lifecycle/message coordination than to general-purpose dock runtime plumbing.
 - follow-up cleanup also moved `DockData_*` rect helpers and `DockHostWindow_Rearrange()` behind the same runtime-oriented boundary, with dock-host metrics isolated from the host file.
 - follow-up cleanup also moved `DockHostWindow_OnCreate`, `OnDestroy`, `OnPaint`, and `OnSize` into the runtime layer, so `dockhost.c` now mostly holds registration/init/message dispatch rather than host lifecycle implementation details.
+- follow-up cleanup also moved `DockHostWindow_PreRegister`, `PreCreate`, `Init`, `Create`, and root accessors into the runtime layer, leaving `dockhost.c` as a much thinner dispatch facade.
 
 ## Target Layers
 

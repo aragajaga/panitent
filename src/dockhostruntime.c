@@ -19,6 +19,9 @@
 #include "win32/util.h"
 #include "win32/windowmap.h"
 
+BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
+LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+
 static BOOL DockHostRuntime_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPreserve, int cPreserve)
 {
     if (!hWnd || !phWndPreserve || cPreserve <= 0)
@@ -35,6 +38,26 @@ static BOOL DockHostRuntime_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPrese
     }
 
     return FALSE;
+}
+
+void DockHostWindow_PreRegister(LPWNDCLASSEX lpwcex)
+{
+    lpwcex->style = CS_VREDRAW | CS_HREDRAW;
+    lpwcex->hCursor = LoadCursor(NULL, IDC_ARROW);
+    lpwcex->hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    lpwcex->lpszClassName = L"__DockHostWindow";
+}
+
+void DockHostWindow_PreCreate(LPCREATESTRUCT lpcs)
+{
+    lpcs->dwExStyle = 0;
+    lpcs->lpszClass = L"__DockHostWindow";
+    lpcs->lpszName = L"DockHost";
+    lpcs->style = WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_CLIPCHILDREN;
+    lpcs->x = 0;
+    lpcs->y = 0;
+    lpcs->cx = 0;
+    lpcs->cy = 0;
 }
 
 static BOOL DockHostRuntime_OnDropFiles(void* pContext, HDROP hDrop)
@@ -144,6 +167,65 @@ void DockHostWindow_OnSize(DockHostWindow* pDockHostWindow, UINT state, int cx, 
 
         DockHostWindow_Rearrange(pDockHostWindow);
     }
+}
+
+void DockHostWindow_Init(DockHostWindow* pDockHostWindow, PanitentApp* pPanitentApp)
+{
+    Window_Init(&pDockHostWindow->base);
+
+    pDockHostWindow->base.szClassName = L"__DockHostWindow";
+    pDockHostWindow->base.OnCreate = (FnWindowOnCreate)DockHostWindow_OnCreate;
+    pDockHostWindow->base.OnDestroy = (FnWindowOnDestroy)DockHostWindow_OnDestroy;
+    pDockHostWindow->base.OnPaint = (FnWindowOnPaint)DockHostWindow_OnPaint;
+    pDockHostWindow->base.OnSize = (FnWindowOnSize)DockHostWindow_OnSize;
+    pDockHostWindow->base.OnCommand = (FnWindowOnCommand)DockHostWindow_OnCommand;
+
+    _WindowInitHelper_SetPreRegisterRoutine((Window*)pDockHostWindow, (FnWindowPreRegister)DockHostWindow_PreRegister);
+    _WindowInitHelper_SetPreCreateRoutine((Window*)pDockHostWindow, (FnWindowPreCreate)DockHostWindow_PreCreate);
+    _WindowInitHelper_SetUserProcRoutine((Window*)pDockHostWindow, (FnWindowUserProc)DockHostWindow_UserProc);
+
+    pDockHostWindow->pRoot_ = NULL;
+    pDockHostWindow->fSplitDrag = FALSE;
+    pDockHostWindow->pSplitNode = NULL;
+    pDockHostWindow->iSplitDragStartGrip = 0;
+    pDockHostWindow->fAutoHideOverlayVisible = FALSE;
+    pDockHostWindow->nAutoHideOverlaySide = DKS_NONE;
+    pDockHostWindow->hWndAutoHideOverlay = NULL;
+    SetRectEmpty(&pDockHostWindow->rcAutoHideOverlay);
+    pDockHostWindow->pCaptionHotNode = NULL;
+    pDockHostWindow->pCaptionPressedNode = NULL;
+    pDockHostWindow->nCaptionHotButton = DCB_NONE;
+    pDockHostWindow->nCaptionPressedButton = DCB_NONE;
+    pDockHostWindow->fAutoHideOverlayTrackMouse = FALSE;
+    pDockHostWindow->nAutoHideOverlayHotButton = DCB_NONE;
+    pDockHostWindow->nAutoHideOverlayPressedButton = DCB_NONE;
+    pDockHostWindow->m_pDockInspectorDialog = DockInspectorDialog_Create();
+    UNREFERENCED_PARAMETER(pPanitentApp);
+}
+
+DockHostWindow* DockHostWindow_Create(PanitentApp* pPanitentApp)
+{
+    DockHostWindow* pDockHostWindow = (DockHostWindow*)malloc(sizeof(DockHostWindow));
+
+    if (pDockHostWindow)
+    {
+        memset(pDockHostWindow, 0, sizeof(DockHostWindow));
+        DockHostWindow_Init(pDockHostWindow, pPanitentApp);
+    }
+
+    return pDockHostWindow;
+}
+
+TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot)
+{
+    TreeNode* pOldRoot = pDockHostWindow->pRoot_;
+    pDockHostWindow->pRoot_ = pNewRoot;
+    return pOldRoot;
+}
+
+TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
+{
+    return pDockHostWindow->pRoot_;
 }
 
 BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd)
