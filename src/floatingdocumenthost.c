@@ -2,11 +2,14 @@
 
 #include "floatingdocumenthost.h"
 
+#include "dockmodel.h"
 #include "dockhostrestore.h"
 #include "dockmodelbuild.h"
+#include "floatingchildhost.h"
 #include "panitentapp.h"
 #include "floatingwindowcontainer.h"
 #include "win32/window.h"
+#include "win32/windowmap.h"
 #include "win32/util.h"
 
 static FnFloatingDocumentHostCreatePinnedWindowHook g_pCreatePinnedWindowTestHook = NULL;
@@ -14,6 +17,39 @@ static FnFloatingDocumentHostCreatePinnedWindowHook g_pCreatePinnedWindowTestHoo
 void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook)
 {
     g_pCreatePinnedWindowTestHook = pfnHook;
+}
+
+DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild)
+{
+    FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(hWndChild);
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_HOST)
+    {
+        DockHostWindow* pDockHostWindow = (DockHostWindow*)WindowMap_Get(hWndChild);
+        return pDockHostWindow ? DockModel_CaptureHostLayout(pDockHostWindow) : NULL;
+    }
+
+    if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
+    {
+        DockModelNode* pRoot = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+        DockModelNode* pWorkspace = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+        if (!pRoot || !pWorkspace)
+        {
+            free(pRoot);
+            free(pWorkspace);
+            return NULL;
+        }
+
+        pRoot->nRole = DOCK_ROLE_ROOT;
+        wcscpy_s(pRoot->szName, ARRAYSIZE(pRoot->szName), L"Root");
+        pRoot->pChild1 = pWorkspace;
+
+        pWorkspace->nRole = DOCK_ROLE_WORKSPACE;
+        pWorkspace->nPaneKind = DOCK_PANE_DOCUMENT;
+        wcscpy_s(pWorkspace->szName, ARRAYSIZE(pWorkspace->szName), L"WorkspaceContainer");
+        return pRoot;
+    }
+
+    return NULL;
 }
 
 BOOL FloatingDocumentHost_CreatePinnedWindow(

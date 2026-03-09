@@ -37,39 +37,6 @@ static BOOL FloatingDocumentLayout_IsClassName(HWND hWnd, PCWSTR pszClassName)
 	return wcscmp(szClassName, pszClassName) == 0;
 }
 
-static DockModelNode* FloatingDocumentLayout_CaptureChildLayout(HWND hWndChild)
-{
-	FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(hWndChild);
-	if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_HOST)
-	{
-		DockHostWindow* pDockHostWindow = (DockHostWindow*)WindowMap_Get(hWndChild);
-		return pDockHostWindow ? DockModel_CaptureHostLayout(pDockHostWindow) : NULL;
-	}
-
-	if (nChildKind == FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE)
-	{
-		DockModelNode* pRoot = (DockModelNode*)calloc(1, sizeof(DockModelNode));
-		DockModelNode* pWorkspace = (DockModelNode*)calloc(1, sizeof(DockModelNode));
-		if (!pRoot || !pWorkspace)
-		{
-			free(pRoot);
-			free(pWorkspace);
-			return NULL;
-		}
-
-		pRoot->nRole = DOCK_ROLE_ROOT;
-		wcscpy_s(pRoot->szName, ARRAYSIZE(pRoot->szName), L"Root");
-		pRoot->pChild1 = pWorkspace;
-
-		pWorkspace->nRole = DOCK_ROLE_WORKSPACE;
-		pWorkspace->nPaneKind = DOCK_PANE_DOCUMENT;
-		wcscpy_s(pWorkspace->szName, ARRAYSIZE(pWorkspace->szName), L"WorkspaceContainer");
-		return pRoot;
-	}
-
-	return NULL;
-}
-
 static BOOL CALLBACK FloatingDocumentLayout_EnumWindowsProc(HWND hWnd, LPARAM lParam)
 {
 	FloatingDocumentLayoutCaptureContext* pContext = (FloatingDocumentLayoutCaptureContext*)lParam;
@@ -104,7 +71,7 @@ static BOOL CALLBACK FloatingDocumentLayout_EnumWindowsProc(HWND hWnd, LPARAM lP
 	FloatingDocumentLayoutEntry* pEntry = &pContext->pModel->entries[pContext->pModel->nEntryCount];
 	memset(pEntry, 0, sizeof(*pEntry));
 	GetWindowRect(hWnd, &pEntry->rcWindow);
-	pEntry->pLayoutModel = FloatingDocumentLayout_CaptureChildLayout(pFloatingWindowContainer->hWndChild);
+	pEntry->pLayoutModel = FloatingDocumentHost_CaptureChildLayout(pFloatingWindowContainer->hWndChild);
 	if (!pEntry->pLayoutModel)
 	{
 		return TRUE;

@@ -57,3 +57,4 @@ BOOL FloatingDocumentHost_RestorePinnedDockHost(
     HWND* phWndFloatingOut);
 
 void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook);
+DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild);
