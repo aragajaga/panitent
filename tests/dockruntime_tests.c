@@ -1586,6 +1586,46 @@ static int test_runtime_named_layout_profile_switch_with_mixed_floating_arrangem
     assert(pRightZoneA != NULL);
     assert(runtime_model_subtree_contains_name(pRightZoneA, L"GLWindow"));
 
+    DockModel_Destroy(pLoadedLayout);
+    DockFloatingLayout_Destroy(&loadedFloating);
+    FloatingDocumentLayoutModel_Destroy(&loadedFloatDocs);
+
+    pLoadedLayout = NULL;
+    memset(&loadedFloating, 0, sizeof(loadedFloating));
+    memset(&loadedFloatDocs, 0, sizeof(loadedFloatDocs));
+    assert(WindowLayoutProfile_LoadBundle(uIdB, &pLoadedLayout, &loadedFloating, &loadedFloatDocs));
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pLoadedLayout, &loadedFloating, &loadedFloatDocs));
+
+    HWND hWndWorkspaceAfterB2 = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceAfterB2 == hWndWorkspaceBefore);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    DockModelNode* pAppliedB2 = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockModelNode* pRightZoneB2 = runtime_find_model_zone(pAppliedB2, DKS_RIGHT);
+    assert(pAppliedB2 != NULL);
+    assert(pRightZoneB2 != NULL);
+    assert(!runtime_model_subtree_contains_name(pRightZoneB2, L"GLWindow"));
+
+    assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 0);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 0);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    DockModelNode* pReset = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockModelNode* pResetRightZone = runtime_find_model_zone(pReset, DKS_RIGHT);
+    assert(pReset != NULL);
+    assert(pResetRightZone != NULL);
+    assert(runtime_model_subtree_contains_name(pResetRightZone, L"GLWindow"));
+
+    DockModel_Destroy(pReset);
+    DockModel_Destroy(pAppliedB2);
     DockModel_Destroy(pAppliedA);
     DockModel_Destroy(pAppliedB);
     DockModel_Destroy(pLoadedLayout);

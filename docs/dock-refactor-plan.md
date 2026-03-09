@@ -154,6 +154,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover rollback when `Apply Window Layout` fails during floating tool restore.
 - runtime tests now also cover rollback when `Apply Window Layout` fails during floating document arrangement restore, not only during main layout validation.
 - runtime tests now also cover repeated application of the same mixed floating layout bundle to check idempotence and prevent duplicate floating windows.
+- runtime tests now also cover repeated named-profile switching across mixed arrangements (`A -> B -> A -> B -> Reset`) to check profile-level idempotence and cleanup.
 
 ## Dock Host Render Increment Applied
 
