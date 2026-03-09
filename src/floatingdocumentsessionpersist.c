@@ -388,58 +388,29 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 			continue;
 		}
 
-		DockHostWindow* pFloatingDockHost = DockHostWindow_Create(pPanitentApp);
-		HWND hWndFloatingDockHost = pFloatingDockHost ? Window_CreateWindow((Window*)pFloatingDockHost, NULL) : NULL;
-		if (!pFloatingDockHost || !hWndFloatingDockHost || !IsWindow(hWndFloatingDockHost))
-		{
-			continue;
-		}
-
-		TreeNode* pRootNode = DockModelBuildTree(pEntry->pLayoutModel);
-		if (!pRootNode || !pRootNode->data)
-		{
-			DestroyWindow(hWndFloatingDockHost);
-			continue;
-		}
-
-		RECT rcDockHost = { 0 };
-		GetClientRect(hWndFloatingDockHost, &rcDockHost);
-		((DockData*)pRootNode->data)->rc = rcDockHost;
-		DockHostWindow_SetRoot(pFloatingDockHost, pRootNode);
-
+		DockHostWindow* pFloatingDockHost = NULL;
+		HWND hWndFloating = NULL;
 		FloatingDocumentRestoreContext restoreContext = { 0 };
 		restoreContext.pPanitentApp = pPanitentApp;
 		restoreContext.pDockHostTarget = pDockHostWindow;
 		restoreContext.pEntry = pEntry;
 		BOOL bHasWorkspace = FALSE;
-		if (!PanitentDockHostRestoreAttachKnownViewsEx(
+		if (!FloatingDocumentHost_RestorePinnedDockHost(
 			pPanitentApp,
-			pFloatingDockHost,
-			pRootNode,
+			pDockHostWindow,
+			&pEntry->rcWindow,
+			pEntry->pLayoutModel,
 			NULL,
 			NULL,
 			FloatingDocumentPersist_OnNodeAttached,
 			&restoreContext,
-			&bHasWorkspace))
-		{
-			DestroyWindow(hWndFloatingDockHost);
-			continue;
-		}
-
-		DockHostWindow_Rearrange(pFloatingDockHost);
-
-		HWND hWndFloating = NULL;
-		if (!FloatingDocumentHost_CreatePinnedWindow(
-			pDockHostWindow,
-			hWndFloatingDockHost,
-			&pEntry->rcWindow,
-			FALSE,
-			(POINT){ 0, 0 },
+			&bHasWorkspace,
+			&pFloatingDockHost,
 			&hWndFloating))
 		{
-			DestroyWindow(hWndFloatingDockHost);
 			continue;
 		}
+
 		bRestoredAny = TRUE;
 	}
 

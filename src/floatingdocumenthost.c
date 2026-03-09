@@ -2,6 +2,9 @@
 
 #include "floatingdocumenthost.h"
 
+#include "dockhostrestore.h"
+#include "dockmodelbuild.h"
+#include "panitentapp.h"
 #include "floatingwindowcontainer.h"
 #include "win32/window.h"
 #include "win32/util.h"
@@ -62,6 +65,152 @@ BOOL FloatingDocumentHost_CreatePinnedWindow(
         SendMessage(hWndFloating, WM_NCLBUTTONDOWN, HTCAPTION, MAKELPARAM(ptMoveScreen.x, ptMoveScreen.y));
     }
 
+    if (phWndFloatingOut)
+    {
+        *phWndFloatingOut = hWndFloating;
+    }
+    return TRUE;
+}
+
+BOOL FloatingDocumentHost_CreatePinnedDockHost(
+    DockHostWindow* pDockHostTarget,
+    PanitentApp* pPanitentApp,
+    const RECT* pWindowRect,
+    DockHostWindow** ppFloatingDockHostOut,
+    HWND* phWndDockHostOut,
+    HWND* phWndFloatingOut)
+{
+    if (ppFloatingDockHostOut)
+    {
+        *ppFloatingDockHostOut = NULL;
+    }
+    if (phWndDockHostOut)
+    {
+        *phWndDockHostOut = NULL;
+    }
+    if (phWndFloatingOut)
+    {
+        *phWndFloatingOut = NULL;
+    }
+
+    DockHostWindow* pFloatingDockHost = DockHostWindow_Create(pPanitentApp);
+    HWND hWndFloatingDockHost = pFloatingDockHost ? Window_CreateWindow((Window*)pFloatingDockHost, NULL) : NULL;
+    if (!pFloatingDockHost || !hWndFloatingDockHost || !IsWindow(hWndFloatingDockHost))
+    {
+        return FALSE;
+    }
+
+    HWND hWndFloating = NULL;
+    if (!FloatingDocumentHost_CreatePinnedWindow(
+        pDockHostTarget,
+        hWndFloatingDockHost,
+        pWindowRect,
+        FALSE,
+        (POINT){ 0, 0 },
+        &hWndFloating))
+    {
+        DestroyWindow(hWndFloatingDockHost);
+        return FALSE;
+    }
+
+    if (ppFloatingDockHostOut)
+    {
+        *ppFloatingDockHostOut = pFloatingDockHost;
+    }
+    if (phWndDockHostOut)
+    {
+        *phWndDockHostOut = hWndFloatingDockHost;
+    }
+    if (phWndFloatingOut)
+    {
+        *phWndFloatingOut = hWndFloating;
+    }
+    return TRUE;
+}
+
+BOOL FloatingDocumentHost_RestorePinnedDockHost(
+    PanitentApp* pPanitentApp,
+    DockHostWindow* pDockHostTarget,
+    const RECT* pWindowRect,
+    const DockModelNode* pLayoutModel,
+    FnDockHostRestoreResolveView pfnResolveView,
+    void* pResolveViewUserData,
+    FnDockHostRestoreNodeAttached pfnNodeAttached,
+    void* pNodeAttachedUserData,
+    BOOL* pbHasWorkspace,
+    DockHostWindow** ppFloatingDockHostOut,
+    HWND* phWndFloatingOut)
+{
+    if (pbHasWorkspace)
+    {
+        *pbHasWorkspace = FALSE;
+    }
+    if (ppFloatingDockHostOut)
+    {
+        *ppFloatingDockHostOut = NULL;
+    }
+    if (phWndFloatingOut)
+    {
+        *phWndFloatingOut = NULL;
+    }
+
+    if (!pPanitentApp || !pLayoutModel)
+    {
+        return FALSE;
+    }
+
+    DockHostWindow* pFloatingDockHost = NULL;
+    HWND hWndFloatingDockHost = NULL;
+    HWND hWndFloating = NULL;
+    if (!FloatingDocumentHost_CreatePinnedDockHost(
+        pDockHostTarget,
+        pPanitentApp,
+        pWindowRect,
+        &pFloatingDockHost,
+        &hWndFloatingDockHost,
+        &hWndFloating))
+    {
+        return FALSE;
+    }
+
+    TreeNode* pRootNode = DockModelBuildTree(pLayoutModel);
+    if (!pRootNode || !pRootNode->data)
+    {
+        DestroyWindow(hWndFloating);
+        return FALSE;
+    }
+
+    RECT rcDockHost = { 0 };
+    GetClientRect(hWndFloatingDockHost, &rcDockHost);
+    ((DockData*)pRootNode->data)->rc = rcDockHost;
+
+    BOOL bHasWorkspace = FALSE;
+    if (!PanitentDockHostRestoreAttachKnownViewsEx(
+        pPanitentApp,
+        pFloatingDockHost,
+        pRootNode,
+        pfnResolveView,
+        pResolveViewUserData,
+        pfnNodeAttached,
+        pNodeAttachedUserData,
+        &bHasWorkspace))
+    {
+        DockHostWindow_DestroyNodeTree(pRootNode, NULL, 0);
+        DestroyWindow(hWndFloating);
+        return FALSE;
+    }
+
+    DockHostWindow_SetRoot(pFloatingDockHost, pRootNode);
+    DockHostWindow_Rearrange(pFloatingDockHost);
+
+    if (pbHasWorkspace)
+    {
+        *pbHasWorkspace = bHasWorkspace;
+    }
+    if (ppFloatingDockHostOut)
+    {
+        *ppFloatingDockHostOut = pFloatingDockHost;
+    }
     if (phWndFloatingOut)
     {
         *phWndFloatingOut = hWndFloating;
