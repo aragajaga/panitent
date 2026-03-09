@@ -129,6 +129,7 @@ This change set starts covering real runtime docking/layout behavior instead of 
 - added coverage for model-first tool docking against a live `DockHostWindow`;
 - added coverage for invalid layout apply rollback through `windowlayoutmanager`;
 - added coverage for apply/reset preserving the live workspace window while changing tool arrangement.
+- added coverage for named layout profile switching through real saved bundles (`A -> B -> A`).
 
 This does not finish the full runtime test matrix yet, but it turns integration/runtime testing into a real, executable part of the plan instead of a future-only requirement.
 
