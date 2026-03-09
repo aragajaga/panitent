@@ -104,6 +104,7 @@ set(C_SOURCES
     src/dockfloatingpersist.c
     src/floatingtoolcapture.c
     src/floatingtoolhost.c
+    src/floatingtoolrestore.c
     src/floatingdocumentlayoutmodel.c
     src/floatingdocumentlayoutpersist.c
     src/floatingdocumentsessionmodel.c

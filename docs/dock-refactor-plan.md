@@ -680,3 +680,11 @@ This change set splits the enumeration/capture side of `floatingtoolhost.c` into
 - pinned-window capture for direct panel and tool-host entries.
 
 This leaves `floatingtoolhost.c` focused on restore wiring, mirroring the ongoing cleanup of the floating document path.
+
+## Floating Tool Restore Layer Increment Applied
+
+This change set moves the restore wiring side of `floatingtoolhost.c` into `floatingtoolrestore.c`:
+- direct floating tool panel restore;
+- floating tool host restore.
+
+After this split, the tool-side floating path is explicitly separated into capture and restore layers.
