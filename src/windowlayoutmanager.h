@@ -1,6 +1,7 @@
 #pragma once
 
 #include "precomp.h"
+#include "windowlayoutcatalog.h"
 
 typedef struct PanitentWindow PanitentWindow;
 typedef struct DockModelNode DockModelNode;
@@ -23,6 +24,9 @@ void WindowLayoutManager_SetSaveProfileSink(FnWindowLayoutManagerSaveProfileSink
 void WindowLayoutManager_SetSaveCatalogSink(FnWindowLayoutManagerSaveCatalogSink pfnSaveCatalogSink);
 void WindowLayoutManager_SetPromptSink(FnWindowLayoutManagerPromptSink pfnPromptSink);
 BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmdId);
+BOOL WindowLayoutManager_MoveCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index, int indexTarget);
+BOOL WindowLayoutManager_RenameCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index, PCWSTR pszName);
+BOOL WindowLayoutManager_DeleteCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index);
 BOOL WindowLayoutManager_ApplyLayoutBundle(
     PanitentWindow* pPanitentWindow,
     DockModelNode* pModelRoot,

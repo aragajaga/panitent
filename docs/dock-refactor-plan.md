@@ -595,3 +595,12 @@ This change set makes strict direct floating document layout restore transaction
 - runtime coverage now includes partial-failure rollback from an already active floating document state with live document content.
 
 This brings direct floating document layout restore in line with the stricter semantics already used for floating tool restore and layout-apply orchestration.
+
+## Named Layout Catalog Operation Increment Applied
+
+This change set extracts transactional catalog operations out of the manage-dialog code:
+- added public, testable `WindowLayoutManager_MoveCatalogEntry(...)`, `WindowLayoutManager_RenameCatalogEntry(...)`, and `WindowLayoutManager_DeleteCatalogEntry(...)`;
+- manage-dialog move/rename/delete now route through those operations instead of mutating and saving the catalog open-coded;
+- delete now saves the updated catalog before removing profile bundle files, so save failure cannot leave a broken catalog/profile pair.
+
+This reduces `windowlayoutmanager.c` UI coupling and closes another late-failure gap in named layout management.

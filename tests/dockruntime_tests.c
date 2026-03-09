@@ -2953,6 +2953,60 @@ static int test_runtime_menu_command_save_failure_does_not_persist_catalog_entry
     return 0;
 }
 
+static int test_runtime_catalog_delete_rolls_back_on_catalog_save_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    const uint32_t uId = 0x83000000u | (uint32_t)(GetCurrentProcessId() & 0x0000FFFFu);
+    runtime_delete_profile_bundle(uId);
+    runtime_delete_window_layout_catalog_file();
+
+    DockModelNode* pLayout = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockFloatingLayoutFileModel floatingModel = { 0 };
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    assert(pLayout != NULL);
+    assert(WindowLayoutProfile_SaveBundle(uId, pLayout, &floatingModel, &floatDocModel));
+
+    WindowLayoutCatalog catalog = { 0 };
+    WindowLayoutCatalog_Init(&catalog);
+    assert(WindowLayoutCatalog_Add(&catalog, uId, L"Delete Me"));
+
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    assert(WindowLayoutCatalog_SaveToFile(&catalog, pszCatalogPath));
+
+    WindowLayoutManager_SetSaveCatalogSink(runtime_fail_window_layout_save_catalog);
+    assert(!WindowLayoutManager_DeleteCatalogEntry(&fixture.panitentWindow, &catalog, 0));
+    WindowLayoutManager_SetSaveCatalogSink(NULL);
+
+    assert(catalog.nEntryCount == 1);
+    assert(catalog.entries[0].uId == uId);
+
+    WindowLayoutCatalog loadedCatalog = { 0 };
+    PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+    assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &loadedCatalog, &status));
+    assert(status == PERSIST_LOAD_OK);
+    assert(loadedCatalog.nEntryCount == 1);
+    assert(loadedCatalog.entries[0].uId == uId);
+    free(pszCatalogPath);
+
+    DockModelNode* pLoadedLayout = NULL;
+    DockFloatingLayoutFileModel loadedFloating = { 0 };
+    FloatingDocumentLayoutModel loadedFloatDocs = { 0 };
+    assert(WindowLayoutProfile_LoadBundle(uId, &pLoadedLayout, &loadedFloating, &loadedFloatDocs));
+
+    DockModel_Destroy(pLoadedLayout);
+    DockFloatingLayout_Destroy(&loadedFloating);
+    FloatingDocumentLayoutModel_Destroy(&loadedFloatDocs);
+    DockModel_Destroy(pLayout);
+    runtime_delete_profile_bundle(uId);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -3179,6 +3233,7 @@ int main(void)
     failed |= test_runtime_menu_command_saves_and_overwrites_named_layout();
     failed |= test_runtime_menu_command_save_failure_does_not_persist_catalog_entry();
     failed |= test_runtime_menu_command_save_catalog_failure_removes_new_bundle();
+    failed |= test_runtime_catalog_delete_rolls_back_on_catalog_save_failure();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();

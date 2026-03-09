@@ -94,6 +94,12 @@ static void WindowLayoutManager_CollectWorkspaceEntriesRecursive(
     TreeNode* pNode);
 static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType);
 static void WindowLayoutManager_DeleteProfileBundleFiles(uint32_t uId);
+static BOOL WindowLayoutManager_CommitCatalogMutation(
+    PanitentWindow* pPanitentWindow,
+    WindowLayoutCatalog* pCatalog,
+    const WindowLayoutCatalog* pUpdatedCatalog,
+    BOOL bDeleteBundle,
+    uint32_t uDeleteBundleId);
 
 void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink)
 {
@@ -231,6 +237,89 @@ static void WindowLayoutManager_DeleteProfileBundleFiles(uint32_t uId)
         DeleteFileW(pszFloatDocLayoutPath);
         free(pszFloatDocLayoutPath);
     }
+}
+
+static BOOL WindowLayoutManager_CommitCatalogMutation(
+    PanitentWindow* pPanitentWindow,
+    WindowLayoutCatalog* pCatalog,
+    const WindowLayoutCatalog* pUpdatedCatalog,
+    BOOL bDeleteBundle,
+    uint32_t uDeleteBundleId)
+{
+    if (!pCatalog || !pUpdatedCatalog)
+    {
+        return FALSE;
+    }
+
+    if (!WindowLayoutManager_SaveCatalog(pUpdatedCatalog))
+    {
+        return FALSE;
+    }
+
+    if (bDeleteBundle)
+    {
+        WindowLayoutManager_DeleteProfileBundleFiles(uDeleteBundleId);
+    }
+
+    *pCatalog = *pUpdatedCatalog;
+    if (pPanitentWindow)
+    {
+        WindowLayoutManager_RefreshApplyMenu(pPanitentWindow);
+    }
+    return TRUE;
+}
+
+BOOL WindowLayoutManager_MoveCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index, int indexTarget)
+{
+    WindowLayoutCatalog updated = { 0 };
+    if (!pCatalog)
+    {
+        return FALSE;
+    }
+
+    updated = *pCatalog;
+    if (!WindowLayoutCatalog_Move(&updated, index, indexTarget))
+    {
+        return FALSE;
+    }
+
+    return WindowLayoutManager_CommitCatalogMutation(pPanitentWindow, pCatalog, &updated, FALSE, 0);
+}
+
+BOOL WindowLayoutManager_RenameCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index, PCWSTR pszName)
+{
+    WindowLayoutCatalog updated = { 0 };
+    if (!pCatalog)
+    {
+        return FALSE;
+    }
+
+    updated = *pCatalog;
+    if (!WindowLayoutCatalog_Rename(&updated, index, pszName))
+    {
+        return FALSE;
+    }
+
+    return WindowLayoutManager_CommitCatalogMutation(pPanitentWindow, pCatalog, &updated, FALSE, 0);
+}
+
+BOOL WindowLayoutManager_DeleteCatalogEntry(PanitentWindow* pPanitentWindow, WindowLayoutCatalog* pCatalog, int index)
+{
+    WindowLayoutCatalog updated = { 0 };
+    uint32_t uDeleteBundleId = 0;
+    if (!pCatalog || index < 0 || index >= pCatalog->nEntryCount)
+    {
+        return FALSE;
+    }
+
+    updated = *pCatalog;
+    uDeleteBundleId = updated.entries[index].uId;
+    if (!WindowLayoutCatalog_Delete(&updated, index))
+    {
+        return FALSE;
+    }
+
+    return WindowLayoutManager_CommitCatalogMutation(pPanitentWindow, pCatalog, &updated, TRUE, uDeleteBundleId);
 }
 
 void WindowLayoutManager_RefreshApplyMenu(PanitentWindow* pPanitentWindow)
@@ -785,22 +874,19 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
             switch (LOWORD(wParam))
             {
             case IDC_WINDOW_LAYOUT_UP:
-                if (nIndex > 0 && WindowLayoutCatalog_Move(&pContext->catalog, nIndex, nIndex - 1))
+                if (nIndex > 0 && WindowLayoutManager_MoveCatalogEntry(pContext->pPanitentWindow, &pContext->catalog, nIndex, nIndex - 1))
                 {
-                    WindowLayoutManager_SaveCatalog(&pContext->catalog);
                     WindowLayoutManager_FillListBox(hWndList, &pContext->catalog);
                     SendMessageW(hWndList, LB_SETCURSEL, nIndex - 1, 0);
-                    WindowLayoutManager_RefreshApplyMenu(pContext->pPanitentWindow);
                 }
                 return TRUE;
 
             case IDC_WINDOW_LAYOUT_DOWN:
-                if (nIndex + 1 < pContext->catalog.nEntryCount && WindowLayoutCatalog_Move(&pContext->catalog, nIndex, nIndex + 1))
+                if (nIndex + 1 < pContext->catalog.nEntryCount &&
+                    WindowLayoutManager_MoveCatalogEntry(pContext->pPanitentWindow, &pContext->catalog, nIndex, nIndex + 1))
                 {
-                    WindowLayoutManager_SaveCatalog(&pContext->catalog);
                     WindowLayoutManager_FillListBox(hWndList, &pContext->catalog);
                     SendMessageW(hWndList, LB_SETCURSEL, nIndex + 1, 0);
-                    WindowLayoutManager_RefreshApplyMenu(pContext->pPanitentWindow);
                 }
                 return TRUE;
 
@@ -812,44 +898,23 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                 {
                     return TRUE;
                 }
-                if (!WindowLayoutCatalog_Rename(&pContext->catalog, nIndex, szName))
+                if (!WindowLayoutManager_RenameCatalogEntry(pContext->pPanitentWindow, &pContext->catalog, nIndex, szName))
                 {
                     WindowLayoutManager_ShowMessage(hWnd, L"A layout with this name already exists.", L"Window Layout", MB_OK | MB_ICONWARNING);
                     return TRUE;
                 }
-                WindowLayoutManager_SaveCatalog(&pContext->catalog);
                 WindowLayoutManager_FillListBox(hWndList, &pContext->catalog);
                 SendMessageW(hWndList, LB_SETCURSEL, nIndex, 0);
-                WindowLayoutManager_RefreshApplyMenu(pContext->pPanitentWindow);
                 return TRUE;
             }
 
             case IDC_WINDOW_LAYOUT_DELETE:
             {
-                uint32_t uId = pContext->catalog.entries[nIndex].uId;
-                PTSTR pszDockLayoutPath = NULL;
-                PTSTR pszDockFloatingPath = NULL;
-                PTSTR pszFloatDocLayoutPath = NULL;
-                WindowLayoutProfile_GetDockLayoutPath(uId, &pszDockLayoutPath);
-                WindowLayoutProfile_GetDockFloatingPath(uId, &pszDockFloatingPath);
-                WindowLayoutProfile_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath);
-                if (pszDockLayoutPath)
+                if (!WindowLayoutManager_DeleteCatalogEntry(pContext->pPanitentWindow, &pContext->catalog, nIndex))
                 {
-                    DeleteFileW(pszDockLayoutPath);
-                    free(pszDockLayoutPath);
+                    WindowLayoutManager_ShowMessage(hWnd, L"Failed to delete the selected window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
+                    return TRUE;
                 }
-                if (pszDockFloatingPath)
-                {
-                    DeleteFileW(pszDockFloatingPath);
-                    free(pszDockFloatingPath);
-                }
-                if (pszFloatDocLayoutPath)
-                {
-                    DeleteFileW(pszFloatDocLayoutPath);
-                    free(pszFloatDocLayoutPath);
-                }
-                WindowLayoutCatalog_Delete(&pContext->catalog, nIndex);
-                WindowLayoutManager_SaveCatalog(&pContext->catalog);
                 WindowLayoutManager_FillListBox(hWndList, &pContext->catalog);
                 if (pContext->catalog.nEntryCount > 0)
                 {
@@ -859,7 +924,6 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                     }
                     SendMessageW(hWndList, LB_SETCURSEL, nIndex, 0);
                 }
-                WindowLayoutManager_RefreshApplyMenu(pContext->pPanitentWindow);
                 return TRUE;
             }
             }
