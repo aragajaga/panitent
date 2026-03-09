@@ -25,38 +25,18 @@ typedef struct FloatingDocumentLayoutApplyContext
 	int iNextWorkspace;
 } FloatingDocumentLayoutApplyContext;
 
-static BOOL FloatingDocumentLayout_IsClassName(HWND hWnd, PCWSTR pszClassName)
+static BOOL FloatingDocumentLayout_OnPinnedWindowCapture(
+	HWND hWnd,
+	FloatingWindowContainer* pFloatingWindowContainer,
+	void* pUserData)
 {
-	WCHAR szClassName[64] = L"";
-	if (!hWnd || !IsWindow(hWnd) || !pszClassName)
-	{
-		return FALSE;
-	}
-
-	GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
-	return wcscmp(szClassName, pszClassName) == 0;
-}
-
-static BOOL CALLBACK FloatingDocumentLayout_EnumWindowsProc(HWND hWnd, LPARAM lParam)
-{
-	FloatingDocumentLayoutCaptureContext* pContext = (FloatingDocumentLayoutCaptureContext*)lParam;
-	DWORD processId = 0;
+	FloatingDocumentLayoutCaptureContext* pContext = (FloatingDocumentLayoutCaptureContext*)pUserData;
 	if (!pContext || !pContext->pModel || !IsWindow(hWnd))
 	{
 		return TRUE;
 	}
 
-	GetWindowThreadProcessId(hWnd, &processId);
-	if (processId != GetCurrentProcessId() ||
-		!FloatingDocumentLayout_IsClassName(hWnd, L"__FloatingWindowContainer"))
-	{
-		return TRUE;
-	}
-
-	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)WindowMap_Get(hWnd);
-	if (!pFloatingWindowContainer ||
-		pFloatingWindowContainer->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT ||
-		pContext->pModel->nEntryCount >= ARRAYSIZE(pContext->pModel->entries))
+	if (pContext->pModel->nEntryCount >= ARRAYSIZE(pContext->pModel->entries))
 	{
 		return TRUE;
 	}
@@ -92,7 +72,7 @@ BOOL PanitentFloatingDocumentLayout_CaptureModel(PanitentApp* pPanitentApp, Floa
 
 	memset(pModel, 0, sizeof(*pModel));
 	FloatingDocumentLayoutCaptureContext context = { pModel };
-	EnumWindows(FloatingDocumentLayout_EnumWindowsProc, (LPARAM)&context);
+	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentLayout_OnPinnedWindowCapture, &context);
 	return TRUE;
 }
 
@@ -106,24 +86,13 @@ static BOOL WindowLayoutManager_CollectFloatingDocumentWorkspaces(HWND hWndChild
 	return nFound > 0;
 }
 
-static BOOL CALLBACK FloatingDocumentLayout_CollectLiveWindowsProc(HWND hWnd, LPARAM lParam)
+static BOOL FloatingDocumentLayout_OnPinnedWindowCollectLive(
+	HWND hWnd,
+	FloatingWindowContainer* pFloatingWindowContainer,
+	void* pUserData)
 {
-	FloatingDocumentLayoutApplyContext* pContext = (FloatingDocumentLayoutApplyContext*)lParam;
-	DWORD processId = 0;
+	FloatingDocumentLayoutApplyContext* pContext = (FloatingDocumentLayoutApplyContext*)pUserData;
 	if (!pContext || !IsWindow(hWnd))
-	{
-		return TRUE;
-	}
-
-	GetWindowThreadProcessId(hWnd, &processId);
-	if (processId != GetCurrentProcessId() ||
-		!FloatingDocumentLayout_IsClassName(hWnd, L"__FloatingWindowContainer"))
-	{
-		return TRUE;
-	}
-
-	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)WindowMap_Get(hWnd);
-	if (!pFloatingWindowContainer || pFloatingWindowContainer->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT)
 	{
 		return TRUE;
 	}
@@ -189,7 +158,7 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 	}
 
 	FloatingDocumentLayoutApplyContext context = { 0 };
-	EnumWindows(FloatingDocumentLayout_CollectLiveWindowsProc, (LPARAM)&context);
+	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentLayout_OnPinnedWindowCollectLive, &context);
 
 	BOOL bRestoredAny = FALSE;
 	for (int i = 0; i < pModel->nEntryCount; ++i)

@@ -13,8 +13,8 @@
 #include "dockmodelbuild.h"
 #include "persistfile.h"
 #include "floatingchildhost.h"
-#include "floatingdocumentsessionmodel.h"
 #include "floatingwindowcontainer.h"
+#include "floatingdocumentsessionmodel.h"
 #include "panitentapp.h"
 #include "recoverystorepersist.h"
 #include "shell/pathutil.h"
@@ -33,18 +33,6 @@ typedef struct FloatingDocumentRestoreContext
 	FloatingDocumentSessionEntry* pEntry;
 	BOOL abConsumed[16];
 } FloatingDocumentRestoreContext;
-
-static BOOL FloatingDocumentPersist_IsClassName(HWND hWnd, PCWSTR pszClassName)
-{
-	WCHAR szClassName[64] = L"";
-	if (!hWnd || !IsWindow(hWnd) || !pszClassName)
-	{
-		return FALSE;
-	}
-
-	GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
-	return wcscmp(szClassName, pszClassName) == 0;
-}
 
 static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 	const DockModelNode* pLayoutNode,
@@ -208,27 +196,18 @@ static BOOL FloatingDocumentPersist_OnNodeAttached(
 	return TRUE;
 }
 
-static BOOL CALLBACK FloatingDocumentPersist_EnumWindowsProc(HWND hWnd, LPARAM lParam)
+static BOOL FloatingDocumentPersist_OnPinnedWindowCapture(
+	HWND hWnd,
+	FloatingWindowContainer* pFloatingWindowContainer,
+	void* pUserData)
 {
-	FloatingDocumentPersistCollectContext* pContext = (FloatingDocumentPersistCollectContext*)lParam;
-	DWORD processId = 0;
+	FloatingDocumentPersistCollectContext* pContext = (FloatingDocumentPersistCollectContext*)pUserData;
 	if (!pContext || !pContext->pModel || !IsWindow(hWnd))
 	{
 		return TRUE;
 	}
 
-	GetWindowThreadProcessId(hWnd, &processId);
-	if (processId != GetCurrentProcessId() ||
-		!FloatingDocumentPersist_IsClassName(hWnd, L"__FloatingWindowContainer"))
-	{
-		return TRUE;
-	}
-
-	Window* pWindow = WindowMap_Get(hWnd);
-	FloatingWindowContainer* pFloatingWindowContainer = (FloatingWindowContainer*)pWindow;
-	if (!pFloatingWindowContainer ||
-		pFloatingWindowContainer->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT ||
-		pContext->pModel->nEntryCount >= ARRAYSIZE(pContext->pModel->entries))
+	if (pContext->pModel->nEntryCount >= ARRAYSIZE(pContext->pModel->entries))
 	{
 		return TRUE;
 	}
@@ -294,7 +273,7 @@ BOOL PanitentFloatingDocumentSession_Save(PanitentApp* pPanitentApp, DockHostWin
 
 	FloatingDocumentPersistCollectContext context = { pModel };
 	PTSTR pszFilePath = NULL;
-	EnumWindows(FloatingDocumentPersist_EnumWindowsProc, (LPARAM)&context);
+	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentPersist_OnPinnedWindowCapture, &context);
 
 	GetFloatingDocumentSessionFilePath(&pszFilePath);
 	if (!pszFilePath)

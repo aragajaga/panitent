@@ -14,9 +14,95 @@
 
 static FnFloatingDocumentHostCreatePinnedWindowHook g_pCreatePinnedWindowTestHook = NULL;
 
+typedef struct FloatingDocumentHostEnumContext
+{
+    FnFloatingDocumentHostWindowCallback pfnCallback;
+    void* pUserData;
+    BOOL bResult;
+} FloatingDocumentHostEnumContext;
+
 void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook)
 {
     g_pCreatePinnedWindowTestHook = pfnHook;
+}
+
+BOOL FloatingDocumentHost_IsPinnedFloatingWindow(HWND hWnd, FloatingWindowContainer** ppFloatingWindowContainer)
+{
+    WCHAR szClassName[64] = L"";
+    DWORD processId = 0;
+    FloatingWindowContainer* pFloatingWindowContainer = NULL;
+
+    if (ppFloatingWindowContainer)
+    {
+        *ppFloatingWindowContainer = NULL;
+    }
+
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return FALSE;
+    }
+
+    GetWindowThreadProcessId(hWnd, &processId);
+    if (processId != GetCurrentProcessId())
+    {
+        return FALSE;
+    }
+
+    GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
+    if (wcscmp(szClassName, L"__FloatingWindowContainer") != 0)
+    {
+        return FALSE;
+    }
+
+    pFloatingWindowContainer = (FloatingWindowContainer*)WindowMap_Get(hWnd);
+    if (!pFloatingWindowContainer || pFloatingWindowContainer->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT)
+    {
+        return FALSE;
+    }
+
+    if (ppFloatingWindowContainer)
+    {
+        *ppFloatingWindowContainer = pFloatingWindowContainer;
+    }
+    return TRUE;
+}
+
+static BOOL CALLBACK FloatingDocumentHost_EnumPinnedWindowsProc(HWND hWnd, LPARAM lParam)
+{
+    FloatingDocumentHostEnumContext* pContext = (FloatingDocumentHostEnumContext*)lParam;
+    FloatingWindowContainer* pFloatingWindowContainer = NULL;
+    if (!pContext)
+    {
+        return TRUE;
+    }
+
+    if (!FloatingDocumentHost_IsPinnedFloatingWindow(hWnd, &pFloatingWindowContainer))
+    {
+        return TRUE;
+    }
+
+    if (!pContext->pfnCallback)
+    {
+        return TRUE;
+    }
+
+    if (!pContext->pfnCallback(hWnd, pFloatingWindowContainer, pContext->pUserData))
+    {
+        pContext->bResult = FALSE;
+        return FALSE;
+    }
+
+    return TRUE;
+}
+
+BOOL FloatingDocumentHost_ForEachPinnedWindow(FnFloatingDocumentHostWindowCallback pfnCallback, void* pUserData)
+{
+    FloatingDocumentHostEnumContext context = { 0 };
+    context.pfnCallback = pfnCallback;
+    context.pUserData = pUserData;
+    context.bResult = TRUE;
+    EnumWindows(FloatingDocumentHost_EnumPinnedWindowsProc, (LPARAM)&context);
+    return context.bResult;
 }
 
 DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild)

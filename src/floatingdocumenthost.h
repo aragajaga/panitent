@@ -3,6 +3,7 @@
 #include "dockhost.h"
 typedef struct DockModelNode DockModelNode;
 typedef struct Window Window;
+typedef struct FloatingWindowContainer FloatingWindowContainer;
 
 typedef struct PanitentApp PanitentApp;
 typedef BOOL (*FnFloatingDocumentHostCreatePinnedWindowHook)(
@@ -12,6 +13,10 @@ typedef BOOL (*FnFloatingDocumentHostCreatePinnedWindowHook)(
     BOOL bStartMove,
     POINT ptMoveScreen,
     HWND* phWndFloatingOut);
+typedef BOOL (*FnFloatingDocumentHostWindowCallback)(
+    HWND hWndFloating,
+    FloatingWindowContainer* pFloatingWindowContainer,
+    void* pUserData);
 typedef Window* (*FnDockHostRestoreResolveView)(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,
@@ -58,3 +63,5 @@ BOOL FloatingDocumentHost_RestorePinnedDockHost(
 
 void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook);
 DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild);
+BOOL FloatingDocumentHost_IsPinnedFloatingWindow(HWND hWnd, FloatingWindowContainer** ppFloatingWindowContainer);
+BOOL FloatingDocumentHost_ForEachPinnedWindow(FnFloatingDocumentHostWindowCallback pfnCallback, void* pUserData);

@@ -330,6 +330,7 @@ This change set continues floating-host unification on the document side:
 - `workspacecontainer`, document undock drag flow, and floating document restore paths now use the same helper instead of open-coded `FloatingWindowContainer` setup;
 - floating document layout/session restore paths now also share a common pinned dock-host restore helper instead of duplicating `DockHostWindow` bootstrap and attach flow;
 - floating document layout/session capture paths now also share a common child-layout capture helper instead of duplicating `DockModel` snapshot logic for workspace/document-host children;
+- floating document layout/session capture and live-window filtering now also share a common enumeration/filter helper for pinned floating document windows;
 - runtime tests now cover single-document float creation through that shared helper path.
 
 ## Fifth Increment Applied
