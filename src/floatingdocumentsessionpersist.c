@@ -305,6 +305,14 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 
 	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
 	FloatingDocumentHost_CollectLiveWorkspaces(&reuse);
+	for (int i = 0; i < reuse.nWorkspaceCount; ++i)
+	{
+		WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(reuse.hWorkspaceHwnds[i]);
+		if (pWorkspace)
+		{
+			WorkspaceContainer_ClearAllViewports(pWorkspace);
+		}
+	}
 
 	BOOL bRestoredAny = FALSE;
 	for (int i = 0; i < pModel->nEntryCount; ++i)

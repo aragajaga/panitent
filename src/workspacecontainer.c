@@ -1454,6 +1454,19 @@ BOOL WorkspaceContainer_DetachViewport(WorkspaceContainer* pWorkspaceContainer, 
     return TRUE;
 }
 
+void WorkspaceContainer_ClearAllViewports(WorkspaceContainer* pWorkspaceContainer)
+{
+    if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector)
+    {
+        return;
+    }
+
+    while (WorkspaceContainer_GetViewportCount(pWorkspaceContainer) > 0)
+    {
+        WorkspaceContainer_CloseViewportAt(pWorkspaceContainer, 0);
+    }
+}
+
 ViewportWindow* WorkspaceContainer_GetViewportAt(WorkspaceContainer* pWorkspaceContainer, int index)
 {
     if (!pWorkspaceContainer || !pWorkspaceContainer->m_pViewportVector)
