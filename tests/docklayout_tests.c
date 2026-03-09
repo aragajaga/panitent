@@ -2,6 +2,7 @@
 #include <stdio.h>
 
 #include "../src/documentsessionmodel.h"
+#include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentsessionmodel.h"
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockviewcatalog.h"
@@ -568,6 +569,67 @@ static int test_window_layout_catalog_round_trip_and_reorder(void)
 	assert(WindowLayoutCatalog_FindById(&loaded, 12) == 1);
 	assert(WindowLayoutCatalog_AllocateId(&loaded) == 13);
 
+	DeleteFileW(szTempFile);
+	return 0;
+}
+
+static int test_floating_document_layout_model_file_round_trip(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	FloatingDocumentLayoutModel model = { 0 };
+	FloatingDocumentLayoutModel loaded = { 0 };
+	PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+	DockModelNode layoutRoot = { 0 };
+	DockModelNode layoutSplit = { 0 };
+	DockModelNode layoutWorkspaceA = { 0 };
+	DockModelNode layoutWorkspaceB = { 0 };
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"fdl", 0, szTempFile) != 0);
+
+	layoutRoot.nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(layoutRoot.szName, ARRAYSIZE(layoutRoot.szName), L"Root");
+	layoutRoot.pChild1 = &layoutSplit;
+
+	layoutSplit.nRole = DOCK_ROLE_PANEL_SPLIT;
+	layoutSplit.dwStyle = DGA_END | DGP_ABSOLUTE | DGD_HORIZONTAL;
+	layoutSplit.iGripPos = 320;
+	wcscpy_s(layoutSplit.szName, ARRAYSIZE(layoutSplit.szName), L"DockShell.PanelSplit");
+	layoutSplit.pChild1 = &layoutWorkspaceA;
+	layoutSplit.pChild2 = &layoutWorkspaceB;
+
+	layoutWorkspaceA.nRole = DOCK_ROLE_WORKSPACE;
+	layoutWorkspaceA.nPaneKind = DOCK_PANE_DOCUMENT;
+	layoutWorkspaceA.uNodeId = 10;
+	wcscpy_s(layoutWorkspaceA.szName, ARRAYSIZE(layoutWorkspaceA.szName), L"WorkspaceContainer");
+
+	layoutWorkspaceB.nRole = DOCK_ROLE_WORKSPACE;
+	layoutWorkspaceB.nPaneKind = DOCK_PANE_DOCUMENT;
+	layoutWorkspaceB.uNodeId = 11;
+	wcscpy_s(layoutWorkspaceB.szName, ARRAYSIZE(layoutWorkspaceB.szName), L"WorkspaceContainer");
+
+	model.nEntryCount = 1;
+	model.entries[0].rcWindow.left = 10;
+	model.entries[0].rcWindow.top = 20;
+	model.entries[0].rcWindow.right = 410;
+	model.entries[0].rcWindow.bottom = 320;
+	model.entries[0].pLayoutModel = &layoutRoot;
+
+	assert(FloatingDocumentLayoutModel_SaveToFile(&model, szTempFile));
+	assert(FloatingDocumentLayoutModel_LoadFromFileEx(szTempFile, &loaded, &status));
+	assert(status == PERSIST_LOAD_OK);
+	assert(loaded.nEntryCount == 1);
+	assert(loaded.entries[0].rcWindow.left == 10);
+	assert(loaded.entries[0].rcWindow.bottom == 320);
+	assert(loaded.entries[0].pLayoutModel != NULL);
+	assert(loaded.entries[0].pLayoutModel->pChild1 != NULL);
+	assert(loaded.entries[0].pLayoutModel->pChild1->pChild1 != NULL);
+	assert(loaded.entries[0].pLayoutModel->pChild1->pChild2 != NULL);
+	assert(loaded.entries[0].pLayoutModel->pChild1->pChild1->uNodeId == 10);
+	assert(loaded.entries[0].pLayoutModel->pChild1->pChild2->uNodeId == 11);
+
+	FloatingDocumentLayoutModel_Destroy(&loaded);
 	DeleteFileW(szTempFile);
 	return 0;
 }
@@ -1387,6 +1449,7 @@ int main(void)
 	failed |= test_persist_load_status_reports_missing_and_invalid_files();
 	failed |= test_persist_file_quarantines_invalid_payload();
 	failed |= test_window_layout_catalog_round_trip_and_reorder();
+	failed |= test_floating_document_layout_model_file_round_trip();
 	failed |= test_dock_model_validator_repairs_layers_alias_name();
 	failed |= test_document_session_model_loads_legacy_v1_format();
 	failed |= test_dock_floating_model_loads_legacy_v1_format();

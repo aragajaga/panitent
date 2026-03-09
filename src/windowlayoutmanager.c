@@ -6,6 +6,8 @@
 
 #include "dockfloatingpersist.h"
 #include "dockfloatingmodel.h"
+#include "floatingdocumentlayoutmodel.h"
+#include "floatingdocumentlayoutpersist.h"
 #include "dockhost.h"
 #include "dockhostrestore.h"
 #include "docklayoutpersist.h"
@@ -53,13 +55,14 @@ static HMENU WindowLayoutManager_GetApplyMenu(PanitentWindow* pPanitentWindow);
 static BOOL WindowLayoutManager_GetCatalogPath(PTSTR* ppszPath);
 static BOOL WindowLayoutManager_GetDockLayoutPath(uint32_t uId, PTSTR* ppszPath);
 static BOOL WindowLayoutManager_GetDockFloatingPath(uint32_t uId, PTSTR* ppszPath);
+static BOOL WindowLayoutManager_GetFloatDocLayoutPath(uint32_t uId, PTSTR* ppszPath);
 static BOOL WindowLayoutManager_LoadCatalog(WindowLayoutCatalog* pCatalog);
 static BOOL WindowLayoutManager_SaveCatalog(const WindowLayoutCatalog* pCatalog);
 static BOOL WindowLayoutManager_SaveProfile(PanitentWindow* pPanitentWindow, uint32_t uId);
 static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, uint32_t uId);
 static BOOL WindowLayoutManager_ApplyDefault(PanitentWindow* pPanitentWindow);
-static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, DockModelNode* pModelRoot, const DockFloatingLayoutFileModel* pFloatingModel);
-static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWindow, DockModelNode* pTargetModelRoot, const DockFloatingLayoutFileModel* pTargetFloatingModel);
+static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, DockModelNode* pModelRoot, const DockFloatingLayoutFileModel* pFloatingModel, const FloatingDocumentLayoutModel* pFloatDocModel);
+static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWindow, DockModelNode* pTargetModelRoot, const DockFloatingLayoutFileModel* pTargetFloatingModel, const FloatingDocumentLayoutModel* pTargetFloatDocModel);
 static BOOL WindowLayoutManager_DestroyFloatingToolWindows(void);
 static void WindowLayoutManager_FillListBox(HWND hWndList, const WindowLayoutCatalog* pCatalog);
 static BOOL WindowLayoutManager_PromptForName(HWND hWndParent, PCWSTR pszTitle, PCWSTR pszPrompt, PCWSTR pszInitialName, WCHAR* pszName, size_t cchName);
@@ -126,6 +129,14 @@ static BOOL WindowLayoutManager_GetDockFloatingPath(uint32_t uId, PTSTR* ppszPat
 {
     WCHAR szRelative[MAX_PATH] = L"";
     StringCchPrintfW(szRelative, ARRAYSIZE(szRelative), L"windowlayout_%08X_dockfloating.dat", uId);
+    GetAppDataFilePath(szRelative, ppszPath);
+    return ppszPath && *ppszPath;
+}
+
+static BOOL WindowLayoutManager_GetFloatDocLayoutPath(uint32_t uId, PTSTR* ppszPath)
+{
+    WCHAR szRelative[MAX_PATH] = L"";
+    StringCchPrintfW(szRelative, ARRAYSIZE(szRelative), L"windowlayout_%08X_floatdoclayout.dat", uId);
     GetAppDataFilePath(szRelative, ppszPath);
     return ppszPath && *ppszPath;
 }
@@ -256,7 +267,7 @@ static Window* WindowLayoutManager_ResolveView(
     return NULL;
 }
 
-static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, DockModelNode* pModelRoot, const DockFloatingLayoutFileModel* pFloatingModel)
+static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, DockModelNode* pModelRoot, const DockFloatingLayoutFileModel* pFloatingModel, const FloatingDocumentLayoutModel* pFloatDocModel)
 {
     PanitentApp* pPanitentApp = PanitentApp_Instance();
     DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
@@ -326,16 +337,23 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
         return FALSE;
     }
 
+    if (pFloatDocModel && !PanitentFloatingDocumentLayout_RestoreModel(pPanitentApp, pDockHostWindow, pFloatDocModel))
+    {
+        return FALSE;
+    }
+
     return bHasWorkspace && pPanitentApp->m_pWorkspaceContainer != NULL;
 }
 
-static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWindow, DockModelNode* pTargetModelRoot, const DockFloatingLayoutFileModel* pTargetFloatingModel)
+static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWindow, DockModelNode* pTargetModelRoot, const DockFloatingLayoutFileModel* pTargetFloatingModel, const FloatingDocumentLayoutModel* pTargetFloatDocModel)
 {
     PanitentApp* pPanitentApp = PanitentApp_Instance();
     DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
     DockModelNode* pRollbackModel = NULL;
     DockFloatingLayoutFileModel rollbackFloating = { 0 };
+    FloatingDocumentLayoutModel rollbackFloatDocs = { 0 };
     BOOL bHaveRollbackFloating = FALSE;
+    BOOL bHaveRollbackFloatDocs = FALSE;
     BOOL bApplied = FALSE;
 
     if (!pPanitentWindow || !pPanitentApp || !pDockHostWindow || !pTargetModelRoot)
@@ -354,18 +372,33 @@ static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWind
         return FALSE;
     }
     bHaveRollbackFloating = TRUE;
+    if (!PanitentFloatingDocumentLayout_CaptureModel(pPanitentApp, &rollbackFloatDocs))
+    {
+        DockModel_Destroy(pRollbackModel);
+        DockFloatingLayout_Destroy(&rollbackFloating);
+        return FALSE;
+    }
+    bHaveRollbackFloatDocs = TRUE;
 
-    bApplied = WindowLayoutManager_ApplyModel(pPanitentWindow, pTargetModelRoot, pTargetFloatingModel);
+    bApplied = WindowLayoutManager_ApplyModel(pPanitentWindow, pTargetModelRoot, pTargetFloatingModel, pTargetFloatDocModel);
     if (!bApplied)
     {
         WindowLayoutManager_DestroyFloatingToolWindows();
-        WindowLayoutManager_ApplyModel(pPanitentWindow, pRollbackModel, bHaveRollbackFloating ? &rollbackFloating : NULL);
+        WindowLayoutManager_ApplyModel(
+            pPanitentWindow,
+            pRollbackModel,
+            bHaveRollbackFloating ? &rollbackFloating : NULL,
+            bHaveRollbackFloatDocs ? &rollbackFloatDocs : NULL);
     }
 
     DockModel_Destroy(pRollbackModel);
     if (bHaveRollbackFloating)
     {
         DockFloatingLayout_Destroy(&rollbackFloating);
+    }
+    if (bHaveRollbackFloatDocs)
+    {
+        FloatingDocumentLayoutModel_Destroy(&rollbackFloatDocs);
     }
     return bApplied;
 }
@@ -375,39 +408,53 @@ static BOOL WindowLayoutManager_SaveProfile(PanitentWindow* pPanitentWindow, uin
     PanitentApp* pPanitentApp = PanitentApp_Instance();
     PTSTR pszDockLayoutPath = NULL;
     PTSTR pszDockFloatingPath = NULL;
+    PTSTR pszFloatDocLayoutPath = NULL;
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
     BOOL bLayoutSaved;
     BOOL bFloatingSaved;
+    BOOL bFloatDocsSaved;
 
     if (!pPanitentWindow || !pPanitentWindow->m_pDockHostWindow ||
         !WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath) ||
-        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath))
+        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath) ||
+        !WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath))
     {
         free(pszDockLayoutPath);
         free(pszDockFloatingPath);
+        free(pszFloatDocLayoutPath);
         return FALSE;
     }
 
     bLayoutSaved = PanitentDockLayout_SaveToFilePath(pPanitentApp, pPanitentWindow->m_pDockHostWindow, pszDockLayoutPath);
     bFloatingSaved = PanitentDockFloating_SaveToFilePath(pPanitentApp, pPanitentWindow->m_pDockHostWindow, pszDockFloatingPath);
+    bFloatDocsSaved =
+        PanitentFloatingDocumentLayout_CaptureModel(pPanitentApp, &floatDocModel) &&
+        FloatingDocumentLayoutModel_SaveToFile(&floatDocModel, pszFloatDocLayoutPath);
     free(pszDockLayoutPath);
     free(pszDockFloatingPath);
-    return bLayoutSaved && bFloatingSaved;
+    free(pszFloatDocLayoutPath);
+    FloatingDocumentLayoutModel_Destroy(&floatDocModel);
+    return bLayoutSaved && bFloatingSaved && bFloatDocsSaved;
 }
 
 static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, uint32_t uId)
 {
     PTSTR pszDockLayoutPath = NULL;
     PTSTR pszDockFloatingPath = NULL;
+    PTSTR pszFloatDocLayoutPath = NULL;
     DockModelNode* pModelRoot = NULL;
     DockFloatingLayoutFileModel floatingModel = { 0 };
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
     PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
     BOOL bResult = FALSE;
 
     if (!WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath) ||
-        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath))
+        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath) ||
+        !WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath))
     {
         free(pszDockLayoutPath);
         free(pszDockFloatingPath);
+        free(pszFloatDocLayoutPath);
         return FALSE;
     }
 
@@ -417,6 +464,7 @@ static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, ui
         DockModel_Destroy(pModelRoot);
         free(pszDockLayoutPath);
         free(pszDockFloatingPath);
+        free(pszFloatDocLayoutPath);
         return FALSE;
     }
 
@@ -429,15 +477,33 @@ static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, ui
             DockModel_Destroy(pModelRoot);
             free(pszDockLayoutPath);
             free(pszDockFloatingPath);
+            free(pszFloatDocLayoutPath);
             return FALSE;
         }
     }
 
-    bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, &floatingModel);
+    loadStatus = PERSIST_LOAD_IO_ERROR;
+    if (pszFloatDocLayoutPath && pszFloatDocLayoutPath[0])
+    {
+        BOOL bLoadedFloatDocs = FloatingDocumentLayoutModel_LoadFromFileEx(pszFloatDocLayoutPath, &floatDocModel, &loadStatus);
+        if (!bLoadedFloatDocs && loadStatus != PERSIST_LOAD_NOT_FOUND)
+        {
+            DockModel_Destroy(pModelRoot);
+            DockFloatingLayout_Destroy(&floatingModel);
+            free(pszDockLayoutPath);
+            free(pszDockFloatingPath);
+            free(pszFloatDocLayoutPath);
+            return FALSE;
+        }
+    }
+
+    bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, &floatingModel, &floatDocModel);
     DockFloatingLayout_Destroy(&floatingModel);
+    FloatingDocumentLayoutModel_Destroy(&floatDocModel);
     DockModel_Destroy(pModelRoot);
     free(pszDockLayoutPath);
     free(pszDockFloatingPath);
+    free(pszFloatDocLayoutPath);
     return bResult;
 }
 
@@ -493,7 +559,7 @@ static BOOL WindowLayoutManager_ApplyDefault(PanitentWindow* pPanitentWindow)
         return FALSE;
     }
 
-    bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, NULL);
+    bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, NULL, NULL);
     DockModel_Destroy(pModelRoot);
     return bResult;
 }
@@ -668,8 +734,10 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                 uint32_t uId = pContext->catalog.entries[nIndex].uId;
                 PTSTR pszDockLayoutPath = NULL;
                 PTSTR pszDockFloatingPath = NULL;
+                PTSTR pszFloatDocLayoutPath = NULL;
                 WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath);
                 WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath);
+                WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath);
                 if (pszDockLayoutPath)
                 {
                     DeleteFileW(pszDockLayoutPath);
@@ -679,6 +747,11 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                 {
                     DeleteFileW(pszDockFloatingPath);
                     free(pszDockFloatingPath);
+                }
+                if (pszFloatDocLayoutPath)
+                {
+                    DeleteFileW(pszFloatDocLayoutPath);
+                    free(pszFloatDocLayoutPath);
                 }
                 WindowLayoutCatalog_Delete(&pContext->catalog, nIndex);
                 WindowLayoutManager_SaveCatalog(&pContext->catalog);

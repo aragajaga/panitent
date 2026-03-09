@@ -91,6 +91,8 @@ set(C_SOURCES
     src/dockhostzone.c
     src/dockfloatingmodel.c
     src/dockfloatingpersist.c
+    src/floatingdocumentlayoutmodel.c
+    src/floatingdocumentlayoutpersist.c
     src/floatingdocumentsessionmodel.c
     src/floatingdocumentsessionpersist.c
     src/docklayoutpersist.c
@@ -206,6 +208,7 @@ if(PANITENT_BUILD_TESTS)
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
     src/documentsessionmodel.c
+    src/floatingdocumentlayoutmodel.c
     src/floatingdocumentsessionmodel.c
     src/dockfloatingmodel.c
     src/dockmodel.c
