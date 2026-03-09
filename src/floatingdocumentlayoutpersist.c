@@ -50,9 +50,14 @@ static BOOL FloatingDocumentLayout_OnPinnedWindowCapture(
 
 	FloatingDocumentLayoutEntry* pEntry = &pContext->pModel->entries[pContext->pModel->nEntryCount];
 	memset(pEntry, 0, sizeof(*pEntry));
-	GetWindowRect(hWnd, &pEntry->rcWindow);
-	pEntry->pLayoutModel = FloatingDocumentHost_CaptureChildLayout(pFloatingWindowContainer->hWndChild);
-	if (!pEntry->pLayoutModel)
+	if (!FloatingDocumentHost_CapturePinnedWindowState(
+		hWnd,
+		pFloatingWindowContainer,
+		&pEntry->rcWindow,
+		&pEntry->pLayoutModel,
+		NULL,
+		0,
+		NULL))
 	{
 		return TRUE;
 	}

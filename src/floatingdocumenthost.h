@@ -65,3 +65,11 @@ void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCr
 DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild);
 BOOL FloatingDocumentHost_IsPinnedFloatingWindow(HWND hWnd, FloatingWindowContainer** ppFloatingWindowContainer);
 BOOL FloatingDocumentHost_ForEachPinnedWindow(FnFloatingDocumentHostWindowCallback pfnCallback, void* pUserData);
+BOOL FloatingDocumentHost_CapturePinnedWindowState(
+    HWND hWndFloating,
+    FloatingWindowContainer* pFloatingWindowContainer,
+    RECT* pWindowRect,
+    DockModelNode** ppLayoutModel,
+    HWND* pWorkspaceHwnds,
+    int cWorkspaceHwnds,
+    int* pnWorkspaceCount);

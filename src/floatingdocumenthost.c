@@ -105,6 +105,72 @@ BOOL FloatingDocumentHost_ForEachPinnedWindow(FnFloatingDocumentHostWindowCallba
     return context.bResult;
 }
 
+BOOL FloatingDocumentHost_CapturePinnedWindowState(
+    HWND hWndFloating,
+    FloatingWindowContainer* pFloatingWindowContainer,
+    RECT* pWindowRect,
+    DockModelNode** ppLayoutModel,
+    HWND* pWorkspaceHwnds,
+    int cWorkspaceHwnds,
+    int* pnWorkspaceCount)
+{
+    if (ppLayoutModel)
+    {
+        *ppLayoutModel = NULL;
+    }
+    if (pnWorkspaceCount)
+    {
+        *pnWorkspaceCount = 0;
+    }
+
+    if (!hWndFloating || !IsWindow(hWndFloating) || !pFloatingWindowContainer)
+    {
+        return FALSE;
+    }
+
+    HWND hWndChild = pFloatingWindowContainer->hWndChild;
+    if (!hWndChild || !IsWindow(hWndChild))
+    {
+        return FALSE;
+    }
+
+    FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(hWndChild);
+    if (nChildKind != FLOAT_DOCK_CHILD_DOCUMENT_WORKSPACE &&
+        nChildKind != FLOAT_DOCK_CHILD_DOCUMENT_HOST)
+    {
+        return FALSE;
+    }
+
+    if (pWindowRect)
+    {
+        GetWindowRect(hWndFloating, pWindowRect);
+    }
+
+    if (ppLayoutModel)
+    {
+        *ppLayoutModel = FloatingDocumentHost_CaptureChildLayout(hWndChild);
+        if (!*ppLayoutModel)
+        {
+            return FALSE;
+        }
+    }
+
+    if (pWorkspaceHwnds && cWorkspaceHwnds > 0)
+    {
+        int nCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(hWndChild, pWorkspaceHwnds, cWorkspaceHwnds);
+        if (pnWorkspaceCount)
+        {
+            *pnWorkspaceCount = nCount;
+        }
+    }
+    else if (pnWorkspaceCount)
+    {
+        *pnWorkspaceCount = 0;
+    }
+
+    return TRUE;
+}
+
 DockModelNode* FloatingDocumentHost_CaptureChildLayout(HWND hWndChild)
 {
     FloatingDockChildHostKind nChildKind = FloatingChildHost_GetKind(hWndChild);

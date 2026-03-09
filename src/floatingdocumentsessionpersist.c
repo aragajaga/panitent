@@ -220,20 +220,18 @@ static BOOL FloatingDocumentPersist_OnPinnedWindowCapture(
 	}
 
 	HWND hWndWorkspaces[64] = { 0 };
-	int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
-		pFloatingWindowContainer->hWndChild,
-		hWndWorkspaces,
-		ARRAYSIZE(hWndWorkspaces));
-	if (nWorkspaceCount <= 0)
-	{
-		return TRUE;
-	}
-
+	int nWorkspaceCount = 0;
 	FloatingDocumentSessionEntry* pEntry = &pContext->pModel->entries[pContext->pModel->nEntryCount++];
 	memset(pEntry, 0, sizeof(*pEntry));
-	GetWindowRect(hWnd, &pEntry->rcWindow);
-		pEntry->pLayoutModel = FloatingDocumentHost_CaptureChildLayout(pFloatingWindowContainer->hWndChild);
-	if (!pEntry->pLayoutModel)
+	if (!FloatingDocumentHost_CapturePinnedWindowState(
+		hWnd,
+		pFloatingWindowContainer,
+		&pEntry->rcWindow,
+		&pEntry->pLayoutModel,
+		hWndWorkspaces,
+		ARRAYSIZE(hWndWorkspaces),
+		&nWorkspaceCount) ||
+		nWorkspaceCount <= 0)
 	{
 		pContext->pModel->nEntryCount--;
 		return TRUE;
