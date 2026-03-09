@@ -314,6 +314,13 @@ This change set starts Phase 4:
 
 This does not finish floating-host unification yet, but it creates a shared semantic layer for the next step.
 
+## Floating Document Host Creation Increment Applied
+
+This change set continues floating-host unification on the document side:
+- added `floatingdocumenthost.*` as a shared creation path for floating document windows;
+- `workspacecontainer`, document undock drag flow, and floating document restore paths now use the same helper instead of open-coded `FloatingWindowContainer` setup;
+- runtime tests now cover single-document float creation through that shared helper path.
+
 ## Fifth Increment Applied
 
 This change set continues Phase 4:

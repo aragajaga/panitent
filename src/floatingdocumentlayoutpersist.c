@@ -4,6 +4,7 @@
 
 #include "dockhost.h"
 #include "dockhostrestore.h"
+#include "floatingdocumenthost.h"
 #include "floatingchildhost.h"
 #include "floatingwindowcontainer.h"
 #include "dockmodelbuild.h"
@@ -232,29 +233,17 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 			continue;
 		}
 
-		FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-		HWND hWndFloating = pFloatingWindowContainer ? Window_CreateWindow((Window*)pFloatingWindowContainer, NULL) : NULL;
-		if (!pFloatingWindowContainer || !hWndFloating || !IsWindow(hWndFloating))
-		{
-			continue;
-		}
-
 		DockHostWindow* pFloatingDockHost = DockHostWindow_Create(pPanitentApp);
 		HWND hWndFloatingDockHost = pFloatingDockHost ? Window_CreateWindow((Window*)pFloatingDockHost, NULL) : NULL;
 		if (!pFloatingDockHost || !hWndFloatingDockHost || !IsWindow(hWndFloatingDockHost))
 		{
-			DestroyWindow(hWndFloating);
 			continue;
 		}
-
-		FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-		FloatingWindowContainer_SetDockPolicy(pFloatingWindowContainer, FLOAT_DOCK_POLICY_DOCUMENT);
-		FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndFloatingDockHost);
 
 		TreeNode* pRootNode = DockModelBuildTree(pEntry->pLayoutModel);
 		if (!pRootNode || !pRootNode->data)
 		{
-			DestroyWindow(hWndFloating);
+			DestroyWindow(hWndFloatingDockHost);
 			continue;
 		}
 
@@ -274,21 +263,25 @@ BOOL PanitentFloatingDocumentLayout_RestoreModel(
 			&bHasWorkspace))
 		{
 			DockHostWindow_DestroyNodeTree(pRootNode, NULL, 0);
-			DestroyWindow(hWndFloating);
+			DestroyWindow(hWndFloatingDockHost);
 			continue;
 		}
 
 		DockHostWindow_SetRoot(pFloatingDockHost, pRootNode);
 		DockHostWindow_Rearrange(pFloatingDockHost);
 
-		SetWindowPos(
-			hWndFloating,
-			HWND_TOP,
-			pEntry->rcWindow.left,
-			pEntry->rcWindow.top,
-			max(1, pEntry->rcWindow.right - pEntry->rcWindow.left),
-			max(1, pEntry->rcWindow.bottom - pEntry->rcWindow.top),
-			SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+		HWND hWndFloating = NULL;
+		if (!FloatingDocumentHost_CreatePinnedWindow(
+			pDockHostWindow,
+			hWndFloatingDockHost,
+			&pEntry->rcWindow,
+			FALSE,
+			(POINT){ 0, 0 },
+			&hWndFloating))
+		{
+			DestroyWindow(hWndFloatingDockHost);
+			continue;
+		}
 		bRestoredAny = TRUE;
 	}
 

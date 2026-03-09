@@ -5,6 +5,7 @@
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "document.h"
+#include "floatingdocumenthost.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
 #include "oledroptarget.h"
@@ -1428,30 +1429,12 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
         }
     }
 
-    FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-    if (!pFloatingWindowContainer)
-    {
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
-        return;
-    }
-
-    HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
-    if (!hWndFloating || !IsWindow(hWndFloating))
-    {
-        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
-        free(pFloatingWindowContainer);
-        return;
-    }
-
     PanitentWindow* pPanitentWindow = PanitentApp_GetWindow(PanitentApp_Instance());
     DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
-    FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-    FloatingWindowContainer_SetDockPolicy(pFloatingWindowContainer, FLOAT_DOCK_POLICY_DOCUMENT);
 
     WorkspaceContainer* pFloatingWorkspace = WorkspaceContainer_Create();
     if (!pFloatingWorkspace)
     {
-        DestroyWindow(hWndFloating);
         WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
         return;
     }
@@ -1459,13 +1442,11 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
     HWND hWndFloatingWorkspace = Window_CreateWindow((Window*)pFloatingWorkspace, NULL);
     if (!hWndFloatingWorkspace || !IsWindow(hWndFloatingWorkspace))
     {
-        DestroyWindow(hWndFloating);
         WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
         free(pFloatingWorkspace);
         return;
     }
 
-    FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndFloatingWorkspace);
     WorkspaceContainer_AddViewport(pFloatingWorkspace, pViewportWindow);
     WorkspaceContainer_UpdateWindowTitle(pFloatingWorkspace);
 
@@ -1480,14 +1461,20 @@ void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, V
         y = yScreen - 10;
     }
 
-    SetWindowPos(
-        hWndFloating,
-        HWND_TOP,
-        x,
-        y,
-        width,
-        height,
-        SWP_SHOWWINDOW | SWP_FRAMECHANGED);
+    RECT rcFloatingWindow = { x, y, x + width, y + height };
+    HWND hWndFloating = NULL;
+    if (!FloatingDocumentHost_CreatePinnedWindow(
+        pDockHostWindow,
+        hWndFloatingWorkspace,
+        &rcFloatingWindow,
+        FALSE,
+        (POINT){ xScreen, yScreen },
+        &hWndFloating))
+    {
+        WorkspaceContainer_AddViewport(pWorkspaceContainer, pViewportWindow);
+        DestroyWindow(hWndFloatingWorkspace);
+        return;
+    }
 
     /* Remove empty source document group before starting modal move loop. */
     WorkspaceContainer_FinalizeEmptySourceAfterDetach(pWorkspaceContainer);

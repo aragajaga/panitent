@@ -2,6 +2,7 @@
 
 #include "dockhostdrag.h"
 
+#include "floatingdocumenthost.h"
 #include "dockhostlayout.h"
 #include "dockhostmodelapply.h"
 #include "docklayout.h"
@@ -343,14 +344,6 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
         DockHostWindow_Undock(pDockHostWindow, pNode);
     }
 
-    FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
-    HWND hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
-    FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
-    FloatingWindowContainer_SetDockPolicy(
-        pFloatingWindowContainer,
-        nPaneKind == DOCK_PANE_DOCUMENT ? FLOAT_DOCK_POLICY_DOCUMENT : FLOAT_DOCK_POLICY_PANEL);
-    FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndChild);
-
     RECT rcFloating = rcDockLocal;
     MapWindowPoints(Window_GetHWND((Window*)pDockHostWindow), HWND_DESKTOP, (POINT*)&rcFloating, 2);
 
@@ -358,7 +351,32 @@ void DockHostDrag_UndockToFloating(DockHostWindow* pDockHostWindow, TreeNode* pN
     int height = max(Win32_Rect_GetHeight(&rcFloating), 220);
     int floatingX = ptCursor.x - dragOffsetX;
     int floatingY = ptCursor.y - dragOffsetY;
-    SetWindowPos(hWndFloating, NULL, floatingX, floatingY, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
+    RECT rcFloatingWindow = { floatingX, floatingY, floatingX + width, floatingY + height };
+
+    HWND hWndFloating = NULL;
+    if (nPaneKind == DOCK_PANE_DOCUMENT)
+    {
+        if (!FloatingDocumentHost_CreatePinnedWindow(
+            pDockHostWindow,
+            hWndChild,
+            &rcFloatingWindow,
+            FALSE,
+            ptCursor,
+            &hWndFloating))
+        {
+            ShowWindow(hWndChild, SW_SHOW);
+            UpdateWindow(hWndChild);
+            return;
+        }
+    }
+    else {
+        FloatingWindowContainer* pFloatingWindowContainer = FloatingWindowContainer_Create();
+        hWndFloating = Window_CreateWindow((Window*)pFloatingWindowContainer, NULL);
+        FloatingWindowContainer_SetDockTarget(pFloatingWindowContainer, pDockHostWindow);
+        FloatingWindowContainer_SetDockPolicy(pFloatingWindowContainer, FLOAT_DOCK_POLICY_PANEL);
+        FloatingWindowContainer_PinWindow(pFloatingWindowContainer, hWndChild);
+        SetWindowPos(hWndFloating, NULL, floatingX, floatingY, width, height, SWP_NOACTIVATE | SWP_NOZORDER | SWP_SHOWWINDOW);
+    }
 
     DockHostWindow_Rearrange(pDockHostWindow);
     DockHostDrag_DestroyOverlay();

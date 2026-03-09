@@ -40,6 +40,37 @@ typedef struct FloatingCountContext
     int nDocumentHosts;
 } FloatingCountContext;
 
+static BOOL runtime_is_class_name(HWND hWnd, PCWSTR pszClassName);
+
+static BOOL CALLBACK runtime_destroy_floating_windows_proc(HWND hWnd, LPARAM lParam)
+{
+    DWORD processId = 0;
+    UNREFERENCED_PARAMETER(lParam);
+
+    if (!hWnd || !IsWindow(hWnd))
+    {
+        return TRUE;
+    }
+
+    GetWindowThreadProcessId(hWnd, &processId);
+    if (processId != GetCurrentProcessId())
+    {
+        return TRUE;
+    }
+
+    if (runtime_is_class_name(hWnd, L"__FloatingWindowContainer"))
+    {
+        DestroyWindow(hWnd);
+    }
+
+    return TRUE;
+}
+
+static void runtime_destroy_all_floating_windows(void)
+{
+    EnumWindows(runtime_destroy_floating_windows_proc, 0);
+}
+
 static TreeNode* runtime_find_live_node_by_name(TreeNode* pNode, PCWSTR pszName)
 {
     if (!pNode || !pszName)
@@ -236,6 +267,7 @@ static BOOL runtime_fixture_init(DockRuntimeFixture* pFixture)
     }
 
     runtime_reset_app_state(pFixture->pApp);
+    runtime_destroy_all_floating_windows();
 
     pFixture->pFrame = Window_Create();
     if (!pFixture->pFrame)
@@ -297,6 +329,7 @@ static void runtime_fixture_destroy(DockRuntimeFixture* pFixture)
         DestroyWindow(pFixture->hWndFrame);
     }
 
+    runtime_destroy_all_floating_windows();
     runtime_reset_app_state(pFixture->pApp);
     memset(pFixture, 0, sizeof(*pFixture));
 }
@@ -849,6 +882,44 @@ static int test_runtime_document_group_undock_to_floating_uses_model_first_remov
     return 0;
 }
 
+static int test_runtime_single_document_float_uses_document_host_helper(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 1);
+    assert(counts.nDocumentHosts == 0);
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 0);
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 1);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_layout_apply_preserves_workspace_binding_by_node_id(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -1061,6 +1132,7 @@ int main(void)
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
+    failed |= test_runtime_single_document_float_uses_document_host_helper();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 
     if (bOleInitialized)
