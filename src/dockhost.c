@@ -13,6 +13,7 @@
 #include "util/stack.h"
 #include "util/tree.h"
 #include "dockhost.h"
+#include "dockhostcaption.h"
 #include "dockhostautohide.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
@@ -73,12 +74,7 @@ static BOOL DockHostWindow_EnsureWatermarkCache(HDC hdc, int idBitmap, COLORREF 
 static BOOL DockHostWindow_DrawMaskedBitmap(HDC hdc, const RECT* pDestRect, int idBitmap, COLORREF tint);
 static BOOL DockHostWindow_OnDropFiles(void* pContext, HDROP hDrop);
 
-BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y);
-BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y);
-BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y);
-BOOL Dock_MoreButtonHitTest(DockData* pDockData, int x, int y);
 void Dock_DestroyInclusive(TreeNode*, TreeNode*);
-void DockNode_Paint(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush);
 static void DockHostWindow_DestroyDragOverlay(void);
 static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
 static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
@@ -293,145 +289,6 @@ static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWind
 	{
 		Window_Invalidate((Window*)pDockHostWindow);
 	}
-}
-
-static void Dock_GetCaptionMetrics(CaptionFrameMetrics* pMetrics)
-{
-	if (!pMetrics)
-	{
-		return;
-	}
-
-	pMetrics->borderSize = DOCK_CAPTION_INSET;
-	pMetrics->captionHeight = iCaptionHeight;
-	pMetrics->buttonSpacing = WINDOWBUTTONSPACING;
-	pMetrics->textPaddingLeft = DOCK_CAPTION_INSET;
-	pMetrics->textPaddingRight = DOCK_CAPTION_INSET;
-	pMetrics->textPaddingY = 0;
-}
-
-static int Dock_BuildCaptionButtons(DockData* pDockData, BOOL bPinFirst, int iPinGlyph, BOOL bIncludeChevron, CaptionButton* pButtons, int cButtons)
-{
-	if (!pDockData || !pButtons || cButtons <= 0)
-	{
-		return 0;
-	}
-
-	BOOL bCanClose = DockPolicy_CanClosePanel(pDockData->nRole, pDockData->lpszName);
-	BOOL bCanPin = DockPolicy_CanPinPanel(pDockData->nRole, pDockData->lpszName);
-	int nCount = 0;
-
-	if (bPinFirst && bCanPin && nCount < cButtons)
-	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, iPinGlyph, DCB_PIN };
-	}
-	if (bCanClose && nCount < cButtons)
-	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CLOSE_TILE, DCB_CLOSE };
-	}
-	if (!bPinFirst && bCanPin && nCount < cButtons)
-	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, iPinGlyph, DCB_PIN };
-	}
-	if (bIncludeChevron && nCount < cButtons)
-	{
-		pButtons[nCount++] = (CaptionButton){ (SIZE){ WINDOWBUTTONSIZE, WINDOWBUTTONSIZE }, CAPTION_GLYPH_CHEVRON_TILE, DCB_MORE };
-	}
-
-	return nCount;
-}
-
-static BOOL Dock_BuildCaptionLayout(DockData* pDockData, BOOL bPinFirst, CaptionFrameLayout* pLayout)
-{
-	if (!pDockData || !pLayout || !pDockData->bShowCaption)
-	{
-		return FALSE;
-	}
-
-	CaptionFrameMetrics metrics = { 0 };
-	Dock_GetCaptionMetrics(&metrics);
-
-	CaptionButton buttons[3] = { 0 };
-	int nButtons = Dock_BuildCaptionButtons(
-		pDockData,
-		bPinFirst,
-		bPinFirst ? CAPTION_GLYPH_PIN_DIAGONAL_TILE : CAPTION_GLYPH_PIN_VERTICAL_TILE,
-		TRUE,
-		buttons,
-		ARRAYSIZE(buttons));
-	return CaptionFrame_BuildLayout(&pDockData->rc, &metrics, buttons, nButtons, pLayout);
-}
-
-static BOOL Dock_GetCaptionButtonRect(DockData* pDockData, int nButtonType, RECT* pRect)
-{
-	if (!pDockData || !pRect || nButtonType == DCB_NONE)
-	{
-		return FALSE;
-	}
-
-	CaptionFrameLayout layout = { 0 };
-	if (!Dock_BuildCaptionLayout(pDockData, FALSE, &layout))
-	{
-		return FALSE;
-	}
-
-	return CaptionFrame_GetButtonRect(&layout, nButtonType, pRect);
-}
-
-BOOL Dock_CaptionHitTest(DockData* pDockData, int x, int y)
-{
-	CaptionFrameLayout layout = { 0 };
-	if (!Dock_BuildCaptionLayout(pDockData, FALSE, &layout))
-	{
-		return FALSE;
-	}
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&layout.rcCaption, pt);
-}
-
-BOOL Dock_CloseButtonHitTest(DockData* pDockData, int x, int y)
-{
-	RECT rcButton = { 0 };
-	if (!Dock_GetCaptionButtonRect(pDockData, DCB_CLOSE, &rcButton))
-	{
-		return FALSE;
-	}
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&rcButton, pt);
-}
-
-BOOL Dock_PinButtonHitTest(DockData* pDockData, int x, int y)
-{
-	RECT rcButton = { 0 };
-	if (!Dock_GetCaptionButtonRect(pDockData, DCB_PIN, &rcButton))
-	{
-		return FALSE;
-	}
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&rcButton, pt);
-}
-
-BOOL Dock_MoreButtonHitTest(DockData* pDockData, int x, int y)
-{
-	RECT rcButton = { 0 };
-	if (!Dock_GetCaptionButtonRect(pDockData, DCB_MORE, &rcButton))
-	{
-		return FALSE;
-	}
-
-	POINT pt = { 0 };
-	pt.x = x;
-	pt.y = y;
-	return PtInRect(&rcButton, pt);
 }
 
 int DockHostWindow_HitTest(DockHostWindow* pDockHostWindow, TreeNode** ppTreeNode, int x, int y)
@@ -1365,72 +1222,6 @@ static void DockHostWindow_DrawSplitGrips(DockHostWindow* pDockHostWindow, HDC h
 	}
 
 	TreeTraversalRLOT_Destroy(&traversal);
-}
-
-void DockNode_Paint(DockHostWindow* pDockHostWindow, TreeNode* pNodeParent, HDC hdc, HBRUSH hCaptionBrush)
-{
-	UNREFERENCED_PARAMETER(hCaptionBrush);
-
-	/* Break if node is invalid */
-	if (!pNodeParent)
-	{
-		return;
-	}
-
-	TreeTraversalRLOT dockNodeTraversal;
-	TreeTraversalRLOT_Init(&dockNodeTraversal, pNodeParent);
-
-	TreeNode* pCurrentNode = NULL;
-	while (pCurrentNode = TreeTraversalRLOT_GetNext(&dockNodeTraversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-
-		if (!pDockData)
-		{
-			continue;
-		}
-
-		RECT* rc = &pDockData->rc;
-	
-		if (pDockData->bShowCaption)
-		{
-			CaptionFrameLayout layout = { 0 };
-			if (Dock_BuildCaptionLayout(pDockData, FALSE, &layout))
-			{
-				CaptionFramePalette palette = { 0 };
-				PanitentTheme_GetCaptionPalette(&palette);
-
-				int nHotButton = DCB_NONE;
-				int nPressedButton = DCB_NONE;
-				if (pDockHostWindow)
-				{
-					if (pDockHostWindow->pCaptionHotNode == pCurrentNode)
-					{
-						nHotButton = pDockHostWindow->nCaptionHotButton;
-					}
-					if (pDockHostWindow->pCaptionPressedNode == pCurrentNode)
-					{
-						nPressedButton = pDockHostWindow->nCaptionPressedButton;
-					}
-				}
-
-				HFONT guiFont = PanitentApp_GetUIFont(PanitentApp_Instance());
-				CaptionFrame_DrawStateful(hdc, &layout, &palette, pDockData->lpszCaption, guiFont, nHotButton, nPressedButton);
-			}
-	
-			/* ================================================================================ */
-	
-			/* Redraw window */
-	
-			if (pCurrentNode->data && ((DockData*)pCurrentNode->data)->hWnd)
-			{
-				HWND hWnd = ((DockData*)pCurrentNode->data)->hWnd;
-				InvalidateRect(hWnd, NULL, FALSE);
-			}
-		}
-	}
-	
-	TreeTraversalRLOT_Destroy(&dockNodeTraversal);
 }
 
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
