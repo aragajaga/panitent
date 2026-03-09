@@ -161,6 +161,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - runtime tests now also cover menu-command application of saved named layouts, not only direct bundle-apply helpers.
 - runtime tests now also cover menu-command reset from a mixed named-layout state, not only direct reset helpers.
 - runtime tests now also cover menu-command apply failure rollback without modal UI by routing window-layout error reporting through a testable message sink.
+- runtime tests now also cover menu-command apply failure rollback while a mixed floating layout is already active.
 - floating document session restore now also reuses/destroys existing live floating document workspaces through the same host helpers used by floating document layout restore, and runtime tests cover repeated session restore idempotence.
 
 ## Dock Host Render Increment Applied
