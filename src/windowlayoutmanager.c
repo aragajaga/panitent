@@ -24,6 +24,7 @@
 #include "resource.h"
 #include "shell/pathutil.h"
 #include "windowlayoutcatalog.h"
+#include "windowlayoutprofile.h"
 #include "win32/window.h"
 #include "win32/windowmap.h"
 #include "workspacecontainer.h"
@@ -53,9 +54,6 @@ typedef struct WindowLayoutApplyContext
 static HMENU WindowLayoutManager_GetWindowMenu(PanitentWindow* pPanitentWindow);
 static HMENU WindowLayoutManager_GetApplyMenu(PanitentWindow* pPanitentWindow);
 static BOOL WindowLayoutManager_GetCatalogPath(PTSTR* ppszPath);
-static BOOL WindowLayoutManager_GetDockLayoutPath(uint32_t uId, PTSTR* ppszPath);
-static BOOL WindowLayoutManager_GetDockFloatingPath(uint32_t uId, PTSTR* ppszPath);
-static BOOL WindowLayoutManager_GetFloatDocLayoutPath(uint32_t uId, PTSTR* ppszPath);
 static BOOL WindowLayoutManager_LoadCatalog(WindowLayoutCatalog* pCatalog);
 static BOOL WindowLayoutManager_SaveCatalog(const WindowLayoutCatalog* pCatalog);
 static BOOL WindowLayoutManager_SaveProfile(PanitentWindow* pPanitentWindow, uint32_t uId);
@@ -114,30 +112,6 @@ static HMENU WindowLayoutManager_GetApplyMenu(PanitentWindow* pPanitentWindow)
 static BOOL WindowLayoutManager_GetCatalogPath(PTSTR* ppszPath)
 {
     GetAppDataFilePath(g_szWindowLayoutsFileName, ppszPath);
-    return ppszPath && *ppszPath;
-}
-
-static BOOL WindowLayoutManager_GetDockLayoutPath(uint32_t uId, PTSTR* ppszPath)
-{
-    WCHAR szRelative[MAX_PATH] = L"";
-    StringCchPrintfW(szRelative, ARRAYSIZE(szRelative), L"windowlayout_%08X_docklayout.dat", uId);
-    GetAppDataFilePath(szRelative, ppszPath);
-    return ppszPath && *ppszPath;
-}
-
-static BOOL WindowLayoutManager_GetDockFloatingPath(uint32_t uId, PTSTR* ppszPath)
-{
-    WCHAR szRelative[MAX_PATH] = L"";
-    StringCchPrintfW(szRelative, ARRAYSIZE(szRelative), L"windowlayout_%08X_dockfloating.dat", uId);
-    GetAppDataFilePath(szRelative, ppszPath);
-    return ppszPath && *ppszPath;
-}
-
-static BOOL WindowLayoutManager_GetFloatDocLayoutPath(uint32_t uId, PTSTR* ppszPath)
-{
-    WCHAR szRelative[MAX_PATH] = L"";
-    StringCchPrintfW(szRelative, ARRAYSIZE(szRelative), L"windowlayout_%08X_floatdoclayout.dat", uId);
-    GetAppDataFilePath(szRelative, ppszPath);
     return ppszPath && *ppszPath;
 }
 
@@ -406,104 +380,54 @@ static BOOL WindowLayoutManager_ApplyTransactional(PanitentWindow* pPanitentWind
 static BOOL WindowLayoutManager_SaveProfile(PanitentWindow* pPanitentWindow, uint32_t uId)
 {
     PanitentApp* pPanitentApp = PanitentApp_Instance();
-    PTSTR pszDockLayoutPath = NULL;
-    PTSTR pszDockFloatingPath = NULL;
-    PTSTR pszFloatDocLayoutPath = NULL;
+    DockModelNode* pDockLayoutModel = NULL;
+    DockFloatingLayoutFileModel dockFloatingModel = { 0 };
     FloatingDocumentLayoutModel floatDocModel = { 0 };
-    BOOL bLayoutSaved;
-    BOOL bFloatingSaved;
-    BOOL bFloatDocsSaved;
+    BOOL bSaved = FALSE;
 
-    if (!pPanitentWindow || !pPanitentWindow->m_pDockHostWindow ||
-        !WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath) ||
-        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath) ||
-        !WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath))
+    if (!pPanitentWindow || !pPanitentWindow->m_pDockHostWindow)
     {
-        free(pszDockLayoutPath);
-        free(pszDockFloatingPath);
-        free(pszFloatDocLayoutPath);
         return FALSE;
     }
 
-    bLayoutSaved = PanitentDockLayout_SaveToFilePath(pPanitentApp, pPanitentWindow->m_pDockHostWindow, pszDockLayoutPath);
-    bFloatingSaved = PanitentDockFloating_SaveToFilePath(pPanitentApp, pPanitentWindow->m_pDockHostWindow, pszDockFloatingPath);
-    bFloatDocsSaved =
-        PanitentFloatingDocumentLayout_CaptureModel(pPanitentApp, &floatDocModel) &&
-        FloatingDocumentLayoutModel_SaveToFile(&floatDocModel, pszFloatDocLayoutPath);
-    free(pszDockLayoutPath);
-    free(pszDockFloatingPath);
-    free(pszFloatDocLayoutPath);
+    pDockLayoutModel = DockModel_CaptureHostLayout(pPanitentWindow->m_pDockHostWindow);
+    if (pDockLayoutModel &&
+        PanitentDockFloating_CaptureModel(pPanitentApp, pPanitentWindow->m_pDockHostWindow, &dockFloatingModel) &&
+        PanitentFloatingDocumentLayout_CaptureModel(pPanitentApp, &floatDocModel))
+    {
+        bSaved = WindowLayoutProfile_SaveBundle(uId, pDockLayoutModel, &dockFloatingModel, &floatDocModel);
+    }
+
+    DockModel_Destroy(pDockLayoutModel);
+    DockFloatingLayout_Destroy(&dockFloatingModel);
     FloatingDocumentLayoutModel_Destroy(&floatDocModel);
-    return bLayoutSaved && bFloatingSaved && bFloatDocsSaved;
+    return bSaved;
 }
 
 static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, uint32_t uId)
 {
-    PTSTR pszDockLayoutPath = NULL;
-    PTSTR pszDockFloatingPath = NULL;
-    PTSTR pszFloatDocLayoutPath = NULL;
     DockModelNode* pModelRoot = NULL;
     DockFloatingLayoutFileModel floatingModel = { 0 };
     FloatingDocumentLayoutModel floatDocModel = { 0 };
-    PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
     BOOL bResult = FALSE;
 
-    if (!WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath) ||
-        !WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath) ||
-        !WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath))
+    if (!WindowLayoutProfile_LoadBundle(uId, &pModelRoot, &floatingModel, &floatDocModel))
     {
-        free(pszDockLayoutPath);
-        free(pszDockFloatingPath);
-        free(pszFloatDocLayoutPath);
         return FALSE;
     }
 
-    pModelRoot = DockModelIO_LoadFromFileEx(pszDockLayoutPath, &loadStatus);
-    if (!pModelRoot || !DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
+    if (!DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
     {
         DockModel_Destroy(pModelRoot);
-        free(pszDockLayoutPath);
-        free(pszDockFloatingPath);
-        free(pszFloatDocLayoutPath);
+        DockFloatingLayout_Destroy(&floatingModel);
+        FloatingDocumentLayoutModel_Destroy(&floatDocModel);
         return FALSE;
-    }
-
-    loadStatus = PERSIST_LOAD_IO_ERROR;
-    if (pszDockFloatingPath && pszDockFloatingPath[0])
-    {
-        BOOL bLoadedFloating = DockFloatingLayout_LoadFromFileEx(pszDockFloatingPath, &floatingModel, &loadStatus);
-        if (!bLoadedFloating && loadStatus != PERSIST_LOAD_NOT_FOUND)
-        {
-            DockModel_Destroy(pModelRoot);
-            free(pszDockLayoutPath);
-            free(pszDockFloatingPath);
-            free(pszFloatDocLayoutPath);
-            return FALSE;
-        }
-    }
-
-    loadStatus = PERSIST_LOAD_IO_ERROR;
-    if (pszFloatDocLayoutPath && pszFloatDocLayoutPath[0])
-    {
-        BOOL bLoadedFloatDocs = FloatingDocumentLayoutModel_LoadFromFileEx(pszFloatDocLayoutPath, &floatDocModel, &loadStatus);
-        if (!bLoadedFloatDocs && loadStatus != PERSIST_LOAD_NOT_FOUND)
-        {
-            DockModel_Destroy(pModelRoot);
-            DockFloatingLayout_Destroy(&floatingModel);
-            free(pszDockLayoutPath);
-            free(pszDockFloatingPath);
-            free(pszFloatDocLayoutPath);
-            return FALSE;
-        }
     }
 
     bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, &floatingModel, &floatDocModel);
     DockFloatingLayout_Destroy(&floatingModel);
     FloatingDocumentLayoutModel_Destroy(&floatDocModel);
     DockModel_Destroy(pModelRoot);
-    free(pszDockLayoutPath);
-    free(pszDockFloatingPath);
-    free(pszFloatDocLayoutPath);
     return bResult;
 }
 
@@ -735,9 +659,9 @@ static INT_PTR CALLBACK WindowLayoutManager_ManageDialogProc(HWND hWnd, UINT mes
                 PTSTR pszDockLayoutPath = NULL;
                 PTSTR pszDockFloatingPath = NULL;
                 PTSTR pszFloatDocLayoutPath = NULL;
-                WindowLayoutManager_GetDockLayoutPath(uId, &pszDockLayoutPath);
-                WindowLayoutManager_GetDockFloatingPath(uId, &pszDockFloatingPath);
-                WindowLayoutManager_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath);
+                WindowLayoutProfile_GetDockLayoutPath(uId, &pszDockLayoutPath);
+                WindowLayoutProfile_GetDockFloatingPath(uId, &pszDockFloatingPath);
+                WindowLayoutProfile_GetFloatDocLayoutPath(uId, &pszFloatDocLayoutPath);
                 if (pszDockLayoutPath)
                 {
                     DeleteFileW(pszDockLayoutPath);

@@ -157,6 +157,7 @@ set(C_SOURCES
     src/workspacedockpolicy.c
     src/workspacecontainer.c
     src/windowlayoutcatalog.c
+    src/windowlayoutprofile.c
     src/windowlayoutmanager.c
     )
 
@@ -226,6 +227,8 @@ if(PANITENT_BUILD_TESTS)
     src/dockviewcatalog.c
     src/recoverystore.c
     src/windowlayoutcatalog.c
+    src/windowlayoutprofile.c
+    src/shell/pathutil.c
     src/workspacedockpolicy.c
   )
 

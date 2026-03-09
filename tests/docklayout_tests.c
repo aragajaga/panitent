@@ -20,6 +20,7 @@
 #include "../src/recoverystore.h"
 #include "../src/docktypes.h"
 #include "../src/windowlayoutcatalog.h"
+#include "../src/windowlayoutprofile.h"
 #include "../src/workspacedockpolicy.h"
 
 static int test_zone_tab_rect_vertical_starts_from_top(void)
@@ -632,6 +633,70 @@ static int test_floating_document_layout_model_file_round_trip(void)
 	FloatingDocumentLayoutModel_Destroy(&loaded);
 	DeleteFileW(szTempFile);
 	return 0;
+}
+
+static int test_window_layout_profile_bundle_round_trip(void)
+{
+    uint32_t uId = 0x1357u;
+    DockModelNode dockRoot = { 0 };
+    DockModelNode dockWorkspace = { 0 };
+    DockFloatingLayoutFileModel dockFloating = { 0 };
+    FloatingDocumentLayoutModel floatDocs = { 0 };
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+
+    dockRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(dockRoot.szName, ARRAYSIZE(dockRoot.szName), L"Root");
+    dockRoot.pChild1 = &dockWorkspace;
+    dockWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    dockWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(dockWorkspace.szName, ARRAYSIZE(dockWorkspace.szName), L"WorkspaceContainer");
+
+    dockFloating.nEntries = 0;
+
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+    floatDocs.nEntryCount = 1;
+    floatDocs.entries[0].rcWindow.left = 1;
+    floatDocs.entries[0].rcWindow.top = 2;
+    floatDocs.entries[0].rcWindow.right = 301;
+    floatDocs.entries[0].rcWindow.bottom = 202;
+    floatDocs.entries[0].pLayoutModel = &floatDocRoot;
+
+    assert(WindowLayoutProfile_SaveBundle(uId, &dockRoot, &dockFloating, &floatDocs));
+
+    DockModelNode* pLoadedDockRoot = NULL;
+    DockFloatingLayoutFileModel loadedFloating = { 0 };
+    FloatingDocumentLayoutModel loadedFloatDocs = { 0 };
+    assert(WindowLayoutProfile_LoadBundle(uId, &pLoadedDockRoot, &loadedFloating, &loadedFloatDocs));
+    assert(pLoadedDockRoot != NULL);
+    assert(pLoadedDockRoot->pChild1 != NULL);
+    assert(loadedFloating.nEntries == 0);
+    assert(loadedFloatDocs.nEntryCount == 1);
+    assert(loadedFloatDocs.entries[0].pLayoutModel != NULL);
+    assert(loadedFloatDocs.entries[0].rcWindow.right == 301);
+
+    PTSTR pszPath = NULL;
+    assert(WindowLayoutProfile_GetDockLayoutPath(uId, &pszPath));
+    DeleteFileW(pszPath);
+    free(pszPath);
+    pszPath = NULL;
+    assert(WindowLayoutProfile_GetDockFloatingPath(uId, &pszPath));
+    DeleteFileW(pszPath);
+    free(pszPath);
+    pszPath = NULL;
+    assert(WindowLayoutProfile_GetFloatDocLayoutPath(uId, &pszPath));
+    DeleteFileW(pszPath);
+    free(pszPath);
+
+    DockModel_Destroy(pLoadedDockRoot);
+    DockFloatingLayout_Destroy(&loadedFloating);
+    FloatingDocumentLayoutModel_Destroy(&loadedFloatDocs);
+    return 0;
 }
 
 static int test_dock_model_validator_repairs_layers_alias_name(void)
@@ -1450,6 +1515,7 @@ int main(void)
 	failed |= test_persist_file_quarantines_invalid_payload();
 	failed |= test_window_layout_catalog_round_trip_and_reorder();
 	failed |= test_floating_document_layout_model_file_round_trip();
+	failed |= test_window_layout_profile_bundle_round_trip();
 	failed |= test_dock_model_validator_repairs_layers_alias_name();
 	failed |= test_document_session_model_loads_legacy_v1_format();
 	failed |= test_dock_floating_model_loads_legacy_v1_format();
