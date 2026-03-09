@@ -7,6 +7,7 @@ typedef struct DockModelNode DockModelNode;
 typedef struct DockFloatingLayoutFileModel DockFloatingLayoutFileModel;
 typedef struct FloatingDocumentLayoutModel FloatingDocumentLayoutModel;
 typedef int (*FnWindowLayoutManagerMessageSink)(HWND hWndParent, PCWSTR pszText, PCWSTR pszCaption, UINT uType);
+typedef BOOL (*FnWindowLayoutManagerSaveProfileSink)(PanitentWindow* pPanitentWindow, uint32_t uId);
 typedef BOOL (*FnWindowLayoutManagerPromptSink)(
     HWND hWndParent,
     PCWSTR pszTitle,
@@ -17,6 +18,7 @@ typedef BOOL (*FnWindowLayoutManagerPromptSink)(
 
 void WindowLayoutManager_RefreshApplyMenu(PanitentWindow* pPanitentWindow);
 void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink);
+void WindowLayoutManager_SetSaveProfileSink(FnWindowLayoutManagerSaveProfileSink pfnSaveProfileSink);
 void WindowLayoutManager_SetPromptSink(FnWindowLayoutManagerPromptSink pfnPromptSink);
 BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmdId);
 BOOL WindowLayoutManager_ApplyLayoutBundle(

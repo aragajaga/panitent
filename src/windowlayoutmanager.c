@@ -36,6 +36,7 @@
 
 static const WCHAR g_szWindowLayoutsFileName[] = L"windowlayouts.dat";
 static FnWindowLayoutManagerMessageSink g_pWindowLayoutManagerMessageSink = NULL;
+static FnWindowLayoutManagerSaveProfileSink g_pWindowLayoutManagerSaveProfileSink = NULL;
 static FnWindowLayoutManagerPromptSink g_pWindowLayoutManagerPromptSink = NULL;
 
 typedef struct WindowLayoutNameDialogContext
@@ -95,6 +96,11 @@ static int WindowLayoutManager_ShowMessage(HWND hWndParent, PCWSTR pszText, PCWS
 void WindowLayoutManager_SetMessageSink(FnWindowLayoutManagerMessageSink pfnMessageSink)
 {
     g_pWindowLayoutManagerMessageSink = pfnMessageSink;
+}
+
+void WindowLayoutManager_SetSaveProfileSink(FnWindowLayoutManagerSaveProfileSink pfnSaveProfileSink)
+{
+    g_pWindowLayoutManagerSaveProfileSink = pfnSaveProfileSink;
 }
 
 void WindowLayoutManager_SetPromptSink(FnWindowLayoutManagerPromptSink pfnPromptSink)
@@ -881,7 +887,10 @@ BOOL WindowLayoutManager_HandleCommand(PanitentWindow* pPanitentWindow, UINT cmd
             }
         }
 
-        if (!WindowLayoutManager_SaveProfile(pPanitentWindow, uId) || !WindowLayoutManager_SaveCatalog(&catalog))
+        BOOL bSavedProfile = g_pWindowLayoutManagerSaveProfileSink ?
+            g_pWindowLayoutManagerSaveProfileSink(pPanitentWindow, uId) :
+            WindowLayoutManager_SaveProfile(pPanitentWindow, uId);
+        if (!bSavedProfile || !WindowLayoutManager_SaveCatalog(&catalog))
         {
             WindowLayoutManager_ShowMessage(hWndParent, L"Failed to save the current window layout.", L"Window Layout", MB_OK | MB_ICONERROR);
         }

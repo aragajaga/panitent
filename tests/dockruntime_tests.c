@@ -91,6 +91,13 @@ static int runtime_capture_window_layout_message(HWND hWndParent, PCWSTR pszText
     return IDOK;
 }
 
+static BOOL runtime_fail_window_layout_save_profile(PanitentWindow* pPanitentWindow, uint32_t uId)
+{
+    UNREFERENCED_PARAMETER(pPanitentWindow);
+    UNREFERENCED_PARAMETER(uId);
+    return FALSE;
+}
+
 static BOOL runtime_capture_window_layout_prompt(
     HWND hWndParent,
     PCWSTR pszTitle,
@@ -2382,6 +2389,40 @@ static int test_runtime_menu_command_saves_and_overwrites_named_layout(void)
     return 0;
 }
 
+static int test_runtime_menu_command_save_failure_does_not_persist_catalog_entry(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_window_layout_catalog_file();
+
+    wcscpy_s(g_runtimeWindowLayoutPromptName, ARRAYSIZE(g_runtimeWindowLayoutPromptName), L"Broken Layout");
+    g_runtimeWindowLayoutMessageCount = 0;
+    WindowLayoutManager_SetPromptSink(runtime_capture_window_layout_prompt);
+    WindowLayoutManager_SetSaveProfileSink(runtime_fail_window_layout_save_profile);
+    WindowLayoutManager_SetMessageSink(runtime_capture_window_layout_message);
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_SAVE_LAYOUT));
+    WindowLayoutManager_SetPromptSink(NULL);
+    WindowLayoutManager_SetSaveProfileSink(NULL);
+    WindowLayoutManager_SetMessageSink(NULL);
+    g_runtimeWindowLayoutPromptName[0] = L'\0';
+
+    assert(g_runtimeWindowLayoutMessageCount == 1);
+
+    PTSTR pszCatalogPath = NULL;
+    GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+    assert(pszCatalogPath != NULL);
+    WindowLayoutCatalog catalog = { 0 };
+    PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+    BOOL bLoaded = WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &catalog, &status);
+    free(pszCatalogPath);
+    assert(!bLoaded);
+    assert(status == PERSIST_LOAD_NOT_FOUND);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -2602,6 +2643,7 @@ int main(void)
     failed |= test_runtime_menu_command_apply_rolls_back_on_failure();
     failed |= test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state();
     failed |= test_runtime_menu_command_saves_and_overwrites_named_layout();
+    failed |= test_runtime_menu_command_save_failure_does_not_persist_catalog_entry();
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
