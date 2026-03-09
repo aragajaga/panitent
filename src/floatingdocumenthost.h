@@ -93,6 +93,9 @@ BOOL FloatingDocumentHost_CapturePinnedWindowState(
     int cWorkspaceHwnds,
     int* pnWorkspaceCount);
 BOOL FloatingDocumentHost_CollectLiveWorkspaces(FloatingDocumentWorkspaceReuseContext* pContext);
+BOOL FloatingDocumentHost_PrepareWorkspaceReuse(
+    FloatingDocumentWorkspaceReuseContext* pContext,
+    BOOL bClearViewports);
 Window* FloatingDocumentHost_ResolveReusedWorkspace(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,

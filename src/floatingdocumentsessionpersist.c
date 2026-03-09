@@ -20,7 +20,6 @@
 #include "recoverystorepersist.h"
 #include "shell/pathutil.h"
 #include "viewport.h"
-#include "workspacecontainer.h"
 
 typedef struct FloatingDocumentPersistCollectContext
 {
@@ -304,15 +303,7 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 	}
 
 	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
-	FloatingDocumentHost_CollectLiveWorkspaces(&reuse);
-	for (int i = 0; i < reuse.nWorkspaceCount; ++i)
-	{
-		WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(reuse.hWorkspaceHwnds[i]);
-		if (pWorkspace)
-		{
-			WorkspaceContainer_ClearAllViewports(pWorkspace);
-		}
-	}
+	FloatingDocumentHost_PrepareWorkspaceReuse(&reuse, TRUE);
 
 	BOOL bRestoredAny = FALSE;
 	for (int i = 0; i < pModel->nEntryCount; ++i)

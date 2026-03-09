@@ -550,3 +550,12 @@ This change set removes the last thin public wrapper implementations from `dockh
 - `dockhost.c` is reduced further toward a minimal facade over specialized runtime layers.
 
 This does not change public API shape, but it removes another leftover reason for `dockhost.c` to exist as a concrete implementation file instead of a thin coordinator.
+
+## Floating Document Reuse Preparation Increment Applied
+
+This change set centralizes preparation of live workspace reuse for floating document restore:
+- added `FloatingDocumentHost_PrepareWorkspaceReuse(...)` to combine workspace collection and optional viewport clearing;
+- `floatingdocumentlayoutpersist` now uses the same reuse preparation helper as `floatingdocumentsessionpersist`;
+- session restore no longer open-codes viewport clearing for reused workspaces.
+
+This keeps layout restore and session restore aligned around one workspace-reuse lifecycle entrypoint.

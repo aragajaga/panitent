@@ -152,6 +152,32 @@ BOOL FloatingDocumentHost_CollectLiveWorkspaces(FloatingDocumentWorkspaceReuseCo
     return FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentHost_OnPinnedWindowCollectLive, pContext);
 }
 
+BOOL FloatingDocumentHost_PrepareWorkspaceReuse(
+    FloatingDocumentWorkspaceReuseContext* pContext,
+    BOOL bClearViewports)
+{
+    if (!FloatingDocumentHost_CollectLiveWorkspaces(pContext))
+    {
+        return FALSE;
+    }
+
+    if (!bClearViewports)
+    {
+        return TRUE;
+    }
+
+    for (int i = 0; i < pContext->nWorkspaceCount; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(pContext->hWorkspaceHwnds[i]);
+        if (pWorkspace)
+        {
+            WorkspaceContainer_ClearAllViewports(pWorkspace);
+        }
+    }
+
+    return TRUE;
+}
+
 Window* FloatingDocumentHost_ResolveReusedWorkspace(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,

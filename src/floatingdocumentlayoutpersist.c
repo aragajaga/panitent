@@ -110,7 +110,7 @@ BOOL PanitentFloatingDocumentLayout_RestoreModelEx(
 	}
 
 	FloatingDocumentLayoutApplyContext context = { 0 };
-	FloatingDocumentHost_CollectLiveWorkspaces(&context.reuse);
+	FloatingDocumentHost_PrepareWorkspaceReuse(&context.reuse, FALSE);
 
 	BOOL bRestoredAny = FALSE;
 	int nAttempted = 0;
