@@ -166,6 +166,7 @@ This change set continues the same decomposition on the input side:
 - added `dockhostinput.*` for mouse/capture/context-menu interaction flow;
 - moved caption button state management, split-drag interaction, caption-drag initiation, and inspector context-menu handling out of `dockhost.c`;
 - `dockhost.c` now routes window messages to a dedicated input layer instead of owning those interaction details directly.
+- follow-up cleanup removed the duplicated legacy input helpers from `dockhost.c`, leaving those interaction paths only in the extracted layer.
 
 ## Dock Host Auto-Hide Host Increment Applied
 
