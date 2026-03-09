@@ -303,6 +303,9 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		return FALSE;
 	}
 
+	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
+	FloatingDocumentHost_CollectLiveWorkspaces(&reuse);
+
 	BOOL bRestoredAny = FALSE;
 	for (int i = 0; i < pModel->nEntryCount; ++i)
 	{
@@ -324,8 +327,8 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 			pDockHostWindow,
 			&pEntry->rcWindow,
 			pEntry->pLayoutModel,
-			NULL,
-			NULL,
+			FloatingDocumentHost_ResolveReusedWorkspace,
+			&reuse,
 			FloatingDocumentPersist_OnNodeAttached,
 			&restoreContext,
 			&bHasWorkspace,
@@ -338,6 +341,7 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		bRestoredAny = TRUE;
 	}
 
+	FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &reuse);
 	FloatingDocumentSessionModel_Destroy(pModel);
 	free(pModel);
 

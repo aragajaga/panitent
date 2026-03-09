@@ -12,6 +12,7 @@
 #include "../src/floatingdocumenthost.h"
 #include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentlayoutpersist.h"
+#include "../src/floatingdocumentsessionpersist.h"
 #include "../src/floatingwindowcontainer.h"
 #include "../src/resource.h"
 #include "../src/windowlayoutcatalog.h"
@@ -491,6 +492,19 @@ static void runtime_delete_window_layout_catalog_file(void)
 
     DeleteFileW(pszCatalogPath);
     free(pszCatalogPath);
+}
+
+static void runtime_delete_floating_document_session_file(void)
+{
+    PTSTR pszFilePath = NULL;
+    GetFloatingDocumentSessionFilePath(&pszFilePath);
+    if (!pszFilePath)
+    {
+        return;
+    }
+
+    DeleteFileW(pszFilePath);
+    free(pszFilePath);
 }
 
 static BOOL CALLBACK runtime_enum_floating_windows(HWND hWnd, LPARAM lParam)
@@ -1496,6 +1510,45 @@ static int test_runtime_non_current_document_float_failure_preserves_order_and_a
     return 0;
 }
 
+static int test_runtime_floating_document_session_restore_is_idempotent(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_floating_document_session_file();
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces + counts.nDocumentHosts == 1);
+
+    assert(PanitentFloatingDocumentSession_Save(fixture.pApp, fixture.pDockHostWindow));
+    assert(PanitentFloatingDocumentSession_Restore(fixture.pApp, fixture.pDockHostWindow));
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces + counts.nDocumentHosts == 1);
+
+    runtime_delete_floating_document_session_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_try_dock_floating_workspace_uses_shared_document_transition(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -2240,6 +2293,7 @@ int main(void)
     failed |= test_runtime_single_document_float_uses_document_host_helper();
     failed |= test_runtime_single_document_float_rolls_back_on_floating_create_failure();
     failed |= test_runtime_non_current_document_float_failure_preserves_order_and_active_tab();
+    failed |= test_runtime_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_document_side_dock_merges_floating_document_host_successfully();
     failed |= test_runtime_document_side_dock_failure_rolls_back_floating_document_host_merge();
