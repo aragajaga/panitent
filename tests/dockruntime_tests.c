@@ -1863,12 +1863,30 @@ static int test_runtime_multi_workspace_floating_document_layout_restore_is_idem
     assert(pFloatingDocument != NULL);
     assert(pFloatingDocument->hWndChild && IsWindow(pFloatingDocument->hWndChild));
 
+    for (int i = 0; i < nWorkspaceCount; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(hWorkspaceHwnds[i]);
+        assert(pWorkspace != NULL);
+        Canvas* pCanvas = Canvas_Create(32, 32);
+        Document* pDocument = Document_CreateWithCanvas(pCanvas);
+        assert(pCanvas != NULL);
+        assert(pDocument != NULL);
+        assert(Document_AttachToWorkspace(pDocument, pWorkspace));
+    }
+
     memset(hWorkspaceHwnds, 0, sizeof(hWorkspaceHwnds));
     nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
         pFloatingDocument->hWndChild,
         hWorkspaceHwnds,
         ARRAYSIZE(hWorkspaceHwnds));
     assert(nWorkspaceCount == 2);
+
+    for (int i = 0; i < nWorkspaceCount; ++i)
+    {
+        WorkspaceContainer* pWorkspace = (WorkspaceContainer*)WindowMap_Get(hWorkspaceHwnds[i]);
+        assert(pWorkspace != NULL);
+        assert(WorkspaceContainer_GetViewportCount(pWorkspace) == 1);
+    }
 
     runtime_fixture_destroy(&fixture);
     return 0;
