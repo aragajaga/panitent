@@ -248,6 +248,7 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
     PanitentApp* pPanitentApp = PanitentApp_Instance();
     DockHostWindow* pDockHostWindow = pPanitentWindow ? pPanitentWindow->m_pDockHostWindow : NULL;
     WorkspaceContainer* pWorkspaceContainer = pPanitentApp ? pPanitentApp->m_pWorkspaceContainer : NULL;
+    FloatingDocumentLayoutModel emptyFloatDocModel = { 0 };
     HWND hWndWorkspace = pWorkspaceContainer ? Window_GetHWND((Window*)pWorkspaceContainer) : NULL;
     RECT rcDockHost = { 0 };
     TreeNode* pRootNode;
@@ -313,7 +314,10 @@ static BOOL WindowLayoutManager_ApplyModel(PanitentWindow* pPanitentWindow, Dock
         return FALSE;
     }
 
-    if (pFloatDocModel && !PanitentFloatingDocumentLayout_RestoreModel(pPanitentApp, pDockHostWindow, pFloatDocModel))
+    if (!PanitentFloatingDocumentLayout_RestoreModel(
+        pPanitentApp,
+        pDockHostWindow,
+        pFloatDocModel ? pFloatDocModel : &emptyFloatDocModel))
     {
         return FALSE;
     }
