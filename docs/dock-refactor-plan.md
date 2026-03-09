@@ -671,3 +671,12 @@ This change set moves the restore wiring side of `floatingdocumenthost.c` into `
 - reuse-aware restore wrapper.
 
 After this split, the floating document path is explicitly separated into create, reuse/capture, and restore layers.
+
+## Floating Tool Capture Layer Increment Applied
+
+This change set splits the enumeration/capture side of `floatingtoolhost.c` into `floatingtoolcapture.c`:
+- pinned floating tool window enumeration;
+- destroy-existing helper;
+- pinned-window capture for direct panel and tool-host entries.
+
+This leaves `floatingtoolhost.c` focused on restore wiring, mirroring the ongoing cleanup of the floating document path.
