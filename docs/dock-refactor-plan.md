@@ -17,6 +17,86 @@ The main architectural gap is different:
 
 Reference systems separate those concerns much more aggressively.
 
+## Named Layout Contract
+
+Named window layouts now have an explicit architectural contract:
+- they are arrangement-shell persistence, not document-content persistence;
+- they should eventually include main dock layout, floating tool layout, floating document arrangement, and document group arrangement;
+- they must stay separate from document session and recovery layers.
+
+See:
+- `docs/window-layout-contract.md`
+
+The concrete contract and follow-up plan are documented in `docs/window-layout-contract.md`.
+
+## Current Risks
+
+The following risks are still considered active architectural debt and must be treated as part of the plan:
+
+1. Layout apply/reset is not yet transactional enough.
+- The current flow still mutates the live runtime tree during apply/reset.
+- The target direction is: load -> validate -> build -> switch.
+- If attach/build fails mid-flight, the old layout should still be recoverable.
+
+2. `dockhost.c` is still too monolithic.
+- It still mixes:
+  - live tree ownership
+  - geometry/layout
+  - HWND ownership
+  - paint
+  - hit-test
+  - docking mutations
+  - auto-hide and floating glue
+
+3. Runtime is not fully model-first yet.
+- The project already has a good model/persistence boundary.
+- But live editing still happens primarily against the mutable runtime tree, not against a pure layout model with materialization.
+
+4. The base window framework is still low-discipline in lifecycle/ownership terms.
+- The `PostQuitMessage` child-window bug was one concrete example.
+- More lifecycle invariants should move out of ad-hoc per-window behavior.
+
+5. Named layouts do not yet represent the full VS-like arrangement target.
+- Current implementation covers main dock layout and floating tool layout.
+- The intended target also includes floating document arrangement and document group arrangement.
+
+6. Tests are still biased toward model/persistence layers.
+- Unit coverage is already strong for snapshot/io/build/validate/session round-trip.
+- Coverage is still weak for runtime mutation flows and menu-driven layout switching.
+
+## Mandatory Next Steps
+
+The next mandatory architecture steps are:
+
+1. Make layout apply/reset transactional.
+- Build and validate the target runtime layout before switching.
+- Add rollback behavior if attach/switch fails.
+
+2. Decompose `dockhost.c`.
+- At minimum split out:
+  - layout engine
+  - paint/render
+  - docking mutations
+  - auto-hide runtime
+
+3. Push runtime toward model-first editing.
+- Not only save/load through the model.
+- Runtime docking mutations should increasingly be expressed as model operations followed by materialization/update.
+
+4. Finish the named layout scope.
+- Include floating document host arrangement.
+- Include document group arrangement.
+- Keep document session and recovery as separate persistence layers.
+
+5. Add integration/runtime tests.
+- Rearrange panels.
+- Save layout A.
+- Save layout B.
+- Apply A.
+- Apply B.
+- Reset layout.
+- Verify runtime tree invariants after each step.
+
 ## Target Layers
 
 ### 1. Layout Model
