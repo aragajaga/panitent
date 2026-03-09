@@ -698,3 +698,12 @@ This change set moves the restore wiring side of `floatingtoolhost.c` into `floa
 - floating tool host restore.
 
 After this split, the tool-side floating path is explicitly separated into capture and restore layers.
+
+## Dock Host Teardown Layer Increment Applied
+
+This change set moves layout teardown and live tree destruction out of `dockhostruntime.c` into `dockhostteardown.c`:
+- preserve-window filtering during teardown;
+- recursive dock tree destruction;
+- `DockHostWindow_ClearLayout(...)`.
+
+This reduces the remaining responsibility surface of `dockhostruntime.c` and gives teardown its own explicit owner layer.

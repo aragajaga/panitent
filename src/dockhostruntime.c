@@ -22,24 +22,6 @@
 
 #define IDM_DOCKINSPECTOR 101
 
-static BOOL DockHostRuntime_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPreserve, int cPreserve)
-{
-    if (!hWnd || !phWndPreserve || cPreserve <= 0)
-    {
-        return FALSE;
-    }
-
-    for (int i = 0; i < cPreserve; ++i)
-    {
-        if (phWndPreserve[i] == hWnd)
-        {
-            return TRUE;
-        }
-    }
-
-    return FALSE;
-}
-
 void DockHostWindow_PreRegister(LPWNDCLASSEX lpwcex)
 {
     lpwcex->style = CS_VREDRAW | CS_HREDRAW;
@@ -377,27 +359,6 @@ static void DockHostRuntime_AssignPersistentNameForHWND(DockData* pDockData, HWN
     }
 }
 
-static void DockHostRuntime_DestroyTreeRecursive(TreeNode* pNode, const HWND* phWndPreserve, int cPreserve)
-{
-    if (!pNode)
-    {
-        return;
-    }
-
-    DockHostRuntime_DestroyTreeRecursive(pNode->node1, phWndPreserve, cPreserve);
-    DockHostRuntime_DestroyTreeRecursive(pNode->node2, phWndPreserve, cPreserve);
-
-    DockData* pDockData = (DockData*)pNode->data;
-    if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd) &&
-        !DockHostRuntime_ShouldPreserveHwnd(pDockData->hWnd, phWndPreserve, cPreserve))
-    {
-        DestroyWindow(pDockData->hWnd);
-    }
-
-    free(pNode->data);
-    free(pNode);
-}
-
 BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
 {
     if (!pDockData)
@@ -497,30 +458,6 @@ BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pR
     }
 
     return Win32_Rect_GetWidth(pRect) > 0 && Win32_Rect_GetHeight(pRect) > 0;
-}
-
-void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve)
-{
-    DockHostRuntime_DestroyTreeRecursive(pRootNode, phWndPreserve, cPreserve);
-}
-
-void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve)
-{
-    if (!pDockHostWindow)
-    {
-        return;
-    }
-
-    DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
-    DockHostInput_ClearCaptionState(pDockHostWindow);
-    DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
-    DockHostWindow_DestroyNodeTree(pDockHostWindow->pRoot_, phWndPreserve, cPreserve);
-    pDockHostWindow->pRoot_ = NULL;
-    if (pDockHostWindow->m_pDockInspectorDialog)
-    {
-        DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, NULL);
-    }
-    Window_Invalidate((Window*)pDockHostWindow);
 }
 
 DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd)
