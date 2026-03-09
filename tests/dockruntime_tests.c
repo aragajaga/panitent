@@ -6,6 +6,7 @@
 #include "../src/dockhostmodelapply.h"
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockfloatingpersist.h"
+#include "../src/floatingdocumenthost.h"
 #include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentlayoutpersist.h"
 #include "../src/floatingwindowcontainer.h"
@@ -41,6 +42,27 @@ typedef struct FloatingCountContext
 } FloatingCountContext;
 
 static BOOL runtime_is_class_name(HWND hWnd, PCWSTR pszClassName);
+
+static BOOL runtime_fail_floating_document_create(
+    DockHostWindow* pDockHostTarget,
+    HWND hWndChild,
+    const RECT* pWindowRect,
+    BOOL bStartMove,
+    POINT ptMoveScreen,
+    HWND* phWndFloatingOut)
+{
+    UNREFERENCED_PARAMETER(pDockHostTarget);
+    UNREFERENCED_PARAMETER(hWndChild);
+    UNREFERENCED_PARAMETER(pWindowRect);
+    UNREFERENCED_PARAMETER(bStartMove);
+    UNREFERENCED_PARAMETER(ptMoveScreen);
+
+    if (phWndFloatingOut)
+    {
+        *phWndFloatingOut = NULL;
+    }
+    return FALSE;
+}
 
 static BOOL CALLBACK runtime_destroy_floating_windows_proc(HWND hWnd, LPARAM lParam)
 {
@@ -882,6 +904,62 @@ static int test_runtime_document_group_undock_to_floating_uses_model_first_remov
     return 0;
 }
 
+static int test_runtime_document_group_undock_rolls_back_on_floating_create_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pIncomingWorkspace = WorkspaceContainer_Create();
+    assert(pIncomingWorkspace != NULL);
+    HWND hWndIncomingWorkspace = Window_CreateWindow((Window*)pIncomingWorkspace, NULL);
+    assert(hWndIncomingWorkspace && IsWindow(hWndIncomingWorkspace));
+    ShowWindow(hWndIncomingWorkspace, SW_HIDE);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pIncomingWorkspace));
+
+    DockTargetHit targetHit = { 0 };
+    targetHit.nDockSide = DKS_RIGHT;
+    targetHit.bLocalTarget = TRUE;
+    targetHit.hWndAnchor = hWndMainWorkspace;
+    assert(DockHostWindow_DockHWNDToTarget(fixture.pDockHostWindow, hWndIncomingWorkspace, &targetHit, 240));
+
+    TreeNode* pIncomingNode = runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndIncomingWorkspace);
+    DockData* pIncomingData = pIncomingNode ? (DockData*)pIncomingNode->data : NULL;
+    assert(pIncomingNode != NULL);
+    assert(pIncomingData != NULL);
+
+    int x = pIncomingData->rc.left + max(1, Win32_Rect_GetWidth(&pIncomingData->rc) / 2);
+    int y = pIncomingData->rc.top + 8;
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 2);
+
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(runtime_fail_floating_document_create);
+    DockHostDrag_UndockToFloating(fixture.pDockHostWindow, pIncomingNode, x, y);
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(NULL);
+
+    assert(IsWindow(hWndIncomingWorkspace));
+    assert(runtime_count_live_role(DockHostWindow_GetRoot(fixture.pDockHostWindow), DOCK_ROLE_WORKSPACE) == 2);
+    assert(runtime_find_live_node_by_hwnd(DockHostWindow_GetRoot(fixture.pDockHostWindow), hWndIncomingWorkspace) != NULL);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_single_document_float_uses_document_host_helper(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -1193,6 +1271,7 @@ int main(void)
     failed |= test_runtime_document_workspace_model_docking_creates_split_group();
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
+    failed |= test_runtime_document_group_undock_rolls_back_on_floating_create_failure();
     failed |= test_runtime_single_document_float_uses_document_host_helper();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();

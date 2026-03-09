@@ -9,6 +9,13 @@
 #include "win32/window.h"
 #include "win32/util.h"
 
+static FnFloatingDocumentHostCreatePinnedWindowHook g_pCreatePinnedWindowTestHook = NULL;
+
+void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook)
+{
+    g_pCreatePinnedWindowTestHook = pfnHook;
+}
+
 BOOL FloatingDocumentHost_CreatePinnedWindow(
     DockHostWindow* pDockHostTarget,
     HWND hWndChild,
@@ -20,6 +27,17 @@ BOOL FloatingDocumentHost_CreatePinnedWindow(
     if (phWndFloatingOut)
     {
         *phWndFloatingOut = NULL;
+    }
+
+    if (g_pCreatePinnedWindowTestHook)
+    {
+        return g_pCreatePinnedWindowTestHook(
+            pDockHostTarget,
+            hWndChild,
+            pWindowRect,
+            bStartMove,
+            ptMoveScreen,
+            phWndFloatingOut);
     }
 
     if (!hWndChild || !IsWindow(hWndChild))

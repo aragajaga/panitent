@@ -5,6 +5,13 @@ typedef struct DockModelNode DockModelNode;
 typedef struct Window Window;
 
 typedef struct PanitentApp PanitentApp;
+typedef BOOL (*FnFloatingDocumentHostCreatePinnedWindowHook)(
+    DockHostWindow* pDockHostTarget,
+    HWND hWndChild,
+    const RECT* pWindowRect,
+    BOOL bStartMove,
+    POINT ptMoveScreen,
+    HWND* phWndFloatingOut);
 typedef Window* (*FnDockHostRestoreResolveView)(
     PanitentApp* pPanitentApp,
     DockHostWindow* pDockHostWindow,
@@ -48,3 +55,5 @@ BOOL FloatingDocumentHost_RestorePinnedDockHost(
     BOOL* pbHasWorkspace,
     DockHostWindow** ppFloatingDockHostOut,
     HWND* phWndFloatingOut);
+
+void FloatingDocumentHost_SetCreatePinnedWindowTestHook(FnFloatingDocumentHostCreatePinnedWindowHook pfnHook);

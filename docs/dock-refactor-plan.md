@@ -148,6 +148,7 @@ This change set starts covering real runtime docking/layout behavior instead of 
 - added coverage for named layout profile switching with mixed floating tool and floating document arrangement.
 
 This does not finish the full runtime test matrix yet, but it turns integration/runtime testing into a real, executable part of the plan instead of a future-only requirement.
+- runtime tests now also cover rollback when a document-group undock-to-floating transition fails during floating-host creation.
 
 ## Dock Host Render Increment Applied
 
