@@ -104,6 +104,13 @@ This change set starts introducing a pure model mutation layer:
 - added unit tests for model mutation behavior;
 - this is groundwork for moving runtime docking mutations toward model-first editing instead of direct live-tree surgery everywhere.
 
+## Default Model Increment Applied
+
+This change set introduces a pure default layout model:
+- added `dockdefaultlayoutmodel.*` as a canonical builder for the default main shell in `DockModelNode` form;
+- `Reset Window Layout` now uses a model-first default layout path instead of building a runtime tree and snapshotting it back into a model;
+- added tests that validate the default model contains the expected workspace and core tool views.
+
 ## Target Layers
 
 ### 1. Layout Model

@@ -13,6 +13,7 @@
 #include "../src/dockmodelvalidate.h"
 #include "../src/floatingdockpolicy.h"
 #include "../src/dockgroup.h"
+#include "../src/dockdefaultlayoutmodel.h"
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
@@ -1220,6 +1221,63 @@ static int test_dock_model_ops_clone_remove_and_zone_append(void)
     return 0;
 }
 
+static int test_default_layout_model_contains_expected_views(void)
+{
+    DockModelNode* pRoot = DockDefaultLayoutModel_CreateMain();
+    assert(pRoot != NULL);
+    assert(pRoot->nRole == DOCK_ROLE_ROOT);
+
+    assert(DockModelOps_FindByNodeId(pRoot, 0) == NULL);
+
+    BOOL bHasWorkspace = FALSE;
+    BOOL bHasToolbox = FALSE;
+    BOOL bHasGLWindow = FALSE;
+    BOOL bHasPalette = FALSE;
+    BOOL bHasLayers = FALSE;
+    BOOL bHasOptionBar = FALSE;
+
+    DockModelNode* stack[64] = { 0 };
+    int top = 0;
+    stack[top++] = pRoot;
+    while (top > 0)
+    {
+        DockModelNode* pNode = stack[--top];
+        if (!pNode)
+        {
+            continue;
+        }
+
+        if (pNode->nRole == DOCK_ROLE_WORKSPACE)
+        {
+            bHasWorkspace = TRUE;
+        }
+        else if (pNode->nRole == DOCK_ROLE_PANEL)
+        {
+            if (wcscmp(pNode->szName, L"Toolbox") == 0) bHasToolbox = TRUE;
+            if (wcscmp(pNode->szName, L"GLWindow") == 0) bHasGLWindow = TRUE;
+            if (wcscmp(pNode->szName, L"Palette") == 0) bHasPalette = TRUE;
+            if (wcscmp(pNode->szName, L"Layers") == 0) bHasLayers = TRUE;
+            if (wcscmp(pNode->szName, L"Option Bar") == 0) bHasOptionBar = TRUE;
+        }
+
+        if (top + 2 < ARRAYSIZE(stack))
+        {
+            stack[top++] = pNode->pChild1;
+            stack[top++] = pNode->pChild2;
+        }
+    }
+
+    assert(bHasWorkspace);
+    assert(bHasToolbox);
+    assert(bHasGLWindow);
+    assert(bHasPalette);
+    assert(bHasLayers);
+    assert(bHasOptionBar);
+
+    DockModel_Destroy(pRoot);
+    return 0;
+}
+
 static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
 {
 	assert((pActual == NULL) == (pExpected == NULL));
@@ -1593,6 +1651,7 @@ int main(void)
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
 	failed |= test_dock_model_capture_collapses_unary_split_nodes();
 	failed |= test_dock_model_ops_clone_remove_and_zone_append();
+	failed |= test_default_layout_model_contains_expected_views();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();

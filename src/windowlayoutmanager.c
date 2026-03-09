@@ -10,6 +10,7 @@
 #include "floatingdocumentlayoutpersist.h"
 #include "dockhost.h"
 #include "dockhostrestore.h"
+#include "dockdefaultlayoutmodel.h"
 #include "docklayoutpersist.h"
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
@@ -433,57 +434,13 @@ static BOOL WindowLayoutManager_ApplyProfile(PanitentWindow* pPanitentWindow, ui
 
 static BOOL WindowLayoutManager_ApplyDefault(PanitentWindow* pPanitentWindow)
 {
-    DockShellMetrics shellMetrics = { 220, 300, 72, 72 };
-    TreeNode* pRoot = DockShell_CreateRootNode();
-    TreeNode* pWorkspace = PanitentDockViewFactory_CreateNode(DOCK_ROLE_WORKSPACE, L"WorkspaceContainer");
-    TreeNode* pZoneLeft = DockShell_CreateZoneNode(DKS_LEFT);
-    TreeNode* pZoneRight = DockShell_CreateZoneNode(DKS_RIGHT);
-    TreeNode* pZoneTop = DockShell_CreateZoneNode(DKS_TOP);
-    TreeNode* pZoneBottom = DockShell_CreateZoneNode(DKS_BOTTOM);
-    TreeNode* pToolbox = PanitentDockViewFactory_CreateNode(DOCK_ROLE_PANEL, L"Toolbox");
-    TreeNode* pGLWindow = PanitentDockViewFactory_CreateNode(DOCK_ROLE_PANEL, L"GLWindow");
-    TreeNode* pPalette = PanitentDockViewFactory_CreateNode(DOCK_ROLE_PANEL, L"Palette");
-    TreeNode* pLayers = PanitentDockViewFactory_CreateNode(DOCK_ROLE_PANEL, L"Layers");
-    TreeNode* pOptionBar = PanitentDockViewFactory_CreateNode(DOCK_ROLE_PANEL, L"Option Bar");
-    DockModelNode* pModelRoot;
-    BOOL bResult;
-
-    if (!pRoot || !pWorkspace || !pZoneLeft || !pZoneRight || !pZoneTop || !pZoneBottom ||
-        !pToolbox || !pGLWindow || !pPalette || !pLayers || !pOptionBar)
-    {
-        DockModelBuildDestroyTree(pRoot);
-        DockModelBuildDestroyTree(pWorkspace);
-        DockModelBuildDestroyTree(pZoneLeft);
-        DockModelBuildDestroyTree(pZoneRight);
-        DockModelBuildDestroyTree(pZoneTop);
-        DockModelBuildDestroyTree(pZoneBottom);
-        DockModelBuildDestroyTree(pToolbox);
-        DockModelBuildDestroyTree(pGLWindow);
-        DockModelBuildDestroyTree(pPalette);
-        DockModelBuildDestroyTree(pLayers);
-        DockModelBuildDestroyTree(pOptionBar);
-        return FALSE;
-    }
-
-    DockShell_AppendPanelToZone(pZoneLeft, pToolbox);
-    DockShell_AppendPanelToZone(pZoneRight, pGLWindow);
-    DockShell_AppendPanelToZone(pZoneRight, pPalette);
-    DockShell_AppendPanelToZone(pZoneRight, pLayers);
-    DockShell_AppendPanelToZone(pZoneBottom, pOptionBar);
-    if (!DockShell_BuildMainLayout(pRoot, pWorkspace, pZoneLeft, pZoneRight, pZoneTop, pZoneBottom, &shellMetrics))
-    {
-        DockModelBuildDestroyTree(pRoot);
-        return FALSE;
-    }
-
-    pModelRoot = DockModel_CaptureTree(pRoot);
-    DockModelBuildDestroyTree(pRoot);
+    DockModelNode* pModelRoot = DockDefaultLayoutModel_CreateMain();
     if (!pModelRoot)
     {
         return FALSE;
     }
 
-    bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, NULL, NULL);
+    BOOL bResult = WindowLayoutManager_ApplyTransactional(pPanitentWindow, pModelRoot, NULL, NULL);
     DockModel_Destroy(pModelRoot);
     return bResult;
 }
