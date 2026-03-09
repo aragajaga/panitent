@@ -5,10 +5,15 @@
 #include "dockgroup.h"
 #include "dockhostautohide.h"
 #include "dockhostinput.h"
+#include "dockhostlayout.h"
+#include "dockhostmetrics.h"
+#include "dockhostzone.h"
 #include "dockinspectordialog.h"
 #include "dockviewcatalog.h"
 #include "theme.h"
+#include "toolwndframe.h"
 #include "win32/window.h"
+#include "win32/util.h"
 #include "win32/windowmap.h"
 
 static BOOL DockHostRuntime_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPreserve, int cPreserve)
@@ -89,6 +94,79 @@ static void DockHostRuntime_DestroyTreeRecursive(TreeNode* pNode, const HWND* ph
 
     free(pNode->data);
     free(pNode);
+}
+
+BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
+{
+    if (!pDockData)
+    {
+        return FALSE;
+    }
+
+    RECT rcClient = pDockData->rc;
+    if (pDockData->bShowCaption)
+    {
+        rcClient.top += DockHostMetrics_GetCaptionHeight() + 1;
+    }
+
+    if (DockNodeRole_IsRoot(pDockData->nRole, pDockData->lpszName))
+    {
+        int iLeft = 0, iRight = 0, iTop = 0, iBottom = 0;
+        DockHostMetrics_GetRootGutters(&iLeft, &iRight, &iTop, &iBottom);
+        rcClient.left += iLeft;
+        rcClient.right -= iRight;
+        rcClient.top += iTop;
+        rcClient.bottom -= iBottom;
+        if (rcClient.left > rcClient.right)
+        {
+            rcClient.left = rcClient.right;
+        }
+        if (rcClient.top > rcClient.bottom)
+        {
+            rcClient.top = rcClient.bottom;
+        }
+    }
+
+    *rc = rcClient;
+    return TRUE;
+}
+
+void DockData_Init(DockData* pDockData)
+{
+    pDockData->iGripPos = 64;
+    pDockData->dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
+    pDockData->bShowCaption = FALSE;
+    pDockData->bCollapsed = FALSE;
+    pDockData->hWndActiveTab = NULL;
+    pDockData->nRole = DOCK_ROLE_UNKNOWN;
+    pDockData->nPaneKind = DOCK_PANE_NONE;
+    pDockData->nDockSide = DKS_NONE;
+    pDockData->uModelNodeId = 0;
+    pDockData->nViewId = PNT_DOCK_VIEW_NONE;
+}
+
+BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
+{
+    if (!pDockData || !rc || !pDockData->bShowCaption)
+    {
+        return FALSE;
+    }
+
+    CaptionFrameMetrics metrics = { 0 };
+    metrics.borderSize = 3;
+    metrics.captionHeight = DockHostMetrics_GetCaptionHeight();
+    metrics.buttonSpacing = 3;
+    metrics.textPaddingLeft = 3;
+    metrics.textPaddingRight = 3;
+    metrics.textPaddingY = 0;
+    CaptionFrameLayout layout = { 0 };
+    if (!CaptionFrame_BuildLayout(&pDockData->rc, &metrics, NULL, 0, &layout))
+    {
+        return FALSE;
+    }
+
+    *rc = layout.rcCaption;
+    return TRUE;
 }
 
 BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect)
@@ -246,4 +324,74 @@ void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow)
             NULL,
             RDW_INVALIDATE | RDW_ERASE | RDW_ALLCHILDREN);
     }
+}
+
+void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
+{
+    TreeNode* pRoot = pDockHostWindow->pRoot_;
+    if (!pRoot)
+    {
+        return;
+    }
+
+    int iLeft = 0, iRight = 0, iTop = 0, iBottom = 0;
+    DockHostZone_Sync(
+        pDockHostWindow,
+        DockHostMetrics_GetZoneTabGutter(),
+        &iLeft,
+        &iRight,
+        &iTop,
+        &iBottom);
+    DockHostMetrics_SetRootGutters(iLeft, iRight, iTop, iBottom);
+    DockHostLayout_AssignRects(pRoot, DockHostMetrics_GetBorderWidth(), 96);
+
+    PostOrderTreeTraversal traversal = { 0 };
+    PostOrderTreeTraversal_Init(&traversal, pRoot);
+    TreeNode* pCurrentNode = NULL;
+    while (pCurrentNode = PostOrderTreeTraversal_GetNext(&traversal))
+    {
+        DockData* pDockData = (DockData*)pCurrentNode->data;
+        if (pDockData && pDockData->hWnd)
+        {
+            if (pDockHostWindow->fAutoHideOverlayVisible &&
+                pDockHostWindow->hWndAutoHideOverlayHost &&
+                IsWindow(pDockHostWindow->hWndAutoHideOverlayHost) &&
+                pDockData->hWnd == pDockHostWindow->hWndAutoHideOverlay &&
+                GetParent(pDockData->hWnd) == pDockHostWindow->hWndAutoHideOverlayHost)
+            {
+                continue;
+            }
+
+            RECT rc = { 0 };
+            DockData_GetClientRect(pDockData, &rc);
+            if (!DockHostWindow_IsWorkspaceWindow(pDockData->hWnd))
+            {
+                Win32_ContractRect(&rc, 4, 4);
+            }
+
+            int width = rc.right - rc.left;
+            int height = rc.bottom - rc.top;
+            if (width <= 12 || height <= 12)
+            {
+                ShowWindow(pDockData->hWnd, SW_HIDE);
+            }
+            else {
+                ShowWindow(pDockData->hWnd, SW_SHOWNA);
+                SetWindowPos(
+                    pDockData->hWnd,
+                    NULL,
+                    rc.left,
+                    rc.top,
+                    width,
+                    height,
+                    SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+            }
+        }
+    }
+
+    PostOrderTreeTraversal_Destroy(&traversal);
+
+    DockHostWindow_UpdateAutoHideOverlay(pDockHostWindow);
+    Window_Invalidate((Window*)pDockHostWindow);
+    DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_);
 }

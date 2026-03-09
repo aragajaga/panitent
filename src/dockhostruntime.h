@@ -10,3 +10,7 @@ void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phW
 void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve);
 DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
+BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc);
+void DockData_Init(DockData* pDockData);
+BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc);
+void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);

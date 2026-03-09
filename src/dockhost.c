@@ -17,6 +17,7 @@
 #include "dockhostautohide.h"
 #include "dockhostdrag.h"
 #include "dockhostinput.h"
+#include "dockhostmetrics.h"
 #include "dockhostmodelapply.h"
 #include "dockhostmutate.h"
 #include "dockhostpanelmenu.h"
@@ -44,14 +45,6 @@ POINT captionPos;
 
 BOOL fSuggestTop;
 
-int iCaptionHeight = 14;
-int iBorderWidth = 4;
-int iZoneTabGutter = 24;
-static int g_iZoneTabGutterLeft = 0;
-static int g_iZoneTabGutterRight = 0;
-static int g_iZoneTabGutterTop = 0;
-static int g_iZoneTabGutterBottom = 0;
-
 #define DOCK_ZONE_MAX_TABS 32
 #define DOCK_CAPTION_INSET 3
 #define DRAG_UNDOCK_DISTANCE 32
@@ -70,82 +63,6 @@ void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* 
 void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
 
-BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc)
-{
-	if (!pDockData)
-	{
-		return FALSE;
-	}
-
-	RECT rcClient = pDockData->rc;
-
-	if (pDockData->bShowCaption)
-	{
-		rcClient.top += iCaptionHeight + 1;
-	}
-
-	if (DockNodeRole_IsRoot(pDockData->nRole, pDockData->lpszName))
-	{
-		rcClient.left += g_iZoneTabGutterLeft;
-		rcClient.right -= g_iZoneTabGutterRight;
-		rcClient.top += g_iZoneTabGutterTop;
-		rcClient.bottom -= g_iZoneTabGutterBottom;
-		if (rcClient.left > rcClient.right)
-		{
-			rcClient.left = rcClient.right;
-		}
-		if (rcClient.top > rcClient.bottom)
-		{
-			rcClient.top = rcClient.bottom;
-		}
-	}
-
-	/* TODO: memcpy? */
-	*rc = rcClient;
-
-	return TRUE;
-}
-
-void DockData_Init(DockData* pDockData);
-
-void DockData_Init(DockData* pDockData)
-{
-	pDockData->iGripPos = 64;
-	pDockData->dwStyle = DGA_START | DGD_HORIZONTAL | DGP_ABSOLUTE;
-	pDockData->bShowCaption = FALSE;
-	pDockData->bCollapsed = FALSE;
-	pDockData->hWndActiveTab = NULL;
-	pDockData->nRole = DOCK_ROLE_UNKNOWN;
-	pDockData->nPaneKind = DOCK_PANE_NONE;
-	pDockData->nDockSide = DKS_NONE;
-	pDockData->uModelNodeId = 0;
-	pDockData->nViewId = PNT_DOCK_VIEW_NONE;
-}
-
-BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
-{
-	if (!pDockData || !rc || !pDockData->bShowCaption)
-	{
-		return FALSE;
-	}
-
-	CaptionFrameMetrics metrics = { 0 };
-	metrics.borderSize = DOCK_CAPTION_INSET;
-	metrics.captionHeight = iCaptionHeight;
-	metrics.buttonSpacing = WINDOWBUTTONSPACING;
-	metrics.textPaddingLeft = DOCK_CAPTION_INSET;
-	metrics.textPaddingRight = DOCK_CAPTION_INSET;
-	metrics.textPaddingY = 0;
-	CaptionFrameLayout layout = { 0 };
-	if (!CaptionFrame_BuildLayout(&pDockData->rc, &metrics, NULL, 0, &layout))
-	{
-		return FALSE;
-	}
-
-	*rc = layout.rcCaption;
-	return TRUE;
-}
-
 #define DHT_UNKNOWN 0
 #define DHT_CAPTION 1
 #define DHT_CLOSEBTN 2
@@ -154,71 +71,22 @@ BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
 
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow)
 {
+	int iLeft = 0;
+	int iRight = 0;
+	int iTop = 0;
+	int iBottom = 0;
 	DockHostZone_Sync(
 		pDockHostWindow,
-		iZoneTabGutter,
-		&g_iZoneTabGutterLeft,
-		&g_iZoneTabGutterRight,
-		&g_iZoneTabGutterTop,
-		&g_iZoneTabGutterBottom);
-}
-
-void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow)
-{
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
-
-	if (!pRoot)
-	{
-		return;
-	}
-
-	DockHostWindow_SyncZones(pDockHostWindow);
-	DockHostLayout_AssignRects(pRoot, iBorderWidth, DOCK_MIN_PANE_SIZE);
-
-	PostOrderTreeTraversal traversal = { 0 };
-	PostOrderTreeTraversal_Init(&traversal, pRoot);
-	TreeNode* pCurrentNode = NULL;
-	while (pCurrentNode = PostOrderTreeTraversal_GetNext(&traversal))
-	{
-		DockData* pDockData = (DockData*)pCurrentNode->data;
-			if (pDockData && pDockData->hWnd)
-			{
-				if (pDockHostWindow->fAutoHideOverlayVisible &&
-					pDockHostWindow->hWndAutoHideOverlayHost &&
-					IsWindow(pDockHostWindow->hWndAutoHideOverlayHost) &&
-					pDockData->hWnd == pDockHostWindow->hWndAutoHideOverlay &&
-					GetParent(pDockData->hWnd) == pDockHostWindow->hWndAutoHideOverlayHost)
-				{
-					continue;
-				}
-
-			RECT rc = { 0 };
-			DockData_GetClientRect(pDockData, &rc);
-			if (!DockHostWindow_IsWorkspaceWindow(pDockData->hWnd))
-			{
-				Win32_ContractRect(&rc, 4, 4);
-			}
-			int width = rc.right - rc.left;
-			int height = rc.bottom - rc.top;
-
-			if (width <= 12 || height <= 12)
-			{
-				ShowWindow(pDockData->hWnd, SW_HIDE);
-			}
-			else {
-				ShowWindow(pDockData->hWnd, SW_SHOWNA);
-				SetWindowPos(pDockData->hWnd, NULL, rc.left, rc.top, width, height,
-					SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER);
-			}
-		}
-	}
-
-	PostOrderTreeTraversal_Destroy(&traversal);
-
-	DockHostWindow_UpdateAutoHideOverlay(pDockHostWindow);
-	Window_Invalidate((Window *)pDockHostWindow);
-
-	DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, pDockHostWindow->pRoot_);
+		DockHostMetrics_GetZoneTabGutter(),
+		&iLeft,
+		&iRight,
+		&iTop,
+		&iBottom);
+	DockHostMetrics_SetRootGutters(
+		iLeft,
+		iRight,
+		iTop,
+		iBottom);
 }
 
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
@@ -308,8 +176,8 @@ void DockHostWindow_OnPaint(DockHostWindow* pDockHostWindow)
 		hdcTarget,
 		&rcClient,
 		pDockHostWindow->hCaptionBrush_,
-		iZoneTabGutter,
-		iBorderWidth);
+		DockHostMetrics_GetZoneTabGutter(),
+		DockHostMetrics_GetBorderWidth());
 
 	if (hdcTarget == hdcBuffer)
 	{
@@ -365,7 +233,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 		break;
 
 	case WM_MOUSEMOVE:
-		DockHostInput_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, iZoneTabGutter);
+		DockHostInput_OnMouseMove(pDockHostWindow, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, DockHostMetrics_GetZoneTabGutter());
 		return 0;
 		break;
 
@@ -375,7 +243,7 @@ LRESULT DockHostWindow_UserProc(DockHostWindow* pDockHostWindow, HWND hWnd, UINT
 		break;
 
 	case WM_LBUTTONDOWN:
-		DockHostInput_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, iZoneTabGutter);
+		DockHostInput_OnLButtonDown(pDockHostWindow, FALSE, (int)(short)GET_X_LPARAM(lParam), (int)(short)GET_Y_LPARAM(lParam), (UINT)wParam, DockHostMetrics_GetZoneTabGutter());
 		return 0;
 		break;
 

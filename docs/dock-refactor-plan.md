@@ -182,6 +182,7 @@ This change set continues the same decomposition on the runtime utility side:
 - added `dockhostruntime.*` for host content rect, pinning, pane-kind resolution, theme refresh, and layout tree teardown/preserve logic;
 - `dockhost.c` no longer owns those runtime utility details directly;
 - the host file is now closer to lifecycle/message coordination than to general-purpose dock runtime plumbing.
+- follow-up cleanup also moved `DockData_*` rect helpers and `DockHostWindow_Rearrange()` behind the same runtime-oriented boundary, with dock-host metrics isolated from the host file.
 
 ## Target Layers
 
