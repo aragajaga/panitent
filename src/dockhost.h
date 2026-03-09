@@ -21,6 +21,7 @@ struct DockData {
 	DWORD dwStyle;
 	WCHAR lpszCaption[MAX_PATH];
 	WCHAR lpszName[MAX_PATH];
+	uint32_t uModelNodeId;
 	DockNodeRole nRole;
 	DockPaneKind nPaneKind;
 	int nDockSide;

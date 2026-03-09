@@ -14,6 +14,7 @@
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
+#include "../src/persistfile.h"
 #include "../src/recoverystore.h"
 #include "../src/docktypes.h"
 #include "../src/workspacedockpolicy.h"
@@ -503,6 +504,33 @@ static int test_persist_load_status_reports_missing_and_invalid_files(void)
 	assert(!DocumentSessionModel_LoadFromFileEx(szTempFile, &docModel, &status));
 	assert(status == PERSIST_LOAD_INVALID_FORMAT);
 	DeleteFileW(szTempFile);
+
+	return 0;
+}
+
+static int test_persist_file_quarantines_invalid_payload(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"pvq", 0, szTempFile) != 0);
+
+	HANDLE hFile = CreateFileW(szTempFile, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	assert(hFile != INVALID_HANDLE_VALUE);
+	DWORD cbWritten = 0;
+	const char payload[] = "invalid";
+	assert(WriteFile(hFile, payload, (DWORD)sizeof(payload), &cbWritten, NULL));
+	CloseHandle(hFile);
+
+	assert(PersistFile_QuarantineInvalid(szTempFile));
+	assert(GetFileAttributesW(szTempFile) == INVALID_FILE_ATTRIBUTES);
+
+	WCHAR szPattern[MAX_PATH] = L"";
+	StringCchPrintfW(szPattern, ARRAYSIZE(szPattern), L"%s.invalid.*.bak", szTempFile);
+	WIN32_FIND_DATAW findData = { 0 };
+	HANDLE hFind = FindFirstFileW(szPattern, &findData);
+	assert(hFind != INVALID_HANDLE_VALUE);
+	FindClose(hFind);
 
 	return 0;
 }
@@ -1221,6 +1249,7 @@ int main(void)
 	failed |= test_dock_floating_layout_file_round_trip();
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_persist_load_status_reports_missing_and_invalid_files();
+	failed |= test_persist_file_quarantines_invalid_payload();
 	failed |= test_document_session_model_loads_legacy_v1_format();
 	failed |= test_dock_floating_model_loads_legacy_v1_format();
 	failed |= test_floating_document_session_model_loads_legacy_v1_format();

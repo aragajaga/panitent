@@ -192,6 +192,7 @@ void DockData_Init(DockData* pDockData)
 	pDockData->nRole = DOCK_ROLE_UNKNOWN;
 	pDockData->nPaneKind = DOCK_PANE_NONE;
 	pDockData->nDockSide = DKS_NONE;
+	pDockData->uModelNodeId = 0;
 }
 
 BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
@@ -4419,6 +4420,7 @@ DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 		pDockData->nRole = DOCK_ROLE_UNKNOWN;
 		pDockData->nPaneKind = DOCK_PANE_NONE;
 		pDockData->nDockSide = DKS_NONE;
+		pDockData->uModelNodeId = 0;
 
 		return pDockData;
 	}

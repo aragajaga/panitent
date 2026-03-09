@@ -69,11 +69,22 @@ static void DockModel_ResolveActiveTabName(const TreeNode* pRootNode, const Dock
 	DockModel_CopyWString(pszName, cchName, pActiveData->lpszCaption);
 }
 
-static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const TreeNode* pNode)
+static uint32_t DockModel_AllocateNodeId(uint32_t* pNextNodeId)
+{
+	uint32_t uNodeId = *pNextNodeId;
+	(*pNextNodeId)++;
+	if (*pNextNodeId == 0)
+	{
+		*pNextNodeId = 1;
+	}
+	return uNodeId;
+}
+
+static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const TreeNode* pNode, uint32_t* pNextNodeId)
 {
 	DockModelNode* pModelNode;
 	const DockData* pDockData;
-	if (!pNode || !pNode->data)
+	if (!pNode || !pNode->data || !pNextNodeId)
 	{
 		return NULL;
 	}
@@ -85,6 +96,7 @@ static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const Tre
 		return NULL;
 	}
 
+	pModelNode->uNodeId = pDockData->uModelNodeId ? pDockData->uModelNodeId : DockModel_AllocateNodeId(pNextNodeId);
 	pModelNode->nRole = pDockData->nRole;
 	pModelNode->nPaneKind = pDockData->nPaneKind;
 	pModelNode->nDockSide = pDockData->nDockSide;
@@ -97,8 +109,8 @@ static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const Tre
 	DockModel_CopyWString(pModelNode->szCaption, ARRAYSIZE(pModelNode->szCaption), pDockData->lpszCaption);
 	DockModel_ResolveActiveTabName(pRootNode, pDockData, pModelNode->szActiveTabName, ARRAYSIZE(pModelNode->szActiveTabName));
 
-	pModelNode->pChild1 = DockModel_CaptureNode(pRootNode, pNode->node1);
-	pModelNode->pChild2 = DockModel_CaptureNode(pRootNode, pNode->node2);
+	pModelNode->pChild1 = DockModel_CaptureNode(pRootNode, pNode->node1, pNextNodeId);
+	pModelNode->pChild2 = DockModel_CaptureNode(pRootNode, pNode->node2, pNextNodeId);
 	return pModelNode;
 }
 
@@ -109,7 +121,8 @@ DockModelNode* DockModel_CaptureTree(const TreeNode* pRootNode)
 		return NULL;
 	}
 
-	return DockModel_CaptureNode(pRootNode, pRootNode);
+	uint32_t nextNodeId = 1;
+	return DockModel_CaptureNode(pRootNode, pRootNode, &nextNodeId);
 }
 
 DockModelNode* DockModel_CaptureHostLayout(const DockHostWindow* pDockHostWindow)

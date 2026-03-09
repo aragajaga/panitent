@@ -8,6 +8,7 @@
 #include "dockmodelbuild.h"
 #include "dockmodelio.h"
 #include "dockmodelvalidate.h"
+#include "persistfile.h"
 #include "panitentapp.h"
 #include "shell/pathutil.h"
 
@@ -66,14 +67,14 @@ BOOL PanitentDockLayout_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDock
 	{
 		if (loadStatus == PERSIST_LOAD_INVALID_FORMAT)
 		{
-			DeleteFileW(pszDockLayoutFilePath);
+			PersistFile_QuarantineInvalid(pszDockLayoutFilePath);
 		}
 		free(pszDockLayoutFilePath);
 		return FALSE;
 	}
 	if (!DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
 	{
-		DeleteFileW(pszDockLayoutFilePath);
+		PersistFile_QuarantineInvalid(pszDockLayoutFilePath);
 		free(pszDockLayoutFilePath);
 		DockModel_Destroy(pModelRoot);
 		return FALSE;

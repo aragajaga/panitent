@@ -6,6 +6,7 @@
 #include "documentrecovery.h"
 #include "documentsessionmodel.h"
 #include "panitentapp.h"
+#include "persistfile.h"
 #include "recoverystorepersist.h"
 #include "viewport.h"
 #include "workspacecontainer.h"
@@ -131,7 +132,7 @@ BOOL PanitentDocumentSession_Restore(PanitentApp* pPanitentApp)
 	BOOL bLoaded = DocumentSessionModel_LoadFromFileEx(pszFilePath, &model, &loadStatus);
 	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
 	{
-		DeleteFileW(pszFilePath);
+		PersistFile_QuarantineInvalid(pszFilePath);
 	}
 	free(pszFilePath);
 	if (!bLoaded)

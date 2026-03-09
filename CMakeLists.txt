@@ -123,6 +123,7 @@ set(C_SOURCES
     src/panitentapp.c
     src/panitentwindow.c
     src/pentablet.c
+    src/persistfile.c
     src/playground.c
     src/pntini.c
     src/pntxml.c
@@ -205,6 +206,7 @@ if(PANITENT_BUILD_TESTS)
     src/dockmodelio.c
     src/dockmodelvalidate.c
     src/floatingdockpolicy.c
+    src/persistfile.c
     src/dockgroup.c
     src/dockshell.c
     src/docklayout.c

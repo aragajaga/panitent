@@ -281,6 +281,24 @@ This change set adds real backward-compatible loading for legacy session formats
 
 This replaces simple rejection with an actual compatibility path for the most important persisted files.
 
+## Eighteenth Increment Applied
+
+This change set adds stable model node identity to the dock model boundary:
+- `dockmodel.*`, `dockmodelio.*`, and `dockmodelbuild.*` now preserve persistent `node id`;
+- floating document workspace sessions bind to workspace layout nodes by id instead of traversal order;
+- `docklayout.dat` now writes `v2` node-aware payloads while still loading legacy `v1`.
+
+This removes one of the more fragile assumptions from floating document restore: workspace matching is now structural, not incidental.
+
+## Nineteenth Increment Applied
+
+This change set upgrades invalid-file handling from delete-only to quarantine:
+- added `persistfile.*` to quarantine incompatible persisted files next to the original path;
+- restore paths now move bad files to `*.invalid.<timestamp>.bak` before falling back;
+- the restore pipeline is now: load, migrate if possible, quarantine if not.
+
+This keeps invalid persisted files available for diagnosis instead of silently discarding them.
+
 ## Twelfth Increment Applied
 
 This change set starts extending persistence beyond the main dock host:

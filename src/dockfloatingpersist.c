@@ -9,6 +9,7 @@
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
 #include "dockviewfactory.h"
+#include "persistfile.h"
 #include "floatingwindowcontainer.h"
 #include "floatingchildhost.h"
 #include "shell/pathutil.h"
@@ -148,7 +149,7 @@ BOOL PanitentDockFloating_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDo
 	BOOL bLoaded = DockFloatingLayout_LoadFromFileEx(pszFilePath, &model, &loadStatus);
 	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
 	{
-		DeleteFileW(pszFilePath);
+		PersistFile_QuarantineInvalid(pszFilePath);
 	}
 	free(pszFilePath);
 	if (!bLoaded)

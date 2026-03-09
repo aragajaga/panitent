@@ -10,6 +10,7 @@
 #include "dockhostrestore.h"
 #include "dockmodel.h"
 #include "dockmodelbuild.h"
+#include "persistfile.h"
 #include "floatingchildhost.h"
 #include "floatingdocumentsessionmodel.h"
 #include "floatingwindowcontainer.h"
@@ -29,7 +30,7 @@ typedef struct FloatingDocumentRestoreContext
 	PanitentApp* pPanitentApp;
 	DockHostWindow* pDockHostTarget;
 	FloatingDocumentSessionEntry* pEntry;
-	int nWorkspaceIndex;
+	BOOL abConsumed[16];
 } FloatingDocumentRestoreContext;
 
 static BOOL FloatingDocumentPersist_IsClassName(HWND hWnd, PCWSTR pszClassName)
@@ -100,6 +101,7 @@ static void FloatingDocumentPersist_CollectWorkspaceSessionsRecursive(
 			{
 				FloatingDocumentWorkspaceSession* pWorkspaceSession = &pEntry->workspaces[pEntry->nWorkspaceCount];
 				memset(pWorkspaceSession, 0, sizeof(*pWorkspaceSession));
+				pWorkspaceSession->uWorkspaceNodeId = pLayoutNode->uNodeId;
 				pWorkspaceSession->nActiveEntry = -1;
 
 				ViewportWindow* pActiveViewport = WorkspaceContainer_GetCurrentViewport(pWorkspace);
@@ -184,13 +186,28 @@ static BOOL FloatingDocumentPersist_OnNodeAttached(
 	}
 
 	FloatingDocumentRestoreContext* pContext = (FloatingDocumentRestoreContext*)pUserData;
-	if (pContext->nWorkspaceIndex >= pContext->pEntry->nWorkspaceCount)
+	int iWorkspaceIndex = -1;
+	for (int i = 0; i < pContext->pEntry->nWorkspaceCount; ++i)
+	{
+		if (pContext->abConsumed[i])
+		{
+			continue;
+		}
+		if (pContext->pEntry->workspaces[i].uWorkspaceNodeId == pDockData->uModelNodeId ||
+			pContext->pEntry->workspaces[i].uWorkspaceNodeId == 0)
+		{
+			iWorkspaceIndex = i;
+			break;
+		}
+	}
+	if (iWorkspaceIndex < 0)
 	{
 		return FALSE;
 	}
 
 	WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)pWindow;
-	FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[pContext->nWorkspaceIndex++];
+	pContext->abConsumed[iWorkspaceIndex] = TRUE;
+	FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[iWorkspaceIndex];
 	for (int i = 0; i < pWorkspaceSession->nFileCount; ++i)
 	{
 		if (i == pWorkspaceSession->nActiveEntry)
@@ -352,7 +369,7 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 	BOOL bLoaded = FloatingDocumentSessionModel_LoadFromFileEx(pszFilePath, pModel, &loadStatus);
 	if (!bLoaded && loadStatus == PERSIST_LOAD_INVALID_FORMAT)
 	{
-		DeleteFileW(pszFilePath);
+		PersistFile_QuarantineInvalid(pszFilePath);
 	}
 	free(pszFilePath);
 	if (!bLoaded)
@@ -405,7 +422,6 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		restoreContext.pPanitentApp = pPanitentApp;
 		restoreContext.pDockHostTarget = pDockHostWindow;
 		restoreContext.pEntry = pEntry;
-		restoreContext.nWorkspaceIndex = 0;
 		BOOL bHasWorkspace = FALSE;
 		if (!PanitentDockHostRestoreAttachKnownViewsEx(
 			pPanitentApp,

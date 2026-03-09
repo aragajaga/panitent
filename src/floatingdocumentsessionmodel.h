@@ -7,6 +7,7 @@
 
 typedef struct FloatingDocumentWorkspaceSession
 {
+	uint32_t uWorkspaceNodeId;
 	int nActiveEntry;
 	int nFileCount;
 	DocumentSessionEntry entries[32];
