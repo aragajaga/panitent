@@ -14,13 +14,26 @@
 
 BOOL PanitentDockLayout_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-	DockModelNode* pModelRoot;
 	PTSTR pszDockLayoutFilePath = NULL;
+	GetDockLayoutFilePath(&pszDockLayoutFilePath);
+	if (!pszDockLayoutFilePath)
+	{
+		return FALSE;
+	}
+
+	BOOL bResult = PanitentDockLayout_SaveToFilePath(pPanitentApp, pDockHostWindow, pszDockLayoutFilePath);
+	free(pszDockLayoutFilePath);
+	return bResult;
+}
+
+BOOL PanitentDockLayout_SaveToFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, PCWSTR pszFilePath)
+{
+	DockModelNode* pModelRoot;
 	BOOL bResult;
 
 	UNREFERENCED_PARAMETER(pPanitentApp);
 
-	if (!pDockHostWindow)
+	if (!pDockHostWindow || !pszFilePath || !pszFilePath[0])
 	{
 		return FALSE;
 	}
@@ -31,15 +44,7 @@ BOOL PanitentDockLayout_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHos
 		return FALSE;
 	}
 
-	GetDockLayoutFilePath(&pszDockLayoutFilePath);
-	if (!pszDockLayoutFilePath)
-	{
-		DockModel_Destroy(pModelRoot);
-		return FALSE;
-	}
-
-	bResult = DockModelIO_SaveToFile(pModelRoot, pszDockLayoutFilePath);
-	free(pszDockLayoutFilePath);
+	bResult = DockModelIO_SaveToFile(pModelRoot, pszFilePath);
 	DockModel_Destroy(pModelRoot);
 	return bResult;
 }
@@ -47,39 +52,43 @@ BOOL PanitentDockLayout_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHos
 BOOL PanitentDockLayout_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const RECT* pDockHostRect)
 {
 	PTSTR pszDockLayoutFilePath = NULL;
-	DockModelNode* pModelRoot;
-	TreeNode* pRootNode;
-
-	if (!pPanitentApp || !pDockHostWindow || !pDockHostRect)
-	{
-		return FALSE;
-	}
-
 	GetDockLayoutFilePath(&pszDockLayoutFilePath);
 	if (!pszDockLayoutFilePath)
 	{
 		return FALSE;
 	}
 
+	BOOL bResult = PanitentDockLayout_RestoreFromFilePath(pPanitentApp, pDockHostWindow, pDockHostRect, pszDockLayoutFilePath);
+	free(pszDockLayoutFilePath);
+	return bResult;
+}
+
+BOOL PanitentDockLayout_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, const RECT* pDockHostRect, PCWSTR pszFilePath)
+{
+	DockModelNode* pModelRoot;
+	TreeNode* pRootNode;
+
+	if (!pPanitentApp || !pDockHostWindow || !pDockHostRect || !pszFilePath || !pszFilePath[0])
+	{
+		return FALSE;
+	}
+
 	PersistLoadStatus loadStatus = PERSIST_LOAD_IO_ERROR;
-	pModelRoot = DockModelIO_LoadFromFileEx(pszDockLayoutFilePath, &loadStatus);
+	pModelRoot = DockModelIO_LoadFromFileEx(pszFilePath, &loadStatus);
 	if (!pModelRoot)
 	{
 		if (loadStatus == PERSIST_LOAD_INVALID_FORMAT)
 		{
-			PersistFile_QuarantineInvalid(pszDockLayoutFilePath);
+			PersistFile_QuarantineInvalid(pszFilePath);
 		}
-		free(pszDockLayoutFilePath);
 		return FALSE;
 	}
 	if (!DockModelValidateAndRepairMainLayout(&pModelRoot, NULL))
 	{
-		PersistFile_QuarantineInvalid(pszDockLayoutFilePath);
-		free(pszDockLayoutFilePath);
+		PersistFile_QuarantineInvalid(pszFilePath);
 		DockModel_Destroy(pModelRoot);
 		return FALSE;
 	}
-	free(pszDockLayoutFilePath);
 
 	pRootNode = DockModelBuildTree(pModelRoot);
 	DockModel_Destroy(pModelRoot);

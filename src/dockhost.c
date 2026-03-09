@@ -3579,6 +3579,64 @@ TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow)
 	return pDockHostWindow->pRoot_;
 }
 
+static BOOL DockHostWindow_ShouldPreserveHwnd(HWND hWnd, const HWND* phWndPreserve, int cPreserve)
+{
+	if (!hWnd || !phWndPreserve || cPreserve <= 0)
+	{
+		return FALSE;
+	}
+
+	for (int i = 0; i < cPreserve; ++i)
+	{
+		if (phWndPreserve[i] == hWnd)
+		{
+			return TRUE;
+		}
+	}
+
+	return FALSE;
+}
+
+static void DockHostWindow_DestroyTreeRecursive(TreeNode* pNode, const HWND* phWndPreserve, int cPreserve)
+{
+	if (!pNode)
+	{
+		return;
+	}
+
+	DockHostWindow_DestroyTreeRecursive(pNode->node1, phWndPreserve, cPreserve);
+	DockHostWindow_DestroyTreeRecursive(pNode->node2, phWndPreserve, cPreserve);
+
+	DockData* pDockData = (DockData*)pNode->data;
+	if (pDockData && pDockData->hWnd && IsWindow(pDockData->hWnd) &&
+		!DockHostWindow_ShouldPreserveHwnd(pDockData->hWnd, phWndPreserve, cPreserve))
+	{
+		DestroyWindow(pDockData->hWnd);
+	}
+
+	free(pNode->data);
+	free(pNode);
+}
+
+void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve)
+{
+	if (!pDockHostWindow)
+	{
+		return;
+	}
+
+	DockHostWindow_HideAutoHideOverlay(pDockHostWindow);
+	DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
+	DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
+	DockHostWindow_DestroyTreeRecursive(pDockHostWindow->pRoot_, phWndPreserve, cPreserve);
+	pDockHostWindow->pRoot_ = NULL;
+	if (pDockHostWindow->m_pDockInspectorDialog)
+	{
+		DockInspectorDialog_Update(pDockHostWindow->m_pDockInspectorDialog, NULL);
+	}
+	Window_Invalidate((Window*)pDockHostWindow);
+}
+
 static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd)
 {
 	if (!hWnd || !IsWindow(hWnd))

@@ -120,32 +120,54 @@ static BOOL CALLBACK DockFloatingPersist_EnumWindowsProc(HWND hWnd, LPARAM lPara
 
 BOOL PanitentDockFloating_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-	UNREFERENCED_PARAMETER(pPanitentApp);
-	UNREFERENCED_PARAMETER(pDockHostWindow);
-
-	DockFloatingLayoutFileModel model = { 0 };
-	DockFloatingPersistCollectContext context = { &model };
 	PTSTR pszFilePath = NULL;
-	EnumWindows(DockFloatingPersist_EnumWindowsProc, (LPARAM)&context);
-
 	GetDockFloatingFilePath(&pszFilePath);
 	if (!pszFilePath)
 	{
 		return FALSE;
 	}
 
-	BOOL bResult = DockFloatingLayout_SaveToFile(&model, pszFilePath);
+	BOOL bResult = PanitentDockFloating_SaveToFilePath(pPanitentApp, pDockHostWindow, pszFilePath);
 	free(pszFilePath);
+	return bResult;
+}
+
+BOOL PanitentDockFloating_SaveToFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, PCWSTR pszFilePath)
+{
+	UNREFERENCED_PARAMETER(pPanitentApp);
+	UNREFERENCED_PARAMETER(pDockHostWindow);
+
+	DockFloatingLayoutFileModel model = { 0 };
+	DockFloatingPersistCollectContext context = { &model };
+	EnumWindows(DockFloatingPersist_EnumWindowsProc, (LPARAM)&context);
+	if (!pszFilePath || !pszFilePath[0])
+	{
+		return FALSE;
+	}
+
+	BOOL bResult = DockFloatingLayout_SaveToFile(&model, pszFilePath);
 	DockFloatingLayout_Destroy(&model);
 	return bResult;
 }
 
 BOOL PanitentDockFloating_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
-	DockFloatingLayoutFileModel model = { 0 };
 	PTSTR pszFilePath = NULL;
 	GetDockFloatingFilePath(&pszFilePath);
 	if (!pszFilePath)
+	{
+		return FALSE;
+	}
+
+	BOOL bResult = PanitentDockFloating_RestoreFromFilePath(pPanitentApp, pDockHostWindow, pszFilePath);
+	free(pszFilePath);
+	return bResult;
+}
+
+BOOL PanitentDockFloating_RestoreFromFilePath(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, PCWSTR pszFilePath)
+{
+	DockFloatingLayoutFileModel model = { 0 };
+	if (!pszFilePath || !pszFilePath[0])
 	{
 		return FALSE;
 	}
@@ -156,7 +178,6 @@ BOOL PanitentDockFloating_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDo
 	{
 		PersistFile_QuarantineInvalid(pszFilePath);
 	}
-	free(pszFilePath);
 	if (!bLoaded)
 	{
 		return FALSE;

@@ -427,6 +427,8 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 			pPanitentApp,
 			pFloatingDockHost,
 			pRootNode,
+			NULL,
+			NULL,
 			FloatingDocumentPersist_OnNodeAttached,
 			&restoreContext,
 			&bHasWorkspace))

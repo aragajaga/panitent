@@ -13,6 +13,7 @@
 #include "panitentwindow.h"
 #include "toolwndframe.h"
 #include "theme.h"
+#include "windowlayoutmanager.h"
 
 #include "history.h"
 #include "resource.h"
@@ -1666,6 +1667,10 @@ static LRESULT CALLBACK PanitentWindow_MenuBarProc(HWND hWnd, UINT message, WPAR
 LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam, LPARAM lParam)
 {
     PanitentApp* pPanitentApp = PanitentApp_Instance();
+    if (WindowLayoutManager_HandleCommand(pPanitentWindow, LOWORD(wParam)))
+    {
+        return 0;
+    }
     AppCmd_Execute(&pPanitentApp->m_appCmd, LOWORD(wParam), pPanitentApp);
     return 0;
 }
@@ -1673,6 +1678,10 @@ LRESULT PanitentWindow_OnCommand(PanitentWindow* pPanitentWindow, WPARAM wParam,
 LRESULT CALLBACK PanitentWindow_UserProc(PanitentWindow* pPanitentWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message) {
+    case WM_INITMENUPOPUP:
+        WindowLayoutManager_RefreshApplyMenu(pPanitentWindow);
+        break;
+
     case WM_TIMER:
         if (wParam == kMainMenuSwitchTimerId && pPanitentWindow && pPanitentWindow->bMenuPopupTracking)
         {
@@ -1819,6 +1828,7 @@ BOOL PanitentWindow_OnCreate(PanitentWindow* pPanitentWindow, LPCREATESTRUCT lpc
     HWND hWnd = Window_GetHWND((Window*)pPanitentWindow);
     pPanitentWindow->hMainMenu = GetMenu(hWnd);
     PanitentWindow_UpdateMenuPresentation(pPanitentWindow);
+    WindowLayoutManager_RefreshApplyMenu(pPanitentWindow);
 
     RECT rcClient;
     GetWindowRect(hWnd, &rcClient);

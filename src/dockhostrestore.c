@@ -16,6 +16,8 @@ typedef struct DockHostRestoreContext
 {
 	PanitentApp* pPanitentApp;
 	DockHostWindow* pDockHostWindow;
+	FnDockHostRestoreResolveView pfnResolveView;
+	void* pResolveViewUserData;
 	FnDockHostRestoreNodeAttached pfnNodeAttached;
 	void* pUserData;
 	DockHostRestoreHandleRemap remaps[64];
@@ -67,8 +69,26 @@ static BOOL DockHostRestore_AttachWindowsRecursive(DockHostRestoreContext* pCont
 	if (nViewId != PNT_DOCK_VIEW_NONE)
 	{
 		HWND hOld = pDockData->hWnd;
-		Window* pWindow = PanitentDockViewFactory_CreateWindow(pContext->pPanitentApp, nViewId);
-		if (!pWindow || !Window_CreateWindow(pWindow, NULL))
+		Window* pWindow = NULL;
+		if (pContext->pfnResolveView)
+		{
+			pWindow = pContext->pfnResolveView(
+				pContext->pPanitentApp,
+				pContext->pDockHostWindow,
+				pNode,
+				pDockData,
+				nViewId,
+				pContext->pResolveViewUserData);
+		}
+		if (!pWindow)
+		{
+			pWindow = PanitentDockViewFactory_CreateWindow(pContext->pPanitentApp, nViewId);
+		}
+		if (!pWindow)
+		{
+			return FALSE;
+		}
+		if (!Window_GetHWND(pWindow) && !Window_CreateWindow(pWindow, NULL))
 		{
 			return FALSE;
 		}
@@ -130,6 +150,8 @@ BOOL PanitentDockHostRestoreAttachKnownViews(
 		pRootNode,
 		NULL,
 		NULL,
+		NULL,
+		NULL,
 		pbHasWorkspace);
 }
 
@@ -137,6 +159,8 @@ BOOL PanitentDockHostRestoreAttachKnownViewsEx(
 	PanitentApp* pPanitentApp,
 	DockHostWindow* pDockHostWindow,
 	TreeNode* pRootNode,
+	FnDockHostRestoreResolveView pfnResolveView,
+	void* pResolveViewUserData,
 	FnDockHostRestoreNodeAttached pfnNodeAttached,
 	void* pUserData,
 	BOOL* pbHasWorkspace)
@@ -144,6 +168,8 @@ BOOL PanitentDockHostRestoreAttachKnownViewsEx(
 	DockHostRestoreContext context = { 0 };
 	context.pPanitentApp = pPanitentApp;
 	context.pDockHostWindow = pDockHostWindow;
+	context.pfnResolveView = pfnResolveView;
+	context.pResolveViewUserData = pResolveViewUserData;
 	context.pfnNodeAttached = pfnNodeAttached;
 	context.pUserData = pUserData;
 	if (!DockHostRestore_AttachWindowsRecursive(&context, pRootNode))

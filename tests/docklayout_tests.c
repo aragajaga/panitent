@@ -18,6 +18,7 @@
 #include "../src/persistfile.h"
 #include "../src/recoverystore.h"
 #include "../src/docktypes.h"
+#include "../src/windowlayoutcatalog.h"
 #include "../src/workspacedockpolicy.h"
 
 static int test_zone_tab_rect_vertical_starts_from_top(void)
@@ -533,6 +534,41 @@ static int test_persist_file_quarantines_invalid_payload(void)
 	assert(hFind != INVALID_HANDLE_VALUE);
 	FindClose(hFind);
 
+	return 0;
+}
+
+static int test_window_layout_catalog_round_trip_and_reorder(void)
+{
+	WCHAR szTempPath[MAX_PATH] = L"";
+	WCHAR szTempFile[MAX_PATH] = L"";
+	WindowLayoutCatalog catalog = { 0 };
+	WindowLayoutCatalog loaded = { 0 };
+	PersistLoadStatus status = PERSIST_LOAD_IO_ERROR;
+
+	assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+	assert(GetTempFileNameW(szTempPath, L"wlc", 0, szTempFile) != 0);
+
+	WindowLayoutCatalog_Init(&catalog);
+	assert(WindowLayoutCatalog_Add(&catalog, 10, L"Default"));
+	assert(WindowLayoutCatalog_Add(&catalog, 11, L"Modeling"));
+	assert(WindowLayoutCatalog_Add(&catalog, 12, L"Painting"));
+	assert(WindowLayoutCatalog_Move(&catalog, 2, 1));
+	assert(WindowLayoutCatalog_Rename(&catalog, 0, L"Baseline"));
+	assert(WindowLayoutCatalog_Delete(&catalog, 2));
+	assert(WindowLayoutCatalog_SaveToFile(&catalog, szTempFile));
+
+	assert(WindowLayoutCatalog_LoadFromFile(szTempFile, &loaded, &status));
+	assert(status == PERSIST_LOAD_OK);
+	assert(loaded.nEntryCount == 2);
+	assert(loaded.entries[0].uId == 10);
+	assert(wcscmp(loaded.entries[0].szName, L"Baseline") == 0);
+	assert(loaded.entries[1].uId == 12);
+	assert(wcscmp(loaded.entries[1].szName, L"Painting") == 0);
+	assert(WindowLayoutCatalog_FindByName(&loaded, L"Baseline") == 0);
+	assert(WindowLayoutCatalog_FindById(&loaded, 12) == 1);
+	assert(WindowLayoutCatalog_AllocateId(&loaded) == 13);
+
+	DeleteFileW(szTempFile);
 	return 0;
 }
 
@@ -1350,6 +1386,7 @@ int main(void)
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_persist_load_status_reports_missing_and_invalid_files();
 	failed |= test_persist_file_quarantines_invalid_payload();
+	failed |= test_window_layout_catalog_round_trip_and_reorder();
 	failed |= test_dock_model_validator_repairs_layers_alias_name();
 	failed |= test_document_session_model_loads_legacy_v1_format();
 	failed |= test_dock_floating_model_loads_legacy_v1_format();

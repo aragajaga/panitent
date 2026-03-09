@@ -148,6 +148,8 @@ set(C_SOURCES
     src/windowstub.c
     src/workspacedockpolicy.c
     src/workspacecontainer.c
+    src/windowlayoutcatalog.c
+    src/windowlayoutmanager.c
     )
 
 set(SOURCE_EXE ${C_SOURCES} res/panitent.rc)
@@ -214,6 +216,7 @@ if(PANITENT_BUILD_TESTS)
     src/docktypes.c
     src/dockviewcatalog.c
     src/recoverystore.c
+    src/windowlayoutcatalog.c
     src/workspacedockpolicy.c
   )
 
