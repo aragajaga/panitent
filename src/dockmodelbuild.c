@@ -51,6 +51,7 @@ static TreeNode* DockModelBuild_BuildNode(const DockModelNode* pModelNode, uintp
 
 	pNode->data = pDockData;
 	pDockData->uModelNodeId = pModelNode->uNodeId;
+	pDockData->nViewId = (PanitentDockViewId)pModelNode->uViewId;
 	pDockData->nRole = pModelNode->nRole;
 	pDockData->nPaneKind = pModelNode->nPaneKind;
 	pDockData->nDockSide = pModelNode->nDockSide;

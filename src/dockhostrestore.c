@@ -61,7 +61,9 @@ static BOOL DockHostRestore_AttachWindowsRecursive(DockHostRestoreContext* pCont
 	}
 
 	DockData* pDockData = (DockData*)pNode->data;
-	PanitentDockViewId nViewId = PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
+	PanitentDockViewId nViewId = pDockData->nViewId != PNT_DOCK_VIEW_NONE ?
+		pDockData->nViewId :
+		PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
 	if (nViewId != PNT_DOCK_VIEW_NONE)
 	{
 		HWND hOld = pDockData->hWnd;

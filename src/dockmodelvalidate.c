@@ -178,6 +178,7 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 	switch (pNode->nRole)
 	{
 	case DOCK_ROLE_ROOT:
+		pNode->uViewId = PNT_DOCK_VIEW_NONE;
 		pNode->nPaneKind = DOCK_PANE_NONE;
 		pNode->nDockSide = DKS_NONE;
 		pNode->bCollapsed = FALSE;
@@ -194,6 +195,7 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 			return FALSE;
 		}
 
+		pNode->uViewId = PNT_DOCK_VIEW_NONE;
 		pNode->nPaneKind = DOCK_PANE_NONE;
 		pNode->bShowCaption = FALSE;
 		DockModelValidate_SetStringIfDifferent(pNode->szName, ARRAYSIZE(pNode->szName), pszZoneName, pContext);
@@ -219,6 +221,7 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 	}
 
 	case DOCK_ROLE_WORKSPACE:
+		pNode->uViewId = PNT_DOCK_VIEW_WORKSPACE;
 		if (pNode->pChild1 || pNode->pChild2)
 		{
 			pContext->stats.nErrors++;
@@ -241,17 +244,30 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 	case DOCK_ROLE_PANEL:
 	{
 		PanitentDockViewId nViewId;
+		PCWSTR pszCanonicalName;
 		if (pNode->pChild1 || pNode->pChild2)
 		{
 			pContext->stats.nErrors++;
 			return FALSE;
 		}
 
-		nViewId = PanitentDockViewCatalog_Find(pNode->nRole, pNode->szName);
+		nViewId = pNode->uViewId != 0 ?
+			(PanitentDockViewId)pNode->uViewId :
+			PanitentDockViewCatalog_Find(pNode->nRole, pNode->szName);
 		if (nViewId == PNT_DOCK_VIEW_NONE)
 		{
 			pContext->stats.nErrors++;
 			return FALSE;
+		}
+		pNode->uViewId = nViewId;
+		pszCanonicalName = PanitentDockViewCatalog_GetCanonicalName(nViewId);
+		if (pszCanonicalName && pszCanonicalName[0] != L'\0')
+		{
+			DockModelValidate_SetStringIfDifferent(
+				pNode->szName,
+				ARRAYSIZE(pNode->szName),
+				pszCanonicalName,
+				pContext);
 		}
 		if (pContext->seenViews[nViewId])
 		{
@@ -274,6 +290,7 @@ static BOOL DockModelValidate_ValidateNode(DockModelNode** ppNode, DockModelVali
 	case DOCK_ROLE_SHELL_SPLIT:
 	case DOCK_ROLE_ZONE_STACK_SPLIT:
 	case DOCK_ROLE_PANEL_SPLIT:
+		pNode->uViewId = PNT_DOCK_VIEW_NONE;
 		pNode->nPaneKind = DOCK_PANE_NONE;
 		pNode->nDockSide = DKS_NONE;
 		pNode->bShowCaption = FALSE;

@@ -6,6 +6,7 @@ typedef struct DockModelNode DockModelNode;
 struct DockModelNode
 {
 	uint32_t uNodeId;
+	uint32_t uViewId;
 	DockNodeRole nRole;
 	DockPaneKind nPaneKind;
 	int nDockSide;

@@ -14,6 +14,7 @@
 #include "../src/dockshell.h"
 #include "../src/docklayout.h"
 #include "../src/dockpolicy.h"
+#include "../src/dockmodelvalidate.h"
 #include "../src/persistfile.h"
 #include "../src/recoverystore.h"
 #include "../src/docktypes.h"
@@ -535,6 +536,41 @@ static int test_persist_file_quarantines_invalid_payload(void)
 	return 0;
 }
 
+static int test_dock_model_validator_repairs_layers_alias_name(void)
+{
+	DockModelNode* pRoot = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+	DockModelNode* pWorkspace = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+	DockModelNode* pLeftZone = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+	DockModelNode* pLayers = (DockModelNode*)calloc(1, sizeof(DockModelNode));
+	assert(pRoot && pWorkspace && pLeftZone && pLayers);
+
+	pRoot->nRole = DOCK_ROLE_ROOT;
+	wcscpy_s(pRoot->szName, ARRAYSIZE(pRoot->szName), L"Root");
+	pRoot->pChild1 = pWorkspace;
+	pRoot->pChild2 = pLeftZone;
+
+	pWorkspace->nRole = DOCK_ROLE_WORKSPACE;
+	pWorkspace->nPaneKind = DOCK_PANE_DOCUMENT;
+	wcscpy_s(pWorkspace->szName, ARRAYSIZE(pWorkspace->szName), L"WorkspaceContainer");
+
+	pLeftZone->nRole = DOCK_ROLE_ZONE;
+	pLeftZone->nDockSide = DKS_LEFT;
+	wcscpy_s(pLeftZone->szName, ARRAYSIZE(pLeftZone->szName), L"DockZone.Left");
+	pLeftZone->pChild1 = pLayers;
+
+	pLayers->nRole = DOCK_ROLE_PANEL;
+	pLayers->nPaneKind = DOCK_PANE_TOOL;
+	pLayers->bShowCaption = TRUE;
+	wcscpy_s(pLayers->szName, ARRAYSIZE(pLayers->szName), L"LayersWindow");
+	wcscpy_s(pLayers->szCaption, ARRAYSIZE(pLayers->szCaption), L"LayersWindow");
+
+	assert(DockModelValidateAndRepairMainLayout(&pRoot, NULL));
+	assert(wcscmp(pLayers->szName, L"Layers") == 0);
+
+	DockModel_Destroy(pRoot);
+	return 0;
+}
+
 static int test_document_session_model_loads_legacy_v1_format(void)
 {
 	typedef struct LegacyDocumentSessionEntryV1
@@ -910,6 +946,10 @@ static void assert_dock_model_equal(const DockModelNode* pActual, const DockMode
 	}
 
 	assert(pActual->nRole == pExpected->nRole);
+	if (pExpected->uNodeId != 0)
+	{
+		assert(pActual->uNodeId == pExpected->uNodeId);
+	}
 	assert(pActual->nPaneKind == pExpected->nPaneKind);
 	assert(pActual->nDockSide == pExpected->nDockSide);
 	assert(pActual->dwStyle == pExpected->dwStyle);
@@ -940,11 +980,13 @@ static int test_dock_model_file_round_trip(void)
 	assert(GetTempFileNameW(szTempPath, L"dmd", 0, szTempFile) != 0);
 
 	modelRoot.nRole = DOCK_ROLE_ROOT;
+	modelRoot.uNodeId = 1;
 	wcscpy_s(modelRoot.szName, ARRAYSIZE(modelRoot.szName), L"Root");
 	modelRoot.pChild1 = &modelZone;
 	modelRoot.pChild2 = &modelWorkspace;
 
 	modelZone.nRole = DOCK_ROLE_ZONE;
+	modelZone.uNodeId = 2;
 	modelZone.nDockSide = DKS_LEFT;
 	modelZone.bCollapsed = TRUE;
 	wcscpy_s(modelZone.szName, ARRAYSIZE(modelZone.szName), L"DockZone.Left");
@@ -952,6 +994,7 @@ static int test_dock_model_file_round_trip(void)
 	modelZone.pChild1 = &modelSplit;
 
 	modelSplit.nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
+	modelSplit.uNodeId = 3;
 	modelSplit.dwStyle = DGA_END | DGP_ABSOLUTE | DGD_VERTICAL;
 	modelSplit.fGripPos = 0.5f;
 	modelSplit.iGripPos = 220;
@@ -960,18 +1003,21 @@ static int test_dock_model_file_round_trip(void)
 	modelSplit.pChild2 = &modelPanelB;
 
 	modelPanelA.nRole = DOCK_ROLE_PANEL;
+	modelPanelA.uNodeId = 4;
 	modelPanelA.nPaneKind = DOCK_PANE_TOOL;
 	modelPanelA.bShowCaption = TRUE;
 	wcscpy_s(modelPanelA.szName, ARRAYSIZE(modelPanelA.szName), L"Toolbox");
 	wcscpy_s(modelPanelA.szCaption, ARRAYSIZE(modelPanelA.szCaption), L"Toolbox");
 
 	modelPanelB.nRole = DOCK_ROLE_PANEL;
+	modelPanelB.uNodeId = 5;
 	modelPanelB.nPaneKind = DOCK_PANE_TOOL;
 	modelPanelB.bShowCaption = TRUE;
 	wcscpy_s(modelPanelB.szName, ARRAYSIZE(modelPanelB.szName), L"Palette");
 	wcscpy_s(modelPanelB.szCaption, ARRAYSIZE(modelPanelB.szCaption), L"Palette");
 
 	modelWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+	modelWorkspace.uNodeId = 6;
 	modelWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
 	wcscpy_s(modelWorkspace.szName, ARRAYSIZE(modelWorkspace.szName), L"WorkspaceContainer");
 
@@ -1250,6 +1296,7 @@ int main(void)
 	failed |= test_document_session_model_file_round_trip();
 	failed |= test_persist_load_status_reports_missing_and_invalid_files();
 	failed |= test_persist_file_quarantines_invalid_payload();
+	failed |= test_dock_model_validator_repairs_layers_alias_name();
 	failed |= test_document_session_model_loads_legacy_v1_format();
 	failed |= test_dock_floating_model_loads_legacy_v1_format();
 	failed |= test_floating_document_session_model_loads_legacy_v1_format();

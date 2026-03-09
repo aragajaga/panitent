@@ -5,6 +5,7 @@
 #include "win32/window.h"
 #include "util/tree.h"
 #include "docktypes.h"
+#include "dockviewcatalog.h"
 
 #define DGA_START 0
 #define DGA_END 1
@@ -22,6 +23,7 @@ struct DockData {
 	WCHAR lpszCaption[MAX_PATH];
 	WCHAR lpszName[MAX_PATH];
 	uint32_t uModelNodeId;
+	PanitentDockViewId nViewId;
 	DockNodeRole nRole;
 	DockPaneKind nPaneKind;
 	int nDockSide;

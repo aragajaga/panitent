@@ -107,6 +107,7 @@ TreeNode* PanitentDockViewFactory_CreateNodeAndWindow(
 	}
 
 	pDockData = (DockData*)pNode->data;
+	pDockData->nViewId = nViewId;
 	DockData_PinWindow(pDockHostWindow, pDockData, pWindow);
 	if (nRole == DOCK_ROLE_WORKSPACE)
 	{

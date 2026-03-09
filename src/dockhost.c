@@ -16,6 +16,7 @@
 #include "dockgroup.h"
 #include "docklayout.h"
 #include "dockpolicy.h"
+#include "dockviewcatalog.h"
 #include "resource.h"
 #include "floatingwindowcontainer.h"
 #include "dockinspectordialog.h"
@@ -78,6 +79,7 @@ static void DockHostWindow_ContinueFloatingDrag(HWND hWndFloating);
 static void DockHostWindow_UpdateDragOverlayVisual(DockHostWindow* pDockHostWindow, int iRadius);
 static BOOL DockNode_HasVisibleWindow(TreeNode* pNode);
 static BOOL DockNode_HasVisibleWindowInZone(TreeNode* pNode, DockData* pZoneData);
+static void DockHostWindow_AssignPersistentNameForHWND(DockData* pDockData, HWND hWnd);
 static BOOL DockNode_IsStructural(TreeNode* pNode);
 static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
 static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName);
@@ -193,6 +195,7 @@ void DockData_Init(DockData* pDockData)
 	pDockData->nPaneKind = DOCK_PANE_NONE;
 	pDockData->nDockSide = DKS_NONE;
 	pDockData->uModelNodeId = 0;
+	pDockData->nViewId = PNT_DOCK_VIEW_NONE;
 }
 
 BOOL DockData_GetCaptionRect(DockData* pDockData, RECT* rc)
@@ -3648,6 +3651,40 @@ static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockDat
 	{
 		pDockData->nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	}
+
+	if (pDockData->lpszName[0] == L'\0')
+	{
+		DockHostWindow_AssignPersistentNameForHWND(pDockData, hWnd);
+	}
+}
+
+static void DockHostWindow_AssignPersistentNameForHWND(DockData* pDockData, HWND hWnd)
+{
+	WCHAR szClassNameBuf[64] = L"";
+	WCHAR szTitleBuf[MAX_PATH] = L"";
+	PanitentDockViewId nViewId;
+	PCWSTR pszCanonicalName;
+
+	if (!pDockData || !hWnd || !IsWindow(hWnd))
+	{
+		return;
+	}
+
+	GetClassNameW(hWnd, szClassNameBuf, ARRAYSIZE(szClassNameBuf));
+	GetWindowTextW(hWnd, szTitleBuf, ARRAYSIZE(szTitleBuf));
+	nViewId = PanitentDockViewCatalog_FindForWindow(szClassNameBuf, szTitleBuf);
+	pszCanonicalName = PanitentDockViewCatalog_GetCanonicalName(nViewId);
+	if (pszCanonicalName && pszCanonicalName[0] != L'\0')
+	{
+		pDockData->nViewId = nViewId;
+		wcscpy_s(pDockData->lpszName, MAX_PATH, pszCanonicalName);
+		return;
+	}
+
+	if (pDockData->lpszCaption[0] != L'\0')
+	{
+		wcscpy_s(pDockData->lpszName, MAX_PATH, pDockData->lpszCaption);
+	}
 }
 
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize)
@@ -3692,10 +3729,6 @@ static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNod
 	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	DockData_PinHWND(pDockHostWindow, pDockDataLeaf, hWnd);
 
-	if (pDockDataLeaf->lpszName[0] == L'\0')
-	{
-		wcscpy_s(pDockDataLeaf->lpszName, MAX_PATH, pDockDataLeaf->lpszCaption);
-	}
 	pDockDataLeaf->nRole = DOCK_ROLE_PANEL;
 	pDockDataLeaf->nPaneKind = nPaneKind;
 
@@ -4280,10 +4313,6 @@ static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, Tree
 	DockData* pLeafData = (DockData*)pLeaf->data;
 	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
 	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
-	if (pLeafData->lpszName[0] == L'\0')
-	{
-		wcscpy_s(pLeafData->lpszName, MAX_PATH, pLeafData->lpszCaption);
-	}
 	pLeafData->nRole = DOCK_ROLE_PANEL;
 	pLeafData->nPaneKind = nPaneKind;
 
@@ -4421,6 +4450,7 @@ DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption)
 		pDockData->nPaneKind = DOCK_PANE_NONE;
 		pDockData->nDockSide = DKS_NONE;
 		pDockData->uModelNodeId = 0;
+		pDockData->nViewId = PNT_DOCK_VIEW_NONE;
 
 		return pDockData;
 	}

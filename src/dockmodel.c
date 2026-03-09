@@ -2,6 +2,21 @@
 
 #include "dockmodel.h"
 
+static PanitentDockViewId DockModel_ResolveViewId(const DockData* pDockData)
+{
+	if (!pDockData)
+	{
+		return PNT_DOCK_VIEW_NONE;
+	}
+
+	if (pDockData->nViewId != PNT_DOCK_VIEW_NONE)
+	{
+		return pDockData->nViewId;
+	}
+
+	return PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName);
+}
+
 static const TreeNode* DockModel_FindByHWND(const TreeNode* pNode, HWND hWnd)
 {
 	if (!pNode || !hWnd)
@@ -97,6 +112,7 @@ static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const Tre
 	}
 
 	pModelNode->uNodeId = pDockData->uModelNodeId ? pDockData->uModelNodeId : DockModel_AllocateNodeId(pNextNodeId);
+	pModelNode->uViewId = (uint32_t)DockModel_ResolveViewId(pDockData);
 	pModelNode->nRole = pDockData->nRole;
 	pModelNode->nPaneKind = pDockData->nPaneKind;
 	pModelNode->nDockSide = pDockData->nDockSide;

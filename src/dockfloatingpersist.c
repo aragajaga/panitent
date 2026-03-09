@@ -39,7 +39,12 @@ static BOOL DockFloatingPersist_MainHostHasView(TreeNode* pNode, PanitentDockVie
 	}
 
 	DockData* pDockData = (DockData*)pNode->data;
-	if (pDockData && PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName) == nViewId)
+	PanitentDockViewId nNodeViewId = pDockData ?
+		(pDockData->nViewId != PNT_DOCK_VIEW_NONE ?
+			pDockData->nViewId :
+			PanitentDockViewCatalog_Find(pDockData->nRole, pDockData->lpszName)) :
+		PNT_DOCK_VIEW_NONE;
+	if (nNodeViewId == nViewId)
 	{
 		return TRUE;
 	}
