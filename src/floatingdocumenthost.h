@@ -1,6 +1,8 @@
 #pragma once
 
 #include "dockhost.h"
+#include "dockhostrestore.h"
+
 typedef struct DockModelNode DockModelNode;
 typedef struct Window Window;
 typedef struct FloatingWindowContainer FloatingWindowContainer;
@@ -25,20 +27,6 @@ typedef struct FloatingDocumentWorkspaceReuseContext
     int nWorkspaceCount;
     int iNextWorkspace;
 } FloatingDocumentWorkspaceReuseContext;
-typedef Window* (*FnDockHostRestoreResolveView)(
-    PanitentApp* pPanitentApp,
-    DockHostWindow* pDockHostWindow,
-    TreeNode* pNode,
-    DockData* pDockData,
-    PanitentDockViewId nViewId,
-    void* pUserData);
-typedef BOOL (*FnDockHostRestoreNodeAttached)(
-    PanitentApp* pPanitentApp,
-    DockHostWindow* pDockHostWindow,
-    TreeNode* pNode,
-    DockData* pDockData,
-    Window* pWindow,
-    void* pUserData);
 
 BOOL FloatingDocumentHost_CreatePinnedWindow(
     DockHostWindow* pDockHostTarget,
