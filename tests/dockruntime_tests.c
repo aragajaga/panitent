@@ -2083,6 +2083,86 @@ static int test_runtime_multi_workspace_floating_document_layout_restore_is_idem
     return 0;
 }
 
+static int test_runtime_direct_floating_document_layout_restore_strict_mode_rolls_back_on_partial_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces + counts.nDocumentHosts == 1);
+
+    DockModelNode floatDocRootA = { 0 };
+    DockModelNode floatDocWorkspaceA = { 0 };
+    floatDocRootA.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRootA.szName, ARRAYSIZE(floatDocRootA.szName), L"Root");
+    floatDocRootA.pChild1 = &floatDocWorkspaceA;
+    floatDocWorkspaceA.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspaceA.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspaceA.szName, ARRAYSIZE(floatDocWorkspaceA.szName), L"WorkspaceContainer");
+
+    DockModelNode floatDocRootB = { 0 };
+    DockModelNode floatDocWorkspaceB = { 0 };
+    floatDocRootB.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRootB.szName, ARRAYSIZE(floatDocRootB.szName), L"Root");
+    floatDocRootB.pChild1 = &floatDocWorkspaceB;
+    floatDocWorkspaceB.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspaceB.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspaceB.szName, ARRAYSIZE(floatDocWorkspaceB.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    floatDocModel.nEntryCount = 2;
+    SetRect(&floatDocModel.entries[0].rcWindow, 520, 180, 900, 620);
+    floatDocModel.entries[0].pLayoutModel = &floatDocRootA;
+    SetRect(&floatDocModel.entries[1].rcWindow, 930, 200, 1250, 560);
+    floatDocModel.entries[1].pLayoutModel = &floatDocRootB;
+
+    g_runtimeFloatingDocumentLayoutRestoreFailCountdown = 1;
+    PanitentFloatingDocumentLayout_SetRestoreEntryTestHook(runtime_fail_floating_document_layout_restore_on_countdown);
+    assert(!PanitentFloatingDocumentLayout_RestoreModelEx(fixture.pApp, fixture.pDockHostWindow, &floatDocModel, TRUE));
+    PanitentFloatingDocumentLayout_SetRestoreEntryTestHook(NULL);
+    g_runtimeFloatingDocumentLayoutRestoreFailCountdown = -1;
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces + counts.nDocumentHosts == 1);
+
+    HWND hWndFloating = runtime_find_floating_document_window();
+    assert(hWndFloating && IsWindow(hWndFloating));
+    FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWndFloating);
+    assert(pFloating != NULL);
+    assert(pFloating->hWndChild && IsWindow(pFloating->hWndChild));
+    HWND hWndWorkspaces[4] = { 0 };
+    int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        pFloating->hWndChild,
+        hWndWorkspaces,
+        ARRAYSIZE(hWndWorkspaces));
+    assert(nWorkspaceCount == 1);
+
+    WorkspaceContainer* pFloatingWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndWorkspaces[0]);
+    assert(pFloatingWorkspace != NULL);
+    assert(WorkspaceContainer_GetViewportCount(pFloatingWorkspace) == 1);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_try_dock_floating_workspace_uses_shared_document_transition(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -3109,6 +3189,7 @@ int main(void)
     failed |= test_runtime_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_multi_workspace_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_multi_workspace_floating_document_layout_restore_is_idempotent();
+    failed |= test_runtime_direct_floating_document_layout_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_document_side_dock_merges_floating_document_host_successfully();
     failed |= test_runtime_document_side_dock_failure_rolls_back_floating_document_host_merge();

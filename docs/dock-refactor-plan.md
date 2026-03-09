@@ -586,3 +586,12 @@ This change set makes strict direct floating tool restore transactional:
 - runtime coverage now includes partial-failure rollback from an already active floating tool state.
 
 This closes another direct-helper transaction gap outside `WindowLayoutManager`.
+
+## Strict Floating Document Layout Restore Increment Applied
+
+This change set makes strict direct floating document layout restore transactional:
+- `PanitentFloatingDocumentLayout_RestoreModelEx(..., TRUE)` now captures the current floating document arrangement before restore;
+- if a partial restore fails, the helper restores the previous floating document arrangement instead of leaving a partial state behind;
+- runtime coverage now includes partial-failure rollback from an already active floating document state with live document content.
+
+This brings direct floating document layout restore in line with the stricter semantics already used for floating tool restore and layout-apply orchestration.
