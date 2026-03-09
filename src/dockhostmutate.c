@@ -310,12 +310,17 @@ BOOL DockHostMutate_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
         return FALSE;
     }
 
-    if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_TOOL)
+    DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
+    if (nPaneKind == DOCK_PANE_TOOL)
     {
         DockTargetHit targetHit = { 0 };
         targetHit.nDockSide = nDockSide;
         targetHit.bLocalTarget = FALSE;
         return DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, &targetHit, iDockSize);
+    }
+    if (nPaneKind == DOCK_PANE_DOCUMENT)
+    {
+        return FALSE;
     }
 
     TreeNode* pOldRoot = DockHostWindow_GetRoot(pDockHostWindow);
@@ -384,7 +389,6 @@ BOOL DockHostMutate_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
     }
 
     DockData* pLeafData = (DockData*)pLeaf->data;
-    DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
     DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
     pLeafData->nRole = DOCK_ROLE_PANEL;
     pLeafData->nPaneKind = nPaneKind;
@@ -418,16 +422,14 @@ BOOL DockHostMutate_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
         return FALSE;
     }
 
-    if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_TOOL)
+    DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
+    if (nPaneKind == DOCK_PANE_TOOL)
     {
         return DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize);
     }
-    else if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_DOCUMENT)
+    if (nPaneKind == DOCK_PANE_DOCUMENT)
     {
-        if (DockHostModelApply_DockDocumentWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize))
-        {
-            return TRUE;
-        }
+        return DockHostModelApply_DockDocumentWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize);
     }
 
     if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))

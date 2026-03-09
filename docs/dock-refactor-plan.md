@@ -135,6 +135,7 @@ This change set starts lifting document-group runtime/layout behavior toward the
 - undocking a docked document group to a floating window now also routes through a transactional model-first helper, so a floating-host creation failure can roll the live dock layout back instead of leaving the group detached;
 - shared document docking transitions now route through a common helper for center/side docking into target workspaces, reducing duplication between floating document and workspace flows;
 - pure and runtime tests now cover multi-workspace layout validation and live document-workspace side docking.
+- follow-up cleanup removed the remaining legacy live-tree fallback for document docking inside `dockhostmutate.*`, so supported document dock paths now go through the model-first runtime flow instead of a parallel tree-surgery implementation.
 
 ## Runtime Integration Test Increment Applied
 
