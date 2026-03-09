@@ -105,6 +105,28 @@ static DockModelNode* DockModel_CaptureNode(const TreeNode* pRootNode, const Tre
 	}
 
 	pDockData = (const DockData*)pNode->data;
+	switch (pDockData->nRole)
+	{
+	case DOCK_ROLE_SHELL_SPLIT:
+	case DOCK_ROLE_ZONE_STACK_SPLIT:
+	case DOCK_ROLE_PANEL_SPLIT:
+		if (!pNode->node1 && !pNode->node2)
+		{
+			return NULL;
+		}
+		if (pNode->node1 && !pNode->node2)
+		{
+			return DockModel_CaptureNode(pRootNode, pNode->node1, pNextNodeId);
+		}
+		if (!pNode->node1 && pNode->node2)
+		{
+			return DockModel_CaptureNode(pRootNode, pNode->node2, pNextNodeId);
+		}
+		break;
+	default:
+		break;
+	}
+
 	pModelNode = (DockModelNode*)calloc(1, sizeof(DockModelNode));
 	if (!pModelNode)
 	{

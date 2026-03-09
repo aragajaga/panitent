@@ -937,6 +937,60 @@ static int test_dock_model_capture_strips_runtime_handles_but_keeps_semantics(vo
 	return 0;
 }
 
+static int test_dock_model_capture_collapses_unary_split_nodes(void)
+{
+	TreeNode* pRoot = DockShell_CreateRootNode();
+	TreeNode* pZone = DockShell_CreateZoneNode(DKS_RIGHT);
+	TreeNode* pWorkspace = DockShell_CreateWorkspaceNode();
+	TreeNode* pOuterSplit = (TreeNode*)calloc(1, sizeof(TreeNode));
+	TreeNode* pInnerSplit = (TreeNode*)calloc(1, sizeof(TreeNode));
+	TreeNode* pPanelA = DockShell_CreatePanelNode(L"GLWindow");
+	TreeNode* pPanelB = DockShell_CreatePanelNode(L"Palette");
+	DockData* pOuterSplitData = (DockData*)calloc(1, sizeof(DockData));
+	DockData* pInnerSplitData = (DockData*)calloc(1, sizeof(DockData));
+	DockModelNode* pModel;
+
+	assert(pRoot && pZone && pWorkspace && pOuterSplit && pInnerSplit && pPanelA && pPanelB);
+	assert(pOuterSplitData && pInnerSplitData);
+	pOuterSplit->data = pOuterSplitData;
+	pInnerSplit->data = pInnerSplitData;
+
+	pOuterSplitData->nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
+	pOuterSplitData->dwStyle = DGA_END | DGP_ABSOLUTE | DGD_VERTICAL;
+	pOuterSplitData->iGripPos = 220;
+	wcscpy_s(pOuterSplitData->lpszName, ARRAYSIZE(pOuterSplitData->lpszName), L"DockShell.ZoneStack");
+	pInnerSplitData->nRole = DOCK_ROLE_ZONE_STACK_SPLIT;
+	pInnerSplitData->dwStyle = DGA_END | DGP_ABSOLUTE | DGD_VERTICAL;
+	pInnerSplitData->iGripPos = 180;
+	wcscpy_s(pInnerSplitData->lpszName, ARRAYSIZE(pInnerSplitData->lpszName), L"DockShell.ZoneStack");
+
+	pRoot->node1 = pZone;
+	pRoot->node2 = pWorkspace;
+	pZone->node1 = pOuterSplit;
+	pOuterSplit->node1 = pInnerSplit;
+	pOuterSplit->node2 = pPanelB;
+	pInnerSplit->node1 = pPanelA;
+
+	pModel = DockModel_CaptureTree(pRoot);
+	assert(pModel);
+	assert(pModel->pChild1);
+	assert(pModel->pChild1->nRole == DOCK_ROLE_ZONE);
+	assert(pModel->pChild1->pChild1);
+	assert(pModel->pChild1->pChild1->nRole == DOCK_ROLE_ZONE_STACK_SPLIT);
+	assert(pModel->pChild1->pChild1->pChild1);
+	assert(pModel->pChild1->pChild1->pChild2);
+	assert(pModel->pChild1->pChild1->pChild1->nRole != DOCK_ROLE_ZONE_STACK_SPLIT);
+	assert(pModel->pChild1->pChild1->pChild2->nRole != DOCK_ROLE_ZONE_STACK_SPLIT);
+	assert(
+		(wcscmp(pModel->pChild1->pChild1->pChild1->szName, L"GLWindow") == 0 &&
+		 wcscmp(pModel->pChild1->pChild1->pChild2->szName, L"Palette") == 0) ||
+		(wcscmp(pModel->pChild1->pChild1->pChild1->szName, L"Palette") == 0 &&
+		 wcscmp(pModel->pChild1->pChild1->pChild2->szName, L"GLWindow") == 0));
+
+	DockModel_Destroy(pModel);
+	return 0;
+}
+
 static void assert_dock_model_equal(const DockModelNode* pActual, const DockModelNode* pExpected)
 {
 	assert((pActual == NULL) == (pExpected == NULL));
@@ -1305,6 +1359,7 @@ int main(void)
 	failed |= test_recovery_store_deletes_only_unreferenced_files();
 	failed |= test_recovery_store_keeps_recent_but_deletes_old_orphans();
 	failed |= test_dock_model_capture_strips_runtime_handles_but_keeps_semantics();
+	failed |= test_dock_model_capture_collapses_unary_split_nodes();
 	failed |= test_dock_model_file_round_trip();
 	failed |= test_dock_model_build_tree_round_trip();
 	failed |= test_dock_model_full_pipeline_round_trip();
