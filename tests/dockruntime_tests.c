@@ -2072,7 +2072,29 @@ static int test_runtime_menu_command_applies_named_mixed_layout_profiles(void)
     assert(pRightZoneA != NULL);
     assert(runtime_model_subtree_contains_name(pRightZoneA, L"GLWindow"));
 
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_APPLY_LAYOUT_BASE + 1));
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 1);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 1);
+    assert(counts.nDocumentWorkspaces == 0);
+
+    assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_RESET_LAYOUT));
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nToolPanels == 0);
+    assert(counts.nToolHosts == 0);
+    assert(counts.nDocumentHosts == 0);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+    DockModelNode* pReset = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    DockModelNode* pResetRightZone = runtime_find_model_zone(pReset, DKS_RIGHT);
+    assert(pReset != NULL);
+    assert(pResetRightZone != NULL);
+    assert(runtime_model_subtree_contains_name(pResetRightZone, L"GLWindow"));
+
     DockModel_Destroy(pAppliedA);
+    DockModel_Destroy(pReset);
     DockModel_Destroy(pLayoutB);
     DockModel_Destroy(pLayoutA);
     DockFloatingLayout_Destroy(&floatingA);

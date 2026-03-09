@@ -159,6 +159,7 @@ This does not finish the full runtime test matrix yet, but it turns integration/
 - document-side runtime tests now also cover rollback for side-dock failure when a floating document host must merge workspaces before docking.
 - document-side runtime tests now also cover the successful side-dock merge path for a floating document host with multiple workspaces.
 - runtime tests now also cover menu-command application of saved named layouts, not only direct bundle-apply helpers.
+- runtime tests now also cover menu-command reset from a mixed named-layout state, not only direct reset helpers.
 
 ## Dock Host Render Increment Applied
 
