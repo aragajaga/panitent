@@ -315,10 +315,7 @@ BOOL DockHostMutate_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDo
         DockTargetHit targetHit = { 0 };
         targetHit.nDockSide = nDockSide;
         targetHit.bLocalTarget = FALSE;
-        if (DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, &targetHit, iDockSize))
-        {
-            return TRUE;
-        }
+        return DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, &targetHit, iDockSize);
     }
 
     TreeNode* pOldRoot = DockHostWindow_GetRoot(pDockHostWindow);
@@ -423,10 +420,7 @@ BOOL DockHostMutate_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd,
 
     if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_TOOL)
     {
-        if (DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize))
-        {
-            return TRUE;
-        }
+        return DockHostModelApply_DockToolWindow(pDockHostWindow, hWnd, pTargetHit, iDockSize);
     }
     else if (DockHostWindow_DeterminePaneKindForHWND(hWnd) == DOCK_PANE_DOCUMENT)
     {
