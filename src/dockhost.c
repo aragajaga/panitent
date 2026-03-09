@@ -13,6 +13,7 @@
 #include "util/stack.h"
 #include "util/tree.h"
 #include "dockhost.h"
+#include "dockhostmutate.h"
 #include "dockgroup.h"
 #include "dockhostlayout.h"
 #include "docklayout.h"
@@ -83,11 +84,11 @@ static void DockHostWindow_AssignPersistentNameForHWND(DockData* pDockData, HWND
 static BOOL DockNode_IsStructural(TreeNode* pNode);
 static BOOL DockNode_UsesProportionalGrip(TreeNode* pNode);
 static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName);
-static TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide);
+TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide);
 static PCWSTR DockHostWindow_GetZoneName(int nDockSide);
 static BOOL DockHostWindow_DockIntoZone(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, HWND hWnd, int nDockSide, int iDockSize);
 static void DockHostWindow_UpdateZoneSplitGrip(DockHostWindow* pDockHostWindow, TreeNode* pZoneNode, int nDockSide, int iDockSize);
-static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
+TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
 static BOOL DockHostWindow_GetZoneTabRect(DockHostWindow* pDockHostWindow, int nDockSide, int iOffset, int iTabLength, RECT* pRect);
 static int DockHostWindow_HitTestZoneTab(DockHostWindow* pDockHostWindow, int x, int y, HWND* phWndTab);
 static void DockHostWindow_DrawZoneTabs(DockHostWindow* pDockHostWindow, HDC hdc);
@@ -98,7 +99,7 @@ static void DockZone_CollectPanels(TreeNode* pNode, TreeNode** ppNodes, int cCap
 static int DockZone_GetPanels(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity);
 static int DockZone_GetPanelsByCollapsed(TreeNode* pZoneNode, TreeNode** ppNodes, int cCapacity, BOOL bCollapsed);
 static void DockZone_EnsureActiveTab(TreeNode* pZoneNode);
-static int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel);
+int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel);
 static void DockHostWindow_UpdateZoneTabGutters(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_SyncZones(DockHostWindow* pDockHostWindow);
 static BOOL DockHostWindow_GetHostContentRect(DockHostWindow* pDockHostWindow, RECT* pRect);
@@ -108,10 +109,10 @@ static BOOL DockHostWindow_ShowAutoHideOverlay(DockHostWindow* pDockHostWindow, 
 static void DockHostWindow_HideAutoHideOverlay(DockHostWindow* pDockHostWindow);
 static void DockHostWindow_UpdateAutoHideOverlay(DockHostWindow* pDockHostWindow);
 static BOOL DockHostWindow_BuildAutoHideOverlayLayout(DockHostWindow* pDockHostWindow, CaptionFrameLayout* pLayout);
-static TreeNode* DockNode_FindByHWND(TreeNode* pNode, HWND hWnd);
+TreeNode* DockNode_FindByHWND(TreeNode* pNode, HWND hWnd);
 static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 static void DockAutoHideOverlayHost_OnPaint(DockHostWindow* pDockHostWindow, HWND hWnd);
-static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
+TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 static BOOL DockHostWindow_TogglePanelPinned(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 static BOOL DockHostWindow_MovePanelToNewWindow(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 static void DockHostWindow_ShowPanelMenu(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode, POINT ptScreen);
@@ -138,7 +139,7 @@ static void DockHostWindow_ClearCaptionButtonState(DockHostWindow* pDockHostWind
 static void DockHostWindow_SetAutoHideHotButton(DockHostWindow* pDockHostWindow, int nButton);
 static void DockHostWindow_SetAutoHidePressedButton(DockHostWindow* pDockHostWindow, int nButton);
 static void DockHostWindow_ClearAutoHideCaptionState(DockHostWindow* pDockHostWindow);
-static DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
+DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 
 BOOL DockHostWindow_OnCommand(DockHostWindow* pDockHostWindow, WPARAM wParam, LPARAM lParam);
 void DockHostWindow_OnMouseMove(DockHostWindow* pDockHostWindow, int x, int y, UINT keyFlags);
@@ -622,7 +623,7 @@ static TreeNode* DockNode_FindByName(TreeNode* pNode, PCWSTR pszName)
 	return DockNode_FindByName(pNode->node2, pszName);
 }
 
-static TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide)
+TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide)
 {
 	if (!pNode)
 	{
@@ -646,7 +647,7 @@ static TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide)
 	return DockNode_FindZoneBySide(pNode->node2, nDockSide);
 }
 
-static TreeNode* DockNode_FindByHWND(TreeNode* pNode, HWND hWnd)
+TreeNode* DockNode_FindByHWND(TreeNode* pNode, HWND hWnd)
 {
 	if (!pNode || !hWnd)
 	{
@@ -811,7 +812,7 @@ static void DockHostWindow_UpdateZoneTabGutters(DockHostWindow* pDockHostWindow)
 	g_iZoneTabGutterBottom = DockHostWindow_GetZoneSideTabGutter(pDockHostWindow, DKS_BOTTOM);
 }
 
-static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide)
+TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide)
 {
 	if (!pDockHostWindow)
 	{
@@ -834,7 +835,7 @@ static TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int
 	return DockNode_FindByName(pRoot, pszZoneName);
 }
 
-static int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel)
+int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel)
 {
 	if (!pDockHostWindow || !hWndPanel)
 	{
@@ -1487,7 +1488,7 @@ static BOOL DockHostWindow_ShowAutoHideOverlay(DockHostWindow* pDockHostWindow, 
 	return TRUE;
 }
 
-static TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
+TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode)
 {
 	TreeNode* pGroupNode;
 	if (!pDockHostWindow || !pPanelNode)
@@ -2292,95 +2293,12 @@ TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node)
 
 void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
-	if (!pDockHostWindow || !pTargetNode || !pTargetNode->data)
-	{
-		return;
-	}
-
-	if (pDockHostWindow->pCaptionHotNode == pTargetNode ||
-		pDockHostWindow->pCaptionPressedNode == pTargetNode)
-	{
-		DockHostWindow_ClearCaptionButtonState(pDockHostWindow);
-	}
-
-	DockData* pDockData = (DockData*)pTargetNode->data;
-	if (pDockData->hWnd && IsWindow(pDockData->hWnd))
-	{
-		DestroyWindow(pDockData->hWnd);
-	}
-
-	DockHostWindow_Undock(pDockHostWindow, pTargetNode);
+	DockHostMutate_DestroyInclusive(pDockHostWindow, pTargetNode);
 }
 
 void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode)
 {
-	TreeNode* pRoot = pDockHostWindow->pRoot_;
-
-	if (!pRoot || !pTargetNode)
-	{
-		return;
-	}
-
-	TreeNode* pParentOfTarget = DockNode_FindParent(pRoot, pTargetNode);
-	if (!pParentOfTarget)
-	{
-		return;
-	}
-
-	if (DockNode_IsStructural(pParentOfTarget))
-	{
-		if (pTargetNode == pParentOfTarget->node1)
-		{
-			pParentOfTarget->node1 = pParentOfTarget->node2;
-			pParentOfTarget->node2 = NULL;
-		}
-		else if (pTargetNode == pParentOfTarget->node2) {
-			pParentOfTarget->node2 = NULL;
-		}
-
-		DockHostWindow_Rearrange(pDockHostWindow);
-		return;
-	}
-
-	TreeNode* pNodeSibling = NULL;
-	if (pTargetNode == pParentOfTarget->node1)
-	{
-		pParentOfTarget->node1 = NULL;
-
-		pNodeSibling = pParentOfTarget->node2;
-		
-	}
-	else if (pTargetNode == pParentOfTarget->node2) {
-		pParentOfTarget->node2 = NULL;
-
-		pNodeSibling = pParentOfTarget->node1;
-	}
-
-	TreeNode* pGrandparentOfTarget = DockNode_FindParent(pRoot, pParentOfTarget);
-	if (pGrandparentOfTarget)
-	{
-		if (pGrandparentOfTarget->node1 == pParentOfTarget)
-		{
-			pGrandparentOfTarget->node1 = pNodeSibling;
-			free(pParentOfTarget);
-		}
-		else if (pGrandparentOfTarget->node2 == pParentOfTarget) {
-			pGrandparentOfTarget->node2 = pNodeSibling;
-			free(pParentOfTarget);
-		}
-	}
-	else {
-		/* Root-level detach fallback. */
-		if (pTargetNode == pRoot->node1)
-		{
-			pRoot->node1 = pNodeSibling;
-		}
-		else if (pTargetNode == pRoot->node2) {
-			pRoot->node2 = pNodeSibling;
-		}
-	}
-
-	DockHostWindow_Rearrange(pDockHostWindow);
+	DockHostMutate_Undock(pDockHostWindow, pTargetNode);
 }
 
 BOOL DockHostWindow_OnCreate(DockHostWindow* pDockHostWindow, LPCREATESTRUCT lpcs)
@@ -3496,7 +3414,7 @@ static BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd)
 	return wcscmp(szClassNameBuf, L"__WorkspaceContainer") == 0;
 }
 
-static DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd)
+DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd)
 {
 	WCHAR szClassNameBuf[64] = L"";
 	if (!hWnd || !IsWindow(hWnd))
@@ -3524,7 +3442,7 @@ static DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd)
 	return DOCK_PANE_TOOL;
 }
 
-static void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd)
+void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd)
 {
 	if (!pDockHostWindow || !pDockData || !hWnd || !IsWindow(hWnd))
 	{
@@ -4039,114 +3957,7 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize)
 {
-	if (!pDockHostWindow || !hWnd || !IsWindow(hWnd))
-	{
-		return FALSE;
-	}
-
-	TreeNode* pOldRoot = DockHostWindow_GetRoot(pDockHostWindow);
-	if (!pOldRoot)
-	{
-		return FALSE;
-	}
-
-	TreeNode* pZoneNode = DockHostWindow_GetZoneNode(pDockHostWindow, nDockSide);
-	if (pZoneNode)
-	{
-		if (!DockHostWindow_DockIntoZone(pDockHostWindow, pZoneNode, hWnd, nDockSide, iDockSize))
-		{
-			return FALSE;
-		}
-
-		DockHostWindow_Rearrange(pDockHostWindow);
-		ShowWindow(hWnd, SW_SHOW);
-		UpdateWindow(hWnd);
-		return TRUE;
-	}
-
-	DWORD dwSplitStyle = 0;
-	switch (nDockSide)
-	{
-	case DKS_LEFT:
-	case DKS_RIGHT:
-		dwSplitStyle = DGP_ABSOLUTE | DGD_HORIZONTAL;
-		break;
-
-	case DKS_TOP:
-	case DKS_BOTTOM:
-		dwSplitStyle = DGP_ABSOLUTE | DGD_VERTICAL;
-		break;
-
-	default:
-		return FALSE;
-	}
-
-	if (nDockSide == DKS_RIGHT || nDockSide == DKS_BOTTOM)
-	{
-		dwSplitStyle |= DGA_END;
-	}
-	else {
-		dwSplitStyle |= DGA_START;
-	}
-
-	if (iDockSize <= 0)
-	{
-		iDockSize = 280;
-	}
-
-	TreeNode* pLeaf = DockNode_Create(iDockSize, DGA_START | DGP_ABSOLUTE | DGD_HORIZONTAL, TRUE);
-	TreeNode* pSplit = DockNode_Create(iDockSize, dwSplitStyle, FALSE);
-	if (!pLeaf || !pLeaf->data || !pSplit || !pSplit->data)
-	{
-		if (pLeaf)
-		{
-			if (pLeaf->data)
-			{
-				free(pLeaf->data);
-			}
-			free(pLeaf);
-		}
-
-		if (pSplit)
-		{
-			if (pSplit->data)
-			{
-				free(pSplit->data);
-			}
-			free(pSplit);
-		}
-
-		return FALSE;
-	}
-
-	DockData* pLeafData = (DockData*)pLeaf->data;
-	DockPaneKind nPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
-	DockData_PinHWND(pDockHostWindow, pLeafData, hWnd);
-	pLeafData->nRole = DOCK_ROLE_PANEL;
-	pLeafData->nPaneKind = nPaneKind;
-
-	if (nDockSide == DKS_LEFT || nDockSide == DKS_TOP)
-	{
-		pSplit->node1 = pLeaf;
-		pSplit->node2 = pOldRoot;
-	}
-	else {
-		pSplit->node1 = pOldRoot;
-		pSplit->node2 = pLeaf;
-	}
-
-	RECT rcClient = { 0 };
-	GetClientRect(Window_GetHWND((Window*)pDockHostWindow), &rcClient);
-	((DockData*)pSplit->data)->rc = rcClient;
-	((DockData*)pSplit->data)->nRole = DOCK_ROLE_SHELL_SPLIT;
-
-	DockHostWindow_SetRoot(pDockHostWindow, pSplit);
-	DockHostWindow_Rearrange(pDockHostWindow);
-
-	ShowWindow(hWnd, SW_SHOW);
-	UpdateWindow(hWnd);
-
-	return TRUE;
+	return DockHostMutate_DockHWND(pDockHostWindow, hWnd, nDockSide, iDockSize);
 }
 
 static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, TreeNode* pAnchorNode, HWND hWnd, int nDockSide, int iDockSize)
@@ -4273,39 +4084,7 @@ static BOOL DockHostWindow_DockAroundPanel(DockHostWindow* pDockHostWindow, Tree
 
 BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize)
 {
-	if (!pDockHostWindow || !hWnd || !IsWindow(hWnd) || !pTargetHit || pTargetHit->nDockSide == DKS_NONE)
-	{
-		return FALSE;
-	}
-
-	if (pTargetHit->bLocalTarget && pTargetHit->hWndAnchor && IsWindow(pTargetHit->hWndAnchor))
-	{
-		TreeNode* pRoot = DockHostWindow_GetRoot(pDockHostWindow);
-		TreeNode* pAnchorNode = DockNode_FindByHWND(pRoot, pTargetHit->hWndAnchor);
-		DockPaneKind nIncomingPaneKind = DockHostWindow_DeterminePaneKindForHWND(hWnd);
-		TreeNode* pGroupNode = DockGroup_FindOwningGroup(pRoot, pAnchorNode);
-		DockGroupKind nGroupKind = DockGroup_GetNodeKind(pGroupNode);
-		if (pAnchorNode && pTargetHit->nDockSide == DKS_CENTER)
-		{
-			TreeNode* pZoneNode = DockHostWindow_FindOwningZoneNode(pDockHostWindow, pAnchorNode);
-			int nZoneSide = DockHostWindow_GetPanelDockSide(pDockHostWindow, pTargetHit->hWndAnchor);
-			if (DockGroup_CanTabIntoGroup(nGroupKind, nIncomingPaneKind) &&
-				nGroupKind == DOCK_GROUP_TOOL_PANE &&
-				pZoneNode && nZoneSide != DKS_NONE &&
-				DockHostWindow_DockIntoZone(pDockHostWindow, pZoneNode, hWnd, nZoneSide, iDockSize))
-			{
-				return TRUE;
-			}
-		}
-		else if (pAnchorNode &&
-			DockGroup_CanSplitGroup(nGroupKind, nIncomingPaneKind) &&
-			DockHostWindow_DockAroundPanel(pDockHostWindow, pAnchorNode, hWnd, pTargetHit->nDockSide, iDockSize))
-		{
-			return TRUE;
-		}
-	}
-
-	return DockHostWindow_DockHWND(pDockHostWindow, hWnd, pTargetHit->nDockSide, iDockSize);
+	return DockHostMutate_DockHWNDToTarget(pDockHostWindow, hWnd, pTargetHit, iDockSize);
 }
 
 BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd)

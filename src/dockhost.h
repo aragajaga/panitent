@@ -73,14 +73,23 @@ typedef struct PanitentApp PanitentApp;
 
 DockHostWindow* DockHostWindow_Create(PanitentApp* app);
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow);
+void DockData_PinHWND(DockHostWindow* pDockHostWindow, DockData* pDockData, HWND hWnd);
 void DockData_PinWindow(DockHostWindow* pDockHostWindow, DockData* pDockData, Window* window);
 BOOL DockData_GetClientRect(DockData* pDockData, RECT* rc);
 DockData* DockData_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockNode_Create(int iGripPos, DWORD dwStyle, BOOL bShowCaption);
 TreeNode* DockHostWindow_SetRoot(DockHostWindow* pDockHostWindow, TreeNode* pNewRoot);
 TreeNode* DockHostWindow_GetRoot(DockHostWindow* pDockHostWindow);
+TreeNode* DockNode_FindParent(TreeNode* root, TreeNode* node);
+TreeNode* DockNode_FindByHWND(TreeNode* pNode, HWND hWnd);
+TreeNode* DockNode_FindZoneBySide(TreeNode* pNode, int nDockSide);
+TreeNode* DockHostWindow_GetZoneNode(DockHostWindow* pDockHostWindow, int nDockSide);
+int DockHostWindow_GetPanelDockSide(DockHostWindow* pDockHostWindow, HWND hWndPanel);
+TreeNode* DockHostWindow_FindOwningZoneNode(DockHostWindow* pDockHostWindow, TreeNode* pPanelNode);
 void DockHostWindow_ClearLayout(DockHostWindow* pDockHostWindow, const HWND* phWndPreserve, int cPreserve);
 void DockHostWindow_DestroyNodeTree(TreeNode* pRootNode, const HWND* phWndPreserve, int cPreserve);
+void DockHostWindow_DestroyInclusive(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
+void DockHostWindow_Undock(DockHostWindow* pDockHostWindow, TreeNode* pTargetNode);
 
 #define DKS_NONE 0
 #define DKS_LEFT 1
@@ -103,4 +112,5 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize);
 BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize);
 BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd);
+DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
