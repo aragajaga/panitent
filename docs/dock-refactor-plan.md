@@ -494,3 +494,12 @@ This change set hardens the restore path with a validation/repair layer:
 - rejects hard-invalid layouts such as unknown persistent views, duplicate singleton views, or missing workspace.
 
 This makes `docklayout.dat` far less brittle across refactors and gives the restore path a clear place to handle backward compatibility rules.
+
+## Document Dock Transition Increment Applied
+
+This change set removes another document-side duplication point:
+- added `documentdocktransition.*` as a shared helper for center-dock and side-dock transitions into target workspaces;
+- added `floatingdocumentdock.*` so floating document source-context lookup, target hit-testing, and dock attempts no longer live as a separate open-coded branch inside `floatingwindowcontainer.c`;
+- `WorkspaceContainer_TryDockFloating(...)` and floating document dock-back flows now route through the same document transition path.
+
+This keeps document docking behavior consistent across workspace-driven and floating-document-driven flows without changing the existing overlay guide behavior.

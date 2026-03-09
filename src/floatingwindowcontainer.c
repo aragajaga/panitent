@@ -4,7 +4,7 @@
 #include "win32/windowmap.h"
 #include "win32/util.h"
 #include "floatingchildhost.h"
-#include "documentdocktransition.h"
+#include "floatingdocumentdock.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
 #include "dockgroup.h"
@@ -39,22 +39,6 @@
 
 static const WCHAR szClassName[] = L"__FloatingWindowContainer";
 
-typedef struct WorkspaceDockTargetHit WorkspaceDockTargetHit;
-struct WorkspaceDockTargetHit {
-    WorkspaceContainer* pWorkspaceTarget;
-    int nDockSide;
-    RECT rcTargetScreen;
-    RECT rcPreviewScreen;
-    BOOL bSupportsSplit;
-};
-
-typedef struct WorkspaceHwndCollectContext WorkspaceHwndCollectContext;
-struct WorkspaceHwndCollectContext {
-    HWND* pWorkspaceHwnds;
-    int cWorkspaceHwnds;
-    int nWorkspaceCount;
-};
-
 #define FLOAT_WORKSPACE_ENUM_MAX 64
 
 /* Private forward declarations */
@@ -67,23 +51,8 @@ static void FloatingWindowContainer_InvalidateNcFrame(FloatingWindowContainer* p
 static int FloatingWindowContainer_HitTestCaptionButtonAtScreenPoint(FloatingWindowContainer* pFloatingWindowContainer, int x, int y);
 static void FloatingWindowContainer_SetCaptionButtonHot(FloatingWindowContainer* pFloatingWindowContainer, int nHotButton);
 static void FloatingWindowContainer_SetCaptionButtonPressed(FloatingWindowContainer* pFloatingWindowContainer, int nPressedButton);
-static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWND hWndTargetWorkspace);
-static int FloatingWindowContainer_CollectWorkspaceHwnds(HWND hWndRoot, HWND* pWorkspaceHwnds, int cWorkspaceHwnds);
-static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    POINT ptScreen,
-    WorkspaceContainer** ppWorkspaceSource,
-    int* pnSourceDocumentCount);
-static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace);
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
-static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    WorkspaceContainer* pWorkspaceSource,
-    int nSourceDocuments,
-    POINT ptScreen,
-    WorkspaceDockTargetHit* pDockHit);
 static FloatingDockChildHostKind FloatingWindowContainer_GetChildHostKind(FloatingWindowContainer* pFloatingWindowContainer);
-static int FloatingWindowContainer_CollectDocumentWorkspaceHwnds(FloatingWindowContainer* pFloatingWindowContainer, HWND* pWorkspaceHwnds, int cWorkspaceHwnds);
 
 void FloatingWindowContainer_PreRegister(LPWNDCLASSEX);
 void FloatingWindowContainer_PreCreate(LPCREATESTRUCT);
@@ -639,231 +608,10 @@ static void FloatingWindowContainer_DestroyDockPreviewOverlay(void)
 	g_hWndDockPreviewOverlay = NULL;
 }
 
-static BOOL FloatingWindowContainer_IsClassName(HWND hWnd, PCWSTR pszClassName)
-{
-    if (!hWnd || !IsWindow(hWnd) || !pszClassName)
-    {
-        return FALSE;
-    }
-
-    WCHAR szClassName[64] = L"";
-    GetClassNameW(hWnd, szClassName, ARRAYSIZE(szClassName));
-    return wcscmp(szClassName, pszClassName) == 0;
-}
-
-static BOOL CALLBACK FloatingWindowContainer_EnumChildWorkspaceHwndProc(HWND hWnd, LPARAM lParam)
-{
-    WorkspaceHwndCollectContext* pContext = (WorkspaceHwndCollectContext*)lParam;
-    if (!pContext || !hWnd || !IsWindow(hWnd))
-    {
-        return TRUE;
-    }
-
-    if (FloatingWindowContainer_IsClassName(hWnd, L"__WorkspaceContainer"))
-    {
-        if (pContext->nWorkspaceCount < pContext->cWorkspaceHwnds && pContext->pWorkspaceHwnds)
-        {
-            pContext->pWorkspaceHwnds[pContext->nWorkspaceCount] = hWnd;
-        }
-        pContext->nWorkspaceCount++;
-    }
-
-    return TRUE;
-}
-
-static int FloatingWindowContainer_CollectWorkspaceHwnds(HWND hWndRoot, HWND* pWorkspaceHwnds, int cWorkspaceHwnds)
-{
-    if (!hWndRoot || !IsWindow(hWndRoot) || !pWorkspaceHwnds || cWorkspaceHwnds <= 0)
-    {
-        return 0;
-    }
-
-    WorkspaceHwndCollectContext context = { 0 };
-    context.pWorkspaceHwnds = pWorkspaceHwnds;
-    context.cWorkspaceHwnds = cWorkspaceHwnds;
-    context.nWorkspaceCount = 0;
-    EnumChildWindows(hWndRoot, FloatingWindowContainer_EnumChildWorkspaceHwndProc, (LPARAM)&context);
-
-    return min(context.nWorkspaceCount, cWorkspaceHwnds);
-}
-
 static FloatingDockChildHostKind FloatingWindowContainer_GetChildHostKind(FloatingWindowContainer* pFloatingWindowContainer)
 {
     return FloatingChildHost_GetKind(
         pFloatingWindowContainer ? pFloatingWindowContainer->hWndChild : NULL);
-}
-
-static int FloatingWindowContainer_CollectDocumentWorkspaceHwnds(FloatingWindowContainer* pFloatingWindowContainer, HWND* pWorkspaceHwnds, int cWorkspaceHwnds)
-{
-    return FloatingChildHost_CollectDocumentWorkspaceHwnds(
-        pFloatingWindowContainer ? pFloatingWindowContainer->hWndChild : NULL,
-        pWorkspaceHwnds,
-        cWorkspaceHwnds);
-}
-
-static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    POINT ptScreen,
-    WorkspaceContainer** ppWorkspaceSource,
-    int* pnSourceDocumentCount)
-{
-    return FloatingChildHost_GetDocumentSourceContext(
-        pFloatingWindowContainer ? pFloatingWindowContainer->hWndChild : NULL,
-        ptScreen,
-        ppWorkspaceSource,
-        pnSourceDocumentCount);
-}
-
-static BOOL FloatingWindowContainer_IsWorkspaceSplitDockSupported(FloatingWindowContainer* pFloatingWindowContainer, HWND hWndWorkspace)
-{
-    UNREFERENCED_PARAMETER(pFloatingWindowContainer);
-
-    if (!hWndWorkspace || !IsWindow(hWndWorkspace))
-    {
-        return FALSE;
-    }
-
-    HWND hWndParent = GetParent(hWndWorkspace);
-    if (!hWndParent || !IsWindow(hWndParent))
-    {
-        return FALSE;
-    }
-
-    if (FloatingWindowContainer_IsClassName(hWndParent, L"__DockHostWindow"))
-    {
-        return TRUE;
-    }
-
-    if (FloatingWindowContainer_IsClassName(hWndParent, L"__FloatingWindowContainer"))
-    {
-        return TRUE;
-    }
-
-    if (FloatingWindowContainer_IsClassName(hWndParent, L"__WorkspaceContainer"))
-    {
-        return FloatingWindowContainer_IsClassName(GetParent(hWndParent), L"__DockHostWindow");
-    }
-
-    return FALSE;
-}
-
-static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    WorkspaceContainer* pWorkspaceSource,
-    int nSourceDocuments,
-    POINT ptScreen,
-    WorkspaceDockTargetHit* pDockHit)
-{
-    if (!pWorkspaceSource || !pDockHit)
-    {
-        return FALSE;
-    }
-
-    memset(pDockHit, 0, sizeof(*pDockHit));
-
-    WorkspaceContainer* pWorkspaceTarget = WorkspaceContainer_FindDropTargetAtScreenPoint(pWorkspaceSource, ptScreen);
-    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
-    {
-        return FALSE;
-    }
-
-    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
-    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
-    {
-        return FALSE;
-    }
-
-    RECT rcTargetScreen = { 0 };
-    GetWindowRect(hWndTargetWorkspace, &rcTargetScreen);
-    int width = Win32_Rect_GetWidth(&rcTargetScreen);
-    int height = Win32_Rect_GetHeight(&rcTargetScreen);
-    if (width <= 0 || height <= 0)
-    {
-        return FALSE;
-    }
-
-    BOOL bSupportsSplitByHost = FloatingWindowContainer_IsWorkspaceSplitDockSupported(
-        pFloatingWindowContainer,
-        hWndTargetWorkspace);
-    int nSourceDocs = nSourceDocuments;
-    if (nSourceDocs <= 0)
-    {
-        nSourceDocs = WorkspaceContainer_GetViewportCount(pWorkspaceSource);
-    }
-    int nTargetDocs = WorkspaceContainer_GetViewportCount(pWorkspaceTarget);
-    BOOL bSupportsSplit = WorkspaceDockPolicy_CanSplitTarget(
-        nSourceDocs,
-        nTargetDocs,
-        bSupportsSplitByHost);
-
-    POINT ptLocal = {
-        ptScreen.x - rcTargetScreen.left,
-        ptScreen.y - rcTargetScreen.top
-    };
-
-    RECT rcBounds = { 0, 0, width, height };
-    RECT rcGuideCenter = { 0 };
-    RECT rcGuideTop = { 0 };
-    RECT rcGuideLeft = { 0 };
-    RECT rcGuideRight = { 0 };
-    RECT rcGuideBottom = { 0 };
-    DockPreviewOverlay_GetClusterGuideRects(
-        &rcBounds,
-        width,
-        height,
-        &rcGuideCenter,
-        &rcGuideTop,
-        &rcGuideLeft,
-        &rcGuideRight,
-        &rcGuideBottom);
-
-    int nDockSide = DKS_NONE;
-    if (PtInRect(&rcGuideCenter, ptLocal))
-    {
-        nDockSide = WORKSPACE_DOCK_CENTER;
-    }
-    else if (bSupportsSplit)
-    {
-        if (PtInRect(&rcGuideLeft, ptLocal))
-        {
-            nDockSide = DKS_LEFT;
-        }
-        else if (PtInRect(&rcGuideRight, ptLocal))
-        {
-            nDockSide = DKS_RIGHT;
-        }
-        else if (PtInRect(&rcGuideTop, ptLocal))
-        {
-            nDockSide = DKS_TOP;
-        }
-        else if (PtInRect(&rcGuideBottom, ptLocal))
-        {
-            nDockSide = DKS_BOTTOM;
-        }
-    }
-
-    pDockHit->pWorkspaceTarget = pWorkspaceTarget;
-    pDockHit->nDockSide = nDockSide;
-    pDockHit->rcTargetScreen = rcTargetScreen;
-    pDockHit->bSupportsSplit = bSupportsSplit;
-    SetRectEmpty(&pDockHit->rcPreviewScreen);
-
-    if (nDockSide != DKS_NONE)
-    {
-        RECT rcTargetClient = { 0 };
-        GetClientRect(hWndTargetWorkspace, &rcTargetClient);
-        RECT rcPreviewClient = rcTargetClient;
-
-        if (nDockSide != WORKSPACE_DOCK_CENTER)
-        {
-            DockLayout_GetDockPreviewRect(&rcTargetClient, nDockSide, &rcPreviewClient);
-        }
-
-        MapWindowPoints(hWndTargetWorkspace, NULL, (POINT*)&rcPreviewClient, 2);
-        pDockHit->rcPreviewScreen = rcPreviewClient;
-    }
-
-    return TRUE;
 }
 
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer)
@@ -877,7 +625,7 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
 
     WorkspaceContainer* pWorkspaceSource = NULL;
     int nSourceDocuments = 0;
-    if (!FloatingWindowContainer_GetDocumentDockSourceContext(
+    if (!FloatingDocumentDock_GetSourceContext(
         pFloatingWindowContainer,
         ptCursor,
         &pWorkspaceSource,
@@ -888,7 +636,7 @@ static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWin
     }
 
     WorkspaceDockTargetHit workspaceDockHit = { 0 };
-    if (!FloatingWindowContainer_HitTestDocumentDockTarget(
+    if (!FloatingDocumentDock_HitTestTarget(
         pFloatingWindowContainer,
         pWorkspaceSource,
         nSourceDocuments,
@@ -1648,7 +1396,7 @@ static BOOL FloatingWindowContainer_DockByCenter(FloatingWindowContainer* pFloat
     FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
     if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
-        return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, TRUE);
+        return FloatingDocumentDock_Attempt(pFloatingWindowContainer, TRUE);
     }
 
     if (!pFloatingWindowContainer ||
@@ -1981,66 +1729,12 @@ void FloatingWindowContainer_OnSize(FloatingWindowContainer* pFloatingWindowCont
     }
 }
 
-static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace)
-{
-    if (!pFloatingWindowContainer)
-    {
-        return FALSE;
-    }
-
-    POINT ptCursor = { 0 };
-    GetCursorPos(&ptCursor);
-
-    WorkspaceContainer* pWorkspaceSource = NULL;
-    int nSourceDocuments = 0;
-    if (!FloatingWindowContainer_GetDocumentDockSourceContext(
-        pFloatingWindowContainer,
-        ptCursor,
-        &pWorkspaceSource,
-        &nSourceDocuments))
-    {
-        return FALSE;
-    }
-
-    WorkspaceDockTargetHit workspaceDockHit = { 0 };
-    if (bForceMainWorkspace)
-    {
-        workspaceDockHit.pWorkspaceTarget = PanitentApp_GetWorkspaceContainer(PanitentApp_Instance());
-        workspaceDockHit.nDockSide = WORKSPACE_DOCK_CENTER;
-        workspaceDockHit.bSupportsSplit = FALSE;
-    }
-    else {
-        if (!FloatingWindowContainer_HitTestDocumentDockTarget(
-            pFloatingWindowContainer,
-            pWorkspaceSource,
-            nSourceDocuments,
-            ptCursor,
-            &workspaceDockHit))
-        {
-            return FALSE;
-        }
-    }
-
-    WorkspaceContainer* pWorkspaceTarget = workspaceDockHit.pWorkspaceTarget;
-    if (!pWorkspaceTarget || pWorkspaceTarget == pWorkspaceSource)
-    {
-        return FALSE;
-    }
-
-    return DocumentDockTransition_DockSourceToWorkspace(
-        Window_GetHWND((Window*)pFloatingWindowContainer),
-        &pFloatingWindowContainer->hWndChild,
-        pWorkspaceTarget,
-        workspaceDockHit.nDockSide,
-        pFloatingWindowContainer->iDockSizeHint);
-}
-
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer)
 {
     FloatingDockChildHostKind nChildKind = FloatingWindowContainer_GetChildHostKind(pFloatingWindowContainer);
     if (pFloatingWindowContainer && FloatingDockPolicy_UsesDocumentFlow(pFloatingWindowContainer->nDockPolicy))
     {
-        return FloatingWindowContainer_AttemptDockDocument(pFloatingWindowContainer, FALSE);
+        return FloatingDocumentDock_Attempt(pFloatingWindowContainer, FALSE);
     }
 
     if (!pFloatingWindowContainer ||

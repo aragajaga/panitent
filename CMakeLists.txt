@@ -123,6 +123,7 @@ set(C_SOURCES
     src/file_open.c
     src/flexible.c
     src/floatingchildhost.c
+    src/floatingdocumentdock.c
     src/floatingdocumenthost.c
     src/floatingdockpolicy.c
     src/floatingwindowcontainer.c
