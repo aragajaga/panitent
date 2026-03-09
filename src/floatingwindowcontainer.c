@@ -4,6 +4,7 @@
 #include "win32/windowmap.h"
 #include "win32/util.h"
 #include "floatingchildhost.h"
+#include "documentdocktransition.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
 #include "dockgroup.h"
@@ -73,10 +74,6 @@ static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
     POINT ptScreen,
     WorkspaceContainer** ppWorkspaceSource,
     int* pnSourceDocumentCount);
-static BOOL FloatingWindowContainer_MoveDocumentSourceToWorkspace(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    WorkspaceContainer* pWorkspaceTarget);
-static BOOL FloatingWindowContainer_EnsureWorkspaceChildForSideDock(FloatingWindowContainer* pFloatingWindowContainer);
 static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer* pFloatingWindowContainer, BOOL bForceMainWorkspace);
 static void FloatingWindowContainer_UpdateDocumentDockPreviewOverlay(FloatingWindowContainer* pFloatingWindowContainer);
 static BOOL FloatingWindowContainer_HitTestDocumentDockTarget(
@@ -715,40 +712,6 @@ static BOOL FloatingWindowContainer_GetDocumentDockSourceContext(
         ptScreen,
         ppWorkspaceSource,
         pnSourceDocumentCount);
-}
-
-static BOOL FloatingWindowContainer_MoveDocumentSourceToWorkspace(
-    FloatingWindowContainer* pFloatingWindowContainer,
-    WorkspaceContainer* pWorkspaceTarget)
-{
-    return FloatingChildHost_MoveDocumentsToWorkspace(
-        pFloatingWindowContainer ? pFloatingWindowContainer->hWndChild : NULL,
-        pWorkspaceTarget);
-}
-
-static BOOL FloatingWindowContainer_EnsureWorkspaceChildForSideDock(FloatingWindowContainer* pFloatingWindowContainer)
-{
-    HWND hWndFloating;
-    HWND hWndChild;
-    if (!pFloatingWindowContainer || !pFloatingWindowContainer->hWndChild || !IsWindow(pFloatingWindowContainer->hWndChild))
-    {
-        return FALSE;
-    }
-
-    hWndFloating = Window_GetHWND((Window*)pFloatingWindowContainer);
-    hWndChild = pFloatingWindowContainer->hWndChild;
-    if (!FloatingChildHost_EnsureWorkspaceChildForSideDock(hWndFloating, &hWndChild))
-    {
-        return FALSE;
-    }
-
-    pFloatingWindowContainer->hWndChild = hWndChild;
-    return TRUE;
-}
-
-static DockHostWindow* FloatingWindowContainer_EnsureTargetWorkspaceDockHost(HWND hWndTargetWorkspace)
-{
-    return FloatingChildHost_EnsureTargetWorkspaceDockHost(hWndTargetWorkspace);
 }
 
 static BOOL FloatingWindowContainer_IsWorkspaceSplitDockSupported(FloatingWindowContainer* pFloatingWindowContainer, HWND hWndWorkspace)
@@ -2064,70 +2027,12 @@ static BOOL FloatingWindowContainer_AttemptDockDocument(FloatingWindowContainer*
         return FALSE;
     }
 
-    if (workspaceDockHit.nDockSide == WORKSPACE_DOCK_CENTER)
-    {
-        return FloatingWindowContainer_MoveDocumentSourceToWorkspace(
-            pFloatingWindowContainer,
-            pWorkspaceTarget);
-    }
-
-    if (workspaceDockHit.nDockSide != DKS_LEFT &&
-        workspaceDockHit.nDockSide != DKS_RIGHT &&
-        workspaceDockHit.nDockSide != DKS_TOP &&
-        workspaceDockHit.nDockSide != DKS_BOTTOM)
-    {
-        return FALSE;
-    }
-
-    if (!pFloatingWindowContainer->hWndChild ||
-        !IsWindow(pFloatingWindowContainer->hWndChild))
-    {
-        return FALSE;
-    }
-
-    if (!FloatingWindowContainer_EnsureWorkspaceChildForSideDock(pFloatingWindowContainer))
-    {
-        return FALSE;
-    }
-
-    HWND hWndTargetWorkspace = Window_GetHWND((Window*)pWorkspaceTarget);
-    if (!hWndTargetWorkspace || !IsWindow(hWndTargetWorkspace))
-    {
-        return FALSE;
-    }
-
-    DockTargetHit dockTarget = { 0 };
-    dockTarget.nDockSide = workspaceDockHit.nDockSide;
-    dockTarget.bLocalTarget = TRUE;
-    dockTarget.hWndAnchor = hWndTargetWorkspace;
-
-    DockHostWindow* pTargetDockHostWindow = FloatingWindowContainer_EnsureTargetWorkspaceDockHost(hWndTargetWorkspace);
-    if (!pTargetDockHostWindow)
-    {
-        return FALSE;
-    }
-
-    RECT rcFloating = { 0 };
-    GetWindowRect(Window_GetHWND((Window*)pFloatingWindowContainer), &rcFloating);
-    int iDockSize = pFloatingWindowContainer->iDockSizeHint;
-    if (dockTarget.nDockSide == DKS_LEFT || dockTarget.nDockSide == DKS_RIGHT)
-    {
-        iDockSize = max(iDockSize, Win32_Rect_GetWidth(&rcFloating));
-    }
-    else {
-        iDockSize = max(iDockSize, Win32_Rect_GetHeight(&rcFloating));
-    }
-    iDockSize = max(iDockSize, 220);
-
-    HWND hWndChild = pFloatingWindowContainer->hWndChild;
-    pFloatingWindowContainer->hWndChild = NULL;
-    if (!DockHostWindow_DockHWNDToTarget(pTargetDockHostWindow, hWndChild, &dockTarget, iDockSize))
-    {
-        pFloatingWindowContainer->hWndChild = hWndChild;
-        return FALSE;
-    }
-
-    return TRUE;
+    return DocumentDockTransition_DockSourceToWorkspace(
+        Window_GetHWND((Window*)pFloatingWindowContainer),
+        &pFloatingWindowContainer->hWndChild,
+        pWorkspaceTarget,
+        workspaceDockHit.nDockSide,
+        pFloatingWindowContainer->iDockSizeHint);
 }
 
 static BOOL FloatingWindowContainer_AttemptDock(FloatingWindowContainer* pFloatingWindowContainer)

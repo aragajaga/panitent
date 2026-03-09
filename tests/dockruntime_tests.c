@@ -920,6 +920,67 @@ static int test_runtime_single_document_float_uses_document_host_helper(void)
     return 0;
 }
 
+static int test_runtime_try_dock_floating_workspace_uses_shared_document_transition(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+    const UINT IDM_FLOAT_DOCK_RUNTIME = 1001;
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 1);
+
+    HWND hWndFloatingDocument = NULL;
+    EnumWindows(runtime_enum_floating_windows, (LPARAM)&counts);
+    for (HWND hWnd = GetTopWindow(NULL); hWnd; hWnd = GetNextWindow(hWnd, GW_HWNDNEXT))
+    {
+        if (!runtime_is_class_name(hWnd, L"__FloatingWindowContainer"))
+        {
+            continue;
+        }
+
+        FloatingWindowContainer* pFloating = (FloatingWindowContainer*)WindowMap_Get(hWnd);
+        if (!pFloating || pFloating->nDockPolicy != FLOAT_DOCK_POLICY_DOCUMENT)
+        {
+            continue;
+        }
+
+        if (pFloating->hWndChild && IsWindow(pFloating->hWndChild))
+        {
+            hWndFloatingDocument = hWnd;
+            break;
+        }
+    }
+
+    assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
+    SendMessageW(hWndFloatingDocument, WM_COMMAND, IDM_FLOAT_DOCK_RUNTIME, 0);
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 1);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentWorkspaces == 0);
+    assert(counts.nDocumentHosts == 0);
+
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_layout_apply_preserves_workspace_binding_by_node_id(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -1133,6 +1194,7 @@ int main(void)
     failed |= test_runtime_empty_document_group_cleanup_uses_model_first_remove();
     failed |= test_runtime_document_group_undock_to_floating_uses_model_first_remove();
     failed |= test_runtime_single_document_float_uses_document_host_helper();
+    failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
     failed |= test_runtime_layout_apply_preserves_workspace_binding_by_node_id();
 
     if (bOleInitialized)

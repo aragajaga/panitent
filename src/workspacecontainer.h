@@ -25,3 +25,4 @@ int WorkspaceContainer_GetViewportCount(WorkspaceContainer* pWorkspaceContainer)
 void WorkspaceContainer_FloatViewport(WorkspaceContainer* pWorkspaceContainer, ViewportWindow* pViewportWindow, int xScreen, int yScreen, BOOL bStartMove);
 void WorkspaceContainer_MoveAllViewportsTo(WorkspaceContainer* pSourceWorkspace, WorkspaceContainer* pTargetWorkspace);
 WorkspaceContainer* WorkspaceContainer_FindDropTargetAtScreenPoint(WorkspaceContainer* pSourceWorkspace, POINT ptScreen);
+BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BOOL bForceMainWorkspace);

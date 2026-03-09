@@ -5,6 +5,7 @@
 #include "viewport.h"
 #include "workspacecontainer.h"
 #include "document.h"
+#include "documentdocktransition.h"
 #include "floatingdocumenthost.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
@@ -1655,8 +1656,19 @@ BOOL WorkspaceContainer_TryDockFloating(WorkspaceContainer* pSourceWorkspace, BO
         return FALSE;
     }
 
-    WorkspaceContainer_MoveAllViewportsTo(pSourceWorkspace, pTargetWorkspace);
-    DestroyWindow(Window_GetHWND((Window*)pSourceWorkspace));
+    HWND hWndSourceWorkspace = Window_GetHWND((Window*)pSourceWorkspace);
+    HWND hWndSourceChild = hWndSourceWorkspace;
+    if (!DocumentDockTransition_DockSourceToWorkspace(
+        hWndSourceWorkspace,
+        &hWndSourceChild,
+        pTargetWorkspace,
+        DKS_CENTER,
+        0))
+    {
+        return FALSE;
+    }
+
+    DestroyWindow(hWndSourceWorkspace);
     return TRUE;
 }
 

@@ -78,6 +78,7 @@ set(C_SOURCES
     src/crashhandler.c
     src/crefptr.c
     src/debug.c
+    src/documentdocktransition.c
     src/documentsessionmodel.c
     src/documentsessionpersist.c
     src/dockdefaultlayoutmodel.c

@@ -131,6 +131,7 @@ This change set starts lifting document-group runtime/layout behavior toward the
 - `dockhostmodelapply.*` gained a model-first runtime path for docking incoming document workspaces around an existing workspace;
 - empty docked document-group cleanup now also routes through a model-first workspace removal path instead of direct live-tree surgery;
 - undocking a docked document group to a floating window now preserves document floating policy instead of falling back to tool-window behavior;
+- shared document docking transitions now route through a common helper for center/side docking into target workspaces, reducing duplication between floating document and workspace flows;
 - pure and runtime tests now cover multi-workspace layout validation and live document-workspace side docking.
 
 ## Runtime Integration Test Increment Applied
