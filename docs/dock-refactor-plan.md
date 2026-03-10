@@ -793,6 +793,15 @@ This change set moves model-apply core helpers out of `dockhostmodelapply.c` int
 
 This leaves `dockhostmodelapply.c` more focused on mutation flow orchestration instead of mixing orchestration with apply-core mechanics.
 
+## Dock Host Apply Transaction Layer Increment Applied
+
+This change set moves rollback/target/context preparation out of `dockhostmodelapply.c` into `dockhostapplytxn.c`:
+- rollback/target model capture;
+- preserved-view context initialization;
+- rollback application and cleanup.
+
+This reduces repeated transaction boilerplate across tool/document apply flows and narrows `dockhostmodelapply.c` further toward orchestration.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

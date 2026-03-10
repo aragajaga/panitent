@@ -101,6 +101,7 @@ set(C_SOURCES
     src/dockhostlifecycle.c
     src/dockhosttheme.c
     src/dockhostapplycore.c
+    src/dockhostapplytxn.c
     src/dockhostpreserve.c
     src/dockhostbinding.c
     src/dockhostgeometry.c
