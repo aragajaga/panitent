@@ -755,3 +755,13 @@ This change set moves `DockHostWindow_Rearrange(...)` out of `dockhostruntime.c`
 - dock inspector update after rearrange.
 
 This further narrows `dockhostruntime.c` toward lifecycle/message handling only.
+
+## Dock Host Lifecycle Layer Increment Applied
+
+This change set moves lifecycle/message handling out of `dockhostruntime.c` into `dockhostlifecycle.c`:
+- create/destroy handlers;
+- paint/size handlers;
+- command handling;
+- raw window message dispatch.
+
+This leaves `dockhostruntime.c` focused on setup, creation, theme refresh, and root accessors.
