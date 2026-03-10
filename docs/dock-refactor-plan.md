@@ -727,3 +727,13 @@ This change set moves `DockData`/host geometry helpers out of `dockhostruntime.c
 - `DockHostWindow_GetHostContentRect(...)`
 
 This keeps geometry-specific logic separate from runtime lifecycle and message orchestration.
+
+## Dock Host Arrange Layer Increment Applied
+
+This change set moves `DockHostWindow_Rearrange(...)` out of `dockhostruntime.c` into `dockhostarrange.c`:
+- root gutter synchronization;
+- rect assignment application to live child windows;
+- post-arrange auto-hide overlay refresh;
+- dock inspector update after rearrange.
+
+This further narrows `dockhostruntime.c` toward lifecycle/message handling only.

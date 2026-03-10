@@ -100,6 +100,7 @@ set(C_SOURCES
     src/dockhostruntime.c
     src/dockhostbinding.c
     src/dockhostgeometry.c
+    src/dockhostarrange.c
     src/dockhostteardown.c
     src/dockhosttree.c
     src/dockhostzone.c
