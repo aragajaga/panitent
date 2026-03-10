@@ -765,3 +765,13 @@ This change set moves lifecycle/message handling out of `dockhostruntime.c` into
 - raw window message dispatch.
 
 This leaves `dockhostruntime.c` focused on setup, creation, theme refresh, and root accessors.
+
+## Dock Host Setup Layer Increment Applied
+
+This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:
+- pre-register / pre-create window initialization;
+- `DockData_Create(...)` / `DockNode_Create(...)`;
+- host initialization and creation;
+- root setter/getter helpers.
+
+This leaves `dockhostruntime.c` focused almost entirely on theme refresh and remaining runtime-specific glue.

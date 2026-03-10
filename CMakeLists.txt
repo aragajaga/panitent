@@ -98,6 +98,7 @@ set(C_SOURCES
     src/dockhostpaint.c
     src/dockhostrestore.c
     src/dockhostruntime.c
+    src/dockhostsetup.c
     src/dockhostlifecycle.c
     src/dockhostbinding.c
     src/dockhostgeometry.c
