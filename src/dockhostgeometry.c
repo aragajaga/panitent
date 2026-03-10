@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "dockhost.h"
+#include "dockhostgeometry.h"
 
 #include "dockhostmetrics.h"
 #include "toolwndframe.h"

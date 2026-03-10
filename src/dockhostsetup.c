@@ -2,6 +2,7 @@
 
 #include "dockhostsetup.h"
 
+#include "dockhostgeometry.h"
 #include "dockhostlifecycle.h"
 #include "dockinspectordialog.h"
 #include "panitentapp.h"

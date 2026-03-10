@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "dockhost.h"
+#include "dockhostteardown.h"
 
 #include "dockhostautohide.h"
 #include "dockhostinput.h"

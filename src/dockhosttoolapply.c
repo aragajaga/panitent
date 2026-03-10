@@ -4,6 +4,7 @@
 
 #include "dockhostapplycore.h"
 #include "dockhostapplytxn.h"
+#include "dockhostbinding.h"
 #include "dockhostpreserve.h"
 #include "dockhosttree.h"
 #include "dockmodel.h"

@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "dockhost.h"
+#include "dockhostbinding.h"
 
 #include "dockgroup.h"
 #include "dockviewcatalog.h"

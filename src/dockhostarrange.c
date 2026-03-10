@@ -1,8 +1,10 @@
 #include "precomp.h"
 
-#include "dockhost.h"
+#include "dockhostarrange.h"
 
 #include "dockhostautohide.h"
+#include "dockhostbinding.h"
+#include "dockhostgeometry.h"
 #include "dockhostlayout.h"
 #include "dockhostmetrics.h"
 #include "dockhostzone.h"

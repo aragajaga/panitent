@@ -775,6 +775,16 @@ This change set removes the old internal umbrella `dockhostruntime.h` in favor o
 
 The remaining runtime implementation is now split by owner layer instead of routed through one catch-all internal header.
 
+## Dock Host Remaining Owner Header Increment Applied
+
+This change set adds owner headers for the remaining dock host layers:
+- `dockhostarrange.h`
+- `dockhostbinding.h`
+- `dockhostgeometry.h`
+- `dockhostteardown.h`
+
+This completes the owner-header cleanup for the main dock host decomposition.
+
 ## Dock Host Preserve Layer Increment Applied
 
 This change set moves preserved-view collection and resolution out of `dockhostmodelapply.c` into `dockhostpreserve.c`:

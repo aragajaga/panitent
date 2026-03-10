@@ -2,7 +2,10 @@
 
 #include "dockhostapplycore.h"
 
+#include "dockhostarrange.h"
+#include "dockhostgeometry.h"
 #include "dockhostrestore.h"
+#include "dockhostteardown.h"
 #include "dockmodelbuild.h"
 #include "dockviewcatalog.h"
 #include "win32/window.h"

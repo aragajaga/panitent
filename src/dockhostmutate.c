@@ -2,6 +2,7 @@
 
 #include "dockhostmutate.h"
 
+#include "dockhostbinding.h"
 #include "dockhostdocumentapply.h"
 #include "dockhosttoolapply.h"
 #include "win32/window.h"
