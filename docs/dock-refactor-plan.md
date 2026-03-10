@@ -717,3 +717,13 @@ This change set moves HWND-to-dock binding logic out of `dockhostruntime.c` into
 - pinning `HWND` and `Window` into `DockData`.
 
 This narrows `dockhostruntime.c` further and gives host binding/identity logic its own explicit owner layer.
+
+## Dock Host Geometry Layer Increment Applied
+
+This change set moves `DockData`/host geometry helpers out of `dockhostruntime.c` into `dockhostgeometry.c`:
+- `DockData_GetClientRect(...)`
+- `DockData_Init(...)`
+- `DockData_GetCaptionRect(...)`
+- `DockHostWindow_GetHostContentRect(...)`
+
+This keeps geometry-specific logic separate from runtime lifecycle and message orchestration.
