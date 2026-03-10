@@ -635,6 +635,16 @@ This change set extends Phase 4/5 coverage for the public save path:
 
 This adds a repeated user-facing overwrite gate, not just a one-shot save/overwrite check.
 
+## Save Apply Reset Cycle Stress Increment Applied
+
+This change set extends user-path stress coverage further:
+- repeated `Save Window Layout...`
+- repeated apply of the saved layout
+- repeated `Reset Window Layout`
+- alternating between default and mixed arrangements before save
+
+This adds an end-to-end save/apply/reset cycle gate on the actual named layout command path.
+
 ## Mixed Layout Stress Coverage Increment Applied
 
 This change set starts Phase 5 stress coverage with a repeated mixed layout cycle test:
