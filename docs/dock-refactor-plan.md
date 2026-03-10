@@ -775,6 +775,16 @@ This change set removes the old internal umbrella `dockhostruntime.h` in favor o
 
 The remaining runtime implementation is now split by owner layer instead of routed through one catch-all internal header.
 
+## Dock Host Preserve Layer Increment Applied
+
+This change set moves preserved-view collection and resolution out of `dockhostmodelapply.c` into `dockhostpreserve.c`:
+- live view id lookup;
+- preserved view accumulation;
+- model/live recursive collection helpers;
+- view resolution and preserve array construction for apply.
+
+This reduces one of the heaviest remaining runtime hubs and makes the model-apply path less monolithic.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:
