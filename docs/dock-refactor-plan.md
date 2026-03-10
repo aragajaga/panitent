@@ -836,6 +836,14 @@ This change set removes the last generic dispatch-only `dockhostmodelapply` laye
 
 This eliminates another umbrella layer and keeps the runtime split aligned with real responsibility owners.
 
+## Floating Tool Owner Header Increment Applied
+
+This change set adds owner headers for the floating tool path:
+- `floatingtoolcapture.h`
+- `floatingtoolrestore.h`
+
+Internal consumers now include the owner header that matches the responsibility they use instead of routing everything through the floating tool umbrella header.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

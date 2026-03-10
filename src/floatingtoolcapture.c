@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "floatingtoolhost.h"
+#include "floatingtoolcapture.h"
 
 #include "dockmodel.h"
 #include "dockviewcatalog.h"
