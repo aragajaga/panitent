@@ -811,6 +811,14 @@ This change set moves document-specific apply flows out of `dockhostmodelapply.c
 
 This leaves `dockhostmodelapply.c` more clearly focused on tool-side flows and generic dispatch.
 
+## Dock Host Tool Apply Layer Increment Applied
+
+This change set moves tool-specific apply flows out of `dockhostmodelapply.c` into `dockhosttoolapply.c`:
+- tool docking into root/local targets;
+- tool window removal.
+
+This leaves `dockhostmodelapply.c` close to a thin generic dispatch layer rather than a mixed tool/document runtime hub.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:
