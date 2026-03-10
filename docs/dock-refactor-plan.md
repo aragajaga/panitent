@@ -707,3 +707,13 @@ This change set moves layout teardown and live tree destruction out of `dockhost
 - `DockHostWindow_ClearLayout(...)`.
 
 This reduces the remaining responsibility surface of `dockhostruntime.c` and gives teardown its own explicit owner layer.
+
+## Dock Host Binding Layer Increment Applied
+
+This change set moves HWND-to-dock binding logic out of `dockhostruntime.c` into `dockhostbinding.c`:
+- workspace-window detection;
+- pane-kind detection;
+- persistent view-name assignment;
+- pinning `HWND` and `Window` into `DockData`.
+
+This narrows `dockhostruntime.c` further and gives host binding/identity logic its own explicit owner layer.
