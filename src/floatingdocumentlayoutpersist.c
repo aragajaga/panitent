@@ -4,7 +4,8 @@
 
 #include "dockhost.h"
 #include "dockhostrestore.h"
-#include "floatingdocumenthost.h"
+#include "floatingdocumentreuse.h"
+#include "floatingdocumentrestore.h"
 #include "floatingchildhost.h"
 #include "floatingwindowcontainer.h"
 #include "dockmodelbuild.h"

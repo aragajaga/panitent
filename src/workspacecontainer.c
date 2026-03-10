@@ -6,7 +6,7 @@
 #include "workspacecontainer.h"
 #include "document.h"
 #include "documentdocktransition.h"
-#include "floatingdocumenthost.h"
+#include "floatingdocumentcreate.h"
 #include "floatingwindowcontainer.h"
 #include "dockhost.h"
 #include "oledroptarget.h"

@@ -844,6 +844,15 @@ This change set adds owner headers for the floating tool path:
 
 Internal consumers now include the owner header that matches the responsibility they use instead of routing everything through the floating tool umbrella header.
 
+## Floating Document Owner Header Increment Applied
+
+This change set adds owner headers for the floating document path:
+- `floatingdocumentcreate.h`
+- `floatingdocumentreuse.h`
+- `floatingdocumentrestore.h`
+
+Internal consumers now include the owner header that matches the responsibility they use instead of routing everything through the floating document umbrella header.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

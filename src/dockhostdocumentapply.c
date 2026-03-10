@@ -10,7 +10,7 @@
 #include "dockmodelmatch.h"
 #include "dockmodelops.h"
 #include "dockmodelvalidate.h"
-#include "floatingdocumenthost.h"
+#include "floatingdocumentcreate.h"
 #include "panitentapp.h"
 #include "win32/window.h"
 

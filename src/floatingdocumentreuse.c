@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "floatingdocumenthost.h"
+#include "floatingdocumentreuse.h"
 
 #include "dockmodel.h"
 #include "floatingchildhost.h"

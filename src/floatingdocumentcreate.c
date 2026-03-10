@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "floatingdocumenthost.h"
+#include "floatingdocumentcreate.h"
 
 #include "panitentapp.h"
 #include "floatingwindowcontainer.h"
