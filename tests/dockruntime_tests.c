@@ -3082,6 +3082,111 @@ static int test_runtime_catalog_rename_rolls_back_on_catalog_save_failure(void)
     return 0;
 }
 
+static int test_runtime_repeated_menu_command_save_overwrite_cycles_remain_stable(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_window_layout_catalog_file();
+    runtime_delete_profile_bundle(1);
+
+    wcscpy_s(g_runtimeWindowLayoutPromptName, ARRAYSIZE(g_runtimeWindowLayoutPromptName), L"Layout A");
+
+    DockModelNode* pMixedLayout = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pMixedLayout != NULL);
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pMixedLayout, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pMixedLayout, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel mixedFloating = { 0 };
+    mixedFloating.nEntries = 1;
+    SetRect(&mixedFloating.entries[0].rcWindow, 180, 140, 500, 470);
+    mixedFloating.entries[0].iDockSizeHint = 240;
+    mixedFloating.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    mixedFloating.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel mixedFloatDocs = { 0 };
+    mixedFloatDocs.nEntryCount = 1;
+    SetRect(&mixedFloatDocs.entries[0].rcWindow, 560, 180, 940, 620);
+    mixedFloatDocs.entries[0].pLayoutModel = &floatDocRoot;
+
+    uint32_t uLayoutId = 0;
+    for (int i = 0; i < 4; ++i)
+    {
+        if ((i % 2) == 0)
+        {
+            assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+        }
+        else
+        {
+            assert(WindowLayoutManager_ApplyLayoutBundle(
+                &fixture.panitentWindow,
+                pMixedLayout,
+                &mixedFloating,
+                &mixedFloatDocs));
+        }
+
+        WindowLayoutManager_SetPromptSink(runtime_capture_window_layout_prompt);
+        assert(WindowLayoutManager_HandleCommand(&fixture.panitentWindow, IDM_WINDOW_SAVE_LAYOUT));
+        WindowLayoutManager_SetPromptSink(NULL);
+
+        WindowLayoutCatalog catalog = { 0 };
+        PTSTR pszCatalogPath = NULL;
+        GetAppDataFilePath(L"windowlayouts.dat", &pszCatalogPath);
+        assert(pszCatalogPath != NULL);
+        assert(WindowLayoutCatalog_LoadFromFile(pszCatalogPath, &catalog, NULL));
+        free(pszCatalogPath);
+        assert(catalog.nEntryCount == 1);
+        assert(wcscmp(catalog.entries[0].szName, L"Layout A") == 0);
+        if (uLayoutId == 0)
+        {
+            uLayoutId = catalog.entries[0].uId;
+        }
+        assert(catalog.entries[0].uId == uLayoutId);
+
+        DockModelNode* pLoadedLayout = NULL;
+        DockFloatingLayoutFileModel loadedFloating = { 0 };
+        FloatingDocumentLayoutModel loadedFloatDocs = { 0 };
+        assert(WindowLayoutProfile_LoadBundle(uLayoutId, &pLoadedLayout, &loadedFloating, &loadedFloatDocs));
+        assert(pLoadedLayout != NULL);
+
+        DockModelNode* pRightZone = runtime_find_model_zone(pLoadedLayout, DKS_RIGHT);
+        assert(pRightZone != NULL);
+        if ((i % 2) == 0)
+        {
+            assert(loadedFloating.nEntries == 0);
+            assert(loadedFloatDocs.nEntryCount == 0);
+            assert(runtime_model_subtree_contains_name(pRightZone, L"GLWindow"));
+        }
+        else
+        {
+            assert(loadedFloating.nEntries == 1);
+            assert(loadedFloatDocs.nEntryCount == 1);
+            assert(!runtime_model_subtree_contains_name(pRightZone, L"GLWindow"));
+        }
+
+        DockModel_Destroy(pLoadedLayout);
+        DockFloatingLayout_Destroy(&loadedFloating);
+        FloatingDocumentLayoutModel_Destroy(&loadedFloatDocs);
+    }
+
+    g_runtimeWindowLayoutPromptName[0] = L'\0';
+    DockModel_Destroy(pMixedLayout);
+    runtime_delete_profile_bundle(uLayoutId);
+    runtime_delete_window_layout_catalog_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_repeated_menu_command_mixed_layout_cycles_remain_stable(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -3946,6 +4051,7 @@ int main(void)
     failed |= test_runtime_menu_command_apply_failure_rolls_back_from_mixed_state();
     failed |= test_runtime_repeated_command_failure_cycles_from_mixed_state_remain_stable();
     failed |= test_runtime_menu_command_saves_and_overwrites_named_layout();
+    failed |= test_runtime_repeated_menu_command_save_overwrite_cycles_remain_stable();
     failed |= test_runtime_menu_command_save_failure_does_not_persist_catalog_entry();
     failed |= test_runtime_menu_command_save_catalog_failure_removes_new_bundle();
     failed |= test_runtime_catalog_delete_rolls_back_on_catalog_save_failure();

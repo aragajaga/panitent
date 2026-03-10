@@ -626,6 +626,15 @@ This change set extends runtime coverage for the positive path of transactional 
 
 This complements the existing late-failure coverage and keeps named layout catalog management covered on both success and rollback paths.
 
+## Named Layout Save Cycle Stress Increment Applied
+
+This change set extends Phase 4/5 coverage for the public save path:
+- repeatedly saves the same named layout through `IDM_WINDOW_SAVE_LAYOUT`;
+- alternates between default and mixed floating arrangement before each save;
+- verifies that overwrite keeps a stable profile id and updates the saved bundle contents correctly.
+
+This adds a repeated user-facing overwrite gate, not just a one-shot save/overwrite check.
+
 ## Mixed Layout Stress Coverage Increment Applied
 
 This change set starts Phase 5 stress coverage with a repeated mixed layout cycle test:
