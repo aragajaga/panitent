@@ -2,7 +2,9 @@
 
 #include "dockhostmutate.h"
 
+#include "dockhostdocumentapply.h"
 #include "dockhostmodelapply.h"
+#include "dockhosttoolapply.h"
 #include "win32/window.h"
 
 static BOOL DockHostMutate_NodeIsStructural(TreeNode* pNode)

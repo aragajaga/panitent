@@ -4,6 +4,7 @@
 #include "../src/dockhost.h"
 #include "../src/dockhostdrag.h"
 #include "../src/dockhostmodelapply.h"
+#include "../src/dockhosttoolapply.h"
 #include "../src/docklayout.h"
 #include "../src/documentdocktransition.h"
 #include "../src/dockfloatingmodel.h"

@@ -811,6 +811,15 @@ This change set moves document-specific apply flows out of `dockhostmodelapply.c
 
 This leaves `dockhostmodelapply.c` more clearly focused on tool-side flows and generic dispatch.
 
+## Dock Host Apply Owner Header Increment Applied
+
+This change set splits the public apply surface into owner headers:
+- `dockhosttoolapply.h`
+- `dockhostdocumentapply.h`
+- `dockhostmodelapply.h` now keeps only generic dispatch.
+
+This reduces mixed header ownership and makes tool/document apply responsibilities explicit at the include boundary.
+
 ## Dock Host Tool Apply Layer Increment Applied
 
 This change set moves tool-specific apply flows out of `dockhostmodelapply.c` into `dockhosttoolapply.c`:

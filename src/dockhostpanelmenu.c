@@ -3,7 +3,7 @@
 #include "dockhostpanelmenu.h"
 
 #include "dockhostautohide.h"
-#include "dockhostmodelapply.h"
+#include "dockhosttoolapply.h"
 #include "dockhosttree.h"
 #include "dockhostzone.h"
 #include "dockpolicy.h"

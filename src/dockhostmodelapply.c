@@ -2,6 +2,8 @@
 
 #include "dockhostmodelapply.h"
 
+#include "dockhostdocumentapply.h"
+#include "dockhosttoolapply.h"
 #include "dockhosttree.h"
 
 BOOL DockHostModelApply_RemoveDockedWindow(DockHostWindow* pDockHostWindow, HWND hWnd, BOOL bKeepWindowAlive)

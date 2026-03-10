@@ -3,7 +3,8 @@
 #include "dockhostdrag.h"
 
 #include "dockhostlayout.h"
-#include "dockhostmodelapply.h"
+#include "dockhostdocumentapply.h"
+#include "dockhosttoolapply.h"
 #include "docklayout.h"
 #include "floatingwindowcontainer.h"
 #include "win32/util.h"
