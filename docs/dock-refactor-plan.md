@@ -863,6 +863,14 @@ This change set adds owner headers for the floating document path:
 
 Internal consumers now include the owner header that matches the responsibility they use instead of routing everything through the floating document umbrella header.
 
+## Floating Umbrella Header Reduction Increment Applied
+
+This change set reduces `floatingdocumenthost.h` and `floatingtoolhost.h` to shared-type umbrella headers only:
+- the owner functions now live behind owner headers;
+- the remaining umbrella headers carry shared types and callback structs only.
+
+This finishes the owner-header cleanup for floating tool/document runtime decomposition.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

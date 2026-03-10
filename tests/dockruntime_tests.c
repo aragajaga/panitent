@@ -9,7 +9,7 @@
 #include "../src/dockfloatingmodel.h"
 #include "../src/dockfloatingpersist.h"
 #include "../src/floatingchildhost.h"
-#include "../src/floatingdocumenthost.h"
+#include "../src/floatingdocumentcreate.h"
 #include "../src/floatingdocumentlayoutmodel.h"
 #include "../src/floatingdocumentlayoutpersist.h"
 #include "../src/floatingdocumentsessionpersist.h"
