@@ -48,12 +48,26 @@ typedef struct FloatingCountContext
     int nDocumentHosts;
 } FloatingCountContext;
 
+typedef struct RuntimeGuiResourceSnapshot
+{
+    DWORD nUserObjects;
+    DWORD nGdiObjects;
+} RuntimeGuiResourceSnapshot;
+
 static int g_runtimeWindowLayoutMessageCount = 0;
 static WCHAR g_runtimeWindowLayoutPromptName[WINDOW_LAYOUT_NAME_MAX] = L"";
 static int g_runtimeFloatingDocumentLayoutRestoreFailCountdown = -1;
 static int g_runtimeDockFloatingRestoreFailCountdown = -1;
 
 static BOOL runtime_is_class_name(HWND hWnd, PCWSTR pszClassName);
+
+static RuntimeGuiResourceSnapshot runtime_capture_gui_resources(void)
+{
+    RuntimeGuiResourceSnapshot snapshot = { 0 };
+    snapshot.nUserObjects = GetGuiResources(GetCurrentProcess(), GR_USEROBJECTS);
+    snapshot.nGdiObjects = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+    return snapshot;
+}
 
 static BOOL runtime_fail_floating_document_create(
     DockHostWindow* pDockHostTarget,
@@ -3565,6 +3579,63 @@ static int test_runtime_repeated_direct_floating_failure_cycles_remain_stable(vo
     return 0;
 }
 
+static int test_runtime_mixed_layout_cycles_do_not_drift_gui_resources(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndWorkspaceBefore = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceBefore && IsWindow(hWndWorkspaceBefore));
+
+    DockModelNode* pTarget = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pTarget != NULL);
+
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pTarget, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pTarget, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel floatingModel = { 0 };
+    floatingModel.nEntries = 1;
+    SetRect(&floatingModel.entries[0].rcWindow, 140, 160, 440, 480);
+    floatingModel.entries[0].iDockSizeHint = 240;
+    floatingModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingModel.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    floatDocModel.nEntryCount = 1;
+    SetRect(&floatDocModel.entries[0].rcWindow, 520, 180, 900, 620);
+    floatDocModel.entries[0].pLayoutModel = &floatDocRoot;
+
+    assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, &floatingModel, &floatDocModel));
+    assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+
+    RuntimeGuiResourceSnapshot baseline = runtime_capture_gui_resources();
+
+    for (int i = 0; i < 8; ++i)
+    {
+        assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, &floatingModel, &floatDocModel));
+        assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+    }
+
+    RuntimeGuiResourceSnapshot final = runtime_capture_gui_resources();
+    assert(final.nUserObjects <= baseline.nUserObjects + 32);
+    assert(final.nGdiObjects <= baseline.nGdiObjects + 32);
+
+    DockModel_Destroy(pTarget);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_catalog_move_persists_order_on_success(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -4043,6 +4114,7 @@ int main(void)
     failed |= test_runtime_repeated_mixed_layout_cycles_remain_stable();
     failed |= test_runtime_repeated_direct_floating_restore_cycles_remain_stable();
     failed |= test_runtime_repeated_direct_floating_failure_cycles_remain_stable();
+    failed |= test_runtime_mixed_layout_cycles_do_not_drift_gui_resources();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
     failed |= test_runtime_menu_command_applies_named_mixed_layout_profiles();

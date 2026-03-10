@@ -683,6 +683,15 @@ This change set extends Phase 5 with repeated failure-injection cycles for direc
 
 This adds a repeated rollback gate for helper-level APIs, not just one-shot failure tests.
 
+## GUI Resource Sanity Increment Applied
+
+This change set adds a lightweight GUI resource sanity gate for repeated mixed layout cycles:
+- captures baseline USER/GDI object counts after warm-up;
+- runs repeated mixed layout apply/reset cycles;
+- asserts that GUI resource counts do not drift beyond a small tolerance.
+
+This is the first explicit resource-level sanity check in Phase 5, not just a semantic state check.
+
 ## Floating Document Create Layer Increment Applied
 
 This change set splits the creation/bootstrap side of `floatingdocumenthost.c` into `floatingdocumentcreate.c`:

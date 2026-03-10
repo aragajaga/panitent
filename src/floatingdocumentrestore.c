@@ -2,6 +2,8 @@
 
 #include "floatingdocumentrestore.h"
 
+#include "floatingdocumentcreate.h"
+#include "floatingdocumentreuse.h"
 #include "dockhostrestore.h"
 #include "dockmodelbuild.h"
 
