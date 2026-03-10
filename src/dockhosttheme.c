@@ -1,8 +1,7 @@
 #include "precomp.h"
 
-#include "dockhostruntime.h"
+#include "dockhosttheme.h"
 
-#include "dockgroup.h"
 #include "theme.h"
 
 void DockHostWindow_RefreshTheme(DockHostWindow* pDockHostWindow)

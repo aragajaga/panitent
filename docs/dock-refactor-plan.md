@@ -766,6 +766,15 @@ This change set moves lifecycle/message handling out of `dockhostruntime.c` into
 
 This leaves `dockhostruntime.c` focused on setup, creation, theme refresh, and root accessors.
 
+## Dock Host Owner Header Increment Applied
+
+This change set removes the old internal umbrella `dockhostruntime.h` in favor of owner headers:
+- `dockhostsetup.h`
+- `dockhostlifecycle.h`
+- `dockhosttheme.h`
+
+The remaining runtime implementation is now split by owner layer instead of routed through one catch-all internal header.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

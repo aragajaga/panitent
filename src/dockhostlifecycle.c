@@ -1,12 +1,13 @@
 #include "precomp.h"
 
-#include "dockhostruntime.h"
+#include "dockhostlifecycle.h"
 
 #include "dockhostautohide.h"
 #include "dockhostinput.h"
 #include "dockhostpaint.h"
 #include "dockhostmetrics.h"
 #include "dockhostzone.h"
+#include "dockhosttheme.h"
 #include "dockinspectordialog.h"
 #include "oledroptarget.h"
 #include "panitentapp.h"

@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "dockhostruntime.h"
+#include "dockhost.h"
 
 #include "dockhostautohide.h"
 #include "dockhostlayout.h"

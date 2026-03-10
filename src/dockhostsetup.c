@@ -1,7 +1,8 @@
 #include "precomp.h"
 
-#include "dockhostruntime.h"
+#include "dockhostsetup.h"
 
+#include "dockhostlifecycle.h"
 #include "dockinspectordialog.h"
 #include "panitentapp.h"
 #include "win32/window.h"

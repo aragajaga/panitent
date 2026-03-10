@@ -119,5 +119,6 @@ BOOL DockHostWindow_HitTestDockTarget(DockHostWindow* pDockHostWindow, POINT ptS
 BOOL DockHostWindow_DockHWND(DockHostWindow* pDockHostWindow, HWND hWnd, int nDockSide, int iDockSize);
 BOOL DockHostWindow_DockHWNDToTarget(DockHostWindow* pDockHostWindow, HWND hWnd, const DockTargetHit* pTargetHit, int iDockSize);
 BOOL DockHostWindow_DestroyDockedHWND(DockHostWindow* pDockHostWindow, HWND hWnd);
+BOOL DockHostWindow_IsWorkspaceWindow(HWND hWnd);
 DockPaneKind DockHostWindow_DeterminePaneKindForHWND(HWND hWnd);
 void DockHostWindow_Rearrange(DockHostWindow* pDockHostWindow);
