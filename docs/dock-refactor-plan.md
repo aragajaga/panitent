@@ -785,6 +785,14 @@ This change set moves preserved-view collection and resolution out of `dockhostm
 
 This reduces one of the heaviest remaining runtime hubs and makes the model-apply path less monolithic.
 
+## Dock Host Apply Core Layer Increment Applied
+
+This change set moves model-apply core helpers out of `dockhostmodelapply.c` into `dockhostapplycore.c`:
+- panel/workspace `DockModelNode` creation helpers;
+- runtime apply of a rebuilt `DockModel` into a live `DockHostWindow`.
+
+This leaves `dockhostmodelapply.c` more focused on mutation flow orchestration instead of mixing orchestration with apply-core mechanics.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:
