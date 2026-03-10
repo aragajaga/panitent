@@ -645,6 +645,15 @@ This change set extends user-path stress coverage further:
 
 This adds an end-to-end save/apply/reset cycle gate on the actual named layout command path.
 
+## Save Apply Reset Resource Sanity Increment Applied
+
+This change set adds a lightweight GUI resource sanity gate for repeated save/apply/reset command cycles:
+- captures USER/GDI object counts after warm-up;
+- runs repeated save/apply/reset cycles through the public command path;
+- asserts that GUI resource counts stay within a small tolerance band.
+
+This extends Phase 5 from semantic command-path checks to basic resource-drift checks on the same workflow.
+
 ## Mixed Layout Stress Coverage Increment Applied
 
 This change set starts Phase 5 stress coverage with a repeated mixed layout cycle test:
