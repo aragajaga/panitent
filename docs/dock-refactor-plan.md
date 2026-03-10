@@ -665,6 +665,15 @@ This change set extends Phase 5 stress coverage to direct helper APIs:
 
 This closes another gap between helper-level semantics and command-level semantics under repeated operation.
 
+## Direct Floating Failure Stress Increment Applied
+
+This change set extends Phase 5 with repeated failure-injection cycles for direct helper restore APIs:
+- strict floating tool restore is forced to fail during repeated cycles;
+- strict floating document layout restore is forced to fail during repeated cycles;
+- each failure must leave the dock host in the same clean docked state with no floating residue.
+
+This adds a repeated rollback gate for helper-level APIs, not just one-shot failure tests.
+
 ## Floating Document Create Layer Increment Applied
 
 This change set splits the creation/bootstrap side of `floatingdocumenthost.c` into `floatingdocumentcreate.c`:

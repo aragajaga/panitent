@@ -3367,6 +3367,99 @@ static int test_runtime_repeated_direct_floating_restore_cycles_remain_stable(vo
     return 0;
 }
 
+static int test_runtime_repeated_direct_floating_failure_cycles_remain_stable(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    HWND hWndWorkspaceBefore = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceBefore && IsWindow(hWndWorkspaceBefore));
+
+    DockModelNode* pTarget = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pTarget != NULL);
+
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pTarget, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pTarget, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel floatingModel = { 0 };
+    floatingModel.nEntries = 2;
+    SetRect(&floatingModel.entries[0].rcWindow, 180, 140, 500, 470);
+    floatingModel.entries[0].iDockSizeHint = 240;
+    floatingModel.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingModel.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+    SetRect(&floatingModel.entries[1].rcWindow, 520, 140, 840, 470);
+    floatingModel.entries[1].iDockSizeHint = 240;
+    floatingModel.entries[1].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingModel.entries[1].nViewId = PNT_DOCK_VIEW_PALETTE;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocModel = { 0 };
+    floatDocModel.nEntryCount = 2;
+    SetRect(&floatDocModel.entries[0].rcWindow, 560, 180, 940, 620);
+    floatDocModel.entries[0].pLayoutModel = &floatDocRoot;
+    SetRect(&floatDocModel.entries[1].rcWindow, 960, 200, 1260, 560);
+    floatDocModel.entries[1].pLayoutModel = &floatDocRoot;
+
+    for (int i = 0; i < 3; ++i)
+    {
+        assert(WindowLayoutManager_ApplyLayoutBundle(&fixture.panitentWindow, pTarget, NULL, NULL));
+
+        g_runtimeDockFloatingRestoreFailCountdown = 1;
+        PanitentDockFloating_SetRestoreEntryTestHook(runtime_fail_floating_tool_restore_on_countdown);
+        assert(!PanitentDockFloating_RestoreModelEx(fixture.pApp, fixture.pDockHostWindow, &floatingModel, TRUE));
+        PanitentDockFloating_SetRestoreEntryTestHook(NULL);
+        g_runtimeDockFloatingRestoreFailCountdown = -1;
+
+        FloatingCountContext counts = { 0 };
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nToolPanels == 0);
+        assert(counts.nToolHosts == 0);
+        assert(counts.nDocumentHosts == 0);
+        assert(counts.nDocumentWorkspaces == 0);
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+        DockModelNode* pAfterToolFail = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+        DockModelNode* pRightZoneAfterToolFail = runtime_find_model_zone(pAfterToolFail, DKS_RIGHT);
+        assert(pAfterToolFail != NULL);
+        assert(pRightZoneAfterToolFail != NULL);
+        assert(!runtime_model_subtree_contains_name(pRightZoneAfterToolFail, L"GLWindow"));
+        DockModel_Destroy(pAfterToolFail);
+
+        g_runtimeFloatingDocumentLayoutRestoreFailCountdown = 1;
+        PanitentFloatingDocumentLayout_SetRestoreEntryTestHook(runtime_fail_floating_document_layout_restore_on_countdown);
+        assert(!PanitentFloatingDocumentLayout_RestoreModelEx(fixture.pApp, fixture.pDockHostWindow, &floatDocModel, TRUE));
+        PanitentFloatingDocumentLayout_SetRestoreEntryTestHook(NULL);
+        g_runtimeFloatingDocumentLayoutRestoreFailCountdown = -1;
+
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nToolPanels == 0);
+        assert(counts.nToolHosts == 0);
+        assert(counts.nDocumentHosts == 0);
+        assert(counts.nDocumentWorkspaces == 0);
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+        DockModelNode* pAfterDocFail = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+        DockModelNode* pRightZoneAfterDocFail = runtime_find_model_zone(pAfterDocFail, DKS_RIGHT);
+        assert(pAfterDocFail != NULL);
+        assert(pRightZoneAfterDocFail != NULL);
+        assert(!runtime_model_subtree_contains_name(pRightZoneAfterDocFail, L"GLWindow"));
+        DockModel_Destroy(pAfterDocFail);
+    }
+
+    DockModel_Destroy(pTarget);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_catalog_move_persists_order_on_success(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -3844,6 +3937,7 @@ int main(void)
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_repeated_mixed_layout_cycles_remain_stable();
     failed |= test_runtime_repeated_direct_floating_restore_cycles_remain_stable();
+    failed |= test_runtime_repeated_direct_floating_failure_cycles_remain_stable();
     failed |= test_runtime_reapply_mixed_layout_failure_rolls_back_to_existing_mixed_state();
     failed |= test_runtime_named_layout_profile_switch_with_mixed_floating_arrangement();
     failed |= test_runtime_menu_command_applies_named_mixed_layout_profiles();
