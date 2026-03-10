@@ -102,6 +102,7 @@ set(C_SOURCES
     src/dockhosttheme.c
     src/dockhostapplycore.c
     src/dockhostapplytxn.c
+    src/dockhostdocumentapply.c
     src/dockhostpreserve.c
     src/dockhostbinding.c
     src/dockhostgeometry.c

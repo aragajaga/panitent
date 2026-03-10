@@ -802,6 +802,15 @@ This change set moves rollback/target/context preparation out of `dockhostmodela
 
 This reduces repeated transaction boilerplate across tool/document apply flows and narrows `dockhostmodelapply.c` further toward orchestration.
 
+## Dock Host Document Apply Layer Increment Applied
+
+This change set moves document-specific apply flows out of `dockhostmodelapply.c` into `dockhostdocumentapply.c`:
+- document side-dock into workspace groups;
+- document workspace removal;
+- document undock-to-floating transitions.
+
+This leaves `dockhostmodelapply.c` more clearly focused on tool-side flows and generic dispatch.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:
