@@ -1,6 +1,6 @@
 #include "precomp.h"
 
-#include "dockhostmodelapply.h"
+#include "dockhostdocumentapply.h"
 
 #include "dockhostapplycore.h"
 #include "dockhostapplytxn.h"

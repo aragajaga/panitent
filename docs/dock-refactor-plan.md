@@ -828,6 +828,14 @@ This change set moves tool-specific apply flows out of `dockhostmodelapply.c` in
 
 This leaves `dockhostmodelapply.c` close to a thin generic dispatch layer rather than a mixed tool/document runtime hub.
 
+## Dock Host Model Apply Dispatch Collapse Increment Applied
+
+This change set removes the last generic dispatch-only `dockhostmodelapply` layer:
+- generic docked-window removal dispatch now lives in `dockhostmutate.c`;
+- owner headers are used directly for tool/document apply flows.
+
+This eliminates another umbrella layer and keeps the runtime split aligned with real responsibility owners.
+
 ## Dock Host Setup Layer Increment Applied
 
 This change set moves setup/create/root access responsibilities out of `dockhostruntime.c` into `dockhostsetup.c`:

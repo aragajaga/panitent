@@ -2,8 +2,8 @@
 
 #include "dockhostdrag.h"
 
-#include "dockhostlayout.h"
 #include "dockhostdocumentapply.h"
+#include "dockhostlayout.h"
 #include "dockhosttoolapply.h"
 #include "docklayout.h"
 #include "floatingwindowcontainer.h"
