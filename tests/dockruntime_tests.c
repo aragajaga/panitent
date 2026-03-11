@@ -2006,6 +2006,49 @@ static int test_runtime_multi_workspace_floating_document_session_restore_is_ide
     return 0;
 }
 
+static int test_runtime_repeated_floating_document_session_restore_is_stable(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_floating_document_session_file();
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(24, 24);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
+    assert(PanitentFloatingDocumentSession_Save(fixture.pApp, fixture.pDockHostWindow));
+
+    RuntimeGuiResourceSnapshot baseline = runtime_capture_gui_resources();
+    for (int i = 0; i < 5; ++i)
+    {
+        assert(PanitentFloatingDocumentSession_Restore(fixture.pApp, fixture.pDockHostWindow));
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndMainWorkspace);
+    }
+    RuntimeGuiResourceSnapshot final = runtime_capture_gui_resources();
+    assert(final.nUserObjects <= baseline.nUserObjects + 64);
+    assert(final.nGdiObjects <= baseline.nGdiObjects + 64);
+
+    runtime_delete_floating_document_session_file();
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_direct_floating_document_session_restore_strict_mode_rolls_back_on_partial_failure(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -4683,6 +4726,7 @@ int main(void)
     failed |= test_runtime_multi_workspace_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_direct_floating_document_session_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_repeated_floating_document_session_strict_failure_cycles_remain_stable();
+    failed |= test_runtime_repeated_floating_document_session_restore_is_stable();
     failed |= test_runtime_multi_workspace_floating_document_layout_restore_is_idempotent();
     failed |= test_runtime_direct_floating_document_layout_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();
