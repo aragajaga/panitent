@@ -298,7 +298,7 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 	case WM_CAPTURECHANGED:
 		if (pDockHostWindow)
 		{
-			DockHostWindow_SetAutoHidePressedButton(pDockHostWindow, DCB_NONE);
+			DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
 		}
 		return 0;
 
