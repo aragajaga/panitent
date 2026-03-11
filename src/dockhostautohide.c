@@ -291,8 +291,7 @@ static LRESULT CALLBACK DockAutoHideOverlayHostWndProc(HWND hWnd, UINT message, 
 	case WM_MOUSELEAVE:
 		if (pDockHostWindow)
 		{
-			pDockHostWindow->fAutoHideOverlayTrackMouse = FALSE;
-			DockHostWindow_SetAutoHideHotButton(pDockHostWindow, DCB_NONE);
+			DockHostWindow_ClearAutoHideCaptionState(pDockHostWindow);
 		}
 		return 0;
 
