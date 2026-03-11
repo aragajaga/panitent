@@ -16,6 +16,16 @@ endif()
 
 add_subdirectory(src/win32)
 
+set(PANITENT_INCLUDE_DIRS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/host"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/model"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/layout"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/floating"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/view"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/dock/document"
+    )
+
 set(C_SOURCES
     src/binview/audioplayer.c
     src/binview/audiosource.c
@@ -78,72 +88,72 @@ set(C_SOURCES
     src/crashhandler.c
     src/crefptr.c
     src/debug.c
-    src/documentdocktransition.c
+    src/dock/document/documentdocktransition.c
     src/documentsessionmodel.c
     src/documentsessionpersist.c
     src/documentsessionworkspace.c
-    src/dockdefaultlayoutmodel.c
-    src/docklayout.c
-    src/dockgroup.c
-    src/dockhost.c
-    src/dockhostcaption.c
-    src/dockhostdrag.c
-    src/dockhostinput.c
-    src/dockhostlayout.c
-    src/dockhostmetrics.c
-    src/dockhostautohide.c
-    src/dockhostmutate.c
-    src/dockhostpanelmenu.c
-    src/dockhostpaint.c
-    src/dockhostrestore.c
-    src/dockhostsetup.c
-    src/dockhostlifecycle.c
-    src/dockhosttheme.c
-    src/dockhostapplycore.c
-    src/dockhostapplytxn.c
-    src/dockhosttoolapply.c
-    src/dockhostdocumentapply.c
-    src/dockhostpreserve.c
-    src/dockhostbinding.c
-    src/dockhostgeometry.c
-    src/dockhostarrange.c
-    src/dockhostteardown.c
-    src/dockhosttree.c
-    src/dockhostzone.c
-    src/dockfloatingmodel.c
-    src/dockfloatingpersist.c
-    src/floatingtoolcapture.c
-    src/floatingtoolhost.c
-    src/floatingtoolrestore.c
-    src/floatingdocumentlayoutmodel.c
-    src/floatingdocumentlayoutpersist.c
-    src/floatingdocumentsessionmodel.c
-    src/floatingdocumentsessionpersist.c
-    src/docklayoutpersist.c
-    src/dockpolicy.c
-    src/dockmodel.c
-    src/dockmodelmatch.c
-    src/dockmodelops.c
-    src/dockmodelbuild.c
-    src/dockmodelio.c
-    src/dockmodelvalidate.c
-    src/dockshell.c
-    src/docktypes.c
-    src/dockviewcatalog.c
-    src/dockviewfactory.c
-    src/dockinspectordialog.c
+    src/dock/layout/dockdefaultlayoutmodel.c
+    src/dock/layout/docklayout.c
+    src/dock/model/dockgroup.c
+    src/dock/host/dockhost.c
+    src/dock/host/dockhostcaption.c
+    src/dock/host/dockhostdrag.c
+    src/dock/host/dockhostinput.c
+    src/dock/host/dockhostlayout.c
+    src/dock/host/dockhostmetrics.c
+    src/dock/host/dockhostautohide.c
+    src/dock/host/dockhostmutate.c
+    src/dock/host/dockhostpanelmenu.c
+    src/dock/host/dockhostpaint.c
+    src/dock/host/dockhostrestore.c
+    src/dock/host/dockhostsetup.c
+    src/dock/host/dockhostlifecycle.c
+    src/dock/host/dockhosttheme.c
+    src/dock/host/dockhostapplycore.c
+    src/dock/host/dockhostapplytxn.c
+    src/dock/host/dockhosttoolapply.c
+    src/dock/host/dockhostdocumentapply.c
+    src/dock/host/dockhostpreserve.c
+    src/dock/host/dockhostbinding.c
+    src/dock/host/dockhostgeometry.c
+    src/dock/host/dockhostarrange.c
+    src/dock/host/dockhostteardown.c
+    src/dock/host/dockhosttree.c
+    src/dock/host/dockhostzone.c
+    src/dock/floating/dockfloatingmodel.c
+    src/dock/floating/dockfloatingpersist.c
+    src/dock/floating/floatingtoolcapture.c
+    src/dock/floating/floatingtoolhost.c
+    src/dock/floating/floatingtoolrestore.c
+    src/dock/floating/floatingdocumentlayoutmodel.c
+    src/dock/floating/floatingdocumentlayoutpersist.c
+    src/dock/floating/floatingdocumentsessionmodel.c
+    src/dock/floating/floatingdocumentsessionpersist.c
+    src/dock/layout/docklayoutpersist.c
+    src/dock/model/dockpolicy.c
+    src/dock/model/dockmodel.c
+    src/dock/model/dockmodelmatch.c
+    src/dock/model/dockmodelops.c
+    src/dock/model/dockmodelbuild.c
+    src/dock/model/dockmodelio.c
+    src/dock/model/dockmodelvalidate.c
+    src/dock/view/dockshell.c
+    src/dock/model/docktypes.c
+    src/dock/view/dockviewcatalog.c
+    src/dock/view/dockviewfactory.c
+    src/dock/view/dockinspectordialog.c
     src/document.c
     src/documentrecovery.c
     src/file_open.c
     src/flexible.c
-    src/floatingchildhost.c
-    src/floatingdocumentcreate.c
-    src/floatingdocumentdock.c
-    src/floatingdocumenthost.c
-    src/floatingdocumentreuse.c
-    src/floatingdocumentrestore.c
-    src/floatingdockpolicy.c
-    src/floatingwindowcontainer.c
+    src/dock/floating/floatingchildhost.c
+    src/dock/floating/floatingdocumentcreate.c
+    src/dock/floating/floatingdocumentdock.c
+    src/dock/floating/floatingdocumenthost.c
+    src/dock/floating/floatingdocumentreuse.c
+    src/dock/floating/floatingdocumentrestore.c
+    src/dock/floating/floatingdockpolicy.c
+    src/dock/floating/floatingwindowcontainer.c
     src/glwindow.c
     src/history.c
     src/layeredwindow.c
@@ -184,11 +194,11 @@ set(C_SOURCES
     src/viewport.c
     src/wic.c
     src/windowstub.c
-    src/workspacedockpolicy.c
+    src/dock/document/workspacedockpolicy.c
     src/workspacecontainer.c
-    src/windowlayoutcatalog.c
-    src/windowlayoutprofile.c
-    src/windowlayoutmanager.c
+    src/dock/layout/windowlayoutcatalog.c
+    src/dock/layout/windowlayoutprofile.c
+    src/dock/layout/windowlayoutmanager.c
     )
 
 set(SOURCE_EXE ${C_SOURCES} res/panitent.rc)
@@ -204,6 +214,7 @@ endif(MSVC)
 set_source_files_properties(${C_SOURCES} PROPERTIES LANGUAGE C)
 
 add_executable(${PROJECT_NAME} WIN32 ${SOURCE_EXE})
+target_include_directories(${PROJECT_NAME} PRIVATE ${PANITENT_INCLUDE_DIRS})
 
 option(HAS_DISCORDRPC "Use Discord RPC" OFF)
 if (HAS_DISCORDRPC)
@@ -240,34 +251,34 @@ if(PANITENT_BUILD_TESTS)
   add_executable(panitent_dock_tests
     tests/docklayout_tests.c
     src/documentsessionmodel.c
-    src/dockdefaultlayoutmodel.c
-    src/floatingdocumentlayoutmodel.c
-    src/floatingdocumentsessionmodel.c
-    src/dockfloatingmodel.c
-    src/dockmodel.c
-    src/dockmodelmatch.c
-    src/dockmodelops.c
-    src/dockmodelbuild.c
-    src/dockmodelio.c
-    src/dockmodelvalidate.c
-    src/floatingdockpolicy.c
+    src/dock/layout/dockdefaultlayoutmodel.c
+    src/dock/floating/floatingdocumentlayoutmodel.c
+    src/dock/floating/floatingdocumentsessionmodel.c
+    src/dock/floating/dockfloatingmodel.c
+    src/dock/model/dockmodel.c
+    src/dock/model/dockmodelmatch.c
+    src/dock/model/dockmodelops.c
+    src/dock/model/dockmodelbuild.c
+    src/dock/model/dockmodelio.c
+    src/dock/model/dockmodelvalidate.c
+    src/dock/floating/floatingdockpolicy.c
     src/persistfile.c
-    src/dockgroup.c
-    src/dockshell.c
-    src/docklayout.c
-    src/dockpolicy.c
-    src/docktypes.c
-    src/dockviewcatalog.c
+    src/dock/model/dockgroup.c
+    src/dock/view/dockshell.c
+    src/dock/layout/docklayout.c
+    src/dock/model/dockpolicy.c
+    src/dock/model/docktypes.c
+    src/dock/view/dockviewcatalog.c
     src/recoverystore.c
-    src/windowlayoutcatalog.c
-    src/windowlayoutprofile.c
+    src/dock/layout/windowlayoutcatalog.c
+    src/dock/layout/windowlayoutprofile.c
     src/shell/pathutil.c
-    src/workspacedockpolicy.c
+    src/dock/document/workspacedockpolicy.c
   )
 
   target_compile_features(panitent_dock_tests PRIVATE c_std_99)
   target_include_directories(panitent_dock_tests PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    ${PANITENT_INCLUDE_DIRS}
   )
   target_compile_definitions(panitent_dock_tests PRIVATE _UNICODE UNICODE)
 
@@ -284,7 +295,7 @@ if(PANITENT_BUILD_TESTS)
 
   target_compile_features(panitent_runtime_tests PRIVATE c_std_99)
   target_include_directories(panitent_runtime_tests PRIVATE
-    "${CMAKE_CURRENT_SOURCE_DIR}/src"
+    ${PANITENT_INCLUDE_DIRS}
   )
   target_compile_definitions(panitent_runtime_tests PRIVATE _UNICODE UNICODE)
 
@@ -307,3 +318,6 @@ if(PANITENT_BUILD_TESTS)
 
   add_test(NAME panitent_runtime_layout COMMAND panitent_runtime_tests)
 endif()
+
+
+

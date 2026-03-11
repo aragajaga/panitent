@@ -314,7 +314,10 @@ static BOOL FloatingDocumentSession_RestoreEntries(
 	}
 
 	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
-	FloatingDocumentHost_PrepareWorkspaceReuse(&reuse, TRUE);
+	if (!FloatingDocumentHost_PrepareWorkspaceReuse(&reuse, TRUE))
+	{
+		return FALSE;
+	}
 
 	for (int i = 0; i < pModel->nEntryCount; ++i)
 	{
@@ -347,7 +350,14 @@ static BOOL FloatingDocumentSession_RestoreEntries(
 			&pFloatingDockHost,
 			&hWndFloating))
 		{
-			continue;
+			FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &reuse);
+			return FALSE;
+		}
+
+		if (!bHasWorkspace)
+		{
+			FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &reuse);
+			return FALSE;
 		}
 
 		if (pStats)
@@ -397,17 +407,14 @@ BOOL PanitentFloatingDocumentSession_RestoreEx(PanitentApp* pPanitentApp, DockHo
 		return FALSE;
 	}
 
-	if (bRequireAllEntries)
+	pRollbackModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	if (!pRollbackModel || !FloatingDocumentSession_CaptureModel(pRollbackModel))
 	{
-		pRollbackModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
-		if (!pRollbackModel || !FloatingDocumentSession_CaptureModel(pRollbackModel))
-		{
-			FloatingDocumentSessionModel_Destroy(pRollbackModel);
-			free(pRollbackModel);
-			FloatingDocumentSessionModel_Destroy(pModel);
-			free(pModel);
-			return FALSE;
-		}
+		FloatingDocumentSessionModel_Destroy(pRollbackModel);
+		free(pRollbackModel);
+		FloatingDocumentSessionModel_Destroy(pModel);
+		free(pModel);
+		return FALSE;
 	}
 
 	FloatingDocumentSessionRestoreStats stats = { 0 };
@@ -417,7 +424,18 @@ BOOL PanitentFloatingDocumentSession_RestoreEx(PanitentApp* pPanitentApp, DockHo
 		pModel,
 		&stats);
 
-	if (bRequireAllEntries && (!bCompleted || stats.nRestored != stats.nAttempted))
+	BOOL bResult = FALSE;
+	BOOL bAllRestored = bCompleted && stats.nRestored == stats.nAttempted;
+	if (bRequireAllEntries)
+	{
+		bResult = bAllRestored;
+	}
+	else
+	{
+		bResult = bAllRestored && (stats.bRestoredAny || pModel->nEntryCount == 0);
+	}
+
+	if (!bResult)
 	{
 		FloatingDocumentSession_RestoreEntries(
 			pPanitentApp,
@@ -429,16 +447,6 @@ BOOL PanitentFloatingDocumentSession_RestoreEx(PanitentApp* pPanitentApp, DockHo
 		FloatingDocumentSessionModel_Destroy(pModel);
 		free(pModel);
 		return FALSE;
-	}
-
-	BOOL bResult = FALSE;
-	if (bRequireAllEntries)
-	{
-		bResult = bCompleted && stats.nRestored == stats.nAttempted;
-	}
-	else
-	{
-		bResult = bCompleted && (stats.bRestoredAny || pModel->nEntryCount == 0);
 	}
 
 	FloatingDocumentSessionModel_Destroy(pRollbackModel);

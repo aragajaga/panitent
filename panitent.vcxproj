@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -34,8 +34,8 @@
     <ClCompile Include="src\crashhandler.c" />
     <ClCompile Include="src\crefptr.c" />
     <ClCompile Include="src\debug.c" />
-    <ClCompile Include="src\dockhost.c" />
-    <ClCompile Include="src\dockinspectordialog.c" />
+    <ClCompile Include="src\\dock\\host\\dockhost.c" />
+    <ClCompile Include="src\\dock\\view\\dockinspectordialog.c" />
     <ClCompile Include="src\document.c" />
     <ClCompile Include="src\experimental\bubble.c" />
     <ClCompile Include="src\experimental\captionglyphs.c" />
@@ -44,7 +44,7 @@
     <ClCompile Include="src\experimental\dockwindow.c" />
     <ClCompile Include="src\file_open.c" />
     <ClCompile Include="src\flexible.c" />
-    <ClCompile Include="src\floatingwindowcontainer.c" />
+    <ClCompile Include="src\\dock\\floating\\floatingwindowcontainer.c" />
     <ClCompile Include="src\glwindow.c" />
     <ClCompile Include="src\grimstroke\bresenhamshapestrategy.c" />
     <ClCompile Include="src\grimstroke\msaa.c" />
@@ -137,8 +137,8 @@
     <ClInclude Include="src\crashhandler.h" />
     <ClInclude Include="src\crefptr.h" />
     <ClInclude Include="src\debug.h" />
-    <ClInclude Include="src\dockhost.h" />
-    <ClInclude Include="src\dockinspectordialog.h" />
+    <ClInclude Include="src\\dock\\host\\dockhost.h" />
+    <ClInclude Include="src\\dock\\view\\dockinspectordialog.h" />
     <ClInclude Include="src\document.h" />
     <ClInclude Include="src\experimental\bubble.h" />
     <ClInclude Include="src\experimental\captionglyphs.h" />
@@ -148,7 +148,7 @@
     <ClInclude Include="src\experimental\dockwindow.h" />
     <ClInclude Include="src\file_open.h" />
     <ClInclude Include="src\flexible.h" />
-    <ClInclude Include="src\floatingwindowcontainer.h" />
+    <ClInclude Include="src\\dock\\floating\\floatingwindowcontainer.h" />
     <ClInclude Include="src\glwindow.h" />
     <ClInclude Include="src\grimstroke\basic_plotter.h" />
     <ClInclude Include="src\grimstroke\bresenhamshapestrategy.h" />
@@ -444,3 +444,4 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
