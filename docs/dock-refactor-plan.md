@@ -908,3 +908,12 @@ This change set moves setup/create/root access responsibilities out of `dockhost
 - root setter/getter helpers.
 
 This leaves `dockhostruntime.c` focused almost entirely on theme refresh and remaining runtime-specific glue.
+
+## Floating Document Session Strict Restore Increment Applied
+
+This change set adds a strict restore variant for floating document sessions:
+- `PanitentFloatingDocumentSession_RestoreEx(..., BOOL bRequireAllEntries)`;
+- strict mode captures a rollback session snapshot;
+- partial restore failure now restores the previously active floating document session state instead of leaving a partial result.
+
+Runtime coverage now includes a direct strict-restore rollback scenario for floating document session state.

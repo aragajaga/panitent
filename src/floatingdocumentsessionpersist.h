@@ -7,3 +7,4 @@ typedef struct DockHostWindow DockHostWindow;
 
 BOOL PanitentFloatingDocumentSession_Save(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow);
 BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow);
+BOOL PanitentFloatingDocumentSession_RestoreEx(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, BOOL bRequireAllEntries);

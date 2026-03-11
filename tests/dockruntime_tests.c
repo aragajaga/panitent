@@ -18,9 +18,11 @@
 #include "../src/windowlayoutcatalog.h"
 #include "../src/canvas.h"
 #include "../src/document.h"
+#include "../src/documentrecovery.h"
 #include "../src/dockmodel.h"
 #include "../src/dockmodelops.h"
 #include "../src/dockshell.h"
+#include "../src/floatingdocumentsessionmodel.h"
 #include "../src/panitentapp.h"
 #include "../src/panitentwindow.h"
 #include "../src/workspacecontainer.h"
@@ -2000,6 +2002,134 @@ static int test_runtime_multi_workspace_floating_document_session_restore_is_ide
 
     runtime_delete_floating_document_session_file();
     DockModel_Destroy(pLayout);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
+static int test_runtime_direct_floating_document_session_restore_strict_mode_rolls_back_on_partial_failure(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_floating_document_session_file();
+
+    HWND hWndMainWorkspace = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndMainWorkspace && IsWindow(hWndMainWorkspace));
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndMainWorkspace);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(32, 32);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+
+    FloatingCountContext counts = { 0 };
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 0);
+
+    WCHAR szTempPath[MAX_PATH] = L"";
+    WCHAR szRecoveryA[MAX_PATH] = L"";
+    WCHAR szRecoveryB[MAX_PATH] = L"";
+    assert(GetTempPathW(ARRAYSIZE(szTempPath), szTempPath) > 0);
+    assert(GetTempFileNameW(szTempPath, L"fsa", 0, szRecoveryA) != 0);
+    assert(GetTempFileNameW(szTempPath, L"fsb", 0, szRecoveryB) != 0);
+
+    Document* pRecoveryDocA = Document_CreateWithCanvas(Canvas_Create(16, 16));
+    Document* pRecoveryDocB = Document_CreateWithCanvas(Canvas_Create(24, 24));
+    assert(pRecoveryDocA != NULL);
+    assert(pRecoveryDocB != NULL);
+    assert(DocumentRecovery_Save(pRecoveryDocA, szRecoveryA));
+    assert(DocumentRecovery_Save(pRecoveryDocB, szRecoveryB));
+    Document_Destroy(pRecoveryDocA);
+    Document_Destroy(pRecoveryDocB);
+
+    DockModelNode rootA = { 0 };
+    DockModelNode workspaceA = { 0 };
+    DockModelNode rootB = { 0 };
+    DockModelNode workspaceB = { 0 };
+    rootA.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(rootA.szName, ARRAYSIZE(rootA.szName), L"Root");
+    rootA.pChild1 = &workspaceA;
+    workspaceA.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceA.nPaneKind = DOCK_PANE_DOCUMENT;
+    workspaceA.uNodeId = 501;
+    wcscpy_s(workspaceA.szName, ARRAYSIZE(workspaceA.szName), L"WorkspaceContainer");
+    rootB.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(rootB.szName, ARRAYSIZE(rootB.szName), L"Root");
+    rootB.pChild1 = &workspaceB;
+    workspaceB.nRole = DOCK_ROLE_WORKSPACE;
+    workspaceB.nPaneKind = DOCK_PANE_DOCUMENT;
+    workspaceB.uNodeId = 601;
+    wcscpy_s(workspaceB.szName, ARRAYSIZE(workspaceB.szName), L"WorkspaceContainer");
+
+    FloatingDocumentSessionModel* pSessionModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+    assert(pSessionModel != NULL);
+    pSessionModel->nEntryCount = 2;
+    SetRect(&pSessionModel->entries[0].rcWindow, 560, 180, 940, 620);
+    pSessionModel->entries[0].pLayoutModel = &rootA;
+    pSessionModel->entries[0].nWorkspaceCount = 1;
+    pSessionModel->entries[0].workspaces[0].uWorkspaceNodeId = 501;
+    pSessionModel->entries[0].workspaces[0].nActiveEntry = 0;
+    pSessionModel->entries[0].workspaces[0].nFileCount = 1;
+    pSessionModel->entries[0].workspaces[0].entries[0].nKind = DOCSESSION_ENTRY_RECOVERY;
+    wcscpy_s(
+        pSessionModel->entries[0].workspaces[0].entries[0].szFilePath,
+        ARRAYSIZE(pSessionModel->entries[0].workspaces[0].entries[0].szFilePath),
+        szRecoveryA);
+    SetRect(&pSessionModel->entries[1].rcWindow, 980, 180, 1360, 620);
+    pSessionModel->entries[1].pLayoutModel = &rootB;
+    pSessionModel->entries[1].nWorkspaceCount = 1;
+    pSessionModel->entries[1].workspaces[0].uWorkspaceNodeId = 601;
+    pSessionModel->entries[1].workspaces[0].nActiveEntry = 0;
+    pSessionModel->entries[1].workspaces[0].nFileCount = 1;
+    pSessionModel->entries[1].workspaces[0].entries[0].nKind = DOCSESSION_ENTRY_RECOVERY;
+    wcscpy_s(
+        pSessionModel->entries[1].workspaces[0].entries[0].szFilePath,
+        ARRAYSIZE(pSessionModel->entries[1].workspaces[0].entries[0].szFilePath),
+        szRecoveryB);
+
+    PTSTR pszSessionFilePath = NULL;
+    GetFloatingDocumentSessionFilePath(&pszSessionFilePath);
+    assert(pszSessionFilePath != NULL);
+    assert(FloatingDocumentSessionModel_SaveToFile(pSessionModel, pszSessionFilePath));
+
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(runtime_fail_floating_document_create);
+    assert(!PanitentFloatingDocumentSession_RestoreEx(fixture.pApp, fixture.pDockHostWindow, TRUE));
+    FloatingDocumentHost_SetCreatePinnedWindowTestHook(NULL);
+
+    runtime_collect_floating_counts(&counts);
+    assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
+    assert(WorkspaceContainer_GetViewportCount(pMainWorkspace) == 0);
+
+    HWND hWndFloatingDocument = runtime_find_floating_document_window();
+    assert(hWndFloatingDocument && IsWindow(hWndFloatingDocument));
+    FloatingWindowContainer* pFloatingDocument = (FloatingWindowContainer*)WindowMap_Get(hWndFloatingDocument);
+    assert(pFloatingDocument != NULL);
+    assert(pFloatingDocument->hWndChild && IsWindow(pFloatingDocument->hWndChild));
+
+    HWND hWorkspaceHwnds[8] = { 0 };
+    int nWorkspaceCount = FloatingChildHost_CollectDocumentWorkspaceHwnds(
+        pFloatingDocument->hWndChild,
+        hWorkspaceHwnds,
+        ARRAYSIZE(hWorkspaceHwnds));
+    assert(nWorkspaceCount == 1);
+    WorkspaceContainer* pFloatingWorkspace = (WorkspaceContainer*)WindowMap_Get(hWorkspaceHwnds[0]);
+    assert(pFloatingWorkspace != NULL);
+    assert(WorkspaceContainer_GetViewportCount(pFloatingWorkspace) == 1);
+
+    DeleteFileW(szRecoveryA);
+    DeleteFileW(szRecoveryB);
+    if (pszSessionFilePath)
+    {
+        DeleteFileW(pszSessionFilePath);
+        free(pszSessionFilePath);
+    }
+    free(pSessionModel);
     runtime_fixture_destroy(&fixture);
     return 0;
 }
@@ -4433,6 +4563,7 @@ int main(void)
     failed |= test_runtime_non_current_document_float_failure_preserves_order_and_active_tab();
     failed |= test_runtime_floating_document_session_restore_is_idempotent();
     failed |= test_runtime_multi_workspace_floating_document_session_restore_is_idempotent();
+    failed |= test_runtime_direct_floating_document_session_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_multi_workspace_floating_document_layout_restore_is_idempotent();
     failed |= test_runtime_direct_floating_document_layout_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_try_dock_floating_workspace_uses_shared_document_transition();

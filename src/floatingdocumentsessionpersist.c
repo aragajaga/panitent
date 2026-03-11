@@ -41,6 +41,18 @@ typedef struct FloatingDocumentWorkspaceRecoveryPathContext
 	int nWorkspaceIndex;
 } FloatingDocumentWorkspaceRecoveryPathContext;
 
+typedef struct FloatingDocumentSessionRestoreStats
+{
+	BOOL bRestoredAny;
+	int nAttempted;
+	int nRestored;
+} FloatingDocumentSessionRestoreStats;
+
+static BOOL FloatingDocumentPersist_OnPinnedWindowCapture(
+	HWND hWnd,
+	FloatingWindowContainer* pFloatingWindowContainer,
+	void* pUserData);
+
 static BOOL FloatingDocumentPersist_BuildRecoveryPath(
 	void* pUserData,
 	int nIndex,
@@ -70,6 +82,19 @@ static BOOL FloatingDocumentPersist_BuildRecoveryPath(
 
 	StringCchCopyW(pszBuffer, cchBuffer, pszRecoveryPath);
 	free(pszRecoveryPath);
+	return TRUE;
+}
+
+static BOOL FloatingDocumentSession_CaptureModel(FloatingDocumentSessionModel* pModel)
+{
+	if (!pModel)
+	{
+		return FALSE;
+	}
+
+	memset(pModel, 0, sizeof(*pModel));
+	FloatingDocumentPersistCollectContext context = { pModel };
+	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentPersist_OnPinnedWindowCapture, &context);
 	return TRUE;
 }
 
@@ -249,9 +274,8 @@ BOOL PanitentFloatingDocumentSession_Save(PanitentApp* pPanitentApp, DockHostWin
 
 	RecoveryStore_DeleteFilesByPattern(L"recovery_floatdoc_*.pdr", NULL);
 
-	FloatingDocumentPersistCollectContext context = { pModel };
 	PTSTR pszFilePath = NULL;
-	FloatingDocumentHost_ForEachPinnedWindow(FloatingDocumentPersist_OnPinnedWindowCapture, &context);
+	FloatingDocumentSession_CaptureModel(pModel);
 
 	GetFloatingDocumentSessionFilePath(&pszFilePath);
 	if (!pszFilePath)
@@ -270,7 +294,77 @@ BOOL PanitentFloatingDocumentSession_Save(PanitentApp* pPanitentApp, DockHostWin
 
 BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow)
 {
+	return PanitentFloatingDocumentSession_RestoreEx(pPanitentApp, pDockHostWindow, FALSE);
+}
+
+static BOOL FloatingDocumentSession_RestoreEntries(
+	PanitentApp* pPanitentApp,
+	DockHostWindow* pDockHostWindow,
+	const FloatingDocumentSessionModel* pModel,
+	FloatingDocumentSessionRestoreStats* pStats)
+{
+	if (pStats)
+	{
+		memset(pStats, 0, sizeof(*pStats));
+	}
+
+	if (!pPanitentApp || !pDockHostWindow || !pModel)
+	{
+		return FALSE;
+	}
+
+	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
+	FloatingDocumentHost_PrepareWorkspaceReuse(&reuse, TRUE);
+
+	for (int i = 0; i < pModel->nEntryCount; ++i)
+	{
+		const FloatingDocumentSessionEntry* pEntry = &pModel->entries[i];
+		if (!pEntry->pLayoutModel || pEntry->nWorkspaceCount <= 0)
+		{
+			continue;
+		}
+		if (pStats)
+		{
+			pStats->nAttempted++;
+		}
+
+		DockHostWindow* pFloatingDockHost = NULL;
+		HWND hWndFloating = NULL;
+		FloatingDocumentRestoreContext restoreContext = { 0 };
+		restoreContext.pPanitentApp = pPanitentApp;
+		restoreContext.pDockHostTarget = pDockHostWindow;
+		restoreContext.pEntry = (FloatingDocumentSessionEntry*)pEntry;
+		BOOL bHasWorkspace = FALSE;
+		if (!FloatingDocumentHost_RestorePinnedDockHostWithReuse(
+			pPanitentApp,
+			pDockHostWindow,
+			&pEntry->rcWindow,
+			pEntry->pLayoutModel,
+			&reuse,
+			FloatingDocumentPersist_OnNodeAttached,
+			&restoreContext,
+			&bHasWorkspace,
+			&pFloatingDockHost,
+			&hWndFloating))
+		{
+			continue;
+		}
+
+		if (pStats)
+		{
+			pStats->bRestoredAny = TRUE;
+			pStats->nRestored++;
+		}
+	}
+
+	FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &reuse);
+	return TRUE;
+}
+
+BOOL PanitentFloatingDocumentSession_RestoreEx(PanitentApp* pPanitentApp, DockHostWindow* pDockHostWindow, BOOL bRequireAllEntries)
+{
 	FloatingDocumentSessionModel* pModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+	FloatingDocumentSessionModel* pRollbackModel = NULL;
 	if (!pModel)
 	{
 		return FALSE;
@@ -303,46 +397,54 @@ BOOL PanitentFloatingDocumentSession_Restore(PanitentApp* pPanitentApp, DockHost
 		return FALSE;
 	}
 
-	FloatingDocumentWorkspaceReuseContext reuse = { 0 };
-	FloatingDocumentHost_PrepareWorkspaceReuse(&reuse, TRUE);
-
-	BOOL bRestoredAny = FALSE;
-	for (int i = 0; i < pModel->nEntryCount; ++i)
+	if (bRequireAllEntries)
 	{
-		FloatingDocumentSessionEntry* pEntry = &pModel->entries[i];
-		if (!pEntry->pLayoutModel || pEntry->nWorkspaceCount <= 0)
+		pRollbackModel = (FloatingDocumentSessionModel*)calloc(1, sizeof(FloatingDocumentSessionModel));
+		if (!pRollbackModel || !FloatingDocumentSession_CaptureModel(pRollbackModel))
 		{
-			continue;
+			FloatingDocumentSessionModel_Destroy(pRollbackModel);
+			free(pRollbackModel);
+			FloatingDocumentSessionModel_Destroy(pModel);
+			free(pModel);
+			return FALSE;
 		}
-
-		DockHostWindow* pFloatingDockHost = NULL;
-		HWND hWndFloating = NULL;
-		FloatingDocumentRestoreContext restoreContext = { 0 };
-		restoreContext.pPanitentApp = pPanitentApp;
-		restoreContext.pDockHostTarget = pDockHostWindow;
-		restoreContext.pEntry = pEntry;
-		BOOL bHasWorkspace = FALSE;
-		if (!FloatingDocumentHost_RestorePinnedDockHostWithReuse(
-			pPanitentApp,
-			pDockHostWindow,
-			&pEntry->rcWindow,
-			pEntry->pLayoutModel,
-			&reuse,
-			FloatingDocumentPersist_OnNodeAttached,
-			&restoreContext,
-			&bHasWorkspace,
-			&pFloatingDockHost,
-			&hWndFloating))
-		{
-			continue;
-		}
-
-		bRestoredAny = TRUE;
 	}
 
-	FloatingDocumentHost_DisposeUnusedReusedWorkspaces(pPanitentApp, &reuse);
+	FloatingDocumentSessionRestoreStats stats = { 0 };
+	BOOL bCompleted = FloatingDocumentSession_RestoreEntries(
+		pPanitentApp,
+		pDockHostWindow,
+		pModel,
+		&stats);
+
+	if (bRequireAllEntries && (!bCompleted || stats.nRestored != stats.nAttempted))
+	{
+		FloatingDocumentSession_RestoreEntries(
+			pPanitentApp,
+			pDockHostWindow,
+			pRollbackModel,
+			NULL);
+		FloatingDocumentSessionModel_Destroy(pRollbackModel);
+		free(pRollbackModel);
+		FloatingDocumentSessionModel_Destroy(pModel);
+		free(pModel);
+		return FALSE;
+	}
+
+	BOOL bResult = FALSE;
+	if (bRequireAllEntries)
+	{
+		bResult = bCompleted && stats.nRestored == stats.nAttempted;
+	}
+	else
+	{
+		bResult = bCompleted && (stats.bRestoredAny || pModel->nEntryCount == 0);
+	}
+
+	FloatingDocumentSessionModel_Destroy(pRollbackModel);
+	free(pRollbackModel);
 	FloatingDocumentSessionModel_Destroy(pModel);
 	free(pModel);
 
-	return bRestoredAny;
+	return bResult;
 }
