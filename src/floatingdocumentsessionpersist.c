@@ -31,7 +31,7 @@ typedef struct FloatingDocumentRestoreContext
 {
 	PanitentApp* pPanitentApp;
 	DockHostWindow* pDockHostTarget;
-	FloatingDocumentSessionEntry* pEntry;
+	const FloatingDocumentSessionEntry* pEntry;
 	BOOL abConsumed[16];
 } FloatingDocumentRestoreContext;
 
@@ -193,7 +193,7 @@ static BOOL FloatingDocumentPersist_OnNodeAttached(
 
 	WorkspaceContainer* pWorkspaceContainer = (WorkspaceContainer*)pWindow;
 	pContext->abConsumed[iWorkspaceIndex] = TRUE;
-	FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[iWorkspaceIndex];
+	const FloatingDocumentWorkspaceSession* pWorkspaceSession = &pContext->pEntry->workspaces[iWorkspaceIndex];
 	return DocumentSessionWorkspace_RestoreEntries(
 		pWorkspaceContainer,
 		pWorkspaceSession->entries,
@@ -333,7 +333,7 @@ static BOOL FloatingDocumentSession_RestoreEntries(
 		FloatingDocumentRestoreContext restoreContext = { 0 };
 		restoreContext.pPanitentApp = pPanitentApp;
 		restoreContext.pDockHostTarget = pDockHostWindow;
-		restoreContext.pEntry = (FloatingDocumentSessionEntry*)pEntry;
+		restoreContext.pEntry = pEntry;
 		BOOL bHasWorkspace = FALSE;
 		if (!FloatingDocumentHost_RestorePinnedDockHostWithReuse(
 			pPanitentApp,
