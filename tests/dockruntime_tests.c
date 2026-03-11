@@ -3698,6 +3698,99 @@ static int test_runtime_repeated_mixed_layout_cycles_remain_stable(void)
     return 0;
 }
 
+static int test_runtime_repeated_mixed_layout_cycles_with_session_restore_remain_stable(void)
+{
+    DockRuntimeFixture fixture = { 0 };
+    assert(runtime_fixture_init(&fixture));
+
+    runtime_delete_floating_document_session_file();
+
+    HWND hWndWorkspaceBefore = runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer");
+    assert(hWndWorkspaceBefore && IsWindow(hWndWorkspaceBefore));
+    WorkspaceContainer* pMainWorkspace = (WorkspaceContainer*)WindowMap_Get(hWndWorkspaceBefore);
+    assert(pMainWorkspace != NULL);
+
+    Canvas* pCanvas = Canvas_Create(20, 20);
+    assert(pCanvas != NULL);
+    Document* pDocument = Document_CreateWithCanvas(pCanvas);
+    assert(pDocument != NULL);
+    assert(Document_AttachToWorkspace(pDocument, pMainWorkspace));
+    ViewportWindow* pViewport = WorkspaceContainer_GetCurrentViewport(pMainWorkspace);
+    assert(pViewport != NULL);
+    WorkspaceContainer_FloatViewport(pMainWorkspace, pViewport, 420, 320, FALSE);
+    assert(PanitentFloatingDocumentSession_Save(fixture.pApp, fixture.pDockHostWindow));
+    assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+
+    DockModelNode* pLayoutB = DockModel_CaptureHostLayout(fixture.pDockHostWindow);
+    assert(pLayoutB != NULL);
+    DockModelNode* pGLWindow = runtime_find_model_node_by_name(pLayoutB, L"GLWindow");
+    assert(pGLWindow != NULL);
+    assert(DockModelOps_RemoveNodeById(&pLayoutB, pGLWindow->uNodeId));
+
+    DockFloatingLayoutFileModel floatingB = { 0 };
+    floatingB.nEntries = 1;
+    SetRect(&floatingB.entries[0].rcWindow, 160, 150, 460, 480);
+    floatingB.entries[0].iDockSizeHint = 240;
+    floatingB.entries[0].nChildKind = FLOAT_DOCK_CHILD_TOOL_PANEL;
+    floatingB.entries[0].nViewId = PNT_DOCK_VIEW_GLWINDOW;
+
+    DockModelNode floatDocRoot = { 0 };
+    DockModelNode floatDocWorkspace = { 0 };
+    floatDocRoot.nRole = DOCK_ROLE_ROOT;
+    wcscpy_s(floatDocRoot.szName, ARRAYSIZE(floatDocRoot.szName), L"Root");
+    floatDocRoot.pChild1 = &floatDocWorkspace;
+    floatDocWorkspace.nRole = DOCK_ROLE_WORKSPACE;
+    floatDocWorkspace.nPaneKind = DOCK_PANE_DOCUMENT;
+    wcscpy_s(floatDocWorkspace.szName, ARRAYSIZE(floatDocWorkspace.szName), L"WorkspaceContainer");
+
+    FloatingDocumentLayoutModel floatDocsB = { 0 };
+    floatDocsB.nEntryCount = 1;
+    SetRect(&floatDocsB.entries[0].rcWindow, 520, 180, 900, 620);
+    floatDocsB.entries[0].pLayoutModel = &floatDocRoot;
+
+    RuntimeGuiResourceSnapshot baseline = runtime_capture_gui_resources();
+
+    for (int i = 0; i < 4; ++i)
+    {
+        assert(WindowLayoutManager_ApplyLayoutBundle(
+            &fixture.panitentWindow,
+            pLayoutB,
+            &floatingB,
+            &floatDocsB));
+
+        FloatingCountContext counts = { 0 };
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nToolPanels == 1);
+        assert(counts.nToolHosts == 0);
+        assert(counts.nDocumentHosts == 1);
+        assert(counts.nDocumentWorkspaces == 0);
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+        assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nToolPanels == 0);
+        assert(counts.nToolHosts == 0);
+        assert(counts.nDocumentHosts == 0);
+        assert(counts.nDocumentWorkspaces == 0);
+
+        assert(PanitentFloatingDocumentSession_Restore(fixture.pApp, fixture.pDockHostWindow));
+        runtime_collect_floating_counts(&counts);
+        assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
+        assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndWorkspaceBefore);
+
+        assert(WindowLayoutManager_ApplyDefaultLayout(&fixture.panitentWindow));
+    }
+
+    RuntimeGuiResourceSnapshot final = runtime_capture_gui_resources();
+    assert(final.nUserObjects <= baseline.nUserObjects + 64);
+    assert(final.nGdiObjects <= baseline.nGdiObjects + 64);
+
+    runtime_delete_floating_document_session_file();
+    DockModel_Destroy(pLayoutB);
+    runtime_fixture_destroy(&fixture);
+    return 0;
+}
+
 static int test_runtime_repeated_direct_floating_restore_cycles_remain_stable(void)
 {
     DockRuntimeFixture fixture = { 0 };
@@ -4692,6 +4785,7 @@ int main(void)
     failed |= test_runtime_direct_floating_tool_restore_strict_mode_rolls_back_on_partial_failure();
     failed |= test_runtime_reapply_mixed_floating_layout_bundle_is_idempotent();
     failed |= test_runtime_repeated_mixed_layout_cycles_remain_stable();
+    failed |= test_runtime_repeated_mixed_layout_cycles_with_session_restore_remain_stable();
     failed |= test_runtime_repeated_direct_floating_restore_cycles_remain_stable();
     failed |= test_runtime_repeated_direct_floating_failure_cycles_remain_stable();
     failed |= test_runtime_mixed_layout_cycles_do_not_drift_gui_resources();
