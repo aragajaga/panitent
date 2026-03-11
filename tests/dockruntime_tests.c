@@ -2225,6 +2225,7 @@ static int test_runtime_repeated_floating_document_session_strict_failure_cycles
     assert(pszSessionFilePath != NULL);
     assert(FloatingDocumentSessionModel_SaveToFile(pSessionModel, pszSessionFilePath));
 
+    RuntimeGuiResourceSnapshot baseline = runtime_capture_gui_resources();
     for (int i = 0; i < 4; ++i)
     {
         FloatingDocumentHost_SetCreatePinnedWindowTestHook(runtime_fail_floating_document_create);
@@ -2235,6 +2236,9 @@ static int test_runtime_repeated_floating_document_session_strict_failure_cycles
         assert(counts.nDocumentHosts + counts.nDocumentWorkspaces == 1);
         assert(runtime_get_live_hwnd_by_name(fixture.pDockHostWindow, L"WorkspaceContainer") == hWndMainWorkspace);
     }
+    RuntimeGuiResourceSnapshot final = runtime_capture_gui_resources();
+    assert(final.nUserObjects <= baseline.nUserObjects + 64);
+    assert(final.nGdiObjects <= baseline.nGdiObjects + 64);
 
     DeleteFileW(szRecoveryA);
     DeleteFileW(szRecoveryB);
