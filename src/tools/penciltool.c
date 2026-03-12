@@ -11,9 +11,9 @@
 
 PencilTool* PencilTool_Create();
 void PencilTool_Init(PencilTool* pPencilTool);
-void PencilTool_OnLButtonDown(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void PencilTool_OnLButtonUp(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void PencilTool_OnMouseMove(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void PencilTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void PencilTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void PencilTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 
 PencilTool* PencilTool_Create()
 {
@@ -32,8 +32,10 @@ void PencilTool_Init(PencilTool* pPencilTool)
     pPencilTool->base.OnMouseMove = PencilTool_OnMouseMove;
 }
 
-void PencilTool_OnLButtonDown(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void PencilTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    PencilTool* pPencilTool = (PencilTool*)pTool;
+    UNREFERENCED_PARAMETER(keyFlags);
     POINT ptCanvas = { 0 };
     ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);
 
@@ -45,8 +47,10 @@ void PencilTool_OnLButtonDown(PencilTool* pPencilTool, ViewportWindow* pViewport
     pPencilTool->prev.y = ptCanvas.y;
 }
 
-void PencilTool_OnLButtonUp(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void PencilTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    PencilTool* pPencilTool = (PencilTool*)pTool;
+    UNREFERENCED_PARAMETER(keyFlags);
     if (pPencilTool->fDraw)
     {
         POINT ptCanvas = { 0 };
@@ -67,8 +71,10 @@ void PencilTool_OnLButtonUp(PencilTool* pPencilTool, ViewportWindow* pViewportWi
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
 }
 
-void PencilTool_OnMouseMove(PencilTool* pPencilTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void PencilTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    PencilTool* pPencilTool = (PencilTool*)pTool;
+    UNREFERENCED_PARAMETER(keyFlags);
     if (pPencilTool->fDraw)
     {
         POINT ptCanvas = { 0 };

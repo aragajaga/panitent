@@ -7,7 +7,7 @@
 #include "../document.h"
 
 static void TextTool_InitImpl(TextTool* pTextTool);
-static void TextTool_OnLButtonDown(TextTool* pTextTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+static void TextTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 
 TextTool* TextTool_Create()
 {
@@ -26,7 +26,7 @@ static void TextTool_InitImpl(TextTool* pTextTool)
 {
     pTextTool->base.pszLabel = L"Text";
     pTextTool->base.img = 6;
-    pTextTool->base.OnLButtonDown = (void(*)(Tool*, ViewportWindow*, int, int, UINT))TextTool_OnLButtonDown;
+    pTextTool->base.OnLButtonDown = TextTool_OnLButtonDown;
 }
 
 void TextTool_Init(TextTool* pTextTool)
@@ -34,8 +34,9 @@ void TextTool_Init(TextTool* pTextTool)
     TextTool_InitImpl(pTextTool);
 }
 
-static void TextTool_OnLButtonDown(TextTool* pTextTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+static void TextTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    TextTool* pTextTool = (TextTool*)pTool;
     UNREFERENCED_PARAMETER(pTextTool);
     UNREFERENCED_PARAMETER(keyFlags);
 

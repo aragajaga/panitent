@@ -1045,7 +1045,7 @@ static VOID IpEdit_OnFieldChanged(HWND hwnd, HWND hwndCtl)
         TCHAR buf[MAX_PATH];
         if (4 == SNDMSG(hwndCtl, IPM_GETADDRESS, 0, (LPARAM) & ip))
         {
-            _stprintf(buf, MAX_PATH, 
+            _stprintf_s(buf, NELEMS(buf), 
                 _T("%d.%d.%d.%d"), 
                 FIRST_IPADDRESS(ip), 
                 SECOND_IPADDRESS(ip), 
@@ -1304,7 +1304,7 @@ static LPTSTR LogFontItem_ToString(LPPROPGRIDFONTITEM lpLogFontItem)
     _tmemset(buf, (TCHAR)0, MAX_PATH);
 
     LPLOGFONT lpLf = (LPLOGFONT)lpLogFontItem;
-    _stprintf(buf, MAX_PATH, 
+    _stprintf_s(buf, NELEMS(buf), 
         _T( "Height: %d\r\n" 
             "Width: %d\r\n" 
             "Escapement: %d\r\n" 
@@ -1407,7 +1407,7 @@ static LPTSTR FileDialogItem_ToString(LPPROPGRIDFDITEM lpPgFdItem)
         *ps++ = _T('\t');
     }
 
-    _stprintf(szBuf, NELEMS(szBuf), 
+    _stprintf_s(szBuf, NELEMS(szBuf), 
         _T( "Title: %")_T(STR_SPEC)_T("\r\n" 
             "Path: %")_T(STR_SPEC)_T("\r\n" 
             "Filter: %")_T(STR_SPEC)_T("\r\n" 
@@ -1582,7 +1582,7 @@ static VOID ButtonOwner_OnNotify(HWND hwnd, INT id, HWND hwndCtl, UINT codeNotif
                 if (ChooseColor(&cc))
                 {
                     TCHAR buf[MAX_PATH];
-                    _stprintf(buf, MAX_PATH, 
+                    _stprintf_s(buf, NELEMS(buf), 
                         _T("%d,%d,%d"), 
                         GetRValue(cc.rgbResult), 
                         GetGValue(cc.rgbResult), 
@@ -2598,7 +2598,7 @@ static void ComboEdit_DoAutoComplete(HWND hwnd, TCHAR ch)
             ComboBox_GetText(hwnd, buf, len);
             buf[LOWORD(ComboBox_GetEditSel(hwnd))] = 0;
 
-            _stprintf(toFind, len,
+            _stprintf_s(toFind, (size_t)len,
                 _T("%" STR_SPEC "%" CHR_SPEC), buf, ch);
 
             // Find the first item in the combo box that matches ToFind
@@ -3436,7 +3436,7 @@ static VOID ListBox_OnMouseMove(HWND hwnd, INT x, INT y, UINT keyFlags)
                         PointSize = -MulDiv(pgfi.logFont.lfHeight, 72, 
                             GetDeviceCaps(hDC, LOGPIXELSY));
                         ReleaseDC(hwnd, hDC);
-                        _stprintf(newText, NELEMS(buf), 
+                        _stprintf_s(newText, NELEMS(newText), 
                             _T("%")_T(STR_SPEC)_T("%d"), 
                             pgfi.logFont.lfFaceName, PointSize);
                     }
@@ -4454,7 +4454,7 @@ static VOID Grid_OnDrawItem(HWND hwnd, const DRAWITEMSTRUCT *lpDIS)
                 hfOld = (HFONT)SelectObject(lpDIS->hDC, hf);
 
                 SetTextColor(lpDIS->hDC, pgfi.crFont);
-                _stprintf(buf, MAX_PATH, _T("%")_T(STR_SPEC)_T(" %d"), 
+                _stprintf_s(buf, NELEMS(buf), _T("%")_T(STR_SPEC)_T(" %d"), 
                     pgfi.logFont.lfFaceName, PointSize);
                 DrawText(lpDIS->hDC, buf, _tcslen(buf), 
                     MAKE_PRECT(rectPart3.left + 3, rectPart3.top + 3, 
@@ -4529,7 +4529,7 @@ static INT Grid_OnAddString(LPPROPGRIDITEM pgi)
             lpszCurValue = (LPTSTR)pgi->lpCurValue;
             break;
         case PIT_COLOR:
-            _stprintf(buf, MAX_PATH, 
+            _stprintf_s(buf, NELEMS(buf), 
                 _T("%d,%d,%d"), 
                 GetRValue((COLORREF)pgi->lpCurValue), 
                 GetGValue((COLORREF)pgi->lpCurValue), 
@@ -4547,7 +4547,7 @@ static INT Grid_OnAddString(LPPROPGRIDITEM pgi)
             lpszCurValue = ((LPPROPGRIDFDITEM)pgi->lpCurValue)->lpszFilePath;
             break;
         case PIT_IP:
-            _stprintf(buf, MAX_PATH, 
+            _stprintf_s(buf, NELEMS(buf), 
                 _T("%d.%d.%d.%d"), 
                 FIRST_IPADDRESS((DWORD)pgi->lpCurValue), 
                 SECOND_IPADDRESS((DWORD)pgi->lpCurValue), 
@@ -4833,7 +4833,7 @@ static LRESULT Grid_OnSetItemData(INT iItem, LPPROPGRIDITEM pgi)
                 lpszCurValue = (LPTSTR)pgi->lpCurValue;
                 break;
             case PIT_COLOR:
-                _stprintf(buf, MAX_PATH, 
+                _stprintf_s(buf, NELEMS(buf), 
                     _T("%d,%d,%d"), 
                     GetRValue((COLORREF)pgi->lpCurValue), 
                     GetGValue((COLORREF)pgi->lpCurValue), 
@@ -4851,7 +4851,7 @@ static LRESULT Grid_OnSetItemData(INT iItem, LPPROPGRIDITEM pgi)
                 lpszCurValue = ((LPPROPGRIDFDITEM)pgi->lpCurValue)->lpszFilePath;
                 break;
             case PIT_IP:
-                _stprintf(buf, MAX_PATH, 
+                _stprintf_s(buf, NELEMS(buf), 
                     _T("%d.%d.%d.%d"), 
                     FIRST_IPADDRESS((DWORD)pgi->lpCurValue), 
                     SECOND_IPADDRESS((DWORD)pgi->lpCurValue), 

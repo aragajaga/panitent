@@ -1,6 +1,7 @@
 #include "precomp.h"
 #include "log.h"
 #include "util.h"
+#include "crashhandler.h"
 
 typedef struct _tagLOGEVENTOBSERVER LOGEVENTOBSERVER, *LPLOGEVENTOBSERVER;
 
@@ -19,7 +20,6 @@ typedef struct _tagLOGGER {
   int obsIDCounter;
 } LOGGER, *LPLOGGER;
 
-void LogMessage(int, LPWSTR, LPWSTR);
 
 LPLOGGER GetLogger();
 void Logger_PushMessage(LPLOGGER, LPLOGENTRY);

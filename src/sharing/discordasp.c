@@ -24,8 +24,9 @@ void DiscordASP_Init(DiscordASP* pDiscordASP)
     pDiscordASP->base->SetStatusMessage = DiscordASP_SetStatusMessage;
 }
 
-void DiscordASP_SetStatusMessage(LPCWSTR lpszStatusMessage)
+void DiscordASP_SetStatusMessage(void* handler, PCWSTR lpszStatusMessage)
 {
+    UNREFERENCED_PARAMETER(handler);
 #ifdef HAS_DISCORDSDK
     Discord_SetActivityStatus(g_panitent.discord, lpszStatusMessage);
 #endif /* HAS_DISCORDSDK */

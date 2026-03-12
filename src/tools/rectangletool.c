@@ -13,13 +13,13 @@
 
 RectangleTool* RectangleTool_Create();
 void RectangleTool_Init(RectangleTool* pRectangleTool);
-void RectangleTool_OnLButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void RectangleTool_OnLButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void RectangleTool_OnRButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void RectangleTool_OnRButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void RectangleTool_OnMouseMove(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-BOOL RectangleTool_HasPreview(RectangleTool* pRectangleTool);
-void RectangleTool_DrawPreview(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
+void RectangleTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void RectangleTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void RectangleTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void RectangleTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void RectangleTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+BOOL RectangleTool_HasPreview(Tool* pTool);
+void RectangleTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void RectangleTool_BeginStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t strokeColor, uint32_t fillColor);
 static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y);
 static void RectangleTool_FillRect(AlphaMask* pMask, const RECT* pRect);
@@ -45,28 +45,32 @@ void RectangleTool_Init(RectangleTool* pRectangleTool)
     pRectangleTool->base.OnRButtonUp = RectangleTool_OnRButtonUp;
     pRectangleTool->base.OnRButtonDown = RectangleTool_OnRButtonDown;
     pRectangleTool->base.OnMouseMove = RectangleTool_OnMouseMove;
-    pRectangleTool->base.HasPreview = (BOOL(*)(Tool*))RectangleTool_HasPreview;
-    pRectangleTool->base.DrawPreview = (void(*)(Tool*, ViewportWindow*, Canvas*))RectangleTool_DrawPreview;
+    pRectangleTool->base.HasPreview = RectangleTool_HasPreview;
+    pRectangleTool->base.DrawPreview = RectangleTool_DrawPreview;
 }
 
-void RectangleTool_OnLButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void RectangleTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     RectangleTool_BeginStroke(pRectangleTool, pViewportWindow, x, y, keyFlags, g_color_context.fg_color, g_color_context.bg_color);
 }
 
-void RectangleTool_OnLButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void RectangleTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     RectangleTool_EndStroke(pRectangleTool, pViewportWindow, x, y);
 }
 
-void RectangleTool_OnRButtonDown(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void RectangleTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     RectangleTool_BeginStroke(pRectangleTool, pViewportWindow, x, y, keyFlags, g_color_context.bg_color, g_color_context.fg_color);
 }
 
-void RectangleTool_OnRButtonUp(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void RectangleTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     RectangleTool_EndStroke(pRectangleTool, pViewportWindow, x, y);
 }
@@ -88,8 +92,9 @@ static void RectangleTool_BeginStroke(RectangleTool* pRectangleTool, ViewportWin
     History_StartDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
 }
 
-void RectangleTool_OnMouseMove(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void RectangleTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     if (!pRectangleTool->fDraw)
@@ -126,16 +131,18 @@ static void RectangleTool_EndStroke(RectangleTool* pRectangleTool, ViewportWindo
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
 }
 
-BOOL RectangleTool_HasPreview(RectangleTool* pRectangleTool)
+BOOL RectangleTool_HasPreview(Tool* pTool)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     return pRectangleTool && pRectangleTool->fDraw;
 }
 
-void RectangleTool_DrawPreview(RectangleTool* pRectangleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
+void RectangleTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
 {
+    RectangleTool* pRectangleTool = (RectangleTool*)pTool;
     UNREFERENCED_PARAMETER(pViewportWindow);
 
-    if (!RectangleTool_HasPreview(pRectangleTool))
+    if (!RectangleTool_HasPreview(pTool))
     {
         return;
     }

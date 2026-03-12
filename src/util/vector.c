@@ -3,6 +3,7 @@
 #include "vector.h"
 
 #include "assert.h"
+#include "../crashhandler.h"
 
 // Initialize the vector
 void Vector_Init(Vector* pVector, size_t nElementSize)

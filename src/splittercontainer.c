@@ -6,22 +6,24 @@
 static const WCHAR szClassName[] = L"__SplitterContainer";
 
 /* Private forward declarations */
-SplitterContainer* SplitterContainer_Create();
+typedef struct Application Application;
+SplitterContainer* SplitterContainer_Create(Application* app);
 void SplitterContainer_Init(SplitterContainer*);
 
 void SplitterContainer_PreRegister(LPWNDCLASSEX);
 void SplitterContainer_PreCreate(LPCREATESTRUCT);
 
-BOOL SplitterContainer_OnCreate(SplitterContainer*, LPCREATESTRUCT);
-void SplitterContainer_OnPaint(SplitterContainer*);
+BOOL SplitterContainer_OnCreate(Window*, LPCREATESTRUCT);
+void SplitterContainer_OnPaint(Window*);
 void SplitterContainer_OnLButtonUp(SplitterContainer*, int, int);
 void SplitterContainer_OnRButtonUp(SplitterContainer*, int, int);
 void SplitterContainer_OnContextMenu(SplitterContainer*, int, int);
-void SplitterContainer_OnDestroy(SplitterContainer*);
-void SplitterContainer_OnSize(SplitterContainer* window, UINT state, int x, int y);
-LRESULT CALLBACK SplitterContainer_UserProc(SplitterContainer* pSplitterContainer, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+void SplitterContainer_OnDestroy(Window*);
+void SplitterContainer_OnSize(Window* window, UINT state, int x, int y);
+LRESULT SplitterContainer_UserProc(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL SplitterContainer_GripHitTest(SplitterContainer* window, int x, int y);
 
-SplitterContainer* SplitterContainer_Create()
+SplitterContainer* SplitterContainer_Create(Application* app)
 {
     SplitterContainer* pWindow = (SplitterContainer*)malloc(sizeof(SplitterContainer));
     memset(pWindow, 0, sizeof(SplitterContainer));
@@ -31,6 +33,7 @@ SplitterContainer* SplitterContainer_Create()
         SplitterContainer_Init(pWindow);
     }
 
+    UNREFERENCED_PARAMETER(app);
     return pWindow;
 }
 
@@ -60,7 +63,7 @@ void SplitterContainer_PreRegister(LPWNDCLASSEX lpwcex)
     lpwcex->lpszClassName = szClassName;
 }
 
-BOOL SplitterContainer_OnCreate(SplitterContainer* window, LPCREATESTRUCT lpcs)
+BOOL SplitterContainer_OnCreate(Window* window, LPCREATESTRUCT lpcs)
 {
     UNREFERENCED_PARAMETER(window);
     UNREFERENCED_PARAMETER(lpcs);
@@ -132,7 +135,7 @@ void InitBrushStorage()
 
 HBRUSH Win32_GetSolidBrush(COLORREF color)
 {
-    HBRUSH hBrush = GetFromHashMap2(&g_brushHashMap, color);
+    HBRUSH hBrush = GetFromHashMap2(&g_brushHashMap, (void*)(uintptr_t)color);
 
     if (hBrush)
     {
@@ -140,7 +143,7 @@ HBRUSH Win32_GetSolidBrush(COLORREF color)
     }
     else {
         HBRUSH hBrush = CreateSolidBrush(color);
-        InsertIntoHashMap2(&g_brushHashMap, color, hBrush);
+        InsertIntoHashMap2(&g_brushHashMap, (void*)(uintptr_t)color, hBrush);
         return hBrush;
     }
 }
@@ -158,16 +161,17 @@ void SplitterContainer_GetSplitRect2(SplitterContainer* window, LPRECT pRect)
     GetClientRect(hWnd, &rcClient);
 }
 
-void SplitterContainer_OnPaint(SplitterContainer* window)
+void SplitterContainer_OnPaint(Window* pWindow)
 {
-    HWND hwnd = window->base.hWnd;
+    SplitterContainer* window = (SplitterContainer*)pWindow;
+    HWND hwnd = pWindow->hWnd;
     PAINTSTRUCT ps;
     HDC hdc;
 
     hdc = BeginPaint(hwnd, &ps);
 
     RECT rcClient;
-    GetClientRect(window->base.hWnd, &rcClient);
+    GetClientRect(pWindow->hWnd, &rcClient);
 
     HBRUSH hBrush = Win32_GetSolidBrush(RGB(0xFF, 0x00, 0x00));
 
@@ -210,7 +214,7 @@ void SplitterContainer_OnCommand(SplitterContainer* window, WPARAM wParam, LPARA
     UNREFERENCED_PARAMETER(wParam);
 }
 
-void SplitterContainer_OnDestroy(SplitterContainer* window)
+void SplitterContainer_OnDestroy(Window* window)
 {
     UNREFERENCED_PARAMETER(window);
 }
@@ -259,8 +263,9 @@ void SplitterContainer_UpdateChildLayout2(SplitterContainer* pSplitterContainer)
     }
 }
 
-void SplitterContainer_OnSize(SplitterContainer* window, UINT state, int x, int y)
+void SplitterContainer_OnSize(Window* pWindow, UINT state, int x, int y)
 {
+    SplitterContainer* window = (SplitterContainer*)pWindow;
     SplitterContainer_UpdateChildLayout1(window);
     SplitterContainer_UpdateChildLayout2(window);
 }
@@ -317,8 +322,9 @@ void SplitterContainer_OnLButtonUp(SplitterContainer* window, int x, int y)
     }
 }
 
-LRESULT CALLBACK SplitterContainer_UserProc(SplitterContainer* window, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT SplitterContainer_UserProc(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    SplitterContainer* window = (SplitterContainer*)pWindow;
     switch (message) {
     case WM_MOUSEMOVE:
         SplitterContainer_OnMouseMove(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam), (UINT)wParam);
@@ -345,7 +351,7 @@ LRESULT CALLBACK SplitterContainer_UserProc(SplitterContainer* window, HWND hWnd
         break;
     }
 
-    return Window_UserProcDefault(window, hWnd, message, wParam, lParam);
+    return Window_UserProcDefault(pWindow, hWnd, message, wParam, lParam);
 }
 
 void SplitterContainer_PreCreate(LPCREATESTRUCT lpcs)

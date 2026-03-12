@@ -11,13 +11,13 @@ void ControlLibrary_Init(ControlLibrary*);
 void ControlLibrary_PreRegister(LPWNDCLASSEX);
 void ControlLibrary_PreCreate(LPCREATESTRUCT);
 
-BOOL ControlLibrary_OnCreate(ControlLibrary*, LPCREATESTRUCT);
-void ControlLibrary_OnPaint(ControlLibrary*);
+BOOL ControlLibrary_OnCreate(Window*, LPCREATESTRUCT);
+void ControlLibrary_OnPaint(Window*);
 void ControlLibrary_OnLButtonUp(ControlLibrary*, int, int);
 void ControlLibrary_OnRButtonUp(ControlLibrary*, int, int);
 void ControlLibrary_OnContextMenu(ControlLibrary*, int, int);
-void ControlLibrary_OnDestroy(ControlLibrary*);
-LRESULT CALLBACK ControlLibrary_UserProc(ControlLibrary*, HWND hWnd, UINT, WPARAM, LPARAM);
+void ControlLibrary_OnDestroy(Window*);
+LRESULT ControlLibrary_UserProc(Window*, HWND hWnd, UINT, WPARAM, LPARAM);
 
 ControlLibrary* ControlLibrary_Create()
 {
@@ -54,15 +54,16 @@ void ControlLibrary_PreRegister(LPWNDCLASSEX lpwcex)
     lpwcex->lpszClassName = szClassName;
 }
 
-BOOL ControlLibrary_OnCreate(ControlLibrary* window, LPCREATESTRUCT lpcs)
+BOOL ControlLibrary_OnCreate(Window* window, LPCREATESTRUCT lpcs)
 {
     UNREFERENCED_PARAMETER(window);
     UNREFERENCED_PARAMETER(lpcs);
+    return TRUE;
 }
 
-void ControlLibrary_OnPaint(ControlLibrary* window)
+void ControlLibrary_OnPaint(Window* window)
 {
-    HWND hwnd = window->base.hWnd;
+    HWND hwnd = window->hWnd;
     PAINTSTRUCT ps;
     HDC hdc;
 
@@ -102,13 +103,14 @@ void ControlLibrary_OnCommand(ControlLibrary* window, WPARAM wParam, LPARAM lPar
     UNREFERENCED_PARAMETER(wParam);
 }
 
-void ControlLibrary_OnDestroy(ControlLibrary* window)
+void ControlLibrary_OnDestroy(Window* window)
 {
     UNREFERENCED_PARAMETER(window);
 }
 
-LRESULT CALLBACK ControlLibrary_UserProc(ControlLibrary* window, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
+LRESULT ControlLibrary_UserProc(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    ControlLibrary* window = (ControlLibrary*)pWindow;
     switch (message) {
     case WM_RBUTTONUP:
         ControlLibrary_OnRButtonUp(window, GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam));
@@ -125,7 +127,7 @@ LRESULT CALLBACK ControlLibrary_UserProc(ControlLibrary* window, HWND hWnd, UINT
         break;
     }
 
-    return Window_UserProcDefault(window, hWnd, message, wParam, lParam);
+    return Window_UserProcDefault(pWindow, hWnd, message, wParam, lParam);
 }
 
 void ControlLibrary_PreCreate(LPCREATESTRUCT lpcs)

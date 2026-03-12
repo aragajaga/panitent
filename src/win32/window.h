@@ -46,7 +46,7 @@ BOOL Window_OnCreate(Window* pWindow, LPCREATESTRUCT lpcs);
 void Window_PostCreate(Window* pWindow);
 void Window_OnPaint(Window* pWindow);
 BOOL Window_OnCommand(Window* pWindow, WPARAM wParam, LPARAM lparam);
-void Window_OnSize(Window* pWindow, int x, int y);
+void Window_OnSize(Window* pWindow, UINT state, int x, int y);
 BOOL Window_OnCommand(Window* pWindow, WPARAM wParam, LPARAM lParam);
 BOOL Window_OnClose(Window* pWindow);
 void Window_OnDestroy(Window* pWindow);

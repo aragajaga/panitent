@@ -224,9 +224,9 @@ HashMap* HashMap_Create(int nCapacity, FnAVLNodeKeyCompare* pfnCompare)
  * 
  * Function to hash the key to a bucket index
  */
-int BucketHash(int key, int capacity)
+int BucketHash(uintptr_t key, int capacity)
 {
-    return key % capacity;
+    return (int)(key % (uintptr_t)capacity);
 }
 
 /**
@@ -236,7 +236,7 @@ int BucketHash(int key, int capacity)
  */
 void HashMap_Put(HashMap* pHashMap, void* pKey, void* pValue)
 {
-    int nIndex = BucketHash(pKey, pHashMap->nCapacity);
+    int nIndex = BucketHash((uintptr_t)pKey, pHashMap->nCapacity);
     pHashMap->ppBuckets[nIndex] = AVLNode_Insert(pHashMap->ppBuckets[nIndex], pKey, pValue, pHashMap->pfnCompare);
     pHashMap->nSize++;
 }
@@ -253,7 +253,7 @@ void HashMap_Put(HashMap* pHashMap, void* pKey, void* pValue)
  */
 void* HashMap_Get(HashMap* pHashMap, void* pKey)
 {
-    int nIndex = BucketHash(pKey, pHashMap->nCapacity);
+    int nIndex = BucketHash((uintptr_t)pKey, pHashMap->nCapacity);
     AVLNode* pAVLNode = AVLNode_Search(pHashMap->ppBuckets[nIndex], pKey, pHashMap->pfnCompare);
 
     if (!pAVLNode)
@@ -402,7 +402,7 @@ AVLNode* AVLNode_Delete(AVLNode* pRoot, void* pKey, FnAVLNodeKeyCompare* pfnComp
  */
 void HashMap_Remove(HashMap* pHashMap, void* pKey)
 {
-    int nIndex = BucketHash(pKey, pHashMap->nCapacity);
+    int nIndex = BucketHash((uintptr_t)pKey, pHashMap->nCapacity);
     pHashMap->ppBuckets[nIndex] = AVLNode_Delete(pHashMap->ppBuckets[nIndex], pKey, pHashMap->pfnCompare);
     pHashMap->nSize--;
 }

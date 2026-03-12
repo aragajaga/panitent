@@ -294,7 +294,7 @@ void ToolboxWindow_OnPaint(ToolboxWindow* pToolboxWindow)
             if (hbpAnimation)
             {
                 /* Hack */
-                HBRUSH hbrBackground = GetClassLongPtr(hWnd, GCLP_HBRBACKGROUND);
+                HBRUSH hbrBackground = (HBRUSH)GetClassLongPtr(hWnd, GCLP_HBRBACKGROUND);
                 if (hdcFrom)
                 {
                     /* Hack */

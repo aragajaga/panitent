@@ -6,6 +6,11 @@
 
 #define BUFFER_SIZE 2048
 
+static PTSTR PntINI_FileReader(PTSTR str, int num, void* stream)
+{
+    return _fgetts(str, num, (FILE*)stream);
+}
+
 /*
  * Strip whitespace characters off end of given string, in place.
  * 
@@ -38,7 +43,7 @@ static PTSTR PntINI_SkipWhitespace(PCTSTR szString)
     return (PTSTR)szString;
 }
 
-static PTSTR* PntINI_FindCharsOrComment(PCTSTR s, PCTSTR chars)
+static PTSTR PntINI_FindCharsOrComment(PCTSTR s, PCTSTR chars)
 {
 
     /* int was_space = 0; */
@@ -78,10 +83,10 @@ int PntINI_ParseFile(PTSTR pszPath, FnPntINICallbackFunction* pfnCallback, void*
 
     if (!fp)
     {
-        return;
+        return -1;
     }
 
-    int result = PntINI_ParseStream(_fgetts, fp, pfnCallback, user);
+    int result = PntINI_ParseStream(PntINI_FileReader, fp, pfnCallback, user);
     fclose(fp);
     return result;
 }
@@ -280,7 +285,7 @@ static PTSTR _tsgetts2(PTSTR str, int num, void* stream)
     return str;
 }
 
-int PntINI_ParseString(PWSTR* data, FnPntINICallbackFunction* pfnCallback, void* user)
+int PntINI_ParseString(PWSTR data, FnPntINICallbackFunction* pfnCallback, void* user)
 {
     PntINI_ParseStringCtx ctx;
 
@@ -338,7 +343,7 @@ void PntINIContextBased_LoadFile(PntINIContextBased* pPntINIContextBased, PCTSTR
         return;
     }
 
-    pPntINIContextBased->reader = _fgetts;
+    pPntINIContextBased->reader = PntINI_FileReader;
     pPntINIContextBased->source = fp;
 
     pPntINIContextBased->fResourceLoaded = TRUE;
@@ -397,8 +402,8 @@ int PntINIContextBased_ParseNext(PntINIContextBased* pCtx)
             pszLine = pszNewLine;
             pCtx->pszLine = pszLine;
 
-            size_t newBytesRead = pCtx->reader(pszLine + nOffset, (int)(pCtx->nMaxLine - nOffset), pCtx->source);
-            if (!newBytesRead)
+            PTSTR pszNext = pCtx->reader(pszLine + nOffset, (int)(pCtx->nMaxLine - nOffset), pCtx->source);
+            if (!pszNext)
             {
                 break;
             }

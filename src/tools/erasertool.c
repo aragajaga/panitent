@@ -10,13 +10,13 @@
 #include "../history.h"
 #include "../resource.h"
 
-Brush* g_pBrushDraw;
+static Brush* g_pBrushDraw;
 
 EraserTool* EraserTool_Create();
 void EraserTool_Init(EraserTool* pEraserTool);
-void EraserTool_OnLButtonUp(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void EraserTool_OnMouseMove(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void EraserTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void EraserTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void EraserTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 
 EraserTool* EraserTool_Create()
 {
@@ -35,8 +35,9 @@ void EraserTool_Init(EraserTool* pEraserTool)
     pEraserTool->base.OnMouseMove = EraserTool_OnMouseMove;
 }
 
-void EraserTool_OnLButtonUp(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void EraserTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    EraserTool* pEraserTool = (EraserTool*)pTool;
     UNREFERENCED_PARAMETER(x);
     UNREFERENCED_PARAMETER(y);
     UNREFERENCED_PARAMETER(keyFlags);
@@ -48,13 +49,14 @@ void EraserTool_OnLButtonUp(EraserTool* pEraserTool, ViewportWindow* pViewportWi
     g_pBrushDraw = NULL;
 }
 
-void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void EraserTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    EraserTool* pEraserTool = (EraserTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     // SetCursor(LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDC_BRUSH)));
 
-    HWND hWndViewport = Window_GetHWND(pViewportWindow);
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
     SetClassLongPtr(hWndViewport, GCLP_HCURSOR, (LONG_PTR)LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDC_BRUSH)));
 
     POINT ptCanvas = { 0 };
@@ -83,8 +85,9 @@ void EraserTool_OnLButtonDown(EraserTool* pEraserTool, ViewportWindow* pViewport
     Window_Invalidate((Window*)pViewportWindow);
 }
 
-void EraserTool_OnMouseMove(EraserTool* pEraserTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void EraserTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    EraserTool* pEraserTool = (EraserTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     if (pEraserTool->fDraw && g_pBrushDraw)

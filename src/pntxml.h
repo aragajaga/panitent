@@ -125,7 +125,7 @@ XMLString* XMLNode_GetAttributeContent(XMLNode* pXMLNode, size_t nAttribute);
  * @warning Each element on the way must be unique
  * @warning Last argument must be 0
  */
-XMLNode* XMLNode_GetChild(XMLNode* pXMLNode, PCWSTR pszChild, ...);
+XMLNode* XMLNode_EasyChild(XMLNode* pXMLNode, PCWSTR pszChild, ...);
 
 /**
  * @return 0-terminated copy of node name

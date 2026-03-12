@@ -13,13 +13,13 @@
 
 LineTool* LineTool_Create();
 void LineTool_Init(LineTool* pLineTool);
-void LineTool_OnLButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void LineTool_OnLButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void LineTool_OnRButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void LineTool_OnRButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void LineTool_OnMouseMove(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-BOOL LineTool_HasPreview(LineTool* pLineTool);
-void LineTool_DrawPreview(LineTool* pLineTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
+void LineTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void LineTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void LineTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void LineTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void LineTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+BOOL LineTool_HasPreview(Tool* pTool);
+void LineTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void LineTool_BeginStroke(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t drawColor);
 static void LineTool_EndStroke(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y);
 static void LineTool_Render(LineTool* pLineTool, Canvas* pCanvas, ShapeContext* pShapeContext, POINT endPoint);
@@ -44,28 +44,32 @@ void LineTool_Init(LineTool* pLineTool)
     pLineTool->base.OnRButtonUp = LineTool_OnRButtonUp;
     pLineTool->base.OnRButtonDown = LineTool_OnRButtonDown;
     pLineTool->base.OnMouseMove = LineTool_OnMouseMove;
-    pLineTool->base.HasPreview = (BOOL(*)(Tool*))LineTool_HasPreview;
-    pLineTool->base.DrawPreview = (void(*)(Tool*, ViewportWindow*, Canvas*))LineTool_DrawPreview;
+    pLineTool->base.HasPreview = LineTool_HasPreview;
+    pLineTool->base.DrawPreview = LineTool_DrawPreview;
 }
 
-void LineTool_OnLButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void LineTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     LineTool_BeginStroke(pLineTool, pViewportWindow, x, y, keyFlags, g_color_context.fg_color);
 }
 
-void LineTool_OnLButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void LineTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     LineTool_EndStroke(pLineTool, pViewportWindow, x, y);
 }
 
-void LineTool_OnRButtonDown(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void LineTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     LineTool_BeginStroke(pLineTool, pViewportWindow, x, y, keyFlags, g_color_context.bg_color);
 }
 
-void LineTool_OnRButtonUp(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void LineTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     LineTool_EndStroke(pLineTool, pViewportWindow, x, y);
 }
@@ -86,8 +90,9 @@ static void LineTool_BeginStroke(LineTool* pLineTool, ViewportWindow* pViewportW
     pLineTool->current = ptCanvas;
 }
 
-void LineTool_OnMouseMove(LineTool* pLineTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void LineTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     if (!pLineTool->fDraw)
@@ -124,16 +129,18 @@ static void LineTool_EndStroke(LineTool* pLineTool, ViewportWindow* pViewportWin
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
 }
 
-BOOL LineTool_HasPreview(LineTool* pLineTool)
+BOOL LineTool_HasPreview(Tool* pTool)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     return pLineTool && pLineTool->fDraw;
 }
 
-void LineTool_DrawPreview(LineTool* pLineTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
+void LineTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
 {
+    LineTool* pLineTool = (LineTool*)pTool;
     UNREFERENCED_PARAMETER(pViewportWindow);
 
-    if (!LineTool_HasPreview(pLineTool))
+    if (!LineTool_HasPreview(pTool))
     {
         return;
     }

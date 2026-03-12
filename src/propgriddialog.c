@@ -4,10 +4,10 @@
 #include "propgriddialog.h"
 #include "resource.h"
 
-INT_PTR PropertyGridDialog_DlgUserProc(PropertyGridDialog* pPropertyGridDialog, UINT message, WPARAM wParam, LPARAM lParam);
-void PropertyGridDialog_OnInitDialog(PropertyGridDialog* pPropertyGridDialog);
-void PropertyGridDialog_OnOK(PropertyGridDialog* pPropertyGridDialog);
-void PropertyGridDialog_OnCancel(PropertyGridDialog* pPropertyGridDialog);
+INT_PTR PropertyGridDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL PropertyGridDialog_OnInitDialog(Dialog* pDialog);
+void PropertyGridDialog_OnOK(Dialog* pDialog);
+void PropertyGridDialog_OnCancel(Dialog* pDialog);
 
 
 PropertyGridDialog* PropertyGridDialog_Create()
@@ -26,7 +26,7 @@ PropertyGridDialog* PropertyGridDialog_Create()
 
 void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog)
 {
-    Dialog_Init((Dialog*)&pPropertyGridDialog->base);
+    Dialog_Init(&pPropertyGridDialog->base);
 
     pPropertyGridDialog->base.DlgUserProc = PropertyGridDialog_DlgUserProc;
     pPropertyGridDialog->base.OnInitDialog = PropertyGridDialog_OnInitDialog;
@@ -36,21 +36,23 @@ void PropertyGridDialog_Init(PropertyGridDialog* pPropertyGridDialog)
     pPropertyGridDialog->m_pPropertyGrid = PropertyGridCtl_Create();
 }
 
-INT_PTR PropertyGridDialog_DlgUserProc(PropertyGridDialog* pPropertyGridDialog, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR PropertyGridDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    PropertyGridDialog* pPropertyGridDialog = (PropertyGridDialog*)pDialog;
     switch (message)
     {
     }
 
-    return Dialog_DefaultDialogProc(pPropertyGridDialog, message, wParam, lParam);
+    return Dialog_DefaultDialogProc(pDialog, message, wParam, lParam);
 }
 
-void PropertyGridDialog_OnInitDialog(PropertyGridDialog* pPropertyGridDialog)
+BOOL PropertyGridDialog_OnInitDialog(Dialog* pDialog)
 {
-    HWND hDlg = Window_GetHWND(pPropertyGridDialog);
+    PropertyGridDialog* pPropertyGridDialog = (PropertyGridDialog*)pDialog;
+    HWND hDlg = Window_GetHWND(&pPropertyGridDialog->base.base);
 
     HWND hPropertyGrid = GetDlgItem(hDlg, IDC_PROPERTYGRID);
-    Window_Attach(pPropertyGridDialog->m_pPropertyGrid, hPropertyGrid);
+    Window_Attach((Window*)pPropertyGridDialog->m_pPropertyGrid, hPropertyGrid);
 
     PROPGRIDITEM pgi;
     PropGrid_ItemInit(pgi);
@@ -73,14 +75,18 @@ void PropertyGridDialog_OnInitDialog(PropertyGridDialog* pPropertyGridDialog)
     pgi.lpszPropName = L"Save settings";
     pgi.iItemType = PIT_CHECK;
     PropGrid_AddItem(hPropertyGrid, &pgi);
+
+    return TRUE;
 }
 
-void PropertyGridDialog_OnOK(PropertyGridDialog* pPropertyGridDialog)
+void PropertyGridDialog_OnOK(Dialog* pDialog)
 {
-    EndDialog(Window_GetHWND((Window*)pPropertyGridDialog), 0);
+    PropertyGridDialog* pPropertyGridDialog = (PropertyGridDialog*)pDialog;
+    EndDialog(Window_GetHWND(&pPropertyGridDialog->base.base), 0);
 }
 
-void PropertyGridDialog_OnCancel(PropertyGridDialog* pPropertyGridDialog)
+void PropertyGridDialog_OnCancel(Dialog* pDialog)
 {
-    EndDialog(Window_GetHWND((Window*)pPropertyGridDialog), 0);
+    PropertyGridDialog* pPropertyGridDialog = (PropertyGridDialog*)pDialog;
+    EndDialog(Window_GetHWND(&pPropertyGridDialog->base.base), 0);
 }

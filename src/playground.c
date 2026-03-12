@@ -323,47 +323,50 @@ struct Win32GDIDrawer {
     HPEN hPen;
 };
 
-void __impl_Win32GDIDrawer_DrawRectangle(Win32GDIDrawer* pThis, IAbstractCanvas* pTarget, int x1, int y1, int x2, int y2) {
-    int prevDCState = SaveDC(pThis->hdc);
-    RestoreDC(pThis->hdc, pThis->dcState);
+void __fastcall __impl_Win32GDIDrawer_DrawRectangle(void* pThis, IAbstractCanvas* pTarget, int x1, int y1, int x2, int y2) {
+    Win32GDIDrawer* pDrawer = (Win32GDIDrawer*)pThis;
+    int prevDCState = SaveDC(pDrawer->hdc);
+    RestoreDC(pDrawer->hdc, pDrawer->dcState);
 
     if (pTarget->__vtbl->GetType(pTarget) == ECANVAS_WIN32DC) {
-        Win32DCCanvas* pDCCanvas = pTarget;
+        Win32DCCanvas* pDCCanvas = (Win32DCCanvas*)pTarget;
         Rectangle(Win32DCCanvas_GetDC(pDCCanvas), x1, y1, x2, y2);
     }
     else {
         assert(FALSE);  // E_NOTIMPL
     }
-    RestoreDC(pThis->hdc, prevDCState);
+    RestoreDC(pDrawer->hdc, prevDCState);
 }
 
-void __impl_Win32GDIDrawer_DrawEllipse(Win32GDIDrawer* pThis, IAbstractCanvas* pTarget, int x1, int y1, int x2, int y2) {
-    int prevDCState = SaveDC(pThis->hdc);
-    RestoreDC(pThis->hdc, pThis->dcState);
+void __fastcall __impl_Win32GDIDrawer_DrawEllipse(void* pThis, IAbstractCanvas* pTarget, int x1, int y1, int x2, int y2) {
+    Win32GDIDrawer* pDrawer = (Win32GDIDrawer*)pThis;
+    int prevDCState = SaveDC(pDrawer->hdc);
+    RestoreDC(pDrawer->hdc, pDrawer->dcState);
 
     if (pTarget->__vtbl->GetType(pTarget) == ECANVAS_WIN32DC) {
-        Win32DCCanvas* pDCCanvas = pTarget;
+        Win32DCCanvas* pDCCanvas = (Win32DCCanvas*)pTarget;
         Ellipse(Win32DCCanvas_GetDC(pDCCanvas), x1, y1, x2, y2);
     }
     else {
         assert(FALSE);  // E_NOTIMPL
     }
-    RestoreDC(pThis->hdc, prevDCState);
+    RestoreDC(pDrawer->hdc, prevDCState);
 }
 
-void __impl_Win32GDIDrawer_SetStrokeWidth(Win32GDIDrawer* pThis, int strokeWidth) {
-    int prevDCState = SaveDC(pThis->hdc);
-    RestoreDC(pThis->hdc, pThis->dcState);
+void __fastcall __impl_Win32GDIDrawer_SetStrokeWidth(void* pThis, int strokeWidth) {
+    Win32GDIDrawer* pDrawer = (Win32GDIDrawer*)pThis;
+    int prevDCState = SaveDC(pDrawer->hdc);
+    RestoreDC(pDrawer->hdc, pDrawer->dcState);
     HPEN hNewPen = NULL;
     if (strokeWidth < 1) {
-        SelectObject(pThis->hdc, GetStockObject(NULL_PEN));
+        SelectObject(pDrawer->hdc, GetStockObject(NULL_PEN));
     }
     else {
         HPEN hCurrentPen = NULL;
         LOGPEN logPen = { 0 };
 
-        if (!pThis->hPen) {
-            hCurrentPen = GetCurrentObject(pThis->hdc, OBJ_PEN);
+        if (!pDrawer->hPen) {
+            hCurrentPen = GetCurrentObject(pDrawer->hdc, OBJ_PEN);
             if (hCurrentPen) {
                 GetObject(hCurrentPen, sizeof(LOGPEN), &logPen);
             }
@@ -373,23 +376,23 @@ void __impl_Win32GDIDrawer_SetStrokeWidth(Win32GDIDrawer* pThis, int strokeWidth
             }
         }
         else {
-            GetObject(pThis->hPen, sizeof(LOGPEN), &logPen);
+            GetObject(pDrawer->hPen, sizeof(LOGPEN), &logPen);
         }
 
         logPen.lopnWidth.x = strokeWidth;
         logPen.lopnWidth.y = strokeWidth;
 
         hNewPen = CreatePenIndirect(&logPen);
-        SelectObject(pThis->hdc, hNewPen);
+        SelectObject(pDrawer->hdc, hNewPen);
     }
 
-    if (pThis->hPen) {
-        DeleteObject(pThis->hPen);
+    if (pDrawer->hPen) {
+        DeleteObject(pDrawer->hPen);
     }
-    pThis->hPen = hNewPen;
+    pDrawer->hPen = hNewPen;
 
-    pThis->dcState = SaveDC(pThis->hdc);
-    RestoreDC(pThis->hdc, prevDCState);
+    pDrawer->dcState = SaveDC(pDrawer->hdc);
+    RestoreDC(pDrawer->hdc, prevDCState);
 }
 
 IAbstractDrawer_vtbl __vtbl_Win32GDIDrawer_IAbstractDrawer = {
@@ -463,7 +466,8 @@ void __impl_Win32DCCanvas_ConvertDCBitmapToMutableAndStoreState(Win32DCCanvas* p
     }
 }
 
-void __impl_Win32DCCanvas_GetBits(Win32DCCanvas* pWin32DCCanvas, void** pBits) {
+void __fastcall __impl_Win32DCCanvas_GetBits(void* pThis, void** pBits) {
+    Win32DCCanvas* pWin32DCCanvas = (Win32DCCanvas*)pThis;
     if (!pWin32DCCanvas->mutableBitmapInfo.fInitialized) {
         __impl_Win32DCCanvas_ConvertDCBitmapToMutableAndStoreState(pWin32DCCanvas);
     }
@@ -471,8 +475,8 @@ void __impl_Win32DCCanvas_GetBits(Win32DCCanvas* pWin32DCCanvas, void** pBits) {
     *pBits = pWin32DCCanvas->mutableBitmapInfo.pBits;
 }
 
-void __impl_Win32DCCanvas_GetDimensions(Win32DCCanvas* pWin32DCCanvas, int* width, int* height) {
-    
+void __fastcall __impl_Win32DCCanvas_GetDimensions(void* pThis, int* width, int* height) {
+    Win32DCCanvas* pWin32DCCanvas = (Win32DCCanvas*)pThis;
     HBITMAP hBitmap = GetCurrentObject(pWin32DCCanvas->hdc, OBJ_BITMAP);
     BITMAP bitmap;
     GetObject(hBitmap, sizeof(bitmap), &bitmap);
@@ -480,7 +484,8 @@ void __impl_Win32DCCanvas_GetDimensions(Win32DCCanvas* pWin32DCCanvas, int* widt
     *height = bitmap.bmHeight;
 }
 
-EAbstractCanvasType __impl_Win32DCCanvas_GetType(Win32DCCanvas* pWin32DCCanvas) {
+EAbstractCanvasType __fastcall __impl_Win32DCCanvas_GetType(void* pThis) {
+    UNREFERENCED_PARAMETER(pThis);
     return ECANVAS_WIN32DC;
 }
 
@@ -522,11 +527,13 @@ void __impl_HSLGradient_Draw(HSLGradient* pHSLGradient, IAbstractCanvas* pTarget
 }
 #endif
 
-void __impl_HSLGradient_GetBoundingRect(HSLGradient* pHSLGradient, RECT* prc) {
+void __fastcall __impl_HSLGradient_GetBoundingRect(void* pThis, RECT* prc) {
+    HSLGradient* pHSLGradient = (HSLGradient*)pThis;
     CopyRect(prc, &pHSLGradient->rc);
 }
 
-BOOL __impl_HSLGradient_OnLButtonDown(HSLGradient* pHSLGradient, int x, int y) {
+BOOL __fastcall __impl_HSLGradient_OnLButtonDown(void* pThis, int x, int y) {
+    HSLGradient* pHSLGradient = (HSLGradient*)pThis;
     int xLocal = x - pHSLGradient->rc.left;
     int yLocal = y - pHSLGradient->rc.top;
 
@@ -538,10 +545,14 @@ BOOL __impl_HSLGradient_OnLButtonDown(HSLGradient* pHSLGradient, int x, int y) {
 
     pHSLGradient->hue = hue;
     pHSLGradient->lightness = lightness;
+    return TRUE;
 }
 
-BOOL __impl_HSLGradient_OnLButtonUp(HSLGradient* pHSLGradient, int x, int y) {
-
+BOOL __fastcall __impl_HSLGradient_OnLButtonUp(void* pThis, int x, int y) {
+    UNREFERENCED_PARAMETER(pThis);
+    UNREFERENCED_PARAMETER(x);
+    UNREFERENCED_PARAMETER(y);
+    return TRUE;
 }
 
 void ConstrainPtInRectFU(RECT* prc, POINT* ppt) {
@@ -549,7 +560,8 @@ void ConstrainPtInRectFU(RECT* prc, POINT* ppt) {
     ppt->y = (ppt->y < prc->top) ? prc->top : (ppt->y >= prc->bottom) ? prc->bottom : ppt->y;
 }
 
-BOOL __impl_HSLGradient_OnMouseMove(HSLGradient* pHSLGradient, int x, int y) {
+BOOL __fastcall __impl_HSLGradient_OnMouseMove(void* pThis, int x, int y) {
+    HSLGradient* pHSLGradient = (HSLGradient*)pThis;
     POINT pt = {
         .x = x,
         .y = y
@@ -568,6 +580,7 @@ BOOL __impl_HSLGradient_OnMouseMove(HSLGradient* pHSLGradient, int x, int y) {
 
     pHSLGradient->hue = hue;
     pHSLGradient->lightness = lightness;
+    return TRUE;
 }
 
 IWidget_vtbl __vtbl_IWidget_HSLGradient = {

@@ -156,7 +156,7 @@ int WINAPI VerifyCheckThreadProc(PVOID pParam)
             VerifyCheckDlg* pVerifyCheckDlg = malloc(sizeof(VerifyCheckDlg));
             VerifyCheckDlg_Init(pVerifyCheckDlg);
         
-            Dialog_CreateWindow(pVerifyCheckDlg, IDD_VERIFYCHECK, Window_GetHWND((Window*)pPanitentWindow), TRUE);
+            Dialog_CreateWindow((Dialog*)pVerifyCheckDlg, IDD_VERIFYCHECK, Window_GetHWND((Window*)pPanitentWindow), TRUE);
             // Window_Show(&verifyCheckDlg, SW_SHOW);
 
             free(pVerifyCheckDlg);
@@ -610,7 +610,7 @@ void PanitentApp_CmdBinView(PanitentApp* pPanitentApp)
 {
     BinViewDialog* binView = (BinViewDialog*)malloc(sizeof(BinViewDialog));
     BinViewDialog_Init(binView);
-    HWND hDlg = Dialog_CreateWindow(binView, IDD_BINVIEW, NULL, FALSE);
+    HWND hDlg = (HWND)Dialog_CreateWindow((Dialog*)binView, IDD_BINVIEW, NULL, FALSE);
     ShowWindow(hDlg, SW_SHOW);
 }
 
@@ -716,7 +716,7 @@ void PanitentApp_CmdShowRbTreeViz(PanitentApp* pPanitentApp)
 {
     RBHashMapVizDialog* pRBHashMapVizDialog = NULL;
     pRBHashMapVizDialog = RBHashMapVizDialog_Create();
-    Dialog_CreateWindow(pRBHashMapVizDialog, IDD_RBTREEVIZ, NULL, TRUE);
+    Dialog_CreateWindow((Dialog*)pRBHashMapVizDialog, IDD_RBTREEVIZ, NULL, TRUE);
 }
 
 void PanitentApp_CmdClipboardExport(PanitentApp* pPanitentApp) {
@@ -774,7 +774,7 @@ void PanitentApp_CmdShowSettings(PanitentApp* pPanitentApp)
 void PanitentApp_CmdShowPropertyGridDialog(PanitentApp* pPanitentApp)
 {
     PropertyGridDialog* pPropertyGridDialog = PropertyGridDialog_Create(pPanitentApp);
-    HWND hDlg = Dialog_CreateWindow(pPropertyGridDialog, IDD_PROPERTYGRIDDLG, NULL, FALSE);
+    HWND hDlg = (HWND)Dialog_CreateWindow((Dialog*)pPropertyGridDialog, IDD_PROPERTYGRIDDLG, NULL, FALSE);
     ShowWindow(hDlg, SW_SHOW);
 }
 
@@ -782,7 +782,7 @@ void PanitentApp_CmdShowActivityDialog(PanitentApp* pPanitentApp)
 {
     ActivityStubDialog* pActivityStubDialog = ActivityStubDialog_Create(pPanitentApp);
     ActivitySharingManager_AddClient(pPanitentApp->m_pActivitySharingManager, &pActivityStubDialog->m_activitySharingClient);
-    HWND hWnd = Dialog_CreateWindow(pActivityStubDialog, IDD_ACTIVITYSTUB, NULL, FALSE);
+    HWND hWnd = (HWND)Dialog_CreateWindow((Dialog*)pActivityStubDialog, IDD_ACTIVITYSTUB, NULL, FALSE);
     ShowWindow(hWnd, SW_SHOW);
 }
 

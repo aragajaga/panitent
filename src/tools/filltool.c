@@ -16,8 +16,8 @@ PNTQUEUE_DECLARE_TYPE(POINT)
 FillTool* FillTool_Create();
 void FillTool_Init(FillTool* pFillTool);
 void FillTool_DoFloodFill(FillTool* pFillTool, ViewportWindow* pViewportWindow, int x, int y, uint32_t newColor);
-void FillTool_OnRButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void FillTool_OnLButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void FillTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void FillTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 
 FillTool* FillTool_Create()
 {
@@ -106,8 +106,10 @@ void FillTool_DoFloodFill(FillTool* pFillTool, ViewportWindow* pViewportWindow, 
     g_fillMutex = FALSE;
 }
 
-void FillTool_OnRButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void FillTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    FillTool* pFillTool = (FillTool*)pTool;
+    UNREFERENCED_PARAMETER(keyFlags);
     POINT ptCanvas = { 0 };
     ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);
 
@@ -115,8 +117,10 @@ void FillTool_OnRButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, 
     Window_Invalidate((Window*)pViewportWindow);
 }
 
-void FillTool_OnLButtonUp(FillTool* pFillTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void FillTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    FillTool* pFillTool = (FillTool*)pTool;
+    UNREFERENCED_PARAMETER(keyFlags);
     POINT ptCanvas = { 0 };
     ViewportWindow_ClientToCanvas(pViewportWindow, x, y, &ptCanvas);
 

@@ -7,8 +7,8 @@
 
 typedef struct PanitentWindow PanitentWindow;
 
-void NewFileDialog(HWND hwnd);
 void RegisterNewFileDialog();
+BOOL DocumentSetupDialog_RegisterClass(HINSTANCE hInstance);
 LRESULT CALLBACK NewFileDialogWndProc(HWND hWnd,
                                       UINT uMsg,
                                       WPARAM wParam,

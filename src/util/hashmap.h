@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 typedef int (FnAVLNodeKeyCompare)(void* pKey1, void* pKey2);
 
 enum {
@@ -85,7 +87,7 @@ HashMap* HashMap_Create(int nCapacity, FnAVLNodeKeyCompare* pfnCompare);
 /**
  * Function to hash the key to an index
  */
-int BucketHash(int key, int capacity);
+int BucketHash(uintptr_t key, int capacity);
 
 /**
  * Function to insert a key-value pair into the hash map

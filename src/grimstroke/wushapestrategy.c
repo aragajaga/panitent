@@ -22,8 +22,8 @@
   } while (0)
 
 void WuShapeStrategy_Init(WuShapeStrategy* pWuShapeStrategy);
-void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1, int x2, int y2);
-void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y, int radius);
+void WuShapeStrategy_DrawLine(ShapeStrategy* pShapeStrategy, int x1, int y1, int x2, int y2);
+void WuShapeStrategy_DrawCircle(ShapeStrategy* pShapeStrategy, int x, int y, int radius);
 static float WuShapeStrategy_Clamp01(float value);
 static float WuShapeStrategy_SignedDistanceToBox(float px, float py, float hx, float hy);
 static void WuShapeStrategy_DrawLineBox(Plotter* pPlotter, float x1, float y1, float x2, float y2, int strokeWidth);
@@ -51,8 +51,9 @@ void WuShapeStrategy_Init(WuShapeStrategy* pWuShapeStrategy)
     pWuShapeStrategy->base.DrawCircle = WuShapeStrategy_DrawCircle;
 }
 
-void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1, int x2, int y2)
+void WuShapeStrategy_DrawLine(ShapeStrategy* pShapeStrategy, int x1, int y1, int x2, int y2)
 {
+    WuShapeStrategy* pWuShapeStrategy = (WuShapeStrategy*)pShapeStrategy;
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
     ShapeContext* pShapeContext = pWuShapeStrategy->base.m_pShapeContext;
     Plotter* pPlotter = ShapeContext_GetPlotter(pShapeContext);
@@ -67,8 +68,9 @@ void WuShapeStrategy_DrawLine(WuShapeStrategy* pWuShapeStrategy, int x1, int y1,
         strokeWidth);
 }
 
-void WuShapeStrategy_DrawCircle(WuShapeStrategy* pWuShapeStrategy, int x, int y, int radius)
+void WuShapeStrategy_DrawCircle(ShapeStrategy* pShapeStrategy, int x, int y, int radius)
 {
+    WuShapeStrategy* pWuShapeStrategy = (WuShapeStrategy*)pShapeStrategy;
     ASSERT(pWuShapeStrategy && pWuShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pWuShapeStrategy->base.m_pShapeContext);
 

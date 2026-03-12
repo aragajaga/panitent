@@ -8,8 +8,8 @@
 #include "../util.h"
 
 void BresenhamShapeStrategy_Init(BresenhamShapeStrategy* pBresenhamShapeStrategy);
-void BresenhamShapeStrategy_DrawLine(BresenhamShapeStrategy* pBresenhamShapeStrategy, int x1, int y1, int x2, int y2);
-void BresenhamShapeStrategy_DrawCircle(BresenhamShapeStrategy* pBresenhamShapeStrategy, int x, int y, int radius);
+void BresenhamShapeStrategy_DrawLine(ShapeStrategy* pShapeStrategy, int x1, int y1, int x2, int y2);
+void BresenhamShapeStrategy_DrawCircle(ShapeStrategy* pShapeStrategy, int x, int y, int radius);
 
 BresenhamShapeStrategy* BresenhamShapeStrategy_Create()
 {
@@ -32,8 +32,9 @@ void BresenhamShapeStrategy_Init(BresenhamShapeStrategy* pBresenhamShapeStrategy
     pBresenhamShapeStrategy->base.DrawCircle = BresenhamShapeStrategy_DrawCircle;
 }
 
-void BresenhamShapeStrategy_DrawLine(BresenhamShapeStrategy* pBresenhamShapeStrategy, int x1, int y1, int x2, int y2)
+void BresenhamShapeStrategy_DrawLine(ShapeStrategy* pShapeStrategy, int x1, int y1, int x2, int y2)
 {
+    BresenhamShapeStrategy* pBresenhamShapeStrategy = (BresenhamShapeStrategy*)pShapeStrategy;
     ASSERT(pBresenhamShapeStrategy && pBresenhamShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pBresenhamShapeStrategy->base.m_pShapeContext);
 
@@ -95,8 +96,9 @@ void BresenhamShapeStrategy_CirclePlot(BresenhamShapeStrategy* pBresenhamShapeSt
     pPlotter->fn(pPlotter->userData, xc - y, yc - x, 0xFF);
 }
 
-void BresenhamShapeStrategy_DrawCircle(BresenhamShapeStrategy* pBresenhamShapeStrategy, int x, int y, int radius)
+void BresenhamShapeStrategy_DrawCircle(ShapeStrategy* pShapeStrategy, int x, int y, int radius)
 {
+    BresenhamShapeStrategy* pBresenhamShapeStrategy = (BresenhamShapeStrategy*)pShapeStrategy;
     ASSERT(pBresenhamShapeStrategy && pBresenhamShapeStrategy->base.m_pShapeContext);
     Plotter* pPlotter = ShapeContext_GetPlotter(pBresenhamShapeStrategy->base.m_pShapeContext);
 

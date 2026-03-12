@@ -101,8 +101,8 @@ void LayersWindow_OnSize(LayersWindow* pLayersWindow, UINT state, int cx, int cy
     if (pLayersWindow->m_pListBoxCtl)
     {
         HWND hListBox = Window_GetHWND((Window*)pLayersWindow->m_pListBoxCtl);
-        int i = (int)SendMessage(hListBox, LB_ADDSTRING, 0, L"Roaster");
-        i = (int)SendMessage(hListBox, LB_ADDSTRING, 0, L"Roaster");
+        SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"Roaster");
+        SendMessage(hListBox, LB_ADDSTRING, 0, (LPARAM)L"Roaster");
 
 
         ListBox_AddString(Window_GetHWND((Window*)pLayersWindow->m_pListBoxCtl), L"Layer 2");

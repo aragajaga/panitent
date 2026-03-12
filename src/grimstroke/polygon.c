@@ -71,7 +71,7 @@ typedef struct PixelBufferPlotterData {
     Color color;
 } PixelBufferPlotterData;
 
-void PixelBufferPlotterCallback(void* userData, int x, int y, unsigned int opacity)
+void PixelBufferPlotterCallback(void* userData, int x, int y, unsigned char opacity)
 {
     PixelBufferPlotterData* pPixelBufferPlotterData = (PixelBufferPlotterData*)userData;
     

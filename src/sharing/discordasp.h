@@ -7,4 +7,4 @@ struct DiscordASP {
 
 DiscordASP* DiscordASP_Create();
 void DiscordASP_Init(DiscordASP* pDiscordASP);
-void DiscordASP_SetStatusMessage(LPCWSTR lpszStatusMessage);
+void DiscordASP_SetStatusMessage(void* handler, PCWSTR lpszStatusMessage);

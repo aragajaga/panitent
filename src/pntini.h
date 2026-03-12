@@ -7,7 +7,7 @@ struct PntINI {
     FnPntINICallbackFunction* pfnCallback;
 };
 
-int PntINI_ParseString(PWSTR* data, FnPntINICallbackFunction* pfnCallback, void* user);
+int PntINI_ParseString(PWSTR data, FnPntINICallbackFunction* pfnCallback, void* user);
 int PntINI_ParseFile(PTSTR pszPath, FnPntINICallbackFunction* pfnCallback, void* user);
 
 typedef enum PntINIContextBasedSourceType PntINIContextBasedSourceType;
@@ -17,7 +17,9 @@ enum PntINIContextBasedSourceType {
     PNTINI_SOURCE_FILE
 };
 
-typedef PTSTR(FnPntINIReader)(PTSTR* str, int num, void* stream);
+typedef PTSTR(FnPntINIReader)(PTSTR str, int num, void* stream);
+
+int PntINI_ParseStream(FnPntINIReader* reader, void* stream, FnPntINICallbackFunction* pfnCallback, void* user);
 
 typedef struct PntINIContextBased PntINIContextBased;
 struct PntINIContextBased {

@@ -177,7 +177,7 @@ void ByteStream_SetBuffer(ByteStream* pByteStream, uint8_t* pSrc, size_t len)
     {
         if (pByteStream->capacity != newCapacity)
         {
-            pData = (uint8_t)realloc(pByteStream->pData, newCapacity);
+            pData = (uint8_t*)realloc(pByteStream->pData, newCapacity);
         }
         else {
             pData = pByteStream->pData;
@@ -185,7 +185,7 @@ void ByteStream_SetBuffer(ByteStream* pByteStream, uint8_t* pSrc, size_t len)
         
     }
     else {
-        pData = (uint8_t)malloc(newCapacity);
+        pData = (uint8_t*)malloc(newCapacity);
     }
 
     if (pData)

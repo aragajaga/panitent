@@ -21,8 +21,8 @@ typedef struct RBTree RBTree;
 struct RBTree {
     RBTreeNode* pRoot;
     FnRBTreeKeyComparator* pfnKeyComparator;
-    void* (*pfnKeyDeleter)(void*);
-    void* (*pfnValueDeleter)(void*);
+    void (*pfnKeyDeleter)(void*);
+    void (*pfnValueDeleter)(void*);
 };
 
 typedef struct RBHashMap RBHashMap;
@@ -33,8 +33,8 @@ struct RBHashMap {
 typedef struct RBHashMapContext RBHashMapContext;
 struct RBHashMapContext {
     FnRBTreeKeyComparator* pfnKeyComparator;
-    void* (*pfnKeyDeleter)(void*);
-    void* (*pfnValueDeleter)(void*);
+    void (*pfnKeyDeleter)(void*);
+    void (*pfnValueDeleter)(void*);
 };
 
 RBHashMap* RBHashMap_Create(RBHashMapContext* ctx);

@@ -17,7 +17,7 @@ void Window_OnPaint(Window* pWindow);
 BOOL Window_OnClose(Window* pWindow);
 void Window_OnDestroy(Window* pWindow);
 BOOL Window_OnCommand(Window* pWindow, WPARAM wParam, LPARAM lParam);
-void Window_OnSize(Window* pWindow, int cx, int cy);
+void Window_OnSize(Window* pWindow, UINT state, int cx, int cy);
 void Window_Subclass(Window* pWindow, HWND hWnd);
 LRESULT CALLBACK Window_UserProc(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
 
@@ -46,7 +46,7 @@ void Window_Init(Window* pWindow)
     pWindow->PreRegister = (FnWindowPreRegister)Window_PreRegister;
     pWindow->PreCreate = (FnWindowPreCreate)Window_PreCreate;
 
-    pWindow->OnCreate = (FnWindowPostCreate)Window_OnCreate;
+    pWindow->OnCreate = Window_OnCreate;
     pWindow->PostCreate = (FnWindowPostCreate)Window_PostCreate;
     pWindow->OnPaint = (FnWindowOnPaint)Window_OnPaint;
     pWindow->OnClose = (FnWindowOnClose)Window_OnClose;
@@ -132,9 +132,13 @@ BOOL Window_OnCommand(Window* pWindow, WPARAM wParam, LPARAM lParam)
     return FALSE; /* pass trough */
 }
 
-void Window_OnSize(Window* pWindow, int cx, int cy)
+void Window_OnSize(Window* pWindow, UINT state, int cx, int cy)
 {
     /* Do nothing */
+    UNREFERENCED_PARAMETER(pWindow);
+    UNREFERENCED_PARAMETER(state);
+    UNREFERENCED_PARAMETER(cx);
+    UNREFERENCED_PARAMETER(cy);
 }
 
 LRESULT Window_UserProcDefault(Window* pWindow, HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -316,7 +320,7 @@ void Window_UnSubclass(Window* pWindow)
 
     if (pfnCurrentWndProc == (WNDPROC)Window_WndProc)
     {
-        SetWindowLongPtr(pWindow->hWnd, GWLP_WNDPROC, pWindow->pfnPrevWindowProc);
+        SetWindowLongPtr(pWindow->hWnd, GWLP_WNDPROC, (LONG_PTR)pWindow->pfnPrevWindowProc);
         pWindow->pfnPrevWindowProc = NULL;
     }
 }

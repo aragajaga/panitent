@@ -11,15 +11,15 @@
 #include "../history.h"
 #include "../resource.h"
 
-Brush* g_pBrushDraw;
+static Brush* g_pBrushDraw;
 
 BrushTool* BrushTool_Create();
 void BrushTool_Init(BrushTool* pBrushTool);
-void BrushTool_OnLButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void BrushTool_OnLButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void BrushTool_OnRButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void BrushTool_OnRButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void BrushTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void BrushTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void BrushTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void BrushTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void BrushTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
 static void BrushTool_BeginStroke(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t drawColor);
 static void BrushTool_EndStroke(BrushTool* pBrushTool, ViewportWindow* pViewportWindow);
 static void BrushTool_ApplyStrokeMask(BrushTool* pBrushTool, Canvas* pCanvas);
@@ -46,8 +46,9 @@ void BrushTool_Init(BrushTool* pBrushTool)
     pBrushTool->base.OnMouseMove = BrushTool_OnMouseMove;
 }
 
-void BrushTool_OnLButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void BrushTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    BrushTool* pBrushTool = (BrushTool*)pTool;
     UNREFERENCED_PARAMETER(x);
     UNREFERENCED_PARAMETER(y);
     UNREFERENCED_PARAMETER(keyFlags);
@@ -55,13 +56,15 @@ void BrushTool_OnLButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindo
     BrushTool_EndStroke(pBrushTool, pViewportWindow);
 }
 
-void BrushTool_OnLButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void BrushTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    BrushTool* pBrushTool = (BrushTool*)pTool;
     BrushTool_BeginStroke(pBrushTool, pViewportWindow, x, y, keyFlags, g_color_context.fg_color);
 }
 
-void BrushTool_OnRButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void BrushTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    BrushTool* pBrushTool = (BrushTool*)pTool;
     UNREFERENCED_PARAMETER(x);
     UNREFERENCED_PARAMETER(y);
     UNREFERENCED_PARAMETER(keyFlags);
@@ -69,13 +72,15 @@ void BrushTool_OnRButtonUp(BrushTool* pBrushTool, ViewportWindow* pViewportWindo
     BrushTool_EndStroke(pBrushTool, pViewportWindow);
 }
 
-void BrushTool_OnRButtonDown(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void BrushTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    BrushTool* pBrushTool = (BrushTool*)pTool;
     BrushTool_BeginStroke(pBrushTool, pViewportWindow, x, y, keyFlags, g_color_context.bg_color);
 }
 
-void BrushTool_OnMouseMove(BrushTool* pBrushTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void BrushTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    BrushTool* pBrushTool = (BrushTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     if (pBrushTool->fDraw && g_pBrushDraw)
@@ -100,7 +105,7 @@ static void BrushTool_BeginStroke(BrushTool* pBrushTool, ViewportWindow* pViewpo
 {
     UNREFERENCED_PARAMETER(keyFlags);
 
-    HWND hWndViewport = Window_GetHWND(pViewportWindow);
+    HWND hWndViewport = Window_GetHWND((Window*)pViewportWindow);
     SetClassLongPtr(hWndViewport, GCLP_HCURSOR, (LONG_PTR)LoadCursor(GetModuleHandle(NULL), MAKEINTRESOURCE(IDC_BRUSH)));
 
     POINT ptCanvas = { 0 };

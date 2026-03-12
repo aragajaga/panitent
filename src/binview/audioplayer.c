@@ -152,9 +152,9 @@ DWORD WINAPI PlaybackThreadProc(PVOID pParam)
 
 void AudioPlayer_StartPlayback(AudioPlayer* pAudioPlayer)
 {
-    if (InterlockedCompareExchange(pAudioPlayer->isPlaying, 0, FALSE))
+    if (InterlockedCompareExchange(&pAudioPlayer->isPlaying, 0, FALSE))
     {
-        InterlockedExchange(pAudioPlayer->isPlaying, TRUE);
+        InterlockedExchange(&pAudioPlayer->isPlaying, TRUE);
         
         pAudioPlayer->playbackThread = CreateThread(NULL, 0, PlaybackThreadProc, NULL, 0, NULL);
 
@@ -162,7 +162,7 @@ void AudioPlayer_StartPlayback(AudioPlayer* pAudioPlayer)
         if (!pAudioPlayer->playbackThread)
         {
             Panitent_RaiseException(L"Failed to create playback thread");
-            InterlockedExchange(pAudioPlayer->isPlaying, FALSE);
+            InterlockedExchange(&pAudioPlayer->isPlaying, FALSE);
         }
         
     }
@@ -170,9 +170,9 @@ void AudioPlayer_StartPlayback(AudioPlayer* pAudioPlayer)
 
 void AudioPlayer_StopPlayback(AudioPlayer* pAudioPlayer)
 {
-    if (InterlockedCompareExchange(pAudioPlayer->isPlaying, 0, TRUE))
+    if (InterlockedCompareExchange(&pAudioPlayer->isPlaying, 0, TRUE))
     {
-        InterlockedExchange(pAudioPlayer->isPlaying, FALSE);
+        InterlockedExchange(&pAudioPlayer->isPlaying, FALSE);
 
         /* Signal the condition variable to stop playback */
         EnterCriticalSection(&pAudioPlayer->cs);

@@ -1,4 +1,5 @@
 #include "utf.h"
+#include <stdlib.h>
 #include "bytestream.h"
 
 uint32_t ReadCodepointFromUTF8Stream(ByteStream* pStream)

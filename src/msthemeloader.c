@@ -8,6 +8,11 @@
 
 void MSTheme_Init(MSTheme* pMSTheme, PTSTR pszPath);
 
+static int MSTheme_KeyComparator(void* key1, void* key2)
+{
+    return _tcscmp((const TCHAR*)key1, (const TCHAR*)key2);
+}
+
 MSTheme* MSTheme_Create(PTSTR pszPath)
 {
     MSTheme* pMSTheme = (MSTheme*)malloc(sizeof(MSTheme));
@@ -123,7 +128,7 @@ void MSTheme_Init(MSTheme* pMSTheme, PTSTR pszPath)
                             // PntINI_ParseString(data, &PntINI_Callback, (void*)pMSTheme);
 
                             RBHashMapContext mapCtx = {
-                                .pfnKeyComparator = _tcscmp,
+                                .pfnKeyComparator = MSTheme_KeyComparator,
                                 .pfnKeyDeleter = free,
                                 .pfnValueDeleter = free
                             };

@@ -20,6 +20,8 @@ RBTreeNode* RBTreeNode_Create(void* pKey, void* pValue, RBTreeColor color)
     pNode->pKey = pKey;
     pNode->pValue = pValue;
     pNode->color = color;
+
+    return pNode;
 }
 
 /*

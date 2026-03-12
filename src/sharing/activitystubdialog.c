@@ -4,12 +4,13 @@
 #include "../win32/dialog.h"
 #include "activitystubdialog.h"
 #include "../resource.h"
+#include "../panitentapp.h"
 
-void ActivityStubDialog_OnInitDialog(ActivityStubDialog* pActivityStubDialog);
-void ActivityStubDialog_OnOK(ActivityStubDialog* pActivityStubDialog);
-void ActivityStubDialog_OnCancel(ActivityStubDialog* pActivityStubDialog);
-INT_PTR ActivityStubDialog_DlgUserProc(ActivityStubDialog* pActivityStubDialog, UINT message, WPARAM wParam, LPARAM lParam);
-void ActivityStubDialog_SetStatusMessage(ActivityStubDialog* pActivityStubDialog, PCWSTR pszStatusMessage);
+BOOL ActivityStubDialog_OnInitDialog(Dialog* pDialog);
+void ActivityStubDialog_OnOK(Dialog* pDialog);
+void ActivityStubDialog_OnCancel(Dialog* pDialog);
+INT_PTR ActivityStubDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
+void ActivityStubDialog_SetStatusMessage(void* handler, PCWSTR pszStatusMessage);
 
 ActivityStubDialog* ActivityStubDialog_Create()
 {
@@ -26,48 +27,57 @@ ActivityStubDialog* ActivityStubDialog_Create()
 
 void ActivityStubDialog_Init(ActivityStubDialog* pActivityStubDialog)
 {
-    Dialog_Init((Dialog*)&pActivityStubDialog->base);
+    Dialog_Init(&pActivityStubDialog->base);
 
-    pActivityStubDialog->base.DlgUserProc = (FnDialogDlgUserProc)ActivityStubDialog_DlgUserProc;
-    pActivityStubDialog->base.OnInitDialog = (FnDialogOnInitDialog)ActivityStubDialog_OnInitDialog;
-    pActivityStubDialog->base.OnOK = (FnDialogOnOK)ActivityStubDialog_OnOK;
-    pActivityStubDialog->base.OnCancel = (FnDialogOnCancel)ActivityStubDialog_OnCancel;
+    pActivityStubDialog->base.DlgUserProc = ActivityStubDialog_DlgUserProc;
+    pActivityStubDialog->base.OnInitDialog = ActivityStubDialog_OnInitDialog;
+    pActivityStubDialog->base.OnOK = ActivityStubDialog_OnOK;
+    pActivityStubDialog->base.OnCancel = ActivityStubDialog_OnCancel;
 
     pActivityStubDialog->m_activitySharingClient.m_handler = pActivityStubDialog;
     pActivityStubDialog->m_activitySharingClient.SetStatusMessage = ActivityStubDialog_SetStatusMessage;
 }
 
-void ActivityStubDialog_OnInitDialog(ActivityStubDialog* pActivityStubDialog)
+BOOL ActivityStubDialog_OnInitDialog(Dialog* pDialog)
 {
-    HWND hDlg = Window_GetHWND((Window*)pActivityStubDialog);
+    ActivityStubDialog* pActivityStubDialog = (ActivityStubDialog*)pDialog;
+    HWND hDlg = Window_GetHWND(&pActivityStubDialog->base.base);
 
     HWND hStatic = GetDlgItem(hDlg, IDS_ACTIVITYTEXT);
     PCWSTR pszCurrentStatus = ActivitySharingManager_GetStatus(PanitentApp_GetActivitySharingManager(PanitentApp_Instance()));
     SetWindowText(hStatic, pszCurrentStatus);
+    return TRUE;
 }
 
-void ActivityStubDialog_OnOK(ActivityStubDialog* pActivityStubDialog)
+void ActivityStubDialog_OnOK(Dialog* pDialog)
 {
-    EndDialog(Window_GetHWND((Window*)pActivityStubDialog), 0);
+    ActivityStubDialog* pActivityStubDialog = (ActivityStubDialog*)pDialog;
+    EndDialog(Window_GetHWND(&pActivityStubDialog->base.base), 0);
 }
 
-void ActivityStubDialog_OnCancel(ActivityStubDialog* pActivityStubDialog)
+void ActivityStubDialog_OnCancel(Dialog* pDialog)
 {
-    EndDialog(Window_GetHWND((Window*)pActivityStubDialog), 0);
+    ActivityStubDialog* pActivityStubDialog = (ActivityStubDialog*)pDialog;
+    EndDialog(Window_GetHWND(&pActivityStubDialog->base.base), 0);
 }
 
-INT_PTR ActivityStubDialog_DlgUserProc(ActivityStubDialog* pActivityStubDialog, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR ActivityStubDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
     }
 
-    return Dialog_DefaultDialogProc(pActivityStubDialog, message, wParam, lParam);
+    return Dialog_DefaultDialogProc(pDialog, message, wParam, lParam);
 }
 
-void ActivityStubDialog_SetStatusMessage(ActivityStubDialog* pActivityStubDialog, PCWSTR pszStatusMessage)
+void ActivityStubDialog_SetStatusMessage(void* handler, PCWSTR pszStatusMessage)
 {
-    HWND hDlg = Window_GetHWND((Window*)pActivityStubDialog);
+    ActivityStubDialog* pActivityStubDialog = (ActivityStubDialog*)handler;
+    if (!pActivityStubDialog)
+    {
+        return;
+    }
+    HWND hDlg = Window_GetHWND(&pActivityStubDialog->base.base);
     HWND hStatic = GetDlgItem(hDlg, IDS_ACTIVITYTEXT);
     SetWindowText(hStatic, pszStatusMessage);
 }

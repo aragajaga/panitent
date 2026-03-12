@@ -6,12 +6,17 @@
 #include "util/rbhashmap.h"
 #include "resource.h"
 
-INT_PTR RBHashMapVizDialog_DlgUserProc(RBHashMapVizDialog* pRBHashMapVizDialog, UINT message, WPARAM wParam, LPARAM lParam);
-void RBHashMapVizDialog_OnInitDialog(RBHashMapVizDialog* pRBHashMapVizDialog);
-void RBHashMapVizDialog_OnOK(RBHashMapVizDialog* pRBHashMapVizDialog);
-void RBHashMapVizDialog_OnCancel(RBHashMapVizDialog* pRBHashMapVizDialog);
+INT_PTR RBHashMapVizDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL RBHashMapVizDialog_OnInitDialog(Dialog* pDialog);
+void RBHashMapVizDialog_OnOK(Dialog* pDialog);
+void RBHashMapVizDialog_OnCancel(Dialog* pDialog);
 void RBHashMapVizDialog_OnInsertBtn(RBHashMapVizDialog* pRBHashMapVizDialog);
 void RBHashMapVizDialog_OnPaint(RBHashMapVizDialog* pRBHashMapVizDialog);
+
+static int RBHashMapViz_KeyComparator(void* key1, void* key2)
+{
+    return _tcscmp((const TCHAR*)key1, (const TCHAR*)key2);
+}
 
 RBHashMapVizDialog* RBHashMapVizDialog_Create()
 {
@@ -27,23 +32,24 @@ RBHashMapVizDialog* RBHashMapVizDialog_Create()
 
 void RBHashMapVizDialog_Init(RBHashMapVizDialog* pRBHashMapVizDialog)
 {
-    Dialog_Init((Dialog*)pRBHashMapVizDialog);
+    Dialog_Init(&pRBHashMapVizDialog->base);
 
-    pRBHashMapVizDialog->base.DlgUserProc = (FnDialogDlgUserProc)RBHashMapVizDialog_DlgUserProc;
-    pRBHashMapVizDialog->base.OnInitDialog = (FnDialogOnInitDialog)RBHashMapVizDialog_OnInitDialog;
-    pRBHashMapVizDialog->base.OnOK = (FnDialogOnOK)RBHashMapVizDialog_OnOK;
-    pRBHashMapVizDialog->base.OnCancel = (FnDialogOnCancel)RBHashMapVizDialog_OnCancel;
+    pRBHashMapVizDialog->base.DlgUserProc = RBHashMapVizDialog_DlgUserProc;
+    pRBHashMapVizDialog->base.OnInitDialog = RBHashMapVizDialog_OnInitDialog;
+    pRBHashMapVizDialog->base.OnOK = RBHashMapVizDialog_OnOK;
+    pRBHashMapVizDialog->base.OnCancel = RBHashMapVizDialog_OnCancel;
 
     RBHashMapContext ctx = {
-        .pfnKeyComparator = _tcscmp,
+        .pfnKeyComparator = RBHashMapViz_KeyComparator,
         .pfnKeyDeleter = free,
         .pfnValueDeleter = free
     };
     pRBHashMapVizDialog->m_pHashMap = RBHashMap_Create(&ctx);
 }
 
-INT_PTR RBHashMapVizDialog_DlgUserProc(RBHashMapVizDialog* pRBHashMapVizDialog, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR RBHashMapVizDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    RBHashMapVizDialog* pRBHashMapVizDialog = (RBHashMapVizDialog*)pDialog;
     switch (message)
     {
     case WM_COMMAND:
@@ -59,20 +65,24 @@ INT_PTR RBHashMapVizDialog_DlgUserProc(RBHashMapVizDialog* pRBHashMapVizDialog, 
         return 0;
     }
 
-    return Dialog_DefaultDialogProc(pRBHashMapVizDialog, message, wParam, lParam);
+    return Dialog_DefaultDialogProc(pDialog, message, wParam, lParam);
 }
 
-void RBHashMapVizDialog_OnInitDialog(RBHashMapVizDialog* pRBHashMapVizDialog)
+BOOL RBHashMapVizDialog_OnInitDialog(Dialog* pDialog)
 {
+    UNREFERENCED_PARAMETER(pDialog);
+    return TRUE;
 }
 
-void RBHashMapVizDialog_OnOK(RBHashMapVizDialog* pRBHashMapVizDialog)
+void RBHashMapVizDialog_OnOK(Dialog* pDialog)
 {
+    RBHashMapVizDialog* pRBHashMapVizDialog = (RBHashMapVizDialog*)pDialog;
     EndDialog(pRBHashMapVizDialog->base.base.hWnd, 0);
 }
 
-void RBHashMapVizDialog_OnCancel(RBHashMapVizDialog* pRBHashMapVizDialog)
+void RBHashMapVizDialog_OnCancel(Dialog* pDialog)
 {
+    RBHashMapVizDialog* pRBHashMapVizDialog = (RBHashMapVizDialog*)pDialog;
     EndDialog(pRBHashMapVizDialog->base.base.hWnd, 0);
 }
 
@@ -90,7 +100,7 @@ void GenerateRandomString(PTSTR pszOut, size_t length)
 
 void RBHashMapVizDialog_OnInsertBtn(RBHashMapVizDialog* pRBHashMapVizDialog)
 {
-    const TCHAR szText[9] = { 0 };
+    TCHAR szText[9] = { 0 };
     GenerateRandomString(szText, ARRAYSIZE(szText) - 1);
     size_t len = _tcslen(szText);
     PTSTR pszText = (PTSTR)malloc((len + 1) * sizeof(WCHAR));

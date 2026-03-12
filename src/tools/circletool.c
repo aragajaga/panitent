@@ -14,13 +14,13 @@
 
 CircleTool* CircleTool_Create();
 void CircleTool_Init(CircleTool* pCircleTool);
-void CircleTool_OnLButtonDown(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void CircleTool_OnLButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void CircleTool_OnRButtonDown(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void CircleTool_OnRButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-void CircleTool_OnMouseMove(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
-BOOL CircleTool_HasPreview(CircleTool* pCircleTool);
-void CircleTool_DrawPreview(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
+void CircleTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void CircleTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void CircleTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void CircleTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+void CircleTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags);
+BOOL CircleTool_HasPreview(Tool* pTool);
+void CircleTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas);
 static void CircleTool_BeginStroke(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags, uint32_t strokeColor, uint32_t fillColor);
 static void CircleTool_EndStroke(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y);
 static void CircleTool_Fill(AlphaMask* pMask, POINT center, int radius);
@@ -46,28 +46,32 @@ void CircleTool_Init(CircleTool* pCircleTool)
     pCircleTool->base.OnRButtonUp = CircleTool_OnRButtonUp;
     pCircleTool->base.OnRButtonDown = CircleTool_OnRButtonDown;
     pCircleTool->base.OnMouseMove = CircleTool_OnMouseMove;
-    pCircleTool->base.HasPreview = (BOOL(*)(Tool*))CircleTool_HasPreview;
-    pCircleTool->base.DrawPreview = (void(*)(Tool*, ViewportWindow*, Canvas*))CircleTool_DrawPreview;
+    pCircleTool->base.HasPreview = CircleTool_HasPreview;
+    pCircleTool->base.DrawPreview = CircleTool_DrawPreview;
 }
 
-void CircleTool_OnLButtonDown(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void CircleTool_OnLButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     CircleTool_BeginStroke(pCircleTool, pViewportWindow, x, y, keyFlags, g_color_context.fg_color, g_color_context.bg_color);
 }
 
-void CircleTool_OnLButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void CircleTool_OnLButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     CircleTool_EndStroke(pCircleTool, pViewportWindow, x, y);
 }
 
-void CircleTool_OnRButtonDown(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void CircleTool_OnRButtonDown(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     CircleTool_BeginStroke(pCircleTool, pViewportWindow, x, y, keyFlags, g_color_context.bg_color, g_color_context.fg_color);
 }
 
-void CircleTool_OnRButtonUp(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void CircleTool_OnRButtonUp(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
     CircleTool_EndStroke(pCircleTool, pViewportWindow, x, y);
 }
@@ -89,8 +93,9 @@ static void CircleTool_BeginStroke(CircleTool* pCircleTool, ViewportWindow* pVie
     pCircleTool->current = ptCanvas;
 }
 
-void CircleTool_OnMouseMove(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
+void CircleTool_OnMouseMove(Tool* pTool, ViewportWindow* pViewportWindow, int x, int y, UINT keyFlags)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     UNREFERENCED_PARAMETER(keyFlags);
 
     if (!pCircleTool->fDraw)
@@ -127,16 +132,18 @@ static void CircleTool_EndStroke(CircleTool* pCircleTool, ViewportWindow* pViewp
     History_FinalizeDifferentiation(ViewportWindow_GetDocument(pViewportWindow));
 }
 
-BOOL CircleTool_HasPreview(CircleTool* pCircleTool)
+BOOL CircleTool_HasPreview(Tool* pTool)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     return pCircleTool && pCircleTool->fDraw;
 }
 
-void CircleTool_DrawPreview(CircleTool* pCircleTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
+void CircleTool_DrawPreview(Tool* pTool, ViewportWindow* pViewportWindow, Canvas* pCanvas)
 {
+    CircleTool* pCircleTool = (CircleTool*)pTool;
     UNREFERENCED_PARAMETER(pViewportWindow);
 
-    if (!CircleTool_HasPreview(pCircleTool))
+    if (!CircleTool_HasPreview(pTool))
     {
         return;
     }

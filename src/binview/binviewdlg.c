@@ -3,17 +3,17 @@
 #include "../util/assert.h"
 
 void BinViewDialog_Init(BinViewDialog* pBinViewDialog);
-void BinViewDialog_OnInitDialog(BinViewDialog* pBinViewDialog);
-void BinViewDialog_OnOK(BinViewDialog* pBinViewDialog);
-void BinViewDialog_OnCancel(BinViewDialog* pBinViewDialog);
-INT_PTR CALLBACK BinViewDialog_DlgUserProc(BinViewDialog* pBinViewDialog, UINT message, WPARAM wParam, LPARAM lParam);
+BOOL BinViewDialog_OnInitDialog(Dialog* pDialog);
+void BinViewDialog_OnOK(Dialog* pDialog);
+void BinViewDialog_OnCancel(Dialog* pDialog);
+INT_PTR BinViewDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam);
 
 void BinViewDialog_Init(BinViewDialog* pBinViewDialog)
 {
     ASSERT(pBinViewDialog);
     memset(pBinViewDialog, 0, sizeof(BinViewDialog));
 
-    Dialog_Init((Dialog*)&pBinViewDialog);
+    Dialog_Init(&pBinViewDialog->base);
 
     pBinViewDialog->base.OnInitDialog = BinViewDialog_OnInitDialog;
     pBinViewDialog->base.OnOK = BinViewDialog_OnOK;
@@ -21,18 +21,22 @@ void BinViewDialog_Init(BinViewDialog* pBinViewDialog)
     pBinViewDialog->base.DlgUserProc = BinViewDialog_DlgUserProc;
 }
 
-void BinViewDialog_OnInitDialog(BinViewDialog* pBinViewDialog)
+BOOL BinViewDialog_OnInitDialog(Dialog* pDialog)
 {
+    BinViewDialog* pBinViewDialog = (BinViewDialog*)pDialog;
+    ASSERT(pBinViewDialog);
+    return TRUE;
+}
+
+void BinViewDialog_OnOK(Dialog* pDialog)
+{
+    BinViewDialog* pBinViewDialog = (BinViewDialog*)pDialog;
     ASSERT(pBinViewDialog);
 }
 
-void BinViewDialog_OnOK(BinViewDialog* pBinViewDialog)
+void BinViewDialog_OnCancel(Dialog* pDialog)
 {
-    ASSERT(pBinViewDialog);
-}
-
-void BinViewDialog_OnCancel(BinViewDialog* pBinViewDialog)
-{
+    BinViewDialog* pBinViewDialog = (BinViewDialog*)pDialog;
     ASSERT(pBinViewDialog);
 }
 
@@ -61,8 +65,10 @@ void BinViewDialog_OnReadAsPictureBtnClick()
 
 }
 
-INT_PTR CALLBACK BinViewDialog_DlgUserProc(BinViewDialog* pBinViewDialog, UINT message, WPARAM wParam, LPARAM lParam)
+INT_PTR BinViewDialog_DlgUserProc(Dialog* pDialog, UINT message, WPARAM wParam, LPARAM lParam)
 {
+    BinViewDialog* pBinViewDialog = (BinViewDialog*)pDialog;
+    ASSERT(pBinViewDialog);
     switch (message)
     {
 

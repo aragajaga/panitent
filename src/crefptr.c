@@ -1,5 +1,6 @@
 #include "crefptr.h"
 #include <stdlib.h>
+#include <string.h>
 
 struct crefptr {
   int refCount;

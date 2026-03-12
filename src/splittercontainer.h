@@ -1,6 +1,7 @@
 #pragma once
 
 typedef struct SplitterContainer SplitterContainer;
+typedef struct Application Application;
 
 struct SplitterContainer {
 	Window base;
@@ -11,6 +12,6 @@ struct SplitterContainer {
 	BOOL bVertical;
 };
 
-SplitterContainer* SplitterContainer_Create(struct Application* app);
+SplitterContainer* SplitterContainer_Create(Application* app);
 void SplitterContainer_PinWindow1(SplitterContainer* pSplitterContainer, HWND hWnd);
 void SplitterContainer_PinWindow2(SplitterContainer* pSplitterContainer, HWND hWnd);

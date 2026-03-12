@@ -1,7 +1,7 @@
 #include "tree_view.h"
 
-void TreeViewCtl_PreCreate(TreeViewCtl*);
-BOOL TreeViewCtl_OnCreate(TreeViewCtl*, LPCREATESTRUCT);
+void TreeViewCtl_PreCreate(LPCREATESTRUCT);
+BOOL TreeViewCtl_OnCreate(Window* pWindow, LPCREATESTRUCT lpcs);
 
 void TreeViewCtl_Init(TreeViewCtl* window)
 {
@@ -32,10 +32,11 @@ void TreeViewCtl_PreCreate(LPCREATESTRUCT lpcs)
   lpcs->style = WS_CHILD | WS_VISIBLE | WS_TABSTOP | TVS_HASBUTTONS | TVS_HASLINES | TVS_LINESATROOT;
 }
 
-BOOL TreeViewCtl_OnCreate(TreeViewCtl* window, LPCREATESTRUCT lpcs)
+BOOL TreeViewCtl_OnCreate(Window* pWindow, LPCREATESTRUCT lpcs)
 {
+  TreeViewCtl* window = (TreeViewCtl*)pWindow;
   TreeView_SetExtendedStyle(window->base.hWnd, TVS_EX_DOUBLEBUFFER, 0);
-  Window_OnCreate(&window->base, lpcs);
+  return Window_OnCreate(pWindow, lpcs);
 }
 
 BOOL TreeViewCtl_DeleteAllItems(TreeViewCtl* window)
@@ -50,7 +51,7 @@ BOOL TreeViewCtl_DeleteItem(TreeViewCtl* window, HTREEITEM item)
 
 BOOL TreeViewCtl_Expand(TreeViewCtl* window, HTREEITEM item, BOOL expand)
 {
-  return TreeView_Expand(window, item, expand ? TVE_EXPAND : TVE_COLLAPSE);
+  return TreeView_Expand(window->base.hWnd, item, expand ? TVE_EXPAND : TVE_COLLAPSE);
 }
 
 UINT TreeViewCtl_GetCheckState(TreeViewCtl* window, HTREEITEM item)
@@ -80,7 +81,7 @@ LPARAM TreeViewCtl_GetItemData(TreeViewCtl* window, HTREEITEM item)
 
 HTREEITEM TreeViewCtl_GetNextItem(TreeViewCtl* window, HTREEITEM item, UINT flag)
 {
-  return TreeViewCtl_GetNextItem(window, item, flag);
+  return TreeView_GetNextItem(window->base.hWnd, item, flag);
 }
 
 HTREEITEM TreeViewCtl_GetSelection(TreeViewCtl* window)

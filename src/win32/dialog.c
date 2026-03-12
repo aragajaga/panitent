@@ -19,6 +19,11 @@ BOOL Dialog_OnCommand(Dialog* pDialog, WPARAM wParam, LPARAM lParam)
     return FALSE;
 }
 
+static BOOL Dialog_OnCommandShim(Window* pWindow, WPARAM wParam, LPARAM lParam)
+{
+    return Dialog_OnCommand((Dialog*)pWindow, wParam, lParam);
+}
+
 BOOL Dialog_OnInitDialog(Dialog* pDialog)
 {
     return FALSE;
@@ -42,7 +47,7 @@ void Dialog_Init(Dialog* pDialog)
 {
     Window_Init((Window *)pDialog);
 
-    pDialog->base.OnCommand = Dialog_OnCommand;
+    pDialog->base.OnCommand = Dialog_OnCommandShim;
     pDialog->DlgUserProc = Dialog_DlgUserProc;
     pDialog->OnInitDialog = Dialog_OnInitDialog;   
 }

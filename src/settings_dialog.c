@@ -3,6 +3,7 @@
 #include "flexible.h"
 #include "settings_dialog.h"
 #include "win32util.h"
+#include "win32/util.h"
 
 typedef struct _tagSETTINGSDIALOGDATA {
     PLAYOUTBOX pRootBox;

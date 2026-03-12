@@ -4,6 +4,7 @@
 #include "../util/list.h"
 #include "../util/assert.h"
 #include "../win32/util.h"
+#include "../win32/window.h"
 
 /*
  * [PRIVATE]
