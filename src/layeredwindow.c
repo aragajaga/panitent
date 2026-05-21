@@ -198,6 +198,7 @@ void LayeredWindow_Draw(LayeredWindow* pLayeredWindow)
     // SetLayeredWindowAttributes(hWnd, 0, 254, LWA_ALPHA);
 
     SelectObject(hdcMem, hOldObj);
+    DeleteObject(hBitmap);
     DeleteDC(hdcMem);
     ReleaseDC(NULL, hdcScreen);
 }

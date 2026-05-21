@@ -19,11 +19,13 @@ void Vector_Reserve(Vector* pVector, size_t nNewCapacity)
 {
     if (nNewCapacity > pVector->nCapacity)
     {
-        pVector->pData = realloc(pVector->pData, nNewCapacity * pVector->nElementSize);
-        if (!pVector->pData)
+        void* pNewData = realloc(pVector->pData, nNewCapacity * pVector->nElementSize);
+        if (!pNewData)
         {
-            Panitent_RaiseException(L"MemoryBarrier allocation failed");
+            Panitent_RaiseException(L"Memory allocation failed in Vector_Reserve");
+            return;
         }
+        pVector->pData = pNewData;
         pVector->nCapacity = nNewCapacity;
     }
 }
