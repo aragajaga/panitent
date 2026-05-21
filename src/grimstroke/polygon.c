@@ -207,7 +207,7 @@ void Canvas_FillPolygon(Canvas* pCanvas, PolygonPath* pPolygonPath)
     for (size_t i = 0; i < Vector_GetSize(points); ++i)
     {
         Point* ptThis = (Point*)Vector_At(points, i);
-        Point* ptNext = (Point*)Vector_At(points, i + 1);
+        Point* ptNext = (Point*)Vector_At(points, (i + 1) % Vector_GetSize(points));
         int dx = ptNext->x - ptThis->x;
         int dy = ptNext->y - ptThis->y;
 
@@ -235,7 +235,7 @@ void Canvas_FillPolygon(Canvas* pCanvas, PolygonPath* pPolygonPath)
         for (size_t i = 0; i < Vector_GetSize(points); ++i)
         {
             Point* ptThis = (Point*)Vector_At(points, i);
-            Point* ptNext = (Point*)Vector_At(points, i + 1);
+            Point* ptNext = (Point*)Vector_At(points, (i + 1) % Vector_GetSize(points));
             if (((ptThis->y <= y) && (ptNext->y > y)) ||
                 ((ptThis->y > y) && (ptNext->y <= y)))
             {
@@ -256,7 +256,10 @@ void Canvas_FillPolygon(Canvas* pCanvas, PolygonPath* pPolygonPath)
 
         for (size_t i = 0; i < Vector_GetSize(&xi); i += 2)
         {
-            ShapeContext_DrawLine(pShapeContext, *(int*)Vector_At(&xi, i), y, *(int*)Vector_At(&xi, i + i), y);
+            if (i + 1 < Vector_GetSize(&xi))
+            {
+                ShapeContext_DrawLine(pShapeContext, *(int*)Vector_At(&xi, i), y, *(int*)Vector_At(&xi, i + 1), y);
+            }
         }
     }
 
