@@ -7,3 +7,8 @@ When I started developing **Panit.ent**, I aimed to create a truly unique graphi
 The way I envisioned Panit.ent in the future, **Adobe Fireworks** already looks like that. The program embodies everything I wanted to create, and its features and interface perfectly match my original ideas.
 
 Thank you for your interest in Panit.ent, but the project is officially discontinued and will no longer receive updates.
+
+## Also check this out
+Similar projects with a similar vibe and just cool links
+
+https://github.com/katahiromz/RPaint — fork of ReactOS Paint
